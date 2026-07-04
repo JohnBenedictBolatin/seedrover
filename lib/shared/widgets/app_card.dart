@@ -9,17 +9,21 @@ class AppCard extends StatelessWidget {
     required this.child,
     super.key,
     this.padding = const EdgeInsets.all(AppSpacing.lg),
+    this.borderColor = AppColors.primaryBorder,
+    this.backgroundColor = AppColors.cardBackground,
   });
 
   final Widget child;
   final EdgeInsetsGeometry padding;
+  final Color borderColor;
+  final Color backgroundColor;
 
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        border: Border.all(color: AppColors.primaryBorder),
+        color: backgroundColor,
+        border: Border.all(color: borderColor),
         borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: Padding(

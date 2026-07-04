@@ -19,7 +19,7 @@ class AppTheme {
         surface: AppColors.secondaryBackground,
         error: AppColors.danger,
       ),
-      textTheme: GoogleFonts.interTextTheme(base.textTheme).apply(
+      textTheme: GoogleFonts.robotoMonoTextTheme(base.textTheme).apply(
         bodyColor: AppColors.primaryText,
         displayColor: AppColors.primaryText,
       ),
