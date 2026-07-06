@@ -141,7 +141,7 @@ class _FilterSlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(width: 104, child: child);
+    return SizedBox(width: 112, child: child);
   }
 }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_typography.dart';
+import '../../../../shared/widgets/animated_content.dart';
 
 class RoverPanelTitle extends StatelessWidget {
   const RoverPanelTitle({
@@ -12,6 +13,6 @@ class RoverPanelTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(title, style: AppTypography.sectionHeading);
+    return AnimatedTypingText(title, style: AppTypography.sectionHeading);
   }
 }

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../shared/widgets/app_card.dart';
 import '../../data/models/rover_command_model.dart';
 
 class MovementControlPanel extends StatelessWidget {
@@ -21,9 +20,7 @@ class MovementControlPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      backgroundColor: AppColors.secondaryBackground,
-      borderColor: AppColors.inactiveBorder,
+    return Padding(
       padding: const EdgeInsets.all(AppSpacing.sm),
       child: Center(
         child: _DirectionalPad(

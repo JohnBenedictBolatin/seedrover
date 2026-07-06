@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../shared/widgets/animated_content.dart';
 import '../../../../shared/widgets/app_card.dart';
 
 class CropSummaryRow extends StatelessWidget {
@@ -87,14 +88,14 @@ class _SummaryTile extends StatelessWidget {
           Icon(icon, color: color),
           const SizedBox(width: AppSpacing.md),
           Expanded(
-            child: Text(
+            child: AnimatedTypingText(
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTypography.small,
             ),
           ),
-          Text(
+          AnimatedMetricText(
             value,
             style: AppTypography.sensorValue.copyWith(color: color),
           ),

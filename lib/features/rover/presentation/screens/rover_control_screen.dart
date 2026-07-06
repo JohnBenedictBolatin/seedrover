@@ -4,9 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/permission_keys.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../shared/widgets/animated_content.dart';
+import '../../../../shared/widgets/app_card.dart';
 import '../../../../features/authentication/providers/auth_providers.dart';
+import '../../../../shared/widgets/content_skeleton.dart';
+import '../../../../shared/widgets/seedrover_mascot.dart';
 import '../../controllers/rover_control_state.dart';
 import '../../providers/rover_providers.dart';
 import '../widgets/camera_preview_panel.dart';
@@ -53,9 +58,7 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen> {
         profile?.hasPermission(PermissionKeys.roverPlantingControl) ?? false;
 
     if (state.isLoading || state.telemetry == null) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppColors.primaryGreen),
-      );
+      return const _RoverLoadingSkeleton();
     }
 
     final telemetry = state.telemetry!;
@@ -131,8 +134,23 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen> {
                                 isPlantingActive:
                                     state.plantingStatus == PlantingStatus.active,
                                 onCheckSoil: controller.checkSoilState,
-                                onStartPlanting: controller.startPlanting,
-                                onEmergencyStop: controller.emergencyStop,
+                                onStartPlanting: () => _confirmRoverAction(
+                                  context,
+                                  title: 'Start Planting',
+                                  message:
+                                      'Start the planting process with the current soil state?',
+                                  confirmLabel: 'Start',
+                                  onConfirm: controller.startPlanting,
+                                ),
+                                onEmergencyStop: () => _confirmRoverAction(
+                                  context,
+                                  title: 'Emergency Stop',
+                                  message:
+                                      'Activate emergency stop and interrupt the current rover operation?',
+                                  confirmLabel: 'Stop',
+                                  confirmColor: AppColors.danger,
+                                  onConfirm: controller.emergencyStop,
+                                ),
                               ),
                             ],
                           ),
@@ -167,6 +185,243 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen> {
       ],
     );
   }
+
+  void _confirmRoverAction(
+    BuildContext context, {
+    required String title,
+    required String message,
+    required String confirmLabel,
+    required Future<void> Function() onConfirm,
+    Color confirmColor = AppColors.primaryGreen,
+  }) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return _RoverConfirmationDialog(
+          title: title,
+          message: message,
+          confirmLabel: confirmLabel,
+          confirmColor: confirmColor,
+          onConfirm: () {
+            Navigator.of(dialogContext).pop();
+            onConfirm();
+          },
+        );
+      },
+    );
+  }
+}
+
+class _RoverConfirmationDialog extends StatelessWidget {
+  const _RoverConfirmationDialog({
+    required this.title,
+    required this.message,
+    required this.confirmLabel,
+    required this.confirmColor,
+    required this.onConfirm,
+  });
+
+  final String title;
+  final String message;
+  final String confirmLabel;
+  final Color confirmColor;
+  final VoidCallback onConfirm;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(AppSpacing.lg),
+      child: AppCard(
+        backgroundColor: AppColors.secondaryBackground,
+        borderColor: AppColors.inactiveBorder,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: AppTypography.cardTitle.copyWith(
+                color: AppColors.primaryText,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            SeedRoverMascotMessage(
+              message: message,
+              expression: confirmColor == AppColors.danger
+                  ? SeedRoverMascotExpression.warning
+                  : SeedRoverMascotExpression.thinking,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  _RoverDialogButton(
+                    label: 'Cancel',
+                    color: AppColors.primaryText,
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  _RoverDialogButton(
+                    label: confirmLabel,
+                    color: confirmColor,
+                    icon: Icons.check,
+                    onPressed: onConfirm,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RoverDialogButton extends StatelessWidget {
+  const _RoverDialogButton({
+    required this.label,
+    required this.color,
+    required this.onPressed,
+    this.icon,
+  });
+
+  final String label;
+  final Color color;
+  final VoidCallback onPressed;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = OutlinedButton.styleFrom(
+      foregroundColor: color,
+      side: BorderSide(color: color),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+    );
+
+    if (icon == null) {
+      return OutlinedButton(
+        style: style,
+        onPressed: onPressed,
+        child: Text(label),
+      );
+    }
+
+    return OutlinedButton.icon(
+      style: style,
+      onPressed: onPressed,
+      icon: Icon(icon, size: 16, color: color),
+      label: Text(label),
+    );
+  }
+}
+
+class _RoverLoadingSkeleton extends StatelessWidget {
+  const _RoverLoadingSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          children: [
+            const Row(
+              children: [
+                SkeletonBlock(height: 28, width: 210),
+                SizedBox(width: AppSpacing.md),
+                SkeletonBlock(height: 18, width: 110),
+                Spacer(),
+                SkeletonBlock(height: 18, width: 150),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: const [
+                  Expanded(
+                    flex: 3,
+                    child: SkeletonCard(
+                      children: [
+                        Spacer(),
+                        Center(child: SkeletonBlock(height: 170, width: 170)),
+                        Spacer(),
+                      ],
+                    ),
+                  ),
+                  SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    flex: 4,
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: SkeletonCard(
+                            children: [
+                              SkeletonLine(widthFactor: 0.36),
+                              SizedBox(height: AppSpacing.md),
+                              Expanded(child: SkeletonBlock(height: 140)),
+                            ],
+                          ),
+                        ),
+                        SizedBox(height: AppSpacing.sm),
+                        SkeletonCard(
+                          height: 86,
+                          children: [
+                            SkeletonLine(widthFactor: 0.7),
+                            SizedBox(height: AppSpacing.sm),
+                            SkeletonLine(widthFactor: 0.52),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    flex: 4,
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: SkeletonCard(
+                            children: [
+                              SkeletonLine(widthFactor: 0.45),
+                              SizedBox(height: AppSpacing.md),
+                              SkeletonLine(widthFactor: 0.82),
+                              SizedBox(height: AppSpacing.sm),
+                              SkeletonLine(widthFactor: 0.68),
+                              SizedBox(height: AppSpacing.sm),
+                              SkeletonLine(widthFactor: 0.74),
+                            ],
+                          ),
+                        ),
+                        SizedBox(height: AppSpacing.xs),
+                        SkeletonCard(
+                          height: 104,
+                          children: [
+                            SkeletonLine(widthFactor: 0.56),
+                            SizedBox(height: AppSpacing.md),
+                            SkeletonBlock(height: 36),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _RoverHeader extends StatelessWidget {
@@ -184,9 +439,9 @@ class _RoverHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Text('Rover Control', style: AppTypography.screenTitle),
+        AnimatedTypingText('Rover Control', style: AppTypography.screenTitle),
         const SizedBox(width: AppSpacing.md),
-        Text(
+        AnimatedTypingText(
           connected ? 'SIM LINK ACTIVE' : 'OFFLINE',
           style: AppTypography.monoCaption.copyWith(
             color: connected ? AppColors.primaryGreen : AppColors.warning,
@@ -195,7 +450,7 @@ class _RoverHeader extends StatelessWidget {
         const Spacer(),
         if (errorMessage != null)
           Flexible(
-            child: Text(
+            child: AnimatedTypingText(
               errorMessage!,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -207,7 +462,7 @@ class _RoverHeader extends StatelessWidget {
           )
         else if (lastCommand != null)
           Flexible(
-            child: Text(
+            child: AnimatedTypingText(
               'LAST: $lastCommand',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,

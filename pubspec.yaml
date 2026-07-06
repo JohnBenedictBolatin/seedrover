@@ -28,4 +28,6 @@ flutter:
   assets:
     - .env
     - assets/images/
+    - assets/images/mascot/
     - assets/images/crops/
+    - assets/images/stocks/

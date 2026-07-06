@@ -4,6 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../shared/widgets/animated_content.dart';
 import '../../data/models/rover_control_model.dart';
 
 class RoverSensorCard extends StatelessWidget {
@@ -39,7 +40,7 @@ class RoverSensorCard extends StatelessWidget {
               Icon(icon, color: color, size: 16),
               const SizedBox(width: AppSpacing.xs),
               Expanded(
-                child: Text(
+                child: AnimatedTypingText(
                   _shortLabel(sensor.label),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -47,19 +48,13 @@ class RoverSensorCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSpacing.xs),
-              TweenAnimationBuilder<double>(
-                tween: Tween<double>(end: sensor.value),
-                duration: const Duration(milliseconds: 350),
-                builder: (context, value, child) {
-                  return Text(
-                    '${value.toStringAsFixed(0)}${sensor.unit}',
-                    style: AppTypography.sensorValue.copyWith(
-                      color: color,
-                      fontSize: 15,
-                      height: 1,
-                    ),
-                  );
-                },
+              AnimatedMetricText(
+                '${sensor.value.toStringAsFixed(0)}${sensor.unit}',
+                style: AppTypography.sensorValue.copyWith(
+                  color: color,
+                  fontSize: 15,
+                  height: 1,
+                ),
               ),
             ],
           ),
@@ -80,26 +75,20 @@ class RoverSensorCard extends StatelessWidget {
           children: [
             Icon(icon, color: color, size: compact ? 18 : 24),
             SizedBox(height: compact ? AppSpacing.xs : AppSpacing.md),
-            Text(
+            AnimatedTypingText(
               sensor.label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTypography.small,
             ),
             const SizedBox(height: AppSpacing.xs),
-            TweenAnimationBuilder<double>(
-              tween: Tween<double>(end: sensor.value),
-              duration: const Duration(milliseconds: 350),
-              builder: (context, value, child) {
-                return Text(
-                  '${value.toStringAsFixed(0)}${sensor.unit}',
-                  style: AppTypography.sensorValue.copyWith(color: color),
-                );
-              },
+            AnimatedMetricText(
+              '${sensor.value.toStringAsFixed(0)}${sensor.unit}',
+              style: AppTypography.sensorValue.copyWith(color: color),
             ),
             if (!compact) ...[
               const SizedBox(height: AppSpacing.xs),
-              Text(sensor.status, style: AppTypography.caption),
+              AnimatedTypingText(sensor.status, style: AppTypography.caption),
             ],
           ],
         ),

@@ -5,6 +5,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../shared/widgets/animated_content.dart';
 import '../../../../shared/widgets/status_badge.dart';
 
 class RoverImagePlaceholder extends StatelessWidget {
@@ -51,9 +52,12 @@ class RoverImagePlaceholder extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Rover Image', style: AppTypography.small),
+                    AnimatedTypingText(
+                      'Rover Image',
+                      style: AppTypography.small,
+                    ),
                     const SizedBox(height: AppSpacing.xs),
-                    Text(
+                    AnimatedTypingText(
                       'Runtime: ${_formatDuration(usageDuration)}',
                       style: AppTypography.sensorValue.copyWith(
                         color: AppColors.primaryGreen,

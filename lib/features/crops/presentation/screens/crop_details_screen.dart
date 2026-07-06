@@ -6,8 +6,10 @@ import '../../../../core/constants/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../shared/widgets/animated_content.dart';
 import '../../../../shared/widgets/app_card.dart';
 import '../../../../shared/widgets/loading_indicator.dart';
+import '../../../../shared/widgets/seedrover_mascot.dart';
 import '../../../authentication/providers/auth_providers.dart';
 import '../../controllers/crop_monitoring_controller.dart';
 import '../../data/models/crop_model.dart';
@@ -92,6 +94,7 @@ class CropDetailsScreen extends ConsumerWidget {
         const SizedBox(height: AppSpacing.lg),
         _SectionCard(
           title: 'Maintenance History',
+          onHistoryTap: () => _showMaintenanceHistoryDialog(context, crop),
           child: CropMaintenanceTimeline(records: crop.maintenanceHistory),
         ),
       ],
@@ -140,6 +143,20 @@ class CropDetailsScreen extends ConsumerWidget {
               const SizedBox(height: AppSpacing.md),
               CropGrowthTimeline(currentStage: crop.growthStage),
             ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showMaintenanceHistoryDialog(BuildContext context, CropModel crop) {
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return _CropStyledDialog(
+          title: 'Full Maintenance History',
+          child: SingleChildScrollView(
+            child: CropMaintenanceTimeline(records: crop.maintenanceHistory),
           ),
         );
       },
@@ -323,21 +340,30 @@ class CropDetailsScreen extends ConsumerWidget {
                   label: 'Save',
                   icon: Icons.check,
                   onPressed: () {
-                    controller.updateCrop(
-                      crop.copyWith(
-                        name: nameController.text,
-                        variety: varietyController.text,
-                        seedCount: int.tryParse(quantityController.text),
-                        estimatedHarvest:
-                            _parseDateInput(harvestController.text) ??
-                                crop.estimatedHarvest,
-                        managerName: staffController.text,
-                        growthStage: stage,
-                        status: status,
-                        notes: notesController.text,
-                      ),
+                    final updatedCrop = crop.copyWith(
+                      name: nameController.text,
+                      variety: varietyController.text,
+                      seedCount: int.tryParse(quantityController.text),
+                      estimatedHarvest:
+                          _parseDateInput(harvestController.text) ??
+                              crop.estimatedHarvest,
+                      managerName: staffController.text,
+                      growthStage: stage,
+                      status: status,
+                      notes: notesController.text,
                     );
-                    Navigator.of(context).pop();
+
+                    _showConfirmationDialog(
+                      context: context,
+                      title: 'Save Crop Changes',
+                      message: 'Save changes to ${crop.name} ${crop.id}?',
+                      onConfirm: () {
+                        controller.updateCrop(updatedCrop);
+                        Future<void>.microtask(
+                          () => Navigator.of(context).pop(),
+                        );
+                      },
+                    );
                   },
                 ),
               ],
@@ -423,7 +449,12 @@ class CropDetailsScreen extends ConsumerWidget {
       builder: (context) {
         return _CropStyledDialog(
           title: title,
-          child: Text(message, style: AppTypography.body),
+          child: SeedRoverMascotMessage(
+            message: message,
+            expression: title.contains('Delete')
+                ? SeedRoverMascotExpression.warning
+                : SeedRoverMascotExpression.thinking,
+          ),
           actions: [
             _dialogActionButton(
               label: 'Cancel',
@@ -547,7 +578,7 @@ class _CropDetailsHeader extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _GreenGradient(
-                      child: Text(
+                      child: AnimatedTypingText(
                         'Details/${crop.id.replaceAll('-', '').toLowerCase()}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -601,10 +632,12 @@ class _SectionCard extends StatelessWidget {
   const _SectionCard({
     required this.title,
     required this.child,
+    this.onHistoryTap,
   });
 
   final String title;
   final Widget child;
+  final VoidCallback? onHistoryTap;
 
   @override
   Widget build(BuildContext context) {
@@ -614,7 +647,20 @@ class _SectionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: AppTypography.cardTitle),
+          Row(
+            children: [
+              Expanded(child: Text(title, style: AppTypography.cardTitle)),
+              IconButton(
+                tooltip: 'View full history',
+                onPressed: onHistoryTap,
+                icon: const Icon(
+                  Icons.history,
+                  color: AppColors.primaryGreen,
+                  size: 20,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: AppSpacing.md),
           child,
         ],

@@ -15,12 +15,14 @@ class AuthenticatedScaffold extends StatelessWidget {
     required this.items,
     super.key,
     this.showNavigation = true,
+    this.floatingAction,
   });
 
   final Widget child;
   final String currentLocation;
   final List<NavigationItemData> items;
   final bool showNavigation;
+  final Widget? floatingAction;
 
   @override
   Widget build(BuildContext context) {
@@ -51,6 +53,19 @@ class AuthenticatedScaffold extends StatelessWidget {
                   ),
                 ),
               ),
+            if (floatingAction != null)
+              Align(
+                alignment: Alignment.bottomRight,
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    right: compactNavigation ? AppSpacing.sm : AppSpacing.md,
+                    bottom: showNavigation
+                        ? (compactNavigation ? 78 : 100)
+                        : AppSpacing.md,
+                  ),
+                  child: floatingAction,
+                ),
+              ),
           ],
         ),
       ),
@@ -63,11 +78,13 @@ class NavigationItemData {
     required this.label,
     required this.location,
     required this.icon,
+    this.badgeCount = 0,
   });
 
   final String label;
   final String location;
   final IconData icon;
+  final int badgeCount;
 }
 
 class FloatingBottomNavigation extends StatelessWidget {
@@ -163,13 +180,61 @@ class _NavigationButton extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppRadius.lg),
           ),
-          child: _SelectedGradient(
-            isSelected: isSelected,
-            child: Center(
-              child: Icon(
-                item.icon,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              _SelectedGradient(
+                isSelected: isSelected,
+                child: Center(
+                  child: Icon(
+                    item.icon,
+                    color: AppColors.primaryText,
+                    size: compact
+                        ? (isSelected ? 26 : 24)
+                        : (isSelected ? 30 : 27),
+                  ),
+                ),
+              ),
+              if (item.badgeCount > 0)
+                Positioned(
+                  right: compact ? 3 : 4,
+                  top: compact ? 2 : 3,
+                  child: _NavigationBadge(count: item.badgeCount),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavigationBadge extends StatelessWidget {
+  const _NavigationBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = count > 9 ? '9+' : count.toString();
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.danger,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(color: AppColors.primaryBackground),
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 3),
+          child: Center(
+            child: Text(
+              label,
+              style: const TextStyle(
                 color: AppColors.primaryText,
-                size: compact ? (isSelected ? 26 : 24) : (isSelected ? 30 : 27),
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),

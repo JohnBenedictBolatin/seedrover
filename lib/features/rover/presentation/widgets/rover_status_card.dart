@@ -4,6 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../shared/widgets/animated_content.dart';
 
 class RoverStatusCard extends StatelessWidget {
   const RoverStatusCard({
@@ -37,9 +38,9 @@ class RoverStatusCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: AppTypography.caption),
+                AnimatedTypingText(label, style: AppTypography.caption),
                 const SizedBox(height: AppSpacing.xs),
-                Text(
+                AnimatedMetricText(
                   value,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

@@ -1075,6 +1075,53 @@ Polish:
 - Moved crop count directly beside the seed-type label.
 - Removed repeated `seeds` wording from individual crop card names.
 
+## 2026-07-05 - Stocks Inventory Module
+
+Feature completed:
+
+- Implemented the mock-only Stocks / Inventory module.
+
+Files created:
+
+- `lib/features/inventory/data/models/stock_model.dart`
+- `lib/features/inventory/data/repositories/stock_repository.dart`
+- `lib/features/inventory/controllers/stock_inventory_controller.dart`
+- `lib/features/inventory/controllers/stock_inventory_state.dart`
+- `lib/features/inventory/providers/stock_providers.dart`
+- `lib/features/inventory/presentation/screens/stock_list_screen.dart`
+- `lib/features/inventory/presentation/screens/stock_details_screen.dart`
+- `lib/features/inventory/presentation/widgets/stock_action_buttons.dart`
+- `lib/features/inventory/presentation/widgets/stock_card.dart`
+- `lib/features/inventory/presentation/widgets/stock_detail_metric.dart`
+- `lib/features/inventory/presentation/widgets/stock_empty_state.dart`
+- `lib/features/inventory/presentation/widgets/stock_filter_bar.dart`
+- `lib/features/inventory/presentation/widgets/stock_transaction_timeline.dart`
+
+Files modified:
+
+- `lib/core/config/app_router.dart`
+- `lib/core/constants/app_routes.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Replaced the Stocks placeholder route with a functional inventory list screen.
+- Added stock details navigation and route constants.
+- Added mock stock records across Seeds, Fertilizers, Soil Amendments, Pesticides, Tools, Hardware, Consumables, and Others.
+- Added search, category filtering, status filtering, sorting, pull-to-refresh, loading state, and empty state.
+- Added stock details with metrics, notes, transaction history, and status chips.
+- Added Stock In, Stock Out, Adjust Stock, Edit Item, and permission-aware Delete Item actions.
+- Added transaction creation and automatic status calculation for stock movements.
+- Kept all inventory data mock-only and did not connect to Supabase.
+
+Consistency:
+
+- Matched Crop Monitoring dark card surfaces, compact filters, outlined action buttons, styled dialogs, spacing, status badges, and detail metric layout.
+
+Known issues:
+
+- `dart format` timed out locally due to the Dart toolchain hang observed in previous steps.
+
 ## 2026-07-05 - Crop Growth Timeline Info Action
 
 Feature updated:
@@ -1350,3 +1397,1184 @@ Summary:
 - Changed filter icons to white.
 - Added dropdown chevrons to compact filter controls.
 - Restyled crop `View` buttons from rounded green filled buttons to darker outlined controls with green text.
+
+## 2026-07-05 - Stocks And Crops Header Filter Polish
+
+Feature updated:
+
+- Aligned Stocks and Crops visual presentation.
+
+Files modified:
+
+- `lib/features/inventory/presentation/screens/stock_list_screen.dart`
+- `lib/features/crops/presentation/widgets/crop_filter_bar.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Updated the Stocks page title to match the Crops page screen-title size and green color.
+- Adjusted Crop Monitoring filter slots to match the Stocks filter positioning and width.
+
+## 2026-07-05 - Stocks Produce Inventory Rework
+
+Feature updated:
+
+- Reframed Stocks as harvested produce inventory for market and farm-table tracking.
+
+Files modified:
+
+- `lib/features/inventory/data/models/stock_model.dart`
+- `lib/features/inventory/data/repositories/stock_repository.dart`
+- `lib/features/inventory/controllers/stock_inventory_controller.dart`
+- `lib/features/inventory/presentation/screens/stock_details_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Replaced farm-input stock categories with produce-oriented categories.
+- Replaced mock farm supply records with vegetable and harvested crop stock records.
+- Added market distribution and farm-table usage examples to transaction history.
+- Updated visible form labels from supplier-oriented wording to harvest-source wording.
+- Preserved existing mock-only stock movement behavior, status logic, and UI structure.
+
+## 2026-07-05 - Horizontal Crop And Stock Cards
+
+Feature updated:
+
+- Changed crop and stock card presentation to grouped horizontal rows.
+
+Files modified:
+
+- `lib/features/inventory/presentation/screens/stock_list_screen.dart`
+- `lib/features/crops/presentation/widgets/planted_crop_group.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Grouped Stocks by produce category.
+- Displayed each Stocks group as a horizontally scrollable card row.
+- Changed Crop Monitoring plant groups to horizontally scrollable card rows.
+- Preserved the existing card styling, filters, and View actions.
+
+## 2026-07-05 - Stock Card Produce Image Placeholders
+
+Feature updated:
+
+- Added produce image placeholders to Stocks cards.
+
+Files created:
+
+- `assets/images/stocks/.gitkeep`
+- `lib/features/inventory/presentation/widgets/stock_produce_image.dart`
+
+Files modified:
+
+- `lib/features/inventory/presentation/widgets/stock_card.dart`
+- `pubspec.yaml`
+- `docs/activity-log.md`
+
+Summary:
+
+- Registered `assets/images/stocks/` for future produce images.
+- Added a reusable produce image widget with mapped placeholder asset paths.
+- Added an image area to each stock card.
+- Kept a green produce icon fallback when an image has not been added yet.
+
+## 2026-07-05 - Stock Details Image And Action Refinement
+
+Feature updated:
+
+- Refined the mock Stocks / Inventory details workflow.
+
+Files modified:
+
+- `lib/features/inventory/presentation/screens/stock_details_screen.dart`
+- `lib/features/inventory/presentation/widgets/stock_action_buttons.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added a large produce image area to the Stock Details screen using the existing stock image placeholder mapping.
+- Removed the standalone Delete action button from the Stock Details action grid.
+- Moved permission-aware Delete Item access into the Edit Item dialog.
+- Changed Stock In location/source selection from free text to a dropdown.
+- Changed Stock Out reason selection from free text to a dropdown.
+- Kept transaction updates mock-only and did not connect Stocks to Supabase.
+
+## 2026-07-05 - Feature 10 Notifications
+
+Feature completed:
+
+- Implemented the mock-only Notifications module with context-aware routing.
+
+Files created:
+
+- `lib/features/notifications/data/models/notification_model.dart`
+- `lib/features/notifications/data/repositories/notification_repository.dart`
+- `lib/features/notifications/controllers/notification_controller.dart`
+- `lib/features/notifications/controllers/notification_state.dart`
+- `lib/features/notifications/providers/notification_providers.dart`
+- `lib/features/notifications/presentation/screens/notification_list_screen.dart`
+- `lib/features/notifications/presentation/screens/notification_details_screen.dart`
+- `lib/features/notifications/presentation/widgets/notification_card.dart`
+- `lib/features/notifications/presentation/widgets/notification_filter_bar.dart`
+- `lib/features/notifications/presentation/widgets/notification_empty_state.dart`
+- `lib/features/notifications/presentation/widgets/notification_loading_list.dart`
+
+Files modified:
+
+- `lib/core/config/app_router.dart`
+- `lib/core/constants/app_routes.dart`
+- `lib/shared/widgets/authenticated_scaffold.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Replaced the Notifications placeholder with a complete notification center using mock data only.
+- Added notification categories, priorities, read/unread state, date filters, sorting, search, loading state, error state, and empty state.
+- Added bulk actions for marking all as read, deleting read notifications, and clearing all notifications with confirmation before deletion.
+- Added notification detail routing and a detail screen for full notification information.
+- Added unread notification badge support to the floating bottom navigation.
+- Added routing metadata to each mock notification: `relatedModule`, `relatedId`, and `actionRoute`.
+- Routed notification taps and View actions through the notification controller instead of hardcoding navigation in the card widget.
+- Added context-aware routes for inventory item details, crop details, Rover Control, planting log placeholders, user management placeholders, and notification details.
+
+Consistency:
+
+- Matched the Crop Monitoring and Inventory module title styling, compact filters, dark card surfaces, outlined action controls, status badges, spacing, and confirmation dialog styling.
+
+Known issues:
+
+- Planting Log and User Management destinations intentionally use unavailable-module placeholders until those modules are approved.
+
+## 2026-07-05 - Notification Card And Filter Simplification
+
+Feature updated:
+
+- Simplified the Notifications list presentation.
+
+Files modified:
+
+- `lib/features/notifications/presentation/screens/notification_list_screen.dart`
+- `lib/features/notifications/presentation/widgets/notification_card.dart`
+- `lib/features/notifications/presentation/widgets/notification_filter_bar.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Removed the visible Read/Unread and View buttons from each notification card.
+- Replaced the card action row with a compact arrow icon affordance.
+- Preserved card tap behavior through controller-resolved context-aware routing.
+- Reduced visible notification filters from five to three core filters: Category, Priority, and Status.
+
+## 2026-07-05 - Notification Card Alignment Polish
+
+Feature updated:
+
+- Refined notification card visual alignment.
+
+Files modified:
+
+- `lib/features/notifications/presentation/widgets/notification_card.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Moved the priority chip into the same row as the timestamp.
+- Changed the notification arrow affordance to white.
+- Lowered the arrow placement so it no longer sits vertically aligned with the notification icon.
+
+## 2026-07-05 - Notification Arrow Affordance Update
+
+Feature updated:
+
+- Refined the notification card arrow indicator.
+
+Files modified:
+
+- `lib/features/notifications/presentation/widgets/notification_card.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Replaced the circled arrow indicator with a plain right-arrow icon.
+- Lowered the arrow placement further within the notification card.
+
+## 2026-07-05 - Cross-Module Skeleton Loading States
+
+Feature updated:
+
+- Added content placeholder loading states across core app modules.
+
+Files created:
+
+- `lib/shared/widgets/content_skeleton.dart`
+
+Files modified:
+
+- `lib/features/dashboard/presentation/screens/dashboard_screen.dart`
+- `lib/features/rover/presentation/screens/rover_control_screen.dart`
+- `lib/features/crops/presentation/screens/crop_monitoring_screen.dart`
+- `lib/features/inventory/presentation/screens/stock_list_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added reusable skeleton line, block, and card widgets using the existing SeedRover dark card styling.
+- Added Dashboard skeleton placeholders during initial display and pull-to-refresh.
+- Replaced Rover Control initial loading spinner with a landscape skeleton layout.
+- Replaced Crop Monitoring loading and refresh spinner behavior with skeleton placeholders.
+- Replaced Stocks loading and refresh spinner behavior with skeleton placeholders.
+
+## 2026-07-05 - Notification Bulk Action Removal
+
+Feature updated:
+
+- Simplified the Notifications list controls.
+
+Files modified:
+
+- `lib/features/notifications/presentation/screens/notification_list_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Removed the Mark All Read, Delete Read, and Clear All buttons from the Notifications screen.
+- Removed the unused confirmation dialog helper tied to those bulk actions.
+
+## 2026-07-05 - Feature 11 Profile And User Management
+
+Feature completed:
+
+- Implemented the mock-only Profile and User Management module.
+
+Files created:
+
+- `lib/features/profile/data/models/profile_user_model.dart`
+- `lib/features/profile/data/repositories/profile_repository.dart`
+- `lib/features/profile/controllers/profile_controller.dart`
+- `lib/features/profile/controllers/profile_state.dart`
+- `lib/features/profile/providers/profile_providers.dart`
+- `lib/features/profile/presentation/screens/profile_screen.dart`
+- `lib/features/profile/presentation/screens/user_details_screen.dart`
+- `lib/features/profile/presentation/widgets/profile_avatar.dart`
+- `lib/features/profile/presentation/widgets/profile_detail_tile.dart`
+- `lib/features/profile/presentation/widgets/profile_action_button.dart`
+- `lib/features/profile/presentation/widgets/profile_filter_bar.dart`
+- `lib/features/profile/presentation/widgets/user_management_card.dart`
+
+Files modified:
+
+- `lib/core/config/app_router.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Replaced the old Profile placeholder with a full personal workspace.
+- Added profile header, mock profile picture actions, personal information, account settings, quick stats, activity filtering, profile settings, and logout confirmation.
+- Added role-adaptive quick stat content based on the authenticated user's assigned role.
+- Added System Administrator-only User Management with mock users, search, filters, create user, view user, edit user, reset password, account activation/deactivation, and delete actions.
+- Added a dedicated User Details screen for admin user review and edits.
+- Kept all profile and user management behavior local/mock-only and did not connect to Supabase.
+
+Role rendering:
+
+- System Administrators see the User Management section and user details actions.
+- Non-admin users see the same profile layout without management-only controls.
+
+Consistency:
+
+- Reused SeedRover dark cards, compact filters, outlined action buttons, status badges, skeleton loading, Roboto Mono text styles, and dialog styling used by Crop Monitoring, Inventory, and Notifications.
+
+## 2026-07-06 - Profile Header Polish
+
+Feature updated:
+
+- Refined the Profile screen header and admin stat labels.
+
+Files modified:
+
+- `lib/features/profile/controllers/profile_controller.dart`
+- `lib/features/profile/presentation/screens/profile_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Enlarged the profile picture in the Profile header.
+- Shortened the administrator quick stat label from `Pending Accounts` to `Pending Accs`.
+- Moved Account Settings actions into an Edit menu in the upper-right of the Profile card.
+- Removed the standalone Account Settings card from the Profile screen.
+
+## 2026-07-06 - Profile Edit Menu Placement
+
+Feature updated:
+
+- Moved the Profile edit menu to the screen header.
+
+Files modified:
+
+- `lib/features/profile/presentation/screens/profile_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Removed the Edit menu from inside the Profile card.
+- Added the Edit menu inline with the top `Profile` screen label.
+- Kept the Profile card focused on profile identity details only.
+
+## 2026-07-06 - Profile Indicators And Stats Icons
+
+Feature updated:
+
+- Refined the Profile header and quick stat cards.
+
+Files modified:
+
+- `lib/features/profile/data/models/profile_user_model.dart`
+- `lib/features/profile/controllers/profile_controller.dart`
+- `lib/features/profile/presentation/screens/profile_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Removed the online/status indicator and employee number from the Profile header.
+- Added stat icons beside the values for Total Users, Active Users, and Pending Accs.
+- Added icon metadata to role-based quick stats so the UI can render consistent stat icons without hardcoding labels.
+- Reworded the active-user stat context so the Profile screen no longer displays an online indicator.
+
+## 2026-07-06 - Profile Personal Information Cleanup
+
+Feature updated:
+
+- Simplified the Profile personal information card.
+
+Files modified:
+
+- `lib/features/profile/presentation/screens/profile_screen.dart`
+- `lib/features/profile/presentation/widgets/profile_detail_tile.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Removed the duplicate Edit button from the Personal Information section.
+- Removed Status from the Personal Information details.
+- Matched the Personal Information field backgrounds to the section background.
+
+## 2026-07-06 - Profile Activity Filter Restyle
+
+Feature updated:
+
+- Refined the My Activity filter presentation.
+
+Files modified:
+
+- `lib/features/profile/presentation/widgets/profile_filter_bar.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Replaced the Today / This Week / This Month choice-chip layout with a compact dropdown filter.
+- Matched the filter surface, icon, chevron, border, and spacing style used by the Notifications filters.
+
+## 2026-07-06 - Profile Activity Header Layout
+
+Feature updated:
+
+- Refined the My Activity section header.
+
+Files modified:
+
+- `lib/features/profile/presentation/screens/profile_screen.dart`
+- `lib/features/profile/presentation/widgets/profile_filter_bar.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Moved the activity date filter beside the `My Activity` title.
+- Removed the extra row of vertical spacing previously used by the activity filter.
+
+## 2026-07-06 - Profile User Management Entry
+
+Feature updated:
+
+- Changed how administrators access User Management.
+
+Files modified:
+
+- `lib/features/profile/presentation/screens/profile_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Removed the Profile Settings section from the Profile screen.
+- Added an admin-only Manage Users entry card in its place.
+- Changed User Management so it appears only after an administrator taps Manage Users.
+
+## 2026-07-06 - Profile User Management Modal
+
+Feature updated:
+
+- Changed the Manage Users interaction into a modal workflow.
+
+Files modified:
+
+- `lib/features/profile/presentation/screens/profile_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Updated the Manage Users button so it opens User Management in a popup modal.
+- Styled the modal to follow the Stocks action dialog pattern with a dark card surface, close icon, constrained scrollable content, and compact outlined controls.
+- Removed the inline User Management expansion from the Profile screen.
+
+## 2026-07-06 - User Management Action Menu
+
+Feature updated:
+
+- Simplified user cards inside the User Management modal.
+
+Files modified:
+
+- `lib/features/profile/presentation/widgets/user_management_card.dart`
+- `lib/features/profile/presentation/screens/profile_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Moved View, Edit, Reset, Activate/Deactivate, and Delete into a single modify icon menu on each user card.
+- Removed the multi-button action strip from user cards.
+- Moved the Create button below the search and filter controls inside the User Management modal.
+
+## 2026-07-06 - User Management Control Alignment
+
+Feature updated:
+
+- Refined User Management modal controls.
+
+Files modified:
+
+- `lib/features/profile/presentation/widgets/profile_filter_bar.dart`
+- `lib/features/profile/presentation/screens/profile_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Placed the Create button and user filter on the same control row.
+- Kept Create on the left side and the filter dropdown on the right side under the search field.
+
+## 2026-07-06 - Admin Manage Users Placement
+
+Feature updated:
+
+- Refined the System Administrator profile layout.
+
+Files modified:
+
+- `lib/features/profile/presentation/screens/profile_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Moved the admin-only Manage Users card directly below the quick stats section.
+- Kept the Manage Users modal behavior unchanged.
+
+## 2026-07-06 - User Management Dialog Action Styling
+
+Feature updated:
+
+- Refined User Management dialog action buttons.
+
+Files modified:
+
+- `lib/features/profile/presentation/screens/profile_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Matched Profile/User Management dialog action button corner radius to the Crop module dialog action style.
+- Updated Cancel actions to use white text and a white outline.
+- Kept Save/Confirm actions compact with the same corner radius and spacing.
+
+## 2026-07-06 - Cross-Module Confirmation Coverage
+
+Feature updated:
+
+- Added confirmation prompts for important actions across active modules.
+
+Files modified:
+
+- `lib/features/rover/presentation/screens/rover_control_screen.dart`
+- `lib/features/profile/presentation/screens/profile_screen.dart`
+- `lib/features/profile/presentation/screens/user_details_screen.dart`
+- `lib/features/crops/presentation/screens/crop_details_screen.dart`
+- `lib/features/inventory/presentation/screens/stock_details_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added rover confirmations for Start Planting and Emergency Stop.
+- Added profile confirmations for profile picture changes/removal, password reset, profile saves, password changes, user creation, and user edits.
+- Added User Details save confirmation.
+- Added Crop Details edit-save confirmation.
+- Added Stock Details edit-save confirmation.
+- Kept existing confirmations for crop harvest/delete, stock movement/delete, profile logout, user status changes, and user deletion.
+
+## 2026-07-06 - Rover Movement Panel Background
+
+Feature updated:
+
+- Refined the Rover Control movement joystick presentation.
+
+Files modified:
+
+- `lib/features/rover/presentation/widgets/movement_control_panel.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Removed the card background and border around the movement control panel.
+- Kept joystick buttons and spacing intact so the controls blend with the Rover Control screen background.
+
+## 2026-07-06 - Rover Planting Button Text
+
+Feature updated:
+
+- Refined Rover Control planting action button text.
+
+Files modified:
+
+- `lib/features/rover/presentation/widgets/planting_control_panel.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Reduced planting action button text size.
+- Kept `Check Soil` on one line with ellipsis handling for tight screen widths.
+
+## 2026-07-06 - History Section Icons
+
+Feature updated:
+
+- Refined history section headers in Crops and Stocks.
+
+Files modified:
+
+- `lib/features/crops/presentation/screens/crop_details_screen.dart`
+- `lib/features/inventory/presentation/screens/stock_details_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added a green history icon to the right side of the Crop Maintenance History header.
+- Added a green history icon to the right side of the Stock Transaction History header.
+
+## 2026-07-06 - Maintenance History Timeline Styling
+
+Feature updated:
+
+- Refined crop maintenance history and history actions.
+
+Files modified:
+
+- `lib/features/crops/presentation/widgets/crop_maintenance_timeline.dart`
+- `lib/features/crops/presentation/screens/crop_details_screen.dart`
+- `lib/features/inventory/presentation/screens/stock_details_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Restyled Crop Maintenance History to match Stock Transaction History tile structure.
+- Added color-coded maintenance icons for planted, watered, fertilized, inspected, and harvested records.
+- Made the Crop Maintenance History icon open a full-history modal.
+- Made the Stock Transaction History icon open a full-history modal.
+
+## 2026-07-06 - Notification Read Priority Ordering
+
+Feature updated:
+
+- Refined notification ordering and read grouping.
+
+Files modified:
+
+- `lib/features/notifications/controllers/notification_controller.dart`
+- `lib/features/notifications/presentation/screens/notification_list_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Sorted unread notifications above read notifications.
+- Sorted notifications by priority within each read/unread group.
+- Added an `Already read` divider before read notifications in the notification list.
+
+## 2026-07-06 - Notification Icon Background Removal
+
+Feature updated:
+
+- Refined notification card icon presentation.
+
+Files modified:
+
+- `lib/features/notifications/presentation/widgets/notification_card.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Removed the filled background container behind notification category icons.
+- Kept icon alignment stable with a fixed-width icon slot.
+
+## 2026-07-06 - SeedRover Mascot Identity
+
+Feature updated:
+
+- Added the first official SeedRover mascot integration.
+
+Files created:
+
+- `assets/images/mascot/seedrover_mascot_chroma.png`
+- `assets/images/mascot/seedrover_mascot.png`
+- `lib/shared/widgets/seedrover_mascot.dart`
+
+Files modified:
+
+- `pubspec.yaml`
+- `lib/features/crops/presentation/widgets/crop_empty_state.dart`
+- `lib/features/inventory/presentation/widgets/stock_empty_state.dart`
+- `lib/features/notifications/presentation/widgets/notification_empty_state.dart`
+- `lib/features/dashboard/presentation/widgets/dashboard_header.dart`
+- `lib/features/rover/presentation/screens/rover_control_screen.dart`
+- `lib/features/profile/presentation/screens/profile_screen.dart`
+- `lib/features/profile/presentation/screens/user_details_screen.dart`
+- `lib/features/crops/presentation/screens/crop_details_screen.dart`
+- `lib/features/inventory/presentation/screens/stock_details_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Generated a friendly rover mascot concept named `Rovie` with SeedRover green accents and a sprout antenna.
+- Saved the transparent mascot asset for app use and registered it in Flutter assets.
+- Added reusable `SeedRoverMascot` and `MascotMessage` widgets.
+- Added the mascot to Crop, Stock, and Notification empty states.
+- Added mascot-assisted messages to important confirmation dialogs.
+- Added a small dashboard personality line: `Rovie is ready to roll.`
+
+## 2026-07-06 - Mascot Integration Reverted
+
+Feature updated:
+
+- Reverted the visual SeedRover mascot integration.
+- Kept app personality improvements text-only.
+
+Files removed:
+
+- `assets/images/mascot/seedrover_mascot_chroma.png`
+- `assets/images/mascot/seedrover_mascot.png`
+- `lib/shared/widgets/seedrover_mascot.dart`
+
+Files modified:
+
+- `pubspec.yaml`
+- `lib/features/crops/presentation/widgets/crop_empty_state.dart`
+- `lib/features/inventory/presentation/widgets/stock_empty_state.dart`
+- `lib/features/notifications/presentation/widgets/notification_empty_state.dart`
+- `lib/features/dashboard/presentation/widgets/dashboard_header.dart`
+- `lib/features/rover/presentation/screens/rover_control_screen.dart`
+- `lib/features/profile/presentation/screens/profile_screen.dart`
+- `lib/features/profile/presentation/screens/user_details_screen.dart`
+- `lib/features/crops/presentation/screens/crop_details_screen.dart`
+- `lib/features/inventory/presentation/screens/stock_details_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Removed mascot asset registration and reusable mascot widgets.
+- Restored icon-based empty states for Crops, Stocks, and Notifications.
+- Restored standard confirmation dialog message text without mascot visuals.
+- Replaced the dashboard mascot line with a friendly text-only greeting subtitle.
+- Softened key confirmation messages using text only.
+
+## 2026-07-06 - Dashboard Greeting Subtitle Removal
+
+Feature updated:
+
+- Removed the extra dashboard greeting subtitle.
+
+Files modified:
+
+- `lib/features/dashboard/presentation/widgets/dashboard_header.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Removed the `Everything is lined up. Let's keep the farm moving.` line from the Dashboard header.
+- Kept the existing greeting, role badge, date, and time layout unchanged.
+
+## 2026-07-06 - Login Screen Personality Polish
+
+Feature updated:
+
+- Refined the Login screen presentation and copy.
+
+Files modified:
+
+- `lib/features/authentication/presentation/screens/login_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added a compact field-link status strip above the logo.
+- Replaced `Sign in to operate your farming system.` with friendlier welcome copy.
+- Added a `Remember me` checkbox beside the Forgot Password action.
+- Wrapped the login fields and primary action in a darker SeedRover-styled panel.
+- Kept authentication behavior connected to the existing Riverpod and Supabase Auth flow.
+
+## 2026-07-06 - Login Screen Signal Strip Removal
+
+Feature updated:
+
+- Refined the Login screen after review.
+
+Files modified:
+
+- `lib/features/authentication/presentation/screens/login_screen.dart`
+- `lib/shared/widgets/primary_button.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Removed the `FIELD LINK READY` status strip from the Login screen.
+- Updated the reusable primary button text style to use SeedRover typography.
+- Kept the Login button label white on the existing green gradient background.
+
+## 2026-07-06 - Login Pixel Farm Animation
+
+Feature updated:
+
+- Added a lightweight animated pixel-art farm strip to the Login screen.
+
+Files modified:
+
+- `lib/features/authentication/presentation/screens/login_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added an 8-bit inspired moving grass, sapling, and tree strip at the bottom of the Login screen.
+- Used existing SeedRover theme greens instead of new image assets.
+- Kept the animation decorative only by ignoring pointer events and leaving authentication behavior unchanged.
+
+## 2026-07-07 - Login Pixel Animation Controller Fix
+
+Bug fixed:
+
+- Fixed a `LateInitializationError` from the Login screen pixel farm animation.
+
+Files modified:
+
+- `lib/features/authentication/presentation/screens/login_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Replaced the `late final` animation controller with a nullable lazily initialized controller.
+- Kept controller disposal safe for hot reload and normal screen teardown.
+- Preserved the bottom pixel farm animation behavior.
+
+## 2026-07-07 - Login Pixel Farm Height Polish
+
+Feature updated:
+
+- Increased the height and visual weight of the Login screen pixel farm strip.
+
+Files modified:
+
+- `lib/features/authentication/presentation/screens/login_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Increased the bottom pixel-art canvas height.
+- Made grass, saplings, and trees taller while keeping the same theme green palette.
+- Added more bottom scroll padding so the animation does not crowd the login form.
+
+## 2026-07-07 - Login Pixel Farm Keyboard Behavior
+
+Bug fixed:
+
+- Hid the Login screen pixel farm animation while the keyboard is open.
+
+Files modified:
+
+- `lib/features/authentication/presentation/screens/login_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Detected keyboard visibility from `MediaQuery.viewInsets`.
+- Rendered the bottom pixel farm strip only when the keyboard is closed.
+- Prevented the decorative animation from moving upward above the keyboard.
+
+## 2026-07-07 - Official Mascot Asset Integration
+
+Feature updated:
+
+- Integrated the user-provided SeedRover mascot expression assets.
+
+Files created:
+
+- `lib/shared/widgets/seedrover_mascot.dart`
+
+Files modified:
+
+- `pubspec.yaml`
+- `lib/features/authentication/presentation/screens/login_screen.dart`
+- `lib/features/crops/presentation/widgets/crop_empty_state.dart`
+- `lib/features/inventory/presentation/widgets/stock_empty_state.dart`
+- `lib/features/notifications/presentation/widgets/notification_empty_state.dart`
+- `lib/features/rover/presentation/screens/rover_control_screen.dart`
+- `lib/features/crops/presentation/screens/crop_details_screen.dart`
+- `lib/features/inventory/presentation/screens/stock_details_screen.dart`
+- `lib/features/profile/presentation/screens/profile_screen.dart`
+- `lib/features/profile/presentation/screens/user_details_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Registered `assets/images/mascot/` in Flutter assets.
+- Added reusable mascot expression and mascot message widgets.
+- Placed the happy/error mascot as a small peeking element on the Login form.
+- Replaced Crop, Stock, and Notification empty-state icons with the curious mascot expression.
+- Added thinking and warning mascot expressions to important confirmation dialogs.
+
+## 2026-07-07 - Dashboard Mascot Header Placement
+
+Feature updated:
+
+- Moved the mascot personality placement from Login to Dashboard.
+
+Files modified:
+
+- `lib/features/authentication/presentation/screens/login_screen.dart`
+- `lib/features/dashboard/presentation/widgets/dashboard_header.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Removed the mascot from the Login form.
+- Reorganized the Dashboard header into greeting, first name, date/time, and role.
+- Placed the happy mascot in the open right side of the Dashboard header.
+- Preserved the existing SeedRover green gradient treatment for the greeting text.
+
+## 2026-07-07 - Dashboard Mascot Asset Update
+
+Feature updated:
+
+- Replaced the Dashboard header mascot expression with the dedicated dashboard asset.
+
+Files modified:
+
+- `lib/shared/widgets/seedrover_mascot.dart`
+- `lib/features/dashboard/presentation/widgets/dashboard_header.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added `dashboard.png` as a reusable mascot expression.
+- Updated the Dashboard header to render `SeedRoverMascotExpression.dashboard`.
+- Kept the Dashboard header layout unchanged.
+
+## 2026-07-07 - Floating AI Assistant With Gemini Edge Function
+
+Feature added:
+
+- Added a floating SeedRover AI Assistant with Gemini Edge Function support.
+
+Files created:
+
+- `lib/features/assistant/data/models/assistant_message_model.dart`
+- `lib/features/assistant/data/repositories/assistant_repository.dart`
+- `lib/features/assistant/controllers/assistant_controller.dart`
+- `lib/features/assistant/controllers/assistant_state.dart`
+- `lib/features/assistant/providers/assistant_providers.dart`
+- `lib/features/assistant/presentation/widgets/assistant_floating_button.dart`
+- `lib/features/assistant/presentation/widgets/assistant_chat_sheet.dart`
+- `lib/features/assistant/presentation/widgets/assistant_chat_widgets.dart`
+- `supabase/functions/assistant/index.ts`
+
+Files modified:
+
+- `lib/core/config/app_router.dart`
+- `lib/shared/widgets/authenticated_scaffold.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added a floating assistant button to authenticated pages without adding a bottom navigation item.
+- Added a SeedRover-styled assistant chat sheet with message history, suggested prompts, loading state, and fallback notice.
+- Added Riverpod assistant state and controller.
+- Added a repository that calls the Supabase `assistant` Edge Function.
+- Added a local fallback response so the assistant remains usable before the Edge Function is deployed.
+- Added a Supabase Edge Function that reads `GEMINI_API_KEY`, calls Gemini, and uses a SeedRover + planting system prompt.
+
+Deployment note:
+
+- Deployed with `npx supabase functions deploy assistant`.
+- Verified the `assistant` function is active with JWT verification enabled.
+
+## 2026-07-07 - Assistant Gemini Model Update
+
+Bug fixed:
+
+- Updated the assistant Edge Function default Gemini model.
+
+Files modified:
+
+- `supabase/functions/assistant/index.ts`
+- `docs/activity-log.md`
+
+Summary:
+
+- Changed the default model from `gemini-2.0-flash-lite` to `gemini-2.5-flash-lite`.
+- Added server-side error logging for failed or empty Gemini responses.
+- Kept `GEMINI_MODEL` override support through Supabase secrets/environment variables.
+
+## 2026-07-07 - Assistant Gemini History Normalization
+
+Bug fixed:
+
+- Fixed Gemini fallback caused by invalid chat history ordering.
+
+Files modified:
+
+- `supabase/functions/assistant/index.ts`
+- `docs/activity-log.md`
+
+Summary:
+
+- Dropped leading assistant/model messages before sending history to Gemini.
+- Merged consecutive messages from the same role to preserve valid user/model alternation.
+- Kept the welcome message visible in the app without sending it as an invalid first Gemini turn.
+
+## 2026-07-07 - Assistant Current App Data Context
+
+Feature updated:
+
+- Made the AI Assistant aware of current mock app data.
+
+Files created:
+
+- `lib/features/assistant/data/models/assistant_context_model.dart`
+- `lib/features/assistant/data/repositories/assistant_context_repository.dart`
+
+Files modified:
+
+- `lib/features/assistant/data/repositories/assistant_repository.dart`
+- `lib/features/assistant/controllers/assistant_controller.dart`
+- `lib/features/assistant/controllers/assistant_state.dart`
+- `lib/features/assistant/providers/assistant_providers.dart`
+- `lib/features/assistant/presentation/widgets/assistant_chat_widgets.dart`
+- `supabase/functions/assistant/index.ts`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added a compact assistant context snapshot from current Crop, Stock, Dashboard, Rover, and Recent Activity mock data.
+- Sent the context snapshot with each assistant question.
+- Updated the Edge Function to include current app context in the Gemini system instruction.
+- Added guardrails so the assistant identifies context as current app/mock data, not live Supabase crop or stock tables.
+- Updated assistant welcome/header copy to mention crops, stocks, and current app data.
+
+## 2026-07-07 - Assistant App-Side Diagnostics
+
+Issue addressed:
+
+- The assistant still showed the local fallback message in the Flutter app even though the deployed Supabase Edge Function responded correctly when tested directly.
+
+Files modified:
+
+- `lib/features/assistant/data/repositories/assistant_repository.dart`
+- `lib/features/assistant/controllers/assistant_controller.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Preserved Supabase Edge Function error status and response details when `functions.invoke` fails.
+- Added readable assistant request diagnostics for generic network or runtime failures.
+- Updated the fallback chat message and banner to show the actual connection detail instead of only the generic Gemini secret/logs message.
+
+## 2026-07-07 - Assistant Context Reader Fix
+
+Bug fixed:
+
+- Fixed a Flutter-side assistant fallback caused by the app context reader being treated as null at runtime.
+
+Files modified:
+
+- `lib/features/assistant/controllers/assistant_controller.dart`
+- `lib/features/assistant/providers/assistant_providers.dart`
+- `lib/features/assistant/data/models/assistant_context_model.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Changed the assistant controller context-reader dependency to a named required constructor argument.
+- Added an empty assistant context fallback so Gemini can still answer if current app data context cannot be read.
+- Kept the assistant connected to current mock crop, stock, rover, dashboard, and activity data when the context provider is available.
+
+## 2026-07-07 - Rovie Assistant Identity
+
+Feature updated:
+
+- Renamed the visible SeedRover assistant identity to Rovie.
+
+Files modified:
+
+- `lib/shared/widgets/seedrover_mascot.dart`
+- `lib/features/assistant/presentation/widgets/assistant_floating_button.dart`
+- `lib/features/assistant/presentation/widgets/assistant_chat_widgets.dart`
+- `lib/features/assistant/controllers/assistant_state.dart`
+- `supabase/functions/assistant/index.ts`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added an `assistant` mascot expression that uses `assets/images/mascot/assistant.png`.
+- Updated the floating assistant button mascot to use the assistant expression.
+- Changed visible assistant labels, tooltip, input hint, and welcome message to Rovie.
+- Updated the Gemini Edge Function system prompt so the assistant identifies as Rovie.
+
+## 2026-07-07 - Rovie Ask Button Shadow Removal
+
+Feature updated:
+
+- Refined the floating Rovie ask button.
+
+Files modified:
+
+- `lib/features/assistant/presentation/widgets/assistant_floating_button.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Removed the green glow shadow from the floating Ask button.
+- Kept the gradient fill, mascot, label, and chat behavior unchanged.
+
+## 2026-07-07 - Smooth Page Navigation Transitions
+
+Feature updated:
+
+- Refined app-wide page navigation animation.
+
+Files modified:
+
+- `lib/core/config/app_router.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Replaced plain GoRouter route builders with a shared custom transition page.
+- Added a smooth fade and subtle horizontal slide for navigation between authenticated modules, detail screens, and login.
+- Kept screen layouts, navigation destinations, permissions, and business behavior unchanged.
+
+## 2026-07-07 - Content Entrance Animations
+
+Feature updated:
+
+- Added animated page content behavior across active modules.
+
+Files created:
+
+- `lib/shared/widgets/animated_content.dart`
+
+Files modified:
+
+- `lib/features/dashboard/presentation/widgets/dashboard_header.dart`
+- `lib/features/dashboard/presentation/widgets/dashboard_metric_tile.dart`
+- `lib/features/dashboard/presentation/widgets/rover_image_placeholder.dart`
+- `lib/features/dashboard/presentation/widgets/rover_overview_card.dart`
+- `lib/features/dashboard/presentation/widgets/section_title.dart`
+- `lib/features/rover/presentation/screens/rover_control_screen.dart`
+- `lib/features/rover/presentation/widgets/rover_panel_title.dart`
+- `lib/features/rover/presentation/widgets/rover_sensor_card.dart`
+- `lib/features/rover/presentation/widgets/rover_status_card.dart`
+- `lib/features/crops/presentation/screens/crop_details_screen.dart`
+- `lib/features/crops/presentation/widgets/crop_card.dart`
+- `lib/features/crops/presentation/widgets/crop_detail_metric.dart`
+- `lib/features/crops/presentation/widgets/crop_detail_panel.dart`
+- `lib/features/crops/presentation/widgets/crop_screen_header.dart`
+- `lib/features/crops/presentation/widgets/crop_sensor_snapshot_grid.dart`
+- `lib/features/crops/presentation/widgets/crop_summary_row.dart`
+- `lib/features/inventory/presentation/screens/stock_details_screen.dart`
+- `lib/features/inventory/presentation/screens/stock_list_screen.dart`
+- `lib/features/inventory/presentation/widgets/stock_card.dart`
+- `lib/features/inventory/presentation/widgets/stock_detail_metric.dart`
+- `lib/features/notifications/presentation/screens/notification_list_screen.dart`
+- `lib/features/notifications/presentation/widgets/notification_card.dart`
+- `lib/features/profile/presentation/screens/profile_screen.dart`
+- `lib/features/profile/presentation/widgets/profile_detail_tile.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added reusable typing text, animated metric text, and animated progress bar widgets.
+- Applied type-in animation to main headings, card labels, detail labels, and high-visibility descriptive text.
+- Applied count-up animation to numeric metric values, sensor values, crop/profile counts, stock quantities, and percent values.
+- Applied progress-from-zero animation to crop progress bars.
+- Kept controls, filters, dialogs, routing, permissions, and business behavior unchanged.
+
+## 2026-07-07 - Dashboard Farm Analytics
+
+Feature added:
+
+- Added mock-only Dashboard analytics for crops planted and products sold.
+
+Files created:
+
+- `lib/features/dashboard/presentation/widgets/dashboard_analytics_section.dart`
+
+Files modified:
+
+- `lib/features/dashboard/presentation/screens/dashboard_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added Dashboard KPI cards for crop records, seeds planted, units sold, and top sold item.
+- Added native Flutter bar charts for crops planted by seed type, products sold by item, and average crop progress by seed type.
+- Added a native Flutter sales trend line chart for recent inventory stock-out activity.
+- Derived analytics from existing mock Crop Monitoring and Stocks/Inventory Riverpod state.
+- Kept analytics mock-only and did not connect Dashboard to Supabase.
+
+## 2026-07-07 - Dashboard Analytics Filters And Icons
+
+Feature updated:
+
+- Made Dashboard Farm Analytics interactive.
+
+Files modified:
+
+- `lib/features/dashboard/presentation/widgets/dashboard_analytics_section.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added Week, Month, and Year filters to the Farm Analytics section.
+- Filtered crop analytics by planting date and inventory sales analytics by stock-out transaction date.
+- Updated the sales trend chart to group by day for Week, week buckets for Month, and month buckets for Year.
+- Added icons beside Farm Analytics KPI labels/values for Crops, Seeds, Sold, and Top Item.
+- Added icons beside chart titles for Crops Planted, Products Sold, Crop Progress, and Sales Trend.
+
+## 2026-07-07 - Dashboard Analytics Formatter Fix
+
+Bug fixed:
+
+- Fixed a Dashboard analytics runtime lookup failure for the quantity formatter.
+
+Files modified:
+
+- `lib/features/dashboard/presentation/widgets/dashboard_analytics_section.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Replaced widget-private quantity formatter methods with one file-level helper.
+- Updated KPI, bar chart, and top-item formatting to use the shared helper.

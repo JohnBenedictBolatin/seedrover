@@ -4,6 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../shared/widgets/animated_content.dart';
 import '../../data/models/crop_model.dart';
 
 class CropSensorSnapshotGrid extends StatelessWidget {
@@ -56,9 +57,9 @@ class _SensorTile extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: AppTypography.caption),
+              AnimatedTypingText(label, style: AppTypography.caption),
               const SizedBox(height: AppSpacing.xs),
-              Text(
+              AnimatedMetricText(
                 value,
                 style: AppTypography.sensorValue.copyWith(
                   color: AppColors.primaryGreen,

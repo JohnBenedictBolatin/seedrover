@@ -4,6 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../shared/widgets/animated_content.dart';
 import '../../../../shared/widgets/app_card.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../data/models/crop_model.dart';
@@ -37,7 +38,7 @@ class CropCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(
+                  child: AnimatedTypingText(
                     crop.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -48,7 +49,7 @@ class CropCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.xs),
-            Text(
+            AnimatedTypingText(
               crop.variety,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -69,7 +70,7 @@ class CropCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             ClipRRect(
               borderRadius: BorderRadius.circular(AppRadius.sm),
-              child: LinearProgressIndicator(
+              child: AnimatedProgressBar(
                 value: crop.progress,
                 minHeight: 6,
                 color: statusColor,
@@ -77,7 +78,7 @@ class CropCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
-            Text(
+            AnimatedTypingText(
               crop.growthStage.label,
               style: AppTypography.monoCaption.copyWith(color: statusColor),
             ),
@@ -134,9 +135,13 @@ class _CropMetaRow extends StatelessWidget {
       children: [
         Icon(icon, size: 16, color: AppColors.mutedText),
         const SizedBox(width: AppSpacing.sm),
-        Text(label, style: AppTypography.caption),
+        AnimatedTypingText(label, style: AppTypography.caption),
         const Spacer(),
-        Text(value, style: AppTypography.monoCaption),
+        AnimatedTypingText(
+          value,
+          textAlign: TextAlign.end,
+          style: AppTypography.monoCaption,
+        ),
       ],
     );
   }

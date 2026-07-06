@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_radius.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_typography.dart';
 
 class PrimaryButton extends StatelessWidget {
   const PrimaryButton({
@@ -39,9 +40,9 @@ class PrimaryButton extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             foregroundColor: AppColors.primaryText,
             disabledForegroundColor: AppColors.primaryText,
-            textStyle: const TextStyle(
+            textStyle: AppTypography.body.copyWith(
               fontWeight: FontWeight.w600,
-              letterSpacing: 0.2,
+              letterSpacing: 0,
             ),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppRadius.md),

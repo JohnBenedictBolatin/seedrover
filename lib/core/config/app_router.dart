@@ -1,16 +1,23 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../constants/app_routes.dart';
 import '../constants/permission_keys.dart';
-import '../../features/authentication/presentation/screens/authenticated_home_screen.dart';
+import '../../features/assistant/presentation/widgets/assistant_floating_button.dart';
 import '../../features/authentication/presentation/screens/login_screen.dart';
 import '../../features/authentication/providers/auth_providers.dart';
 import '../../features/crops/presentation/screens/crop_details_screen.dart';
 import '../../features/crops/presentation/screens/crop_monitoring_screen.dart';
 import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
+import '../../features/inventory/presentation/screens/stock_details_screen.dart';
+import '../../features/inventory/presentation/screens/stock_list_screen.dart';
+import '../../features/notifications/providers/notification_providers.dart';
+import '../../features/notifications/presentation/screens/notification_details_screen.dart';
+import '../../features/notifications/presentation/screens/notification_list_screen.dart';
+import '../../features/profile/presentation/screens/profile_screen.dart';
+import '../../features/profile/presentation/screens/user_details_screen.dart';
 import '../../features/rover/presentation/screens/rover_control_screen.dart';
 import '../../shared/widgets/authenticated_scaffold.dart';
 import '../../shared/widgets/feature_unavailable_screen.dart';
@@ -56,85 +63,198 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.login,
         name: AppRouteNames.login,
-        builder: (context, state) => const LoginScreen(),
+        pageBuilder: (context, state) => _smoothPage(
+          state,
+          const LoginScreen(),
+        ),
       ),
       GoRoute(
         path: AppRoutes.dashboard,
         name: AppRouteNames.dashboard,
-        builder: (context, state) => _withAuthenticatedShell(
-          ref,
-          state.matchedLocation,
-          const DashboardScreen(),
+        pageBuilder: (context, state) => _smoothPage(
+          state,
+          _withAuthenticatedShell(
+            ref,
+            state.matchedLocation,
+            const DashboardScreen(),
+          ),
         ),
       ),
       GoRoute(
         path: AppRoutes.rover,
         name: AppRouteNames.rover,
-        builder: (context, state) => _withAuthenticatedShell(
-          ref,
-          state.matchedLocation,
-          const RoverControlScreen(),
+        pageBuilder: (context, state) => _smoothPage(
+          state,
+          _withAuthenticatedShell(
+            ref,
+            state.matchedLocation,
+            const RoverControlScreen(),
+          ),
         ),
       ),
       GoRoute(
         path: AppRoutes.crops,
         name: AppRouteNames.crops,
-        builder: (context, state) => _withAuthenticatedShell(
-          ref,
-          state.matchedLocation,
-          const CropMonitoringScreen(),
+        pageBuilder: (context, state) => _smoothPage(
+          state,
+          _withAuthenticatedShell(
+            ref,
+            state.matchedLocation,
+            const CropMonitoringScreen(),
+          ),
         ),
       ),
       GoRoute(
         path: AppRoutes.cropDetails,
         name: AppRouteNames.cropDetails,
-        builder: (context, state) => _withAuthenticatedShell(
-          ref,
-          AppRoutes.crops,
-          CropDetailsScreen(
-            cropId: state.pathParameters['cropId'] ?? '',
+        pageBuilder: (context, state) => _smoothPage(
+          state,
+          _withAuthenticatedShell(
+            ref,
+            AppRoutes.crops,
+            CropDetailsScreen(
+              cropId: state.pathParameters['cropId'] ?? '',
+            ),
           ),
         ),
       ),
       GoRoute(
         path: AppRoutes.stocks,
         name: AppRouteNames.stocks,
-        builder: (context, state) => _withAuthenticatedShell(
-          ref,
-          state.matchedLocation,
-          const FeatureUnavailableScreen(
-            title: 'Stocks',
-            message: 'Stocks will be implemented in its approved phase.',
+        pageBuilder: (context, state) => _smoothPage(
+          state,
+          _withAuthenticatedShell(
+            ref,
+            state.matchedLocation,
+            const StockListScreen(),
+          ),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.stockDetails,
+        name: AppRouteNames.stockDetails,
+        pageBuilder: (context, state) => _smoothPage(
+          state,
+          _withAuthenticatedShell(
+            ref,
+            AppRoutes.stocks,
+            StockDetailsScreen(
+              stockId: state.pathParameters['stockId'] ?? '',
+            ),
           ),
         ),
       ),
       GoRoute(
         path: AppRoutes.notifications,
         name: AppRouteNames.notifications,
-        builder: (context, state) => _withAuthenticatedShell(
-          ref,
-          state.matchedLocation,
-          const FeatureUnavailableScreen(
-            title: 'Notifications',
-            message: 'Notifications will be handled in its own module.',
+        pageBuilder: (context, state) => _smoothPage(
+          state,
+          _withAuthenticatedShell(
+            ref,
+            state.matchedLocation,
+            const NotificationListScreen(),
+          ),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.notificationDetails,
+        name: AppRouteNames.notificationDetails,
+        pageBuilder: (context, state) => _smoothPage(
+          state,
+          _withAuthenticatedShell(
+            ref,
+            AppRoutes.notifications,
+            NotificationDetailsScreen(
+              notificationId: state.pathParameters['notificationId'] ?? '',
+            ),
+          ),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.plantingLogDetails,
+        name: AppRouteNames.plantingLogDetails,
+        pageBuilder: (context, state) => _smoothPage(
+          state,
+          _withAuthenticatedShell(
+            ref,
+            AppRoutes.rover,
+            const FeatureUnavailableScreen(
+              title: 'Planting Log',
+              message: 'Planting log details will be enabled in a later phase.',
+            ),
+          ),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.userDetails,
+        name: AppRouteNames.userDetails,
+        pageBuilder: (context, state) => _smoothPage(
+          state,
+          _withAuthenticatedShell(
+            ref,
+            AppRoutes.profile,
+            UserDetailsScreen(
+              userId: state.pathParameters['userId'] ?? '',
+            ),
           ),
         ),
       ),
       GoRoute(
         path: AppRoutes.profile,
         name: AppRouteNames.profile,
-        builder: (context, state) => _withAuthenticatedShell(
-          ref,
-          state.matchedLocation,
-          const AuthenticatedHomeScreen(
-            title: 'Profile',
-            message: 'Session management is active for this account.',
+        pageBuilder: (context, state) => _smoothPage(
+          state,
+          _withAuthenticatedShell(
+            ref,
+            state.matchedLocation,
+            const ProfileScreen(),
           ),
         ),
       ),
     ],
   );
 });
+
+CustomTransitionPage<void> _smoothPage(
+  GoRouterState state,
+  Widget child,
+) {
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: const Duration(milliseconds: 320),
+    reverseTransitionDuration: const Duration(milliseconds: 240),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final curvedAnimation = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      final secondaryCurve = CurvedAnimation(
+        parent: secondaryAnimation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+
+      return FadeTransition(
+        opacity: curvedAnimation,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0.04, 0),
+            end: Offset.zero,
+          ).animate(curvedAnimation),
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: Offset.zero,
+              end: const Offset(-0.02, 0),
+            ).animate(secondaryCurve),
+            child: child,
+          ),
+        ),
+      );
+    },
+  );
+}
 
 String _initialRouteFor(AppAuthState authState) {
   final profile = authState.profile;
@@ -151,11 +271,25 @@ String? _requiredPermissionFor(String location) {
     return PermissionKeys.cropsView;
   }
 
+  if (location.startsWith(AppRoutes.stocks)) {
+    return PermissionKeys.stocksView;
+  }
+
+  if (location.startsWith(AppRoutes.notifications)) {
+    return PermissionKeys.notificationsView;
+  }
+
+  if (location.startsWith('/planting-logs')) {
+    return PermissionKeys.roverPlantingControl;
+  }
+
+  if (location.startsWith('/users')) {
+    return PermissionKeys.usersView;
+  }
+
   return switch (location) {
     AppRoutes.dashboard => PermissionKeys.dashboardView,
     AppRoutes.rover => PermissionKeys.roverView,
-    AppRoutes.stocks => PermissionKeys.stocksView,
-    AppRoutes.notifications => PermissionKeys.notificationsView,
     AppRoutes.profile => PermissionKeys.profileView,
     _ => null,
   };
@@ -166,16 +300,26 @@ Widget _withAuthenticatedShell(
   String currentLocation,
   Widget child,
 ) {
-  final authState = ref.read(authControllerProvider);
+  return Consumer(
+    builder: (context, widgetRef, _) {
+      final authState = widgetRef.watch(authControllerProvider);
+      final unreadNotificationCount =
+          widgetRef.watch(notificationControllerProvider).unreadCount;
 
-  return AuthenticatedScaffold(
-    currentLocation: currentLocation,
-    items: _navigationItemsFor(authState),
-    child: child,
+      return AuthenticatedScaffold(
+        currentLocation: currentLocation,
+        items: _navigationItemsFor(authState, unreadNotificationCount),
+        floatingAction: const AssistantFloatingButton(),
+        child: child,
+      );
+    },
   );
 }
 
-List<NavigationItemData> _navigationItemsFor(AppAuthState authState) {
+List<NavigationItemData> _navigationItemsFor(
+  AppAuthState authState,
+  int unreadNotificationCount,
+) {
   final profile = authState.profile;
 
   bool canView(String permissionKey) {
@@ -208,10 +352,11 @@ List<NavigationItemData> _navigationItemsFor(AppAuthState authState) {
         icon: NavigationIcons.stocks,
       ),
     if (canView(PermissionKeys.notificationsView))
-      const NavigationItemData(
+      NavigationItemData(
         label: 'Notifications',
         location: AppRoutes.notifications,
         icon: NavigationIcons.notifications,
+        badgeCount: unreadNotificationCount,
       ),
     if (canView(PermissionKeys.profileView))
       const NavigationItemData(

@@ -4,6 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../shared/widgets/animated_content.dart';
 
 class DashboardMetricTile extends StatelessWidget {
   const DashboardMetricTile({
@@ -38,18 +39,18 @@ class DashboardMetricTile extends StatelessWidget {
           children: [
             Icon(icon, color: color, size: 22),
             const SizedBox(height: AppSpacing.md),
-            Text(
+            AnimatedTypingText(
               label,
               style: useMonoText ? AppTypography.monoSmall : AppTypography.small,
             ),
             const SizedBox(height: AppSpacing.xs),
-            Text(
+            AnimatedMetricText(
               value,
               style: AppTypography.sensorValue.copyWith(color: color),
             ),
             if (caption != null) ...[
               const SizedBox(height: AppSpacing.xs),
-              Text(
+              AnimatedTypingText(
                 caption!,
                 style: useMonoText
                     ? AppTypography.monoCaption

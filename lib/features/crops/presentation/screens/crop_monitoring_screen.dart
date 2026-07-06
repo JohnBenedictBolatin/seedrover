@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
-import '../../../../shared/widgets/loading_indicator.dart';
+import '../../../../shared/widgets/content_skeleton.dart';
 import '../../data/models/crop_model.dart';
 import '../../providers/crop_providers.dart';
 import '../widgets/crop_empty_state.dart';
@@ -23,7 +23,7 @@ class CropMonitoringScreen extends ConsumerWidget {
     final controller = ref.read(cropMonitoringControllerProvider.notifier);
 
     if (state.isLoading) {
-      return const LoadingIndicator();
+      return const _CropLoadingSkeleton();
     }
 
     if (state.errorMessage != null) {
@@ -85,6 +85,81 @@ class CropMonitoringScreen extends ConsumerWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+class _CropLoadingSkeleton extends StatelessWidget {
+  const _CropLoadingSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      children: [
+        const SkeletonLine(widthFactor: 0.28, height: 28),
+        const SizedBox(height: AppSpacing.xl),
+        const SkeletonCard(
+          children: [
+            SkeletonLine(widthFactor: 0.9),
+            SizedBox(height: AppSpacing.md),
+            Row(
+              children: [
+                Expanded(child: SkeletonBlock(height: 34)),
+                SizedBox(width: AppSpacing.sm),
+                Expanded(child: SkeletonBlock(height: 34)),
+                SizedBox(width: AppSpacing.sm),
+                Expanded(child: SkeletonBlock(height: 34)),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xl),
+        const SkeletonLine(widthFactor: 0.62, height: 18),
+        const SizedBox(height: AppSpacing.md),
+        const SkeletonCard(
+          children: [
+            SkeletonLine(widthFactor: 0.68),
+            SizedBox(height: AppSpacing.md),
+            SkeletonBlock(height: 72),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        const SkeletonLine(widthFactor: 0.3, height: 18),
+        const SizedBox(height: AppSpacing.md),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: const [
+              SizedBox(width: 128, child: _CropTileSkeleton()),
+              SizedBox(width: AppSpacing.md),
+              SizedBox(width: 128, child: _CropTileSkeleton()),
+              SizedBox(width: AppSpacing.md),
+              SizedBox(width: 128, child: _CropTileSkeleton()),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CropTileSkeleton extends StatelessWidget {
+  const _CropTileSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SkeletonCard(
+      children: [
+        SkeletonLine(widthFactor: 0.7),
+        SizedBox(height: AppSpacing.md),
+        Center(child: SkeletonBlock(height: 58, width: 58)),
+        SizedBox(height: AppSpacing.md),
+        SkeletonLine(widthFactor: 0.85),
+        SizedBox(height: AppSpacing.sm),
+        SkeletonBlock(height: 28),
+      ],
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_typography.dart';
+import '../../../../shared/widgets/animated_content.dart';
 
 class SectionTitle extends StatelessWidget {
   const SectionTitle({
@@ -14,7 +15,7 @@ class SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
+    return AnimatedTypingText(
       title,
       style: mono
           ? AppTypography.monoSectionHeading

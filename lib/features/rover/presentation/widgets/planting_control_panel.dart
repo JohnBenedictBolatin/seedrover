@@ -114,10 +114,16 @@ class _ActionButton extends StatelessWidget {
     return OutlinedButton.icon(
       onPressed: enabled ? onPressed : null,
       icon: Icon(icon, color: enabled ? color : null, size: 18),
-      label: Text(label),
+      label: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
       style: OutlinedButton.styleFrom(
         foregroundColor: color,
         side: BorderSide(color: enabled ? color : AppColors.inactiveBorder),
+        textStyle: AppTypography.statusBadge.copyWith(fontSize: 10),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
       ),
     );
   }

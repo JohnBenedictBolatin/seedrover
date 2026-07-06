@@ -1,5 +1,4 @@
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
@@ -22,7 +21,8 @@ class RecentActivityPanel extends StatelessWidget {
       children: [
         for (final activity in activities) ...[
           _RecentActivityTile(activity: activity),
-          if (activity != activities.last) const SizedBox(height: AppSpacing.sm),
+          if (activity != activities.last)
+            const SizedBox(height: AppSpacing.sm),
         ],
       ],
     );

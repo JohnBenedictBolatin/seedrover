@@ -4,6 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/app_card.dart';
+import '../../../../shared/widgets/seedrover_mascot.dart';
 
 class CropEmptyState extends StatelessWidget {
   const CropEmptyState({
@@ -21,16 +22,15 @@ class CropEmptyState extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         children: [
-          const Icon(
-            Icons.spa_outlined,
-            color: AppColors.primaryGreen,
-            size: 36,
+          const SeedRoverMascot(
+            expression: SeedRoverMascotExpression.emptyCurious,
+            size: 88,
           ),
           const SizedBox(height: AppSpacing.md),
           Text('No crops found', style: AppTypography.cardTitle),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            'Adjust your search or filters to show crop records.',
+            'Try clearing a filter so we can bring the crop records back into view.',
             textAlign: TextAlign.center,
             style: AppTypography.small,
           ),

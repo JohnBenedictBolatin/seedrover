@@ -442,7 +442,7 @@ Avoid full page refreshes.
 
 Purpose
 
-The Rover Control module is the primary operational screen of the application. It enables authorized users to remotely control the SeedRover prototype while monitoring its live status and sensor readings.
+The Rover Control module is the primary operational screen of the application. It enables authorized users to remotely control the SeedRover while monitoring its live status and sensor readings.
 
 This screen should feel like a professional control center rather than a simple remote-control interface.
 

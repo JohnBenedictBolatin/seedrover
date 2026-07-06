@@ -4,6 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../shared/widgets/animated_content.dart';
 import '../../../../shared/widgets/app_card.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../data/models/crop_model.dart';
@@ -41,9 +42,12 @@ class CropDetailPanel extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(crop.name, style: AppTypography.sectionHeading),
+                    AnimatedTypingText(
+                      crop.name,
+                      style: AppTypography.sectionHeading,
+                    ),
                     const SizedBox(height: AppSpacing.xs),
-                    Text(crop.variety, style: AppTypography.small),
+                    AnimatedTypingText(crop.variety, style: AppTypography.small),
                   ],
                 ),
               ),
@@ -67,11 +71,14 @@ class CropDetailPanel extends StatelessWidget {
             actions!,
             const SizedBox(height: AppSpacing.lg),
           ],
-          Text('Notes', style: AppTypography.cardTitle),
+          AnimatedTypingText('Notes', style: AppTypography.cardTitle),
           const SizedBox(height: AppSpacing.sm),
-          Text(crop.notes, style: AppTypography.small),
+          AnimatedTypingText(crop.notes, style: AppTypography.small),
           const SizedBox(height: AppSpacing.lg),
-          Text('Maintenance Notes', style: AppTypography.cardTitle),
+          AnimatedTypingText(
+            'Maintenance Notes',
+            style: AppTypography.cardTitle,
+          ),
           const SizedBox(height: AppSpacing.md),
           for (final note in crop.maintenanceNotes) ...[
             CropMaintenanceNote(note: note),
@@ -121,7 +128,7 @@ class _ProgressHeader extends StatelessWidget {
       children: [
         Row(
           children: [
-            Text('Crop Progress', style: AppTypography.small),
+            AnimatedTypingText('Crop Progress', style: AppTypography.small),
             if (onViewGrowthTimeline != null) ...[
               const SizedBox(width: AppSpacing.xs),
               IconButton(
@@ -141,7 +148,7 @@ class _ProgressHeader extends StatelessWidget {
               ),
             ],
             const Spacer(),
-            Text(
+            AnimatedMetricText(
               '$progress%',
               style: AppTypography.sensorValue.copyWith(color: color),
             ),
@@ -150,7 +157,7 @@ class _ProgressHeader extends StatelessWidget {
         const SizedBox(height: AppSpacing.sm),
         ClipRRect(
           borderRadius: BorderRadius.circular(AppRadius.sm),
-          child: LinearProgressIndicator(
+          child: AnimatedProgressBar(
             value: crop.progress,
             minHeight: 8,
             color: color,

@@ -39,20 +39,23 @@ class PlantedCropGroup extends StatelessWidget {
           ],
         ),
         const SizedBox(height: AppSpacing.md),
-        Wrap(
-          alignment: WrapAlignment.center,
-          spacing: AppSpacing.md,
-          runSpacing: AppSpacing.md,
-          children: [
-            for (final crop in crops)
-              SizedBox(
-                width: 128,
-                child: _PlantedCropTile(
-                  crop: crop,
-                  onTap: () => onCropSelected(crop),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (var index = 0; index < crops.length; index++) ...[
+                SizedBox(
+                  width: 128,
+                  child: _PlantedCropTile(
+                    crop: crops[index],
+                    onTap: () => onCropSelected(crops[index]),
+                  ),
                 ),
-              ),
-          ],
+                if (index != crops.length - 1)
+                  const SizedBox(width: AppSpacing.md),
+              ],
+            ],
+          ),
         ),
       ],
     );

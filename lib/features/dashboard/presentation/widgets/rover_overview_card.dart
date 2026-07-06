@@ -5,6 +5,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/utils/date_time_formatter.dart';
+import '../../../../shared/widgets/animated_content.dart';
 import '../../../../shared/widgets/app_card.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../data/models/dashboard_model.dart';
@@ -32,7 +33,10 @@ class RoverOverviewCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(rover.unitName, style: AppTypography.monoCardTitle),
+                    AnimatedTypingText(
+                      rover.unitName,
+                      style: AppTypography.monoCardTitle,
+                    ),
                   ],
                 ),
               ),
@@ -73,12 +77,12 @@ class RoverOverviewCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.lg),
-          Text(
+          AnimatedTypingText(
             'Planting Status: ${rover.plantingStatus}',
             style: AppTypography.small,
           ),
           const SizedBox(height: AppSpacing.xs),
-          Text(
+          AnimatedTypingText(
             'Last communication: '
             '${DateTimeFormatter.formatTime(rover.lastCommunication)}',
             style: AppTypography.caption,
@@ -112,8 +116,8 @@ class _InlineMetric extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: AppTypography.caption),
-              Text(
+              AnimatedTypingText(label, style: AppTypography.caption),
+              AnimatedMetricText(
                 value,
                 style: AppTypography.sensorValue.copyWith(color: color),
               ),
