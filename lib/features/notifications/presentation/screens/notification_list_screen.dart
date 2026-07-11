@@ -78,7 +78,7 @@ class NotificationListScreen extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.xl),
           if (state.filteredNotifications.isEmpty)
-            NotificationEmptyState(onClearFilters: controller.clearFilters)
+            const NotificationEmptyState()
           else
             _NotificationList(
               notifications: state.filteredNotifications,
@@ -171,7 +171,7 @@ class _UnreadCounter extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: AppColors.secondaryBackground,
-        border: Border.all(color: AppColors.primaryGreen),
+        border: Border.all(color: AppColors.primaryText),
         borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: Padding(
@@ -182,7 +182,7 @@ class _UnreadCounter extends StatelessWidget {
         child: Text(
           '$count unread',
           style: AppTypography.statusBadge.copyWith(
-            color: AppColors.primaryGreen,
+            color: AppColors.primaryText,
           ),
         ),
       ),

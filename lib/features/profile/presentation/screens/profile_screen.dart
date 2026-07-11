@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -172,7 +173,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     message:
                         'Reset ${user.fullName} password and prepare a temporary one?',
                     confirmLabel: 'Reset',
-                    onConfirm: () => controller.resetPassword(user.id),
+                    onConfirm: () async => controller.resetPassword(user.id),
                   ),
                   onToggleStatus: (user) => _confirmAction(
                     parentContext,
@@ -180,8 +181,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         ? 'Deactivate Account'
                         : 'Activate Account',
                     message: 'Update ${user.fullName} account status now?',
-                    onConfirm: () {
-                      controller.updateUser(
+                    onConfirm: () async {
+                      await controller.updateUser(
                         user.copyWith(
                           status: user.status == ProfileAccountStatus.active
                               ? ProfileAccountStatus.inactive
@@ -194,8 +195,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   onDelete: (user) => _confirmAction(
                     parentContext,
                     title: 'Delete User',
-                    message: 'Delete ${user.fullName}? This cannot be undone in mock data.',
-                    onConfirm: () => controller.deleteUser(user.id),
+                    message: 'Delete ${user.fullName}? This cannot be undone.',
+                    onConfirm: () async => controller.deleteUser(user.id),
                   ),
                   framed: false,
                 ),
@@ -232,13 +233,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 onPressed: () {
                   Navigator.of(sheetContext).pop();
                   Future<void>.microtask(
-                    () => _confirmAction(
-                      context,
-                      title: 'Change Profile Picture',
-                      message: 'Change your profile picture for this mock profile?',
-                      confirmLabel: 'Change',
-                      onConfirm: controller.changeProfilePicture,
-                    ),
+                    () => _startProfileImageUpload(context, controller),
                   );
                 },
               ),
@@ -255,7 +250,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       title: 'Remove Profile Picture',
                       message: 'Remove your current profile picture from this profile?',
                       confirmLabel: 'Remove',
-                      onConfirm: controller.removeProfilePicture,
+                      onConfirm: () async => controller.removeProfilePicture(),
                     ),
                   );
                 },
@@ -265,6 +260,112 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         );
       },
     );
+  }
+
+  Future<void> _startProfileImageUpload(
+    BuildContext context,
+    ProfileController controller,
+  ) async {
+    final image = await _pickProfileImage(context);
+
+    if (image == null || !context.mounted) {
+      return;
+    }
+
+    late final ProfileImageUpload upload;
+    try {
+      upload = ProfileImageUpload(
+        bytes: await image.readAsBytes(),
+        fileName: image.name,
+        mimeType: _mimeTypeFor(image.name),
+      );
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to read the selected image.')),
+        );
+      }
+      return;
+    }
+
+    if (!context.mounted) {
+      return;
+    }
+
+    _confirmAction(
+      context,
+      title: 'Change Profile Picture',
+      message: 'Upload this photo as your profile picture?',
+      confirmLabel: 'Upload',
+      onConfirm: () async => controller.changeProfilePicture(upload),
+    );
+  }
+
+  Future<XFile?> _pickProfileImage(BuildContext context) async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: AppColors.secondaryBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
+      ),
+      builder: (sheetContext) {
+        return Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _DialogHeader(title: 'Upload Photo'),
+              const SizedBox(height: AppSpacing.md),
+              ProfileActionButton(
+                label: 'Choose from Gallery',
+                icon: CupertinoIcons.photo,
+                color: AppColors.primaryGreen,
+                onPressed: () =>
+                    Navigator.of(sheetContext).pop(ImageSource.gallery),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              ProfileActionButton(
+                label: 'Take Photo',
+                icon: CupertinoIcons.camera,
+                color: AppColors.primaryGreen,
+                onPressed: () =>
+                    Navigator.of(sheetContext).pop(ImageSource.camera),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (source == null) {
+      return null;
+    }
+
+    try {
+      return await ImagePicker().pickImage(
+        source: source,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 82,
+      );
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to open image picker.')),
+        );
+      }
+      return null;
+    }
+  }
+
+  String _mimeTypeFor(String fileName) {
+    final extension = fileName.split('.').last.toLowerCase();
+
+    return switch (extension) {
+      'jpg' || 'jpeg' => 'image/jpeg',
+      'webp' => 'image/webp',
+      _ => 'image/png',
+    };
   }
 
   void _showEditProfileDialog(
@@ -304,8 +405,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
         ],
       ),
-      onConfirm: () {
-        controller.updateCurrentProfile(
+      onConfirm: () async {
+        await controller.updateCurrentProfile(
           fullName: fullNameController.text,
           contactNumber: contactController.text,
         );
@@ -331,7 +432,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           TextField(decoration: InputDecoration(labelText: 'Confirm Password')),
         ],
       ),
-      onConfirm: controller.changePassword,
+      onConfirm: () async => controller.changePassword(),
       confirmationMessage: 'Change your account password now?',
     );
   }
@@ -392,7 +493,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           );
         },
       ),
-      onConfirm: () {
+      onConfirm: () async {
         controller.createUser(
           fullName: fullNameController.text,
           username: usernameController.text,
@@ -472,7 +573,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           );
         },
       ),
-      onConfirm: () {
+      onConfirm: () async {
         final updatedUser = user.copyWith(
           fullName: fullNameController.text,
           contactNumber: contactController.text,
@@ -487,7 +588,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ? 'Save role or status updates for ${user.fullName}?'
               : 'Save updates to ${user.fullName} account?',
           confirmLabel: 'Save',
-          onConfirm: () => controller.updateUser(updatedUser),
+          onConfirm: () async => controller.updateUser(updatedUser),
         );
       },
     );
@@ -510,7 +611,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     BuildContext context, {
     required String title,
     required String message,
-    required VoidCallback onConfirm,
+    required Future<void> Function() onConfirm,
     String confirmLabel = 'Confirm',
   }) {
     _showSeedRoverDialog(
@@ -533,7 +634,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     BuildContext context, {
     required String title,
     required Widget child,
-    required VoidCallback onConfirm,
+    required Future<void> Function() onConfirm,
     String confirmLabel = 'Save',
     String? confirmationMessage,
   }) {
@@ -579,9 +680,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           child: const Text('Cancel'),
                         ),
                         OutlinedButton.icon(
-                          onPressed: () {
+                          onPressed: () async {
                             if (confirmationMessage == null) {
-                              onConfirm();
+                              await onConfirm();
                               Navigator.of(dialogContext).pop();
                               return;
                             }
@@ -591,8 +692,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               title: 'Confirm Action',
                               message: confirmationMessage,
                               confirmLabel: confirmLabel,
-                              onConfirm: () {
-                                onConfirm();
+                              onConfirm: () async {
+                                await onConfirm();
                                 Navigator.of(dialogContext).pop();
                               },
                             );
@@ -634,7 +735,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     required String title,
     required String message,
     required String confirmLabel,
-    required VoidCallback onConfirm,
+    required Future<void> Function() onConfirm,
   }) {
     showDialog<void>(
       context: context,
@@ -675,9 +776,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         label: confirmLabel,
                         color: AppColors.primaryGreen,
                         icon: CupertinoIcons.check_mark,
-                        onPressed: () {
+                        onPressed: () async {
                           Navigator.of(confirmContext).pop();
-                          onConfirm();
+                          await onConfirm();
                         },
                       ),
                     ],
@@ -768,6 +869,7 @@ class _ProfileHeader extends StatelessWidget {
           ProfileAvatar(
             name: user.fullName,
             hasImage: user.hasProfilePicture,
+            imageUrl: user.profileImageUrl,
             size: 92,
             onTap: onAvatarTap,
           ),
@@ -848,18 +950,16 @@ class _ProfileEditMenu extends StatelessWidget {
       },
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: AppColors.cardBackground,
+          color: Colors.transparent,
           border: Border.all(color: AppColors.primaryGreen),
           borderRadius: BorderRadius.circular(AppRadius.sm),
         ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.sm,
-            vertical: AppSpacing.xs,
-          ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 32),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              const SizedBox(width: AppSpacing.sm),
               const Icon(
                 CupertinoIcons.pencil,
                 color: AppColors.primaryGreen,
@@ -872,6 +972,7 @@ class _ProfileEditMenu extends StatelessWidget {
                   color: AppColors.primaryGreen,
                 ),
               ),
+              const SizedBox(width: AppSpacing.sm),
             ],
           ),
         ),

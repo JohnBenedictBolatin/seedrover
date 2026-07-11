@@ -36,6 +36,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     setState(() => _showSkeleton = true);
     await Future<void>.delayed(const Duration(milliseconds: 450));
     ref.invalidate(dashboardProvider);
+    try {
+      await ref.read(dashboardProvider.future);
+    } catch (_) {
+      // The dashboard body displays the friendly error state below.
+    }
 
     if (mounted) {
       setState(() => _showSkeleton = false);
@@ -44,40 +49,56 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final dashboard = ref.watch(dashboardProvider);
+    ref.listen<AsyncValue<void>>(dashboardRealtimeProvider, (previous, next) {
+      if (next.hasValue && !_showSkeleton) {
+        ref.invalidate(dashboardProvider);
+      }
+    });
+
+    final dashboardAsync = ref.watch(dashboardProvider);
     final profile = ref.watch(authControllerProvider).profile;
     final now = DateTime.now();
 
     return RefreshIndicator(
       onRefresh: _refreshDashboard,
-      child: _showSkeleton
+      child: _showSkeleton || dashboardAsync.isLoading
           ? const _DashboardLoadingSkeleton()
-          : ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              children: [
-                DashboardHeader(
-                  fullName: profile?.fullName ?? 'Operator',
-                  roleName: profile?.roleName ?? 'Authenticated User',
-                  timestamp: now,
-                ),
-                const SizedBox(height: AppSpacing.xl),
-                const SectionTitle(title: 'Rover Overview'),
-                const SizedBox(height: AppSpacing.md),
-                RoverOverviewCard(rover: dashboard.rover),
-                const SizedBox(height: AppSpacing.xl),
-                const SectionTitle(title: 'Sensor Summary', mono: true),
-                const SizedBox(height: AppSpacing.md),
-                SensorSummaryGrid(sensors: dashboard.sensors),
-                const SizedBox(height: AppSpacing.xl),
-                const SectionTitle(title: 'Farm Analytics'),
-                const SizedBox(height: AppSpacing.md),
-                const DashboardAnalyticsSection(),
-                const SizedBox(height: AppSpacing.xl),
-                const SectionTitle(title: 'Recent Activities'),
-                const SizedBox(height: AppSpacing.md),
-                RecentActivityPanel(activities: dashboard.recentActivities),
-              ],
+          : dashboardAsync.when(
+              loading: () => const _DashboardLoadingSkeleton(),
+              error: (_, __) => ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                children: const [
+                  SectionTitle(title: 'Dashboard unavailable'),
+                  SizedBox(height: AppSpacing.md),
+                  Text('Unable to load live dashboard data.'),
+                ],
+              ),
+              data: (dashboard) => ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                children: [
+                  DashboardHeader(
+                    fullName: profile?.fullName ?? 'Operator',
+                    roleName: profile?.roleName ?? 'Authenticated User',
+                    timestamp: now,
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
+                  const SectionTitle(title: 'Rover Overview'),
+                  const SizedBox(height: AppSpacing.md),
+                  RoverOverviewCard(rover: dashboard.rover),
+                  const SizedBox(height: AppSpacing.xl),
+                  const SectionTitle(title: 'Sensor Summary', mono: true),
+                  const SizedBox(height: AppSpacing.md),
+                  SensorSummaryGrid(sensors: dashboard.sensors),
+                  const SizedBox(height: AppSpacing.xl),
+                  const DashboardAnalyticsSection(),
+                  const SizedBox(height: AppSpacing.xl),
+                  const SectionTitle(title: 'Recent Activities'),
+                  const SizedBox(height: AppSpacing.md),
+                  RecentActivityPanel(activities: dashboard.recentActivities),
+                ],
+              ),
             ),
     );
   }

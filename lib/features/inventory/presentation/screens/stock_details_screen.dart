@@ -82,7 +82,7 @@ class StockDetailsScreen extends ConsumerWidget {
       padding: const EdgeInsets.all(AppSpacing.lg),
       children: [
         _StockDetailsHeader(
-          title: 'Details/${stock.id.replaceAll('-', '').toLowerCase()}',
+          title: 'Details/${stock.displayId.toLowerCase()}',
           onBack: () {
             if (context.canPop()) {
               context.pop();
@@ -394,8 +394,8 @@ class StockDetailsScreen extends ConsumerWidget {
                       title: 'Save Item Changes',
                       message: 'Save changes to ${stock.name}?',
                       fields: const [],
-                      onConfirm: () {
-                        controller.updateStock(updatedStock);
+                      onConfirm: () async {
+                        await controller.updateStock(updatedStock);
                         Future<void>.microtask(
                           () => Navigator.of(dialogContext).pop(),
                         );
@@ -420,10 +420,10 @@ class StockDetailsScreen extends ConsumerWidget {
     _showTransactionDialog(
       context: context,
       title: 'Delete Item',
-      message: 'Delete ${stock.name} ${stock.id.toUpperCase()}?',
+      message: 'Delete ${stock.name} ${stock.displayId}?',
       fields: const [],
-      onConfirm: () {
-        controller.deleteStock(stock.id);
+      onConfirm: () async {
+        await controller.deleteStock(stock.id);
         context.go(AppRoutes.stocks);
         return null;
       },
@@ -434,7 +434,7 @@ class StockDetailsScreen extends ConsumerWidget {
     required BuildContext context,
     required String title,
     required List<Widget> fields,
-    required String? Function() onConfirm,
+    required Future<String?> Function() onConfirm,
     String? message,
   }) {
     String? errorMessage;
@@ -470,8 +470,8 @@ class StockDetailsScreen extends ConsumerWidget {
                 _dialogActionButton(
                   label: 'Confirm',
                   icon: Icons.check,
-                  onPressed: () {
-                    final validationMessage = onConfirm();
+                  onPressed: () async {
+                    final validationMessage = await onConfirm();
 
                     if (validationMessage != null) {
                       setDialogState(() => errorMessage = validationMessage);
@@ -674,6 +674,8 @@ class _StockHeroImage extends StatelessWidget {
         child: Center(
           child: StockProduceImage(
             itemName: stock.name,
+            imageUrl: stock.imageUrl,
+            assetPath: stock.imageAssetPath,
             size: 132,
           ),
         ),
@@ -702,7 +704,7 @@ class _StockMetricGrid extends StatelessWidget {
             StockDetailMetric(
               width: tileWidth,
               label: 'Item ID',
-              value: stock.id.toUpperCase(),
+              value: stock.displayId,
               icon: Icons.tag,
             ),
             StockDetailMetric(

@@ -10,6 +10,7 @@ class ProfileAvatar extends StatelessWidget {
   const ProfileAvatar({
     required this.name,
     required this.hasImage,
+    this.imageUrl,
     super.key,
     this.size = 64,
     this.onTap,
@@ -17,6 +18,7 @@ class ProfileAvatar extends StatelessWidget {
 
   final String name;
   final bool hasImage;
+  final String? imageUrl;
   final double size;
   final VoidCallback? onTap;
 
@@ -42,21 +44,57 @@ class ProfileAvatar extends StatelessWidget {
         child: SizedBox.square(
           dimension: size,
           child: Center(
-            child: hasImage
-                ? Text(
-                    initials.isEmpty ? '?' : initials,
-                    style: AppTypography.sectionHeading.copyWith(
-                      color: AppColors.primaryGreen,
+            child: imageUrl != null && imageUrl!.trim().isNotEmpty
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                    child: Image.network(
+                      imageUrl!,
+                      width: size,
+                      height: size,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _AvatarFallback(
+                        hasImage: hasImage,
+                        initials: initials,
+                        size: size,
+                      ),
                     ),
                   )
-                : Icon(
-                    CupertinoIcons.person,
-                    color: AppColors.primaryGreen,
-                    size: size * 0.45,
+                : _AvatarFallback(
+                    hasImage: hasImage,
+                    initials: initials,
+                    size: size,
                   ),
           ),
         ),
       ),
     );
+  }
+}
+
+class _AvatarFallback extends StatelessWidget {
+  const _AvatarFallback({
+    required this.hasImage,
+    required this.initials,
+    required this.size,
+  });
+
+  final bool hasImage;
+  final String initials;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return hasImage
+        ? Text(
+            initials.isEmpty ? '?' : initials,
+            style: AppTypography.sectionHeading.copyWith(
+              color: AppColors.primaryGreen,
+            ),
+          )
+        : Icon(
+            CupertinoIcons.person,
+            color: AppColors.primaryGreen,
+            size: size * 0.45,
+          );
   }
 }

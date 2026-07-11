@@ -44,13 +44,30 @@ class AuthRepository {
         throw const AppException('Unable to sign in. Please try again.');
       }
 
-      return _fetchProfile(user.id);
+      final profile = await _fetchProfile(user.id);
+      await _recordActivity(
+        userId: user.id,
+        activity: 'Login',
+        description: '${profile.username} signed in.',
+      );
+
+      return profile;
     } on AuthException {
       throw const AppException('Incorrect password. Please try again.');
     }
   }
 
   Future<void> signOut() async {
+    final userId = _client.auth.currentUser?.id;
+
+    if (userId != null) {
+      await _recordActivity(
+        userId: userId,
+        activity: 'Logout',
+        description: 'User signed out.',
+      );
+    }
+
     await _client.auth.signOut();
   }
 
@@ -118,6 +135,19 @@ class AuthRepository {
     }
 
     return profile;
+  }
+
+  Future<void> _recordActivity({
+    required String userId,
+    required String activity,
+    required String description,
+  }) async {
+    await _client.from(DatabaseTables.activityLogs).insert({
+      'user_id': userId,
+      'activity': activity,
+      'description': description,
+      'module': 'Authentication',
+    });
   }
 }
 

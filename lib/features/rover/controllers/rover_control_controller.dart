@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/models/rover_command_model.dart';
@@ -8,13 +10,15 @@ class RoverControlController extends StateNotifier<RoverControlState> {
   RoverControlController(this._repository)
       : super(const RoverControlState.loading()) {
     load();
+    _subscription = _repository.watchRoverStatus().listen((_) => load());
   }
 
   final RoverRepository _repository;
+  StreamSubscription<void>? _subscription;
 
   Future<void> load() async {
     try {
-      final telemetry = await _repository.loadSimulatedStatus();
+      final telemetry = await _repository.loadStatus();
       state = state.copyWith(
         isLoading: false,
         telemetry: telemetry,
@@ -23,7 +27,7 @@ class RoverControlController extends StateNotifier<RoverControlState> {
     } catch (_) {
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Unable to load simulated rover data.',
+        errorMessage: 'Unable to load rover data.',
       );
     }
   }
@@ -168,5 +172,11 @@ class RoverControlController extends StateNotifier<RoverControlState> {
 
   void toggleCameraFullscreen() {
     state = state.copyWith(cameraFullscreen: !state.cameraFullscreen);
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
   }
 }

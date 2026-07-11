@@ -27,7 +27,7 @@ class RoverStatusCard extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.secondaryBackground,
-        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
         border: Border.all(color: color.withOpacity(0.7)),
       ),
       child: Row(

@@ -87,6 +87,7 @@ class UserDetailsScreen extends ConsumerWidget {
                   ProfileAvatar(
                     name: user.fullName,
                     hasImage: user.hasProfilePicture,
+                    imageUrl: user.profileImageUrl,
                     size: 72,
                   ),
                   const SizedBox(width: AppSpacing.md),
@@ -259,8 +260,8 @@ class UserDetailsScreen extends ConsumerWidget {
                                   message:
                                       'Save updates to ${user.fullName} account?',
                                   confirmLabel: 'Save',
-                                  onConfirm: () {
-                                    controller.updateUser(
+                                  onConfirm: () async {
+                                    await controller.updateUser(
                                       user.copyWith(
                                         fullName: fullNameController.text,
                                         contactNumber: contactController.text,
@@ -311,7 +312,7 @@ class UserDetailsScreen extends ConsumerWidget {
     required String title,
     required String message,
     required String confirmLabel,
-    required VoidCallback onConfirm,
+    required Future<void> Function() onConfirm,
   }) {
     showDialog<void>(
       context: context,
@@ -353,9 +354,9 @@ class UserDetailsScreen extends ConsumerWidget {
                         label: confirmLabel,
                         color: AppColors.primaryGreen,
                         icon: CupertinoIcons.check_mark,
-                        onPressed: () {
+                        onPressed: () async {
                           Navigator.of(confirmContext).pop();
-                          onConfirm();
+                          await onConfirm();
                         },
                       ),
                     ],

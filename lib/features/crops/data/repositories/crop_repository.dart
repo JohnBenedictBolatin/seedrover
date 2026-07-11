@@ -1,532 +1,378 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../../core/constants/database_tables.dart';
+import '../../../../core/services/supabase_service.dart';
 import '../models/crop_model.dart';
 
 class CropRepository {
-  const CropRepository();
+  const CropRepository(this._client);
 
-  List<CropModel> getCrops() {
-    return _mockCrops;
+  final SupabaseClient _client;
+
+  Stream<List<CropModel>> watchCrops() {
+    return _client
+        .from(DatabaseTables.crops)
+        .stream(primaryKey: ['id'])
+        .order('planting_date')
+        .asyncMap((_) => getCrops());
+  }
+
+  Future<List<CropModel>> getCrops() async {
+    final rows = await _client
+        .from(DatabaseTables.crops)
+        .select(
+          'id, crop_name, assigned_manager, planting_date, estimated_harvest, '
+          'growth_stage, maintenance_notes, crop_status, created_at, '
+          'updated_at, profiles(full_name)',
+        )
+        .order('planting_date', ascending: false) as List<dynamic>;
+    final sensors = await _latestSensorSnapshot();
+
+    return rows
+        .map((row) => _cropFromRow(row as Map<String, dynamic>, sensors))
+        .toList(growable: false);
+  }
+
+  Future<CropModel> createCrop(CropModel crop) async {
+    final row = await _client
+        .from(DatabaseTables.crops)
+        .insert({
+          ..._cropPayload(crop),
+          'assigned_manager': _client.auth.currentUser?.id,
+        })
+        .select(
+          'id, crop_name, assigned_manager, planting_date, estimated_harvest, '
+          'growth_stage, maintenance_notes, crop_status, created_at, '
+          'updated_at, profiles(full_name)',
+        )
+        .single();
+
+    await _recordActivity(
+      activity: 'Crop Created',
+      description: '${crop.name} crop record created.',
+    );
+
+    return _cropFromRow(row, await _latestSensorSnapshot());
+  }
+
+  Future<CropModel> updateCrop(CropModel crop) async {
+    final row = await _client
+        .from(DatabaseTables.crops)
+        .update(_cropPayload(crop))
+        .eq('id', crop.id)
+        .select(
+          'id, crop_name, assigned_manager, planting_date, estimated_harvest, '
+          'growth_stage, maintenance_notes, crop_status, created_at, '
+          'updated_at, profiles(full_name)',
+        )
+        .single();
+
+    await _recordActivity(
+      activity: 'Crop Updated',
+      description: '${crop.name} crop record updated.',
+    );
+
+    return _cropFromRow(row, await _latestSensorSnapshot());
+  }
+
+  Future<void> deleteCrop(String cropId) async {
+    await _client.from(DatabaseTables.crops).delete().eq('id', cropId);
+    await _recordActivity(
+      activity: 'Crop Deleted',
+      description: 'Crop record deleted.',
+    );
+  }
+
+  Future<CropModel> recordMaintenance({
+    required CropModel crop,
+    required CropMaintenanceActivity activity,
+    required DateTime date,
+    required String notes,
+    CropStatus? status,
+    CropGrowthStage? growthStage,
+    double? progress,
+    DateTime? harvestDate,
+    DateTime? lastWateredAt,
+  }) async {
+    final nextCrop = crop.copyWith(
+      status: status,
+      growthStage: growthStage,
+      progress: progress,
+      harvestDate: harvestDate,
+      lastWateredAt: lastWateredAt,
+      maintenanceHistory: [
+        CropMaintenanceRecord(
+          activity: activity,
+          performedAt: date,
+          notes: notes,
+          performedBy: 'Current User',
+        ),
+        ...crop.maintenanceHistory,
+      ],
+    );
+
+    final updatedCrop = await updateCrop(nextCrop);
+    await _recordActivity(
+      activity: _activityTitle(activity),
+      description: '${crop.name}: $notes',
+    );
+
+    return updatedCrop.copyWith(
+      maintenanceHistory: nextCrop.maintenanceHistory,
+      lastWateredAt: lastWateredAt ?? updatedCrop.lastWateredAt,
+      harvestDate: harvestDate ?? updatedCrop.harvestDate,
+    );
+  }
+
+  Map<String, Object?> _cropPayload(CropModel crop) {
+    return {
+      'crop_name': crop.name,
+      'planting_date': _dateOnly(crop.plantingDate),
+      'estimated_harvest': _dateOnly(crop.estimatedHarvest),
+      'growth_stage': _growthStageToDb(crop.growthStage),
+      'crop_status': _statusToDb(crop.status),
+      'maintenance_notes': _encodeMaintenanceNotes(crop),
+    };
+  }
+
+  CropModel _cropFromRow(
+    Map<String, dynamic> row,
+    CropSensorSnapshot sensors,
+  ) {
+    final cropName = row['crop_name'] as String? ?? 'Crop';
+    final plantingDate = _parseDate(row['planting_date']) ?? DateTime.now();
+    final estimatedHarvest =
+        _parseDate(row['estimated_harvest']) ??
+            plantingDate.add(const Duration(days: 75));
+    final status = _statusFromDb(row['crop_status'] as String?);
+    final growthStage = _growthStageFromDb(row['growth_stage'] as String?);
+    final notes = row['maintenance_notes'] as String?;
+    final manager = row['profiles'] as Map<String, dynamic>?;
+    final updatedAt = _parseDateTime(row['updated_at']) ?? DateTime.now();
+
+    return CropModel(
+      id: row['id'] as String,
+      name: cropName,
+      variety: _varietyFor(cropName),
+      location: 'SeedRover field record',
+      plantingDate: plantingDate,
+      estimatedHarvest: estimatedHarvest,
+      growthStage: growthStage,
+      status: status,
+      maintenanceNotes: _maintenanceNotesFrom(notes),
+      managerName: manager?['full_name'] as String? ?? 'Unassigned',
+      progress: _progressFor(growthStage, status),
+      sensorSnapshot: sensors,
+      maintenanceHistory: [
+        CropMaintenanceRecord(
+          activity: CropMaintenanceActivity.planted,
+          performedAt: plantingDate,
+          notes: 'Crop record loaded from Supabase.',
+          performedBy: 'SeedRover',
+        ),
+      ],
+      reminders: _remindersFor(status, estimatedHarvest),
+      notes: notes?.trim().isNotEmpty == true
+          ? notes!.trim()
+          : '$cropName crop record loaded from Supabase.',
+      seedCount: null,
+      harvestDate: status == CropStatus.harvested ? updatedAt : null,
+      lastWateredAt: null,
+    );
+  }
+
+  Future<CropSensorSnapshot> _latestSensorSnapshot() async {
+    final rows = await _client
+        .from(DatabaseTables.sensorReadings)
+        .select(
+          'soil_moisture, soil_temperature, environmental_temperature, humidity',
+        )
+        .order('recorded_at', ascending: false)
+        .limit(1) as List<dynamic>;
+
+    if (rows.isEmpty) {
+      return const CropSensorSnapshot(
+        soilMoisture: 0,
+        soilTemperature: 0,
+        environmentTemperature: 0,
+        humidity: 0,
+      );
+    }
+
+    final row = rows.first as Map<String, dynamic>;
+
+    return CropSensorSnapshot(
+      soilMoisture: _toDouble(row['soil_moisture']),
+      soilTemperature: _toDouble(row['soil_temperature']),
+      environmentTemperature: _toDouble(row['environmental_temperature']),
+      humidity: _toDouble(row['humidity']),
+    );
+  }
+
+  Future<void> _recordActivity({
+    required String activity,
+    required String description,
+  }) async {
+    final userId = _client.auth.currentUser?.id;
+
+    await _client.from(DatabaseTables.activityLogs).insert({
+      'user_id': userId,
+      'activity': activity,
+      'description': description,
+      'module': 'Crops',
+    });
+  }
+
+  String _activityTitle(CropMaintenanceActivity activity) {
+    return switch (activity) {
+      CropMaintenanceActivity.watered => 'Crop Watered',
+      CropMaintenanceActivity.fertilized => 'Crop Fertilized',
+      CropMaintenanceActivity.harvested => 'Crop Harvested',
+      CropMaintenanceActivity.inspected => 'Crop Inspected',
+      CropMaintenanceActivity.planted => 'Crop Planted',
+    };
+  }
+
+  String _encodeMaintenanceNotes(CropModel crop) {
+    if (crop.maintenanceNotes.isEmpty) {
+      return crop.notes;
+    }
+
+    return crop.maintenanceNotes.join('\n');
+  }
+
+  List<String> _maintenanceNotesFrom(String? value) {
+    final notes = value
+        ?.split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false);
+
+    if (notes == null || notes.isEmpty) {
+      return const ['Monitor crop condition during routine field checks.'];
+    }
+
+    return notes;
+  }
+
+  List<String> _remindersFor(CropStatus status, DateTime harvestDate) {
+    return switch (status) {
+      CropStatus.needsWater => const ['Watering is due.'],
+      CropStatus.needsFertilizer => const ['Fertilizer review is due.'],
+      CropStatus.readyForHarvest => const ['Prepare harvest check.'],
+      CropStatus.harvested => const ['Crop cycle completed.'],
+      CropStatus.healthy => [
+          'Estimated harvest: ${_dateOnly(harvestDate)}.',
+        ],
+    };
+  }
+
+  String _varietyFor(String cropName) {
+    final name = cropName.toLowerCase();
+
+    if (name.contains('sitaw')) {
+      return 'Pole Bean';
+    }
+
+    if (name.contains('peanut')) {
+      return 'Native Peanut';
+    }
+
+    if (name.contains('calamansi')) {
+      return 'Seedling Batch';
+    }
+
+    return 'Farm Crop';
+  }
+
+  double _progressFor(CropGrowthStage stage, CropStatus status) {
+    if (status == CropStatus.harvested) {
+      return 1;
+    }
+
+    return switch (stage) {
+      CropGrowthStage.seeded => 0.12,
+      CropGrowthStage.germinating => 0.24,
+      CropGrowthStage.vegetative => 0.46,
+      CropGrowthStage.flowering => 0.66,
+      CropGrowthStage.fruiting => 0.82,
+      CropGrowthStage.harvestReady => 0.94,
+      CropGrowthStage.harvested => 1,
+    };
+  }
+
+  CropGrowthStage _growthStageFromDb(String? value) {
+    return switch (value) {
+      'Seeded' => CropGrowthStage.seeded,
+      'Germinating' => CropGrowthStage.germinating,
+      'Vegetative' => CropGrowthStage.vegetative,
+      'Flowering' => CropGrowthStage.flowering,
+      'Harvest Ready' => CropGrowthStage.harvestReady,
+      'Completed' => CropGrowthStage.harvested,
+      _ => CropGrowthStage.seeded,
+    };
+  }
+
+  String _growthStageToDb(CropGrowthStage stage) {
+    return switch (stage) {
+      CropGrowthStage.seeded => 'Seeded',
+      CropGrowthStage.germinating => 'Germinating',
+      CropGrowthStage.vegetative => 'Vegetative',
+      CropGrowthStage.flowering => 'Flowering',
+      CropGrowthStage.fruiting => 'Flowering',
+      CropGrowthStage.harvestReady => 'Harvest Ready',
+      CropGrowthStage.harvested => 'Completed',
+    };
+  }
+
+  CropStatus _statusFromDb(String? value) {
+    return switch (value) {
+      'Needs Attention' => CropStatus.needsWater,
+      'Harvest Ready' => CropStatus.readyForHarvest,
+      'Completed' => CropStatus.harvested,
+      'Cancelled' => CropStatus.harvested,
+      _ => CropStatus.healthy,
+    };
+  }
+
+  String _statusToDb(CropStatus status) {
+    return switch (status) {
+      CropStatus.healthy => 'Active',
+      CropStatus.needsWater => 'Needs Attention',
+      CropStatus.needsFertilizer => 'Needs Attention',
+      CropStatus.readyForHarvest => 'Harvest Ready',
+      CropStatus.harvested => 'Completed',
+    };
+  }
+
+  DateTime? _parseDate(Object? value) {
+    if (value == null) {
+      return null;
+    }
+
+    return DateTime.tryParse(value.toString());
+  }
+
+  DateTime? _parseDateTime(Object? value) {
+    if (value == null) {
+      return null;
+    }
+
+    return DateTime.tryParse(value.toString())?.toLocal();
+  }
+
+  String _dateOnly(DateTime date) {
+    return '${date.year.toString().padLeft(4, '0')}-'
+        '${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')}';
+  }
+
+  double _toDouble(Object? value) {
+    return (value as num?)?.toDouble() ?? 0;
   }
 }
 
-final _mockCrops = <CropModel>[
-  CropModel(
-    id: 'crop-001',
-    name: 'Peanut',
-    variety: 'Native Peanut',
-    location: 'Plot A-01',
-    plantingDate: DateTime(2026, 6, 4),
-    estimatedHarvest: DateTime(2026, 9, 2),
-    growthStage: CropGrowthStage.vegetative,
-    status: CropStatus.healthy,
-    managerName: 'Farm Planting Manager',
-    progress: 0.42,
-    seedCount: 5,
-    sensorSnapshot: const CropSensorSnapshot(
-      soilMoisture: 61,
-      soilTemperature: 27.2,
-      environmentTemperature: 30.4,
-      humidity: 74,
-    ),
-    reminders: const [
-      'Watering due tomorrow morning.',
-      'Inspect leaves after the next rover pass.',
-    ],
-    notes: 'Peanut batch planted by SeedRover on Plot A-01.',
-    lastWateredAt: DateTime(2026, 7, 3, 7, 20),
-    maintenanceHistory: [
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.inspected,
-        performedAt: DateTime(2026, 7, 3, 8, 15),
-        notes: 'Leaves healthy, weed pressure low.',
-        performedBy: 'Brian A.',
-      ),
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.watered,
-        performedAt: DateTime(2026, 7, 3, 7, 20),
-        notes: 'Applied light watering after soil check.',
-        performedBy: 'Farm Staff',
-      ),
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.planted,
-        performedAt: DateTime(2026, 6, 4, 9, 5),
-        notes: 'Recorded directly from SeedRover planting run.',
-        performedBy: 'SeedRover',
-      ),
-    ],
-    maintenanceNotes: const [
-      'Maintain moderate soil moisture.',
-      'Inspect leaves for yellowing every two days.',
-      'Clear weeds near the planting row.',
-    ],
-  ),
-  CropModel(
-    id: 'crop-002',
-    name: 'Sitaw',
-    variety: 'Pole Bean',
-    location: 'Plot B-03',
-    plantingDate: DateTime(2026, 6, 18),
-    estimatedHarvest: DateTime(2026, 8, 7),
-    growthStage: CropGrowthStage.flowering,
-    status: CropStatus.needsWater,
-    managerName: 'Farm Planting Manager',
-    progress: 0.66,
-    seedCount: 15,
-    sensorSnapshot: const CropSensorSnapshot(
-      soilMoisture: 38,
-      soilTemperature: 28.5,
-      environmentTemperature: 31.1,
-      humidity: 68,
-    ),
-    reminders: const [
-      'Watering due today.',
-      'Harvest approaching in August 2026.',
-    ],
-    notes: 'Sitaw vines need support inspection during the next field round.',
-    lastWateredAt: DateTime(2026, 7, 2, 6, 50),
-    maintenanceHistory: [
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.inspected,
-        performedAt: DateTime(2026, 7, 4, 8, 30),
-        notes: 'Soil trending dry. Watering recommended.',
-        performedBy: 'Brian A.',
-      ),
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.fertilized,
-        performedAt: DateTime(2026, 6, 28, 7, 15),
-        notes: 'Applied starter fertilizer along row edge.',
-        performedBy: 'Farm Staff',
-      ),
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.planted,
-        performedAt: DateTime(2026, 6, 18, 9, 40),
-        notes: 'SeedRover planted sitaw row after soil check.',
-        performedBy: 'SeedRover',
-      ),
-    ],
-    maintenanceNotes: const [
-      'Check support lines before the next growth inspection.',
-      'Increase watering interval during high afternoon heat.',
-      'Watch for pest activity near flowering stems.',
-    ],
-  ),
-  CropModel(
-    id: 'crop-003',
-    name: 'Calamansi',
-    variety: 'Seedling Batch',
-    location: 'Nursery C-02',
-    plantingDate: DateTime(2026, 5, 19),
-    estimatedHarvest: DateTime(2027, 2, 16),
-    growthStage: CropGrowthStage.germinating,
-    status: CropStatus.healthy,
-    managerName: 'Farm Planting Manager',
-    progress: 0.18,
-    seedCount: 5,
-    sensorSnapshot: const CropSensorSnapshot(
-      soilMoisture: 57,
-      soilTemperature: 26.8,
-      environmentTemperature: 29.7,
-      humidity: 76,
-    ),
-    reminders: const [
-      'Keep nursery shade stable.',
-      'Fertilizer review due next week.',
-    ],
-    notes: 'Calamansi seedlings are tracked from SeedRover planting logs.',
-    lastWateredAt: DateTime(2026, 7, 4, 6, 45),
-    maintenanceHistory: [
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.watered,
-        performedAt: DateTime(2026, 7, 4, 6, 45),
-        notes: 'Morning misting completed.',
-        performedBy: 'Farm Staff',
-      ),
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.inspected,
-        performedAt: DateTime(2026, 6, 29, 8, 10),
-        notes: 'Seedlings stable under nursery shade.',
-        performedBy: 'Brian A.',
-      ),
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.planted,
-        performedAt: DateTime(2026, 5, 19, 8, 30),
-        notes: 'SeedRover completed calamansi seed placement.',
-        performedBy: 'SeedRover',
-      ),
-    ],
-    maintenanceNotes: const [
-      'Keep nursery shade stable.',
-      'Mist seedlings lightly in the morning.',
-      'Remove weak seedlings during the next inspection.',
-    ],
-  ),
-  CropModel(
-    id: 'crop-004',
-    name: 'Peanut',
-    variety: 'Native Peanut',
-    location: 'Plot A-02',
-    plantingDate: DateTime(2026, 3, 22),
-    estimatedHarvest: DateTime(2026, 6, 20),
-    growthStage: CropGrowthStage.harvested,
-    status: CropStatus.harvested,
-    managerName: 'Farm Planting Manager',
-    progress: 1,
-    seedCount: 8,
-    harvestDate: DateTime(2026, 6, 20, 10, 15),
-    sensorSnapshot: const CropSensorSnapshot(
-      soilMoisture: 54,
-      soilTemperature: 27.5,
-      environmentTemperature: 30,
-      humidity: 70,
-    ),
-    reminders: const [
-      'Prepare plot for next peanut planting run.',
-    ],
-    notes: 'Completed peanut cycle retained for farmer history review.',
-    lastWateredAt: DateTime(2026, 6, 17, 7),
-    maintenanceHistory: [
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.harvested,
-        performedAt: DateTime(2026, 6, 20, 10, 15),
-        notes: 'Harvest completed and crop cycle closed.',
-        performedBy: 'Brian A.',
-      ),
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.watered,
-        performedAt: DateTime(2026, 6, 17, 7),
-        notes: 'Final watering before harvest inspection.',
-        performedBy: 'Farm Staff',
-      ),
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.planted,
-        performedAt: DateTime(2026, 3, 22, 9),
-        notes: 'SeedRover planted completed peanut batch.',
-        performedBy: 'SeedRover',
-      ),
-    ],
-    maintenanceNotes: const [
-      'Seed cycle completed by rover record.',
-      'Compare harvest output against seed count.',
-      'Prepare the plot for the next peanut planting run.',
-    ],
-  ),
-  CropModel(
-    id: 'crop-005',
-    name: 'Sitaw',
-    variety: 'Pole Bean',
-    location: 'Plot B-04',
-    plantingDate: DateTime(2026, 6, 25),
-    estimatedHarvest: DateTime(2026, 8, 14),
-    growthStage: CropGrowthStage.vegetative,
-    status: CropStatus.healthy,
-    managerName: 'Farm Planting Manager',
-    progress: 0.48,
-    seedCount: 12,
-    sensorSnapshot: const CropSensorSnapshot(
-      soilMoisture: 59,
-      soilTemperature: 28.1,
-      environmentTemperature: 30.8,
-      humidity: 71,
-    ),
-    reminders: const ['Inspect vine support after the next rover pass.'],
-    notes: 'Sitaw batch planted by SeedRover in the second bean row.',
-    lastWateredAt: DateTime(2026, 7, 4, 7, 10),
-    maintenanceHistory: [
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.watered,
-        performedAt: DateTime(2026, 7, 4, 7, 10),
-        notes: 'Regular watering completed.',
-        performedBy: 'Farm Staff',
-      ),
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.planted,
-        performedAt: DateTime(2026, 6, 25, 9, 15),
-        notes: 'Recorded from SeedRover planting run.',
-        performedBy: 'SeedRover',
-      ),
-    ],
-    maintenanceNotes: const [
-      'Train vines along the support line.',
-      'Keep soil moisture steady during vegetative growth.',
-    ],
-  ),
-  CropModel(
-    id: 'crop-006',
-    name: 'Calamansi',
-    variety: 'Seedling Batch',
-    location: 'Nursery C-03',
-    plantingDate: DateTime(2026, 5, 26),
-    estimatedHarvest: DateTime(2027, 2, 23),
-    growthStage: CropGrowthStage.seeded,
-    status: CropStatus.needsWater,
-    managerName: 'Farm Planting Manager',
-    progress: 0.1,
-    seedCount: 7,
-    sensorSnapshot: const CropSensorSnapshot(
-      soilMoisture: 35,
-      soilTemperature: 27.1,
-      environmentTemperature: 30.2,
-      humidity: 73,
-    ),
-    reminders: const ['Water seedlings today.'],
-    notes: 'Calamansi nursery batch showing low soil moisture.',
-    lastWateredAt: DateTime(2026, 7, 2, 6, 35),
-    maintenanceHistory: [
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.inspected,
-        performedAt: DateTime(2026, 7, 4, 8, 5),
-        notes: 'Soil reading below target range.',
-        performedBy: 'Brian A.',
-      ),
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.planted,
-        performedAt: DateTime(2026, 5, 26, 8, 45),
-        notes: 'SeedRover completed nursery seed placement.',
-        performedBy: 'SeedRover',
-      ),
-    ],
-    maintenanceNotes: const [
-      'Mist seedlings lightly.',
-      'Keep nursery shade stable.',
-    ],
-  ),
-  CropModel(
-    id: 'crop-007',
-    name: 'Peanut',
-    variety: 'Native Peanut',
-    location: 'Plot A-03',
-    plantingDate: DateTime(2026, 6, 11),
-    estimatedHarvest: DateTime(2026, 9, 9),
-    growthStage: CropGrowthStage.flowering,
-    status: CropStatus.needsFertilizer,
-    managerName: 'Farm Planting Manager',
-    progress: 0.58,
-    seedCount: 10,
-    sensorSnapshot: const CropSensorSnapshot(
-      soilMoisture: 52,
-      soilTemperature: 27.8,
-      environmentTemperature: 31.5,
-      humidity: 69,
-    ),
-    reminders: const ['Fertilizer review is due.'],
-    notes: 'Peanut row needs fertilizer follow-up during flowering.',
-    lastWateredAt: DateTime(2026, 7, 3, 7, 45),
-    maintenanceHistory: [
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.inspected,
-        performedAt: DateTime(2026, 7, 4, 8, 20),
-        notes: 'Flowering started, fertilizer recommended.',
-        performedBy: 'Brian A.',
-      ),
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.planted,
-        performedAt: DateTime(2026, 6, 11, 9, 25),
-        notes: 'SeedRover planted peanut row.',
-        performedBy: 'SeedRover',
-      ),
-    ],
-    maintenanceNotes: const [
-      'Apply fertilizer along the row edge.',
-      'Avoid overwatering during flowering.',
-    ],
-  ),
-  CropModel(
-    id: 'crop-008',
-    name: 'Sitaw',
-    variety: 'Pole Bean',
-    location: 'Plot B-05',
-    plantingDate: DateTime(2026, 7, 1),
-    estimatedHarvest: DateTime(2026, 8, 20),
-    growthStage: CropGrowthStage.seeded,
-    status: CropStatus.healthy,
-    managerName: 'Farm Planting Manager',
-    progress: 0.16,
-    seedCount: 18,
-    sensorSnapshot: const CropSensorSnapshot(
-      soilMoisture: 63,
-      soilTemperature: 27.9,
-      environmentTemperature: 30.6,
-      humidity: 75,
-    ),
-    reminders: const ['Inspect germination progress this week.'],
-    notes: 'New sitaw row recorded from the latest rover operation.',
-    lastWateredAt: DateTime(2026, 7, 4, 6, 55),
-    maintenanceHistory: [
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.watered,
-        performedAt: DateTime(2026, 7, 4, 6, 55),
-        notes: 'Light watering after seed placement.',
-        performedBy: 'Farm Staff',
-      ),
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.planted,
-        performedAt: DateTime(2026, 7, 1, 9, 5),
-        notes: 'SeedRover completed sitaw planting.',
-        performedBy: 'SeedRover',
-      ),
-    ],
-    maintenanceNotes: const [
-      'Check emergence after three days.',
-      'Keep seed bed evenly moist.',
-    ],
-  ),
-  CropModel(
-    id: 'crop-009',
-    name: 'Calamansi',
-    variety: 'Seedling Batch',
-    location: 'Nursery C-04',
-    plantingDate: DateTime(2026, 6, 2),
-    estimatedHarvest: DateTime(2027, 3, 2),
-    growthStage: CropGrowthStage.germinating,
-    status: CropStatus.healthy,
-    managerName: 'Farm Planting Manager',
-    progress: 0.22,
-    seedCount: 6,
-    sensorSnapshot: const CropSensorSnapshot(
-      soilMoisture: 58,
-      soilTemperature: 26.9,
-      environmentTemperature: 29.9,
-      humidity: 77,
-    ),
-    reminders: const ['Thin weak seedlings next inspection.'],
-    notes: 'Calamansi seedlings are germinating evenly.',
-    lastWateredAt: DateTime(2026, 7, 4, 6, 25),
-    maintenanceHistory: [
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.watered,
-        performedAt: DateTime(2026, 7, 4, 6, 25),
-        notes: 'Morning misting completed.',
-        performedBy: 'Farm Staff',
-      ),
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.planted,
-        performedAt: DateTime(2026, 6, 2, 8, 40),
-        notes: 'SeedRover placed calamansi seed batch.',
-        performedBy: 'SeedRover',
-      ),
-    ],
-    maintenanceNotes: const [
-      'Maintain nursery shade.',
-      'Remove weak seedlings on inspection day.',
-    ],
-  ),
-  CropModel(
-    id: 'crop-010',
-    name: 'Peanut',
-    variety: 'Native Peanut',
-    location: 'Plot A-04',
-    plantingDate: DateTime(2026, 6, 28),
-    estimatedHarvest: DateTime(2026, 9, 26),
-    growthStage: CropGrowthStage.seeded,
-    status: CropStatus.healthy,
-    managerName: 'Farm Planting Manager',
-    progress: 0.2,
-    seedCount: 9,
-    sensorSnapshot: const CropSensorSnapshot(
-      soilMoisture: 60,
-      soilTemperature: 27.4,
-      environmentTemperature: 30.3,
-      humidity: 72,
-    ),
-    reminders: const ['Check germination after the next rover scan.'],
-    notes: 'Fresh peanut row planted after soil state passed.',
-    lastWateredAt: DateTime(2026, 7, 4, 7, 35),
-    maintenanceHistory: [
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.watered,
-        performedAt: DateTime(2026, 7, 4, 7, 35),
-        notes: 'Initial watering completed.',
-        performedBy: 'Farm Staff',
-      ),
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.planted,
-        performedAt: DateTime(2026, 6, 28, 9, 50),
-        notes: 'SeedRover planted peanut batch.',
-        performedBy: 'SeedRover',
-      ),
-    ],
-    maintenanceNotes: const [
-      'Watch germination over the next week.',
-      'Keep row free of weeds.',
-    ],
-  ),
-  CropModel(
-    id: 'crop-011',
-    name: 'Sitaw',
-    variety: 'Pole Bean',
-    location: 'Plot B-02',
-    plantingDate: DateTime(2026, 5, 30),
-    estimatedHarvest: DateTime(2026, 7, 19),
-    growthStage: CropGrowthStage.harvestReady,
-    status: CropStatus.readyForHarvest,
-    managerName: 'Farm Planting Manager',
-    progress: 0.94,
-    seedCount: 14,
-    sensorSnapshot: const CropSensorSnapshot(
-      soilMoisture: 55,
-      soilTemperature: 28.4,
-      environmentTemperature: 31.3,
-      humidity: 67,
-    ),
-    reminders: const ['Prepare harvest check.'],
-    notes: 'Sitaw row is nearing harvest window.',
-    lastWateredAt: DateTime(2026, 7, 3, 6, 40),
-    maintenanceHistory: [
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.inspected,
-        performedAt: DateTime(2026, 7, 4, 8, 55),
-        notes: 'Pods are nearly ready for harvest.',
-        performedBy: 'Brian A.',
-      ),
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.planted,
-        performedAt: DateTime(2026, 5, 30, 9, 35),
-        notes: 'SeedRover planted sitaw batch.',
-        performedBy: 'SeedRover',
-      ),
-    ],
-    maintenanceNotes: const [
-      'Schedule harvest inspection.',
-      'Keep watering light before harvest.',
-    ],
-  ),
-  CropModel(
-    id: 'crop-012',
-    name: 'Calamansi',
-    variety: 'Seedling Batch',
-    location: 'Nursery C-05',
-    plantingDate: DateTime(2026, 6, 9),
-    estimatedHarvest: DateTime(2027, 3, 9),
-    growthStage: CropGrowthStage.vegetative,
-    status: CropStatus.needsFertilizer,
-    managerName: 'Farm Planting Manager',
-    progress: 0.31,
-    seedCount: 8,
-    sensorSnapshot: const CropSensorSnapshot(
-      soilMoisture: 56,
-      soilTemperature: 27.0,
-      environmentTemperature: 30.1,
-      humidity: 74,
-    ),
-    reminders: const ['Review fertilizer schedule.'],
-    notes: 'Calamansi seedling batch needs nutrient follow-up.',
-    lastWateredAt: DateTime(2026, 7, 4, 6, 15),
-    maintenanceHistory: [
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.inspected,
-        performedAt: DateTime(2026, 7, 4, 8),
-        notes: 'Seedling color indicates fertilizer review.',
-        performedBy: 'Brian A.',
-      ),
-      CropMaintenanceRecord(
-        activity: CropMaintenanceActivity.planted,
-        performedAt: DateTime(2026, 6, 9, 8, 50),
-        notes: 'SeedRover recorded calamansi planting.',
-        performedBy: 'SeedRover',
-      ),
-    ],
-    maintenanceNotes: const [
-      'Review fertilizer amount.',
-      'Keep the nursery tray moist but not soaked.',
-    ],
-  ),
-];
+final cropRepositoryProvider = Provider<CropRepository>(
+  (ref) => CropRepository(ref.watch(supabaseClientProvider)),
+);

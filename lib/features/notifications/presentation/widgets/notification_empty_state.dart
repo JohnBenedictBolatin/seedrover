@@ -7,12 +7,7 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/seedrover_mascot.dart';
 
 class NotificationEmptyState extends StatelessWidget {
-  const NotificationEmptyState({
-    required this.onClearFilters,
-    super.key,
-  });
-
-  final VoidCallback onClearFilters;
+  const NotificationEmptyState({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -41,11 +36,6 @@ class NotificationEmptyState extends StatelessWidget {
               'No notifications match the current view.',
               textAlign: TextAlign.center,
               style: AppTypography.caption,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            OutlinedButton(
-              onPressed: onClearFilters,
-              child: const Text('Clear Filters'),
             ),
           ],
         ),

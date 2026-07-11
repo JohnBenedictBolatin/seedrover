@@ -1,31 +1,46 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../../../../core/communication/shared/communication_message.dart';
 import '../../../../core/communication/shared/communication_service.dart';
+import '../../../../core/constants/database_tables.dart';
 import '../models/rover_command_model.dart';
 import '../models/rover_control_model.dart';
 
 class RoverRepository {
   const RoverRepository({
     required CommunicationService communicationService,
-  }) : _communicationService = communicationService;
+    required SupabaseClient client,
+  })  : _communicationService = communicationService,
+        _client = client;
 
   final CommunicationService _communicationService;
+  final SupabaseClient _client;
 
-  Future<RoverControlModel> loadSimulatedStatus() async {
-    final statusResponse = await _communicationService.send(
-      CommunicationMessage(
-        command: 'GET_ROBOT_STATUS',
-        timestamp: DateTime.now(),
-      ),
-    );
-    final sensorResponse = await _communicationService.send(
-      CommunicationMessage(
-        command: 'GET_SENSOR_DATA',
-        timestamp: DateTime.now(),
-      ),
-    );
+  Stream<void> watchRoverStatus() {
+    return _client
+        .from(DatabaseTables.robotStatus)
+        .stream(primaryKey: ['id'])
+        .map((_) => null);
+  }
 
-    final status = statusResponse.data;
-    final sensors = sensorResponse.data;
+  Future<RoverControlModel> loadStatus() async {
+    final statusRows = await _client
+        .from(DatabaseTables.robotStatus)
+        .select()
+        .eq('is_active', true)
+        .limit(1) as List<dynamic>;
+    final sensorRows = await _client
+        .from(DatabaseTables.sensorReadings)
+        .select()
+        .order('recorded_at', ascending: false)
+        .limit(1) as List<dynamic>;
+
+    final status = statusRows.isEmpty
+        ? <String, dynamic>{}
+        : statusRows.first as Map<String, dynamic>;
+    final sensors = sensorRows.isEmpty
+        ? <String, dynamic>{}
+        : sensorRows.first as Map<String, dynamic>;
 
     return RoverControlModel(
       batteryLevel: status['battery_level'] as int? ?? 0,
@@ -37,25 +52,25 @@ class RoverRepository {
       sensors: [
         RoverSensorModel(
           label: 'Soil Moisture',
-          value: (sensors['soil_moisture'] as num? ?? 0).toDouble(),
+          value: _toDouble(sensors['soil_moisture']),
           unit: '%',
           status: 'Good',
         ),
         RoverSensorModel(
           label: 'Soil Temperature',
-          value: (sensors['soil_temperature'] as num? ?? 0).toDouble(),
+          value: _toDouble(sensors['soil_temperature']),
           unit: 'C',
           status: 'Moderate',
         ),
         RoverSensorModel(
           label: 'Environmental Temperature',
-          value: (sensors['environment_temperature'] as num? ?? 0).toDouble(),
+          value: _toDouble(sensors['environmental_temperature']),
           unit: 'C',
           status: 'Good',
         ),
         RoverSensorModel(
           label: 'Humidity',
-          value: (sensors['humidity'] as num? ?? 0).toDouble(),
+          value: _toDouble(sensors['humidity']),
           unit: '%',
           status: 'Good',
         ),
@@ -64,15 +79,14 @@ class RoverRepository {
   }
 
   Future<SoilCheckResultModel> checkSoilState() async {
-    final sensorResponse = await _communicationService.send(
-      CommunicationMessage(
-        command: 'GET_SENSOR_DATA',
-        timestamp: DateTime.now(),
-      ),
-    );
-
-    final sensors = sensorResponse.data;
-    final soilMoisture = (sensors['soil_moisture'] as num? ?? 0).toDouble();
+    final rows = await _client
+        .from(DatabaseTables.sensorReadings)
+        .select('soil_moisture')
+        .order('recorded_at', ascending: false)
+        .limit(1) as List<dynamic>;
+    final sensors =
+        rows.isEmpty ? <String, dynamic>{} : rows.first as Map<String, dynamic>;
+    final soilMoisture = _toDouble(sensors['soil_moisture']);
     final isSuitable = soilMoisture >= 35 && soilMoisture <= 55;
 
     return SoilCheckResultModel(
@@ -98,6 +112,7 @@ class RoverRepository {
         payload: payload,
       ),
     );
+    await _recordCommand(command.protocolCommand, payload: payload);
 
     return command.label;
   }
@@ -109,6 +124,7 @@ class RoverRepository {
         timestamp: DateTime.now(),
       ),
     );
+    await _recordCommand(command.protocolCommand);
 
     return command.label;
   }
@@ -120,6 +136,7 @@ class RoverRepository {
         timestamp: DateTime.now(),
       ),
     );
+    await _recordCommand('EMERGENCY_STOP');
 
     return 'Emergency Stop';
   }
@@ -131,5 +148,36 @@ class RoverRepository {
         timestamp: DateTime.now(),
       ),
     );
+    await _recordCommand('REFRESH_CAMERA');
+  }
+
+  Future<void> _recordCommand(
+    String command, {
+    Map<String, Object?> payload = const {},
+  }) async {
+    final userId = _client.auth.currentUser?.id;
+
+    if (userId == null) {
+      return;
+    }
+
+    await _client.from(DatabaseTables.robotCommands).insert({
+      'command': command,
+      'payload': payload,
+      'issued_by': userId,
+      'status': 'Sent',
+      'executed_at': DateTime.now().toIso8601String(),
+    });
+
+    await _client.from(DatabaseTables.activityLogs).insert({
+      'user_id': userId,
+      'activity': 'Robot Command',
+      'description': '$command command sent.',
+      'module': 'Rover',
+    });
+  }
+
+  double _toDouble(Object? value) {
+    return (value as num?)?.toDouble() ?? 0;
   }
 }

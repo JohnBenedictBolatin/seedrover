@@ -124,7 +124,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           ),
                           const SizedBox(height: AppSpacing.md),
                           Text(
-                            'Welcome back, field operator.',
+                            'Welcome back!',
                             textAlign: TextAlign.center,
                             style: AppTypography.sectionHeading.copyWith(
                               color: AppColors.primaryText,
@@ -132,7 +132,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           ),
                           const SizedBox(height: AppSpacing.xs),
                           Text(
-                            'Your rover dashboard is warmed up and waiting for you.',
+                            'Your planting tools are set, and the fields are waiting.',
                             textAlign: TextAlign.center,
                             style: AppTypography.body.copyWith(
                               color: AppColors.secondaryText,

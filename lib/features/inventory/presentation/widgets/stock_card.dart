@@ -53,7 +53,7 @@ class StockCard extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.sm),
             AnimatedTypingText(
-              stock.id.toUpperCase(),
+              stock.displayId,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTypography.monoCaption.copyWith(
@@ -69,7 +69,12 @@ class StockCard extends StatelessWidget {
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(AppSpacing.sm),
-                  child: StockProduceImage(itemName: stock.name, size: 78),
+                  child: StockProduceImage(
+                    itemName: stock.name,
+                    imageUrl: stock.imageUrl,
+                    assetPath: stock.imageAssetPath,
+                    size: 78,
+                  ),
                 ),
               ),
             ),

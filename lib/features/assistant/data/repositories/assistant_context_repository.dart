@@ -10,23 +10,29 @@ import '../models/assistant_context_model.dart';
 final assistantContextProvider = Provider<AssistantContextModel>((ref) {
   final cropState = ref.watch(cropMonitoringControllerProvider);
   final stockState = ref.watch(stockInventoryControllerProvider);
-  final dashboard = ref.watch(dashboardProvider);
+  final dashboard = ref.watch(dashboardProvider).maybeWhen(
+        data: (value) => value,
+        orElse: () => null,
+      );
+  final rover = dashboard?.rover;
 
   return AssistantContextModel(
     generatedAt: DateTime.now(),
-    rover: {
-      'unitName': dashboard.rover.unitName,
-      'status': dashboard.rover.status,
-      'plantingStatus': dashboard.rover.plantingStatus,
-      'batteryLevel': dashboard.rover.batteryLevel,
-      'seedLevel': dashboard.rover.seedLevel,
-      'wifiConnected': dashboard.rover.wifiConnected,
-      'bluetoothConnected': dashboard.rover.bluetoothConnected,
-      'cameraConnected': dashboard.rover.cameraConnected,
-      'isInUse': dashboard.rover.isInUse,
-      'usageMinutes': dashboard.rover.usageDuration.inMinutes,
-      'lastCommunication': dashboard.rover.lastCommunication.toIso8601String(),
-    },
+    rover: rover == null
+        ? const {}
+        : {
+            'unitName': rover.unitName,
+            'status': rover.status,
+            'plantingStatus': rover.plantingStatus,
+            'batteryLevel': rover.batteryLevel,
+            'seedLevel': rover.seedLevel,
+            'wifiConnected': rover.wifiConnected,
+            'bluetoothConnected': rover.bluetoothConnected,
+            'cameraConnected': rover.cameraConnected,
+            'isInUse': rover.isInUse,
+            'usageMinutes': rover.usageDuration.inMinutes,
+            'lastCommunication': rover.lastCommunication.toIso8601String(),
+          },
     crops: [
       for (final crop in cropState.crops.take(12)) _cropContext(crop),
     ],
@@ -34,7 +40,7 @@ final assistantContextProvider = Provider<AssistantContextModel>((ref) {
       for (final stock in stockState.stocks.take(12)) _stockContext(stock),
     ],
     recentActivities: [
-      for (final activity in dashboard.recentActivities.take(8))
+      for (final activity in (dashboard?.recentActivities ?? const []).take(8))
         {
           'title': activity.title,
           'description': activity.description,
@@ -42,6 +48,10 @@ final assistantContextProvider = Provider<AssistantContextModel>((ref) {
           'timestamp': activity.timestamp.toIso8601String(),
         },
     ],
+    farmAnalytics: _farmAnalyticsContext(
+      crops: cropState.crops,
+      stocks: stockState.stocks,
+    ),
   );
 });
 
@@ -118,3 +128,140 @@ Map<String, dynamic> _stockContext(StockModel stock) {
   };
 }
 
+Map<String, dynamic> _farmAnalyticsContext({
+  required List<CropModel> crops,
+  required List<StockModel> stocks,
+}) {
+  final monthlySales = <String, double>{};
+  final monthlyPlanting = <String, int>{};
+  final soldByItem = <String, double>{};
+  final plantedByCrop = <String, int>{};
+  final stockOutTransactions = <Map<String, dynamic>>[];
+  var totalSoldQuantity = 0.0;
+  var stockOutCount = 0;
+
+  for (final crop in crops) {
+    final monthKey = _monthKey(crop.plantingDate);
+    monthlyPlanting.update(monthKey, (value) => value + 1, ifAbsent: () => 1);
+    plantedByCrop.update(crop.name, (value) => value + 1, ifAbsent: () => 1);
+  }
+
+  for (final stock in stocks) {
+    for (final transaction in stock.transactions) {
+      if (transaction.type != StockTransactionType.stockOut) {
+        continue;
+      }
+
+      final monthKey = _monthKey(transaction.performedAt);
+      totalSoldQuantity += transaction.quantity;
+      stockOutCount += 1;
+      monthlySales.update(
+        monthKey,
+        (value) => value + transaction.quantity,
+        ifAbsent: () => transaction.quantity,
+      );
+      soldByItem.update(
+        stock.name,
+        (value) => value + transaction.quantity,
+        ifAbsent: () => transaction.quantity,
+      );
+      stockOutTransactions.add({
+        'item': stock.name,
+        'quantity': transaction.quantity,
+        'unit': stock.unit,
+        'date': transaction.performedAt.toIso8601String(),
+        'remarks': transaction.remarks,
+      });
+    }
+  }
+
+  final salesByMonth = _sortedDoubleEntries(monthlySales);
+  final plantingByMonth = _sortedIntEntries(monthlyPlanting);
+  final topSoldItems = _sortedDoubleEntries(soldByItem);
+  final topPlantedCrops = _sortedIntEntries(plantedByCrop);
+  final bestSalesMonth = salesByMonth.isEmpty ? null : salesByMonth.first;
+  final recentSales = [...stockOutTransactions]
+    ..sort(
+      (left, right) => DateTime.parse(right['date'] as String)
+          .compareTo(DateTime.parse(left['date'] as String)),
+    );
+  final latestSale = recentSales.isEmpty ? null : recentSales.first;
+
+  return {
+    'purpose':
+        'Use this summary to answer questions about farm performance, best selling periods, crop planting trends, inventory movement, and practical selling suggestions.',
+    'currentSalesStatus': {
+      'summary': stockOutCount == 0
+          ? 'No stock-out or sales transactions are available in the current app data.'
+          : 'Current app data has $stockOutCount stock-out/sales transaction(s), totaling ${_formatQuantity(totalSoldQuantity)} units across ${soldByItem.length} item type(s).',
+      'totalSoldQuantity': totalSoldQuantity,
+      'stockOutTransactionCount': stockOutCount,
+      'activeSoldItemTypes': soldByItem.length,
+      'latestSale': latestSale,
+      'recentSales': recentSales.take(5).toList(),
+    },
+    'salesByMonth': salesByMonth.take(12).toList(),
+    'plantingByMonth': plantingByMonth.take(12).toList(),
+    'topSoldItems': topSoldItems.take(8).toList(),
+    'topPlantedCrops': topPlantedCrops.take(8).toList(),
+    'latestStockOut': latestSale,
+    'bestObservedSalesMonth': bestSalesMonth,
+    'recommendationHints': [
+      if (bestSalesMonth != null)
+        'Existing stock-out data is strongest in ${bestSalesMonth['label']}; consider preparing harvest and market distribution before or during this period.',
+      if (topSoldItems.isNotEmpty)
+        '${topSoldItems.first['label']} is currently the top sold item in available inventory movement data.',
+      if (salesByMonth.length < 3)
+        'Sales seasonality confidence is low because fewer than three months of stock-out data are available.',
+    ],
+  };
+}
+
+String _formatQuantity(double value) {
+  if (value == value.roundToDouble()) {
+    return value.toStringAsFixed(0);
+  }
+
+  return value.toStringAsFixed(1);
+}
+
+List<Map<String, dynamic>> _sortedDoubleEntries(Map<String, double> values) {
+  return [
+    for (final entry in values.entries)
+      {'label': entry.key, 'value': entry.value},
+  ]..sort(
+      (left, right) => (right['value'] as double).compareTo(
+        left['value'] as double,
+      ),
+    );
+}
+
+List<Map<String, dynamic>> _sortedIntEntries(Map<String, int> values) {
+  return [
+    for (final entry in values.entries)
+      {'label': entry.key, 'value': entry.value},
+  ]..sort(
+      (left, right) => (right['value'] as int).compareTo(
+        left['value'] as int,
+      ),
+    );
+}
+
+String _monthKey(DateTime date) {
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  return '${months[date.month - 1]} ${date.year}';
+}

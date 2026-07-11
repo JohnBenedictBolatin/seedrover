@@ -45,6 +45,7 @@ class UserManagementCard extends StatelessWidget {
                 ProfileAvatar(
                   name: user.fullName,
                   hasImage: user.hasProfilePicture,
+                  imageUrl: user.profileImageUrl,
                   size: 46,
                 ),
                 const SizedBox(width: AppSpacing.sm),

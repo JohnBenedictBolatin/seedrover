@@ -14,12 +14,10 @@ class ProfileController extends StateNotifier<ProfileState> {
   final ProfileRepository _repository;
   final AuthProfileModel? _authProfile;
 
-  void loadProfile() {
+  Future<void> loadProfile() async {
     try {
-      final users = _mergeAuthenticatedUser(_repository.getUsers());
-      final activities = _repository.getActivities(
-        _authProfile?.roleName ?? 'Farm Staff',
-      );
+      final users = _mergeAuthenticatedUser(await _repository.getUsers());
+      final activities = await _repository.getActivities();
 
       state = state.copyWith(
         users: users,
@@ -43,7 +41,7 @@ class ProfileController extends StateNotifier<ProfileState> {
   Future<void> refreshProfile() async {
     state = state.copyWith(isLoading: true, successMessage: null);
     await Future<void>.delayed(const Duration(milliseconds: 450));
-    loadProfile();
+    await loadProfile();
   }
 
   ProfileUserModel get currentUser {
@@ -75,31 +73,40 @@ class ProfileController extends StateNotifier<ProfileState> {
   }
 
   List<ProfileStatModel> statsForRole(String roleName) {
+    final totalUsers = state.users.length;
+    final activeUsers = state.users
+        .where((user) => user.status == ProfileAccountStatus.active)
+        .length;
+    final inactiveUsers = state.users
+        .where((user) => user.status == ProfileAccountStatus.inactive)
+        .length;
+    final recentActivities = state.activities.length;
+
     return switch (roleName) {
-      'System Administrator' => const [
+      'System Administrator' => [
           ProfileStatModel(
             label: 'Total Users',
-            value: '12',
-            context: 'Mock',
+            value: '$totalUsers',
+            context: 'Live',
             iconKey: 'users',
           ),
           ProfileStatModel(
             label: 'Active Users',
-            value: '9',
+            value: '$activeUsers',
             context: 'Active',
             iconKey: 'active',
           ),
           ProfileStatModel(
             label: 'Pending Accs',
-            value: '2',
+            value: '$inactiveUsers',
             context: 'Review',
             iconKey: 'pending',
           ),
         ],
-      'Farm Planting Manager' => const [
+      'Farm Planting Manager' => [
           ProfileStatModel(
             label: 'Crops Managed',
-            value: '12',
+            value: '$recentActivities',
             context: 'Active',
             iconKey: 'crops',
           ),
@@ -116,10 +123,10 @@ class ProfileController extends StateNotifier<ProfileState> {
             iconKey: 'tasks',
           ),
         ],
-      'Farm Inventory Manager' => const [
+      'Farm Inventory Manager' => [
           ProfileStatModel(
             label: 'Inventory Updates',
-            value: '18',
+            value: '$recentActivities',
             context: 'Week',
             iconKey: 'inventory',
           ),
@@ -136,10 +143,10 @@ class ProfileController extends StateNotifier<ProfileState> {
             iconKey: 'transactions',
           ),
         ],
-      _ => const [
+      _ => [
           ProfileStatModel(
             label: 'Assigned Tasks',
-            value: '6',
+            value: '$recentActivities',
             context: 'Open',
             iconKey: 'tasks',
           ),
@@ -193,38 +200,76 @@ class ProfileController extends StateNotifier<ProfileState> {
     );
   }
 
-  void updateCurrentProfile({
+  Future<void> updateCurrentProfile({
     required String fullName,
     required String contactNumber,
-  }) {
+  }) async {
     final current = currentUser;
-    updateUser(
-      current.copyWith(
+    final updatedUser = current.copyWith(
         fullName: fullName.trim().isEmpty ? current.fullName : fullName.trim(),
         contactNumber: contactNumber.trim().isEmpty
             ? current.contactNumber
             : contactNumber.trim(),
-      ),
-      successMessage: 'Profile updated.',
     );
+
+    try {
+      final savedUser = await _repository.updateCurrentProfile(
+        profileId: current.id,
+        fullName: updatedUser.fullName,
+      );
+      final users = [
+        for (final user in state.users)
+          if (user.id == savedUser.id)
+            savedUser.copyWith(contactNumber: updatedUser.contactNumber)
+          else
+            user,
+      ];
+
+      state = state.copyWith(
+        users: users,
+        filteredUsers: _filterUsers(users, state.searchQuery, state.userFilter),
+        successMessage: 'Profile updated.',
+      );
+    } catch (_) {
+      state = state.copyWith(errorMessage: 'Unable to update profile.');
+    }
   }
 
   void changePassword() {
-    state = state.copyWith(successMessage: 'Password changed in mock mode.');
-  }
-
-  void changeProfilePicture() {
     state = state.copyWith(
-      profilePictureRemoved: false,
-      successMessage: 'Profile picture changed in mock mode.',
+      successMessage: 'Password changes will be handled through Supabase email reset.',
     );
   }
 
-  void removeProfilePicture() {
-    state = state.copyWith(
-      profilePictureRemoved: true,
-      successMessage: 'Profile picture removed in mock mode.',
-    );
+  Future<void> changeProfilePicture(ProfileImageUpload upload) async {
+    final current = currentUser;
+
+    try {
+      final savedUser = await _repository.updateProfileImage(
+        profileId: current.id,
+        upload: upload,
+      );
+      _replaceUser(
+        savedUser,
+        successMessage: 'Profile picture updated.',
+      );
+    } catch (_) {
+      state = state.copyWith(errorMessage: 'Unable to update profile picture.');
+    }
+  }
+
+  Future<void> removeProfilePicture() async {
+    final current = currentUser;
+
+    try {
+      final savedUser = await _repository.removeProfileImage(current.id);
+      _replaceUser(
+        savedUser.copyWith(hasProfilePicture: false),
+        successMessage: 'Profile picture removed.',
+      );
+    } catch (_) {
+      state = state.copyWith(errorMessage: 'Unable to remove profile picture.');
+    }
   }
 
   void createUser({
@@ -234,36 +279,30 @@ class ProfileController extends StateNotifier<ProfileState> {
     required String contactNumber,
     required String roleName,
   }) {
-    final generatedPassword = _temporaryPassword(username);
-    final nextNumber = state.users.length + 1;
-    final user = ProfileUserModel(
-      id: 'user-${(nextNumber + 10).toString().padLeft(3, '0')}',
-      employeeId: 'EMP-${(nextNumber + 50).toString().padLeft(3, '0')}',
-      fullName: fullName.trim(),
-      username: username.trim(),
-      email: email.trim(),
-      contactNumber: contactNumber.trim(),
-      roleName: roleName,
-      dateJoined: DateTime.now(),
-      status: ProfileAccountStatus.active,
-    );
-    final users = [user, ...state.users];
-
     state = state.copyWith(
-      users: users,
-      filteredUsers: _filterUsers(users, state.searchQuery, state.userFilter),
-      generatedPassword: generatedPassword,
-      successMessage: 'User created. Temporary password generated.',
+      errorMessage:
+          'Creating Supabase Auth users requires a secure admin Edge Function.',
     );
   }
 
-  void updateUser(
+  Future<void> updateUser(
     ProfileUserModel updatedUser, {
     String successMessage = 'User updated.',
-  }) {
+  }) async {
+    ProfileUserModel savedUser = updatedUser;
+
+    try {
+      savedUser = await _repository.updateUser(updatedUser);
+    } catch (_) {
+      if (updatedUser.id != _authProfile?.id) {
+        state = state.copyWith(errorMessage: 'Unable to update user.');
+        return;
+      }
+    }
+
     final users = [
       for (final user in state.users)
-        if (user.id == updatedUser.id) updatedUser else user,
+        if (user.id == savedUser.id) savedUser else user,
     ];
 
     state = state.copyWith(
@@ -273,10 +312,28 @@ class ProfileController extends StateNotifier<ProfileState> {
     );
   }
 
+  void _replaceUser(
+    ProfileUserModel user, {
+    required String successMessage,
+  }) {
+    final users = [
+      for (final item in state.users)
+        if (item.id == user.id) user else item,
+    ];
+
+    state = state.copyWith(
+      users: users,
+      filteredUsers: _filterUsers(users, state.searchQuery, state.userFilter),
+      profilePictureRemoved: !user.hasProfilePicture,
+      successMessage: successMessage,
+    );
+  }
+
   void resetPassword(String userId) {
     state = state.copyWith(
-      generatedPassword: _temporaryPassword(userById(userId)?.username ?? 'user'),
-      successMessage: 'Temporary password generated.',
+      generatedPassword: null,
+      successMessage:
+          'Password reset requires the secure admin Edge Function before it can be sent.',
     );
   }
 
@@ -305,19 +362,30 @@ class ProfileController extends StateNotifier<ProfileState> {
       return users;
     }
 
+    ProfileUserModel? existingUser;
+    for (final user in users) {
+      if (user.username == authProfile.username) {
+        existingUser = user;
+        break;
+      }
+    }
+
     final current = ProfileUserModel(
       id: authProfile.id,
-      employeeId: 'EMP-000',
-      fullName: authProfile.fullName,
+      employeeId: existingUser?.employeeId ?? 'EMP-000',
+      fullName: existingUser?.fullName ?? authProfile.fullName,
       username: authProfile.username,
-      email: authProfile.email,
-      contactNumber: '+63 917 000 0000',
+      email: existingUser?.email ?? authProfile.email,
+      contactNumber: existingUser?.contactNumber ?? '+63 917 000 0000',
       roleName: authProfile.roleName,
-      dateJoined: DateTime(2026, 1, 1),
+      dateJoined: existingUser?.dateJoined ?? DateTime(2026, 1, 1),
       status: authProfile.isActive
           ? ProfileAccountStatus.active
           : ProfileAccountStatus.inactive,
-      hasProfilePicture: !state.profilePictureRemoved,
+      profileImagePath: existingUser?.profileImagePath,
+      profileImageUrl: existingUser?.profileImageUrl,
+      hasProfilePicture: existingUser?.hasProfilePicture ??
+          !state.profilePictureRemoved,
     );
 
     return [
@@ -362,13 +430,4 @@ class ProfileController extends StateNotifier<ProfileState> {
         left.day == right.day;
   }
 
-  String _temporaryPassword(String username) {
-    final base = username.trim().isEmpty ? 'seedrover' : username.trim();
-
-    return '${base.split('.').first}#2026';
-  }
 }
-
-final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
-  return const ProfileRepository();
-});

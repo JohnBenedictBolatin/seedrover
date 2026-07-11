@@ -94,7 +94,7 @@ class _PlantedCropTile extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
-            CropPlantImage(cropName: crop.name, size: 52),
+            CropPlantImage(crop: crop, size: 52),
             const SizedBox(height: AppSpacing.sm),
             Text(
               '${crop.name} (${crop.safeSeedCount})',

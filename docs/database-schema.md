@@ -97,6 +97,7 @@ Stores application profile records for authenticated users.
 | `username` | text | Required, unique |
 | `email` | text | Required |
 | `full_name` | text | Required |
+| `profile_image_path` | text | Optional, references a file path in Supabase Storage bucket `profile-images` |
 | `role_id` | uuid | Required, references `roles(id)` |
 | `is_active` | boolean | Required, default `true` |
 | `created_at` | timestamptz | Required |
@@ -107,6 +108,8 @@ Rules:
 - Users cannot register themselves inside the application.
 - Every authenticated user must have one profile.
 - Inactive users must be blocked from application access.
+- Uploaded profile pictures are stored in the Supabase Storage bucket `profile-images`.
+- The database stores only the image path in `profiles.profile_image_path`.
 
 ---
 
@@ -320,10 +323,12 @@ Stores available seeds, materials, tools, and supplies.
 | Column | Type | Rules |
 | --- | --- | --- |
 | `id` | uuid | Primary key, default `gen_random_uuid()` |
+| `stock_code` | text | Optional unique user-facing stock code, e.g. `STK-001` |
 | `item_name` | text | Required |
 | `quantity` | numeric(12,2) | Required, default `0` |
 | `unit` | text | Required |
 | `minimum_quantity` | numeric(12,2) | Required, default `0` |
+| `image_path` | text | Optional, references a file path in Supabase Storage bucket `stock-images` |
 | `storage_location` | text | Optional |
 | `category` | text | Required |
 | `updated_by` | uuid | Optional, references `profiles(id)` |
@@ -342,6 +347,12 @@ Allowed `category` values:
 - `Fertilizer`
 - `Consumables`
 - `Hardware`
+
+Stock images:
+
+- Uploaded stock images are stored in the Supabase Storage bucket `stock-images`.
+- The database stores only the image path in `inventory.image_path`.
+- The application should not store image binaries directly in PostgreSQL.
 
 ## `inventory_transactions`
 

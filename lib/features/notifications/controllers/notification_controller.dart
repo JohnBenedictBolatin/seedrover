@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/permission_keys.dart';
@@ -9,16 +11,31 @@ import 'notification_state.dart';
 class NotificationController extends StateNotifier<NotificationState> {
   NotificationController(this._repository, this._profile)
       : super(NotificationState.initial()) {
-    loadNotifications();
+    unawaited(_loadInitialNotifications());
+    _subscription = _repository.watchNotifications().listen(
+      (notifications) => _setNotifications(
+        notifications.where(_canViewNotification).toList(),
+        successMessage: null,
+        isLoading: false,
+      ),
+      onError: (_) {
+        // Realtime can briefly fail while Supabase/Auth settles on startup.
+        // The normal fetch path remains the source of truth for visible errors.
+      },
+    );
   }
 
   final NotificationRepository _repository;
   final AuthProfileModel? _profile;
+  StreamSubscription<List<SeedRoverNotification>>? _subscription;
 
-  void loadNotifications() {
+  Future<void> _loadInitialNotifications() async {
+    await loadNotifications(retryAttempts: 2);
+  }
+
+  Future<void> loadNotifications({int retryAttempts = 0}) async {
     try {
-      final notifications = _repository
-          .getNotifications()
+      final notifications = (await _repository.getNotifications())
           .where(_canViewNotification)
           .toList();
       _setNotifications(
@@ -27,6 +44,12 @@ class NotificationController extends StateNotifier<NotificationState> {
         isLoading: false,
       );
     } catch (_) {
+      if (retryAttempts > 0) {
+        await Future<void>.delayed(const Duration(milliseconds: 450));
+        await loadNotifications(retryAttempts: retryAttempts - 1);
+        return;
+      }
+
       state = state.copyWith(
         isLoading: false,
         errorMessage: 'Unable to load notifications.',
@@ -37,7 +60,7 @@ class NotificationController extends StateNotifier<NotificationState> {
   Future<void> refreshNotifications() async {
     state = state.copyWith(isLoading: true, successMessage: null);
     await Future<void>.delayed(const Duration(milliseconds: 450));
-    loadNotifications();
+    await loadNotifications();
   }
 
   SeedRoverNotification? notificationById(String notificationId) {
@@ -54,7 +77,8 @@ class NotificationController extends StateNotifier<NotificationState> {
     return notificationRouteFor(notification);
   }
 
-  void markAsRead(String notificationId) {
+  Future<void> markAsRead(String notificationId) async {
+    await _repository.markAsRead(notificationId);
     _replaceNotification(
       notificationId,
       (notification) => notification.copyWith(isRead: true),
@@ -62,7 +86,8 @@ class NotificationController extends StateNotifier<NotificationState> {
     );
   }
 
-  void markAsUnread(String notificationId) {
+  Future<void> markAsUnread(String notificationId) async {
+    await _repository.markAsUnread(notificationId);
     _replaceNotification(
       notificationId,
       (notification) => notification.copyWith(isRead: false),
@@ -70,7 +95,7 @@ class NotificationController extends StateNotifier<NotificationState> {
     );
   }
 
-  void toggleReadStatus(String notificationId) {
+  Future<void> toggleReadStatus(String notificationId) async {
     final notification = notificationById(notificationId);
 
     if (notification == null) {
@@ -78,14 +103,15 @@ class NotificationController extends StateNotifier<NotificationState> {
     }
 
     if (notification.isRead) {
-      markAsUnread(notificationId);
+      await markAsUnread(notificationId);
       return;
     }
 
-    markAsRead(notificationId);
+    await markAsRead(notificationId);
   }
 
-  void deleteNotification(String notificationId) {
+  Future<void> deleteNotification(String notificationId) async {
+    await _repository.deleteNotification(notificationId);
     final notifications = state.notifications
         .where((notification) => notification.id != notificationId)
         .toList();
@@ -176,6 +202,12 @@ class NotificationController extends StateNotifier<NotificationState> {
 
   void clearSuccessMessage() {
     state = state.copyWith(successMessage: null);
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
   }
 
   void _replaceNotification(

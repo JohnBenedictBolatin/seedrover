@@ -5,26 +5,33 @@ import '../../../../core/theme/app_colors.dart';
 class StockProduceImage extends StatelessWidget {
   const StockProduceImage({
     required this.itemName,
+    this.imageUrl,
+    this.assetPath,
     this.size = 72,
     super.key,
   });
 
   final String itemName;
+  final String? imageUrl;
+  final String? assetPath;
   final double size;
 
   @override
   Widget build(BuildContext context) {
-    final assetPath = _assetPathFor(itemName);
+    final resolvedAssetPath = assetPath ?? _assetPathFor(itemName);
 
     return SizedBox.square(
       dimension: size,
-      child: assetPath == null
-          ? _PlaceholderIcon(size: size)
-          : Image.asset(
-              assetPath,
+      child: imageUrl != null && imageUrl!.trim().isNotEmpty
+          ? Image.network(
+              imageUrl!,
               fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => _PlaceholderIcon(size: size),
-            ),
+              errorBuilder: (_, __, ___) => _FallbackAssetImage(
+                assetPath: resolvedAssetPath,
+                size: size,
+              ),
+            )
+          : _FallbackAssetImage(assetPath: resolvedAssetPath, size: size),
     );
   }
 
@@ -72,6 +79,29 @@ class StockProduceImage extends StatelessWidget {
     }
 
     return null;
+  }
+}
+
+class _FallbackAssetImage extends StatelessWidget {
+  const _FallbackAssetImage({
+    required this.assetPath,
+    required this.size,
+  });
+
+  final String? assetPath;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    if (assetPath == null) {
+      return _PlaceholderIcon(size: size);
+    }
+
+    return Image.asset(
+      assetPath!,
+      fit: BoxFit.contain,
+      errorBuilder: (_, __, ___) => _PlaceholderIcon(size: size),
+    );
   }
 }
 

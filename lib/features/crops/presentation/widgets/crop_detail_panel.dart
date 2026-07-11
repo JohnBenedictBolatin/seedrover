@@ -56,7 +56,7 @@ class CropDetailPanel extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.lg),
           Center(
-            child: CropPlantImage(cropName: crop.name, size: 160),
+            child: CropPlantImage(crop: crop, size: 160),
           ),
           const SizedBox(height: AppSpacing.lg),
           _ProgressHeader(

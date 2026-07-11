@@ -21,15 +21,15 @@ class CropMonitoringScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(cropMonitoringControllerProvider);
     final controller = ref.read(cropMonitoringControllerProvider.notifier);
+    final today = DateTime.now();
+    final plantedToday = state.crops.where((crop) {
+      return crop.plantingDate.year == today.year &&
+          crop.plantingDate.month == today.month &&
+          crop.plantingDate.day == today.day;
+    }).toList();
 
     if (state.isLoading) {
       return const _CropLoadingSkeleton();
-    }
-
-    if (state.errorMessage != null) {
-      return Center(
-        child: Text(state.errorMessage!, style: AppTypography.body),
-      );
     }
 
     return RefreshIndicator(
@@ -54,28 +54,25 @@ class CropMonitoringScreen extends ConsumerWidget {
             onClear: controller.clearFilters,
           ),
           const SizedBox(height: AppSpacing.xl),
-          Text(
-            'Planted Today, May 19, 2026',
-            style: AppTypography.cardTitle,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          if (state.crops.isNotEmpty)
-            PlantedTodayCard(
-              crop: state.crops.firstWhere(
-                (crop) => crop.name == 'Calamansi',
-                orElse: () => state.crops.first,
-              ),
-              onView: () {
-                final crop = state.crops.firstWhere(
-                  (crop) => crop.name == 'Calamansi',
-                  orElse: () => state.crops.first,
-                );
-                context.push(AppRoutes.cropDetailsPath(crop.id));
-              },
+          if (plantedToday.isNotEmpty) ...[
+            Text(
+              'Planted Today, ${_formatDate(today)}',
+              style: AppTypography.cardTitle,
             ),
-          const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.md),
+            for (final crop in plantedToday) ...[
+              PlantedTodayCard(
+                crop: crop,
+                onView: () {
+                  context.push(AppRoutes.cropDetailsPath(crop.id));
+                },
+              ),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+            const SizedBox(height: AppSpacing.md),
+          ],
           if (state.filteredCrops.isEmpty)
-            CropEmptyState(onClearFilters: controller.clearFilters)
+            const CropEmptyState()
           else
             _CropContent(
               crops: state.filteredCrops,
@@ -86,6 +83,25 @@ class CropMonitoringScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 }
 

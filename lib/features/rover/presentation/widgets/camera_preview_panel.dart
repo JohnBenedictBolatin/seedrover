@@ -30,17 +30,18 @@ class CameraPreviewPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppCard(
       padding: EdgeInsets.zero,
+      radius: AppRadius.sm,
       child: AspectRatio(
         aspectRatio: fullscreen ? 9 / 16 : 16 / 9,
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppRadius.lg),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
           child: Stack(
             fit: StackFit.expand,
             children: [
               DecoratedBox(
                 decoration: BoxDecoration(
                   color: AppColors.primaryBackground,
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
                 ),
                 child: _CameraPlaceholder(
                   connected: connected && canView,

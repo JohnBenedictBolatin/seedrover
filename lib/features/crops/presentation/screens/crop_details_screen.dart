@@ -185,8 +185,8 @@ class CropDetailsScreen extends ConsumerWidget {
           decoration: const InputDecoration(labelText: 'Notes'),
         ),
       ],
-      onConfirm: () {
-        controller.waterCrop(
+      onConfirm: () async {
+        await controller.waterCrop(
           cropId: crop.id,
           amount: amountController.text,
           notes: notesController.text,
@@ -223,8 +223,8 @@ class CropDetailsScreen extends ConsumerWidget {
           decoration: const InputDecoration(labelText: 'Notes'),
         ),
       ],
-      onConfirm: () {
-        controller.fertilizeCrop(
+      onConfirm: () async {
+        await controller.fertilizeCrop(
           cropId: crop.id,
           fertilizerType: typeController.text,
           quantity: quantityController.text,
@@ -357,8 +357,8 @@ class CropDetailsScreen extends ConsumerWidget {
                       context: context,
                       title: 'Save Crop Changes',
                       message: 'Save changes to ${crop.name} ${crop.id}?',
-                      onConfirm: () {
-                        controller.updateCrop(updatedCrop);
+                      onConfirm: () async {
+                        await controller.updateCrop(updatedCrop);
                         Future<void>.microtask(
                           () => Navigator.of(context).pop(),
                         );
@@ -395,9 +395,9 @@ class CropDetailsScreen extends ConsumerWidget {
     _showConfirmationDialog(
       context: context,
       title: 'Delete Crop',
-      message: 'Delete ${crop.name} ${crop.id}? This only affects mock data.',
-      onConfirm: () {
-        controller.deleteCrop(crop.id);
+      message: 'Delete ${crop.name} ${crop.id}?',
+      onConfirm: () async {
+        await controller.deleteCrop(crop.id);
         context.go(AppRoutes.crops);
       },
     );
@@ -407,7 +407,7 @@ class CropDetailsScreen extends ConsumerWidget {
     required BuildContext context,
     required String title,
     required List<Widget> fields,
-    required VoidCallback onConfirm,
+    required Future<void> Function() onConfirm,
   }) {
     showDialog<void>(
       context: context,
@@ -427,8 +427,8 @@ class CropDetailsScreen extends ConsumerWidget {
             _dialogActionButton(
               label: 'Confirm',
               icon: Icons.check,
-              onPressed: () {
-                onConfirm();
+              onPressed: () async {
+                await onConfirm();
                 Navigator.of(context).pop();
               },
             ),
@@ -442,7 +442,7 @@ class CropDetailsScreen extends ConsumerWidget {
     required BuildContext context,
     required String title,
     required String message,
-    required VoidCallback onConfirm,
+    required Future<void> Function() onConfirm,
   }) {
     showDialog<void>(
       context: context,
@@ -465,8 +465,8 @@ class CropDetailsScreen extends ConsumerWidget {
             _dialogActionButton(
               label: 'Confirm',
               icon: Icons.check,
-              onPressed: () {
-                onConfirm();
+              onPressed: () async {
+                await onConfirm();
                 Navigator.of(context).pop();
               },
             ),

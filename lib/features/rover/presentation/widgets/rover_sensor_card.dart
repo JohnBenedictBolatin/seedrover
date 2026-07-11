@@ -27,7 +27,7 @@ class RoverSensorCard extends StatelessWidget {
       return DecoratedBox(
         decoration: BoxDecoration(
           color: AppColors.secondaryBackground,
-          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
           border: Border.all(color: AppColors.inactiveBorder),
         ),
         child: Padding(
@@ -65,7 +65,7 @@ class RoverSensorCard extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: AppColors.secondaryBackground,
-        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
         border: Border.all(color: AppColors.inactiveBorder),
       ),
       child: Padding(

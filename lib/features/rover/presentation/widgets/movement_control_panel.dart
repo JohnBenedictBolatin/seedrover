@@ -158,7 +158,7 @@ class _ArrowButton extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
           border: Border.all(color: selected ? color : AppColors.inactiveBorder),
         ),
         child: Center(

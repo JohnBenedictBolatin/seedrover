@@ -7,12 +7,7 @@ import '../../../../shared/widgets/app_card.dart';
 import '../../../../shared/widgets/seedrover_mascot.dart';
 
 class CropEmptyState extends StatelessWidget {
-  const CropEmptyState({
-    required this.onClearFilters,
-    super.key,
-  });
-
-  final VoidCallback onClearFilters;
+  const CropEmptyState({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -27,18 +22,12 @@ class CropEmptyState extends StatelessWidget {
             size: 88,
           ),
           const SizedBox(height: AppSpacing.md),
-          Text('No crops found', style: AppTypography.cardTitle),
-          const SizedBox(height: AppSpacing.sm),
+          Text("You're all caught up.", style: AppTypography.cardTitle),
+          const SizedBox(height: AppSpacing.xs),
           Text(
-            'Try clearing a filter so we can bring the crop records back into view.',
+            'No crop records match the current view.',
             textAlign: TextAlign.center,
-            style: AppTypography.small,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          OutlinedButton.icon(
-            onPressed: onClearFilters,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Clear Filters'),
+            style: AppTypography.caption,
           ),
         ],
       ),

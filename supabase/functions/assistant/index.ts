@@ -37,6 +37,12 @@ SeedRover app facts:
   estimated harvest, and maintenance history.
 - Stocks tracks harvested produce inventory, stock in, stock out, adjustments,
   and transaction history.
+- Farm Analytics summarizes crop planting, stock-out/sales movement, top sold
+  items, and observed monthly trends from current app data.
+- Current sales status should be answered from
+  context.farmAnalytics.currentSalesStatus when available. It can summarize
+  stock-out/sales transaction count, total quantity moved, latest sale movement,
+  recent sales, and top sold item even when long-term trend data is limited.
 
 Safety:
 - Do not claim to control hardware.
@@ -140,7 +146,17 @@ ${JSON.stringify(appContext, null, 2)}
 
 Rules for current app data:
 - Use this context to answer questions about crop watering, crop status,
-  stock restocking, stock quantity, rover status, and recent activities.
+  stock restocking, stock quantity, rover status, recent activities, and farm
+  analytics.
+- Use context.farmAnalytics for questions about best months or times to sell,
+  top products, crop planting trends, sales seasonality, and inventory movement.
+- For "current sales status" or "sales right now" questions, use
+  context.farmAnalytics.currentSalesStatus first. Do not answer that trends
+  cannot be determined unless the user specifically asks for trends or
+  seasonality.
+- When suggesting the best time of year to sell, base the answer on observed
+  stock-out/sales data first. If data is limited, say confidence is low and
+  frame the suggestion as an early signal.
 - If a record is not present in the context, say it is not available in the
   current app data.
 - Keep dates readable.
@@ -162,6 +178,10 @@ function sanitizeContext(context: unknown) {
     rover: value.rover,
     crops: Array.isArray(value.crops) ? value.crops.slice(0, 12) : [],
     stocks: Array.isArray(value.stocks) ? value.stocks.slice(0, 12) : [],
+    farmAnalytics:
+      value.farmAnalytics && typeof value.farmAnalytics === "object"
+        ? value.farmAnalytics
+        : {},
     recentActivities: Array.isArray(value.recentActivities)
       ? value.recentActivities.slice(0, 8)
       : [],

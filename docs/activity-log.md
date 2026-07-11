@@ -2578,3 +2578,659 @@ Summary:
 
 - Replaced widget-private quantity formatter methods with one file-level helper.
 - Updated KPI, bar chart, and top-item formatting to use the shared helper.
+
+## 2026-07-10 - Dashboard Analytics Header Cleanup
+
+Feature updated:
+
+- Simplified the Dashboard Farm Analytics header and KPI labels.
+
+Files modified:
+
+- `lib/features/dashboard/presentation/widgets/dashboard_analytics_section.dart`
+- `lib/features/dashboard/presentation/screens/dashboard_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Removed the duplicate icons from the KPI label rows so only the metric values keep the icon treatment.
+- Moved the Week, Month, and Year filters into the Farm Analytics header row on the right side.
+- Removed the separate Farm Analytics title from the dashboard screen to avoid duplicated headings.
+
+## 2026-07-10 - Dashboard Analytics Container Unification
+
+Feature updated:
+
+- Wrapped the Dashboard Farm Analytics content into one outer container.
+
+Files modified:
+
+- `lib/features/dashboard/presentation/widgets/dashboard_analytics_section.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Placed the Farm Analytics title, range filters, KPI cards, and charts inside a single shared card surface.
+- Kept the inner analytics cards and interactions intact while improving the section-level grouping.
+
+## 2026-07-10 - Dashboard Analytics Border Match
+
+Feature updated:
+
+- Matched the Farm Analytics container styling to the rest of the dashboard cards.
+
+Files modified:
+
+- `lib/features/dashboard/presentation/widgets/dashboard_analytics_section.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Removed the green outline from the outer Farm Analytics container.
+- Switched the analytics shell to the same regular background and border treatment used by the other cards.
+
+## 2026-07-10 - Crop State Image Placeholders
+
+Feature updated:
+
+- Added state-aware crop image placeholders.
+
+Files created:
+
+- `assets/images/crops/README.md`
+
+Files modified:
+
+- `lib/features/crops/presentation/widgets/crop_plant_image.dart`
+- `lib/features/crops/presentation/widgets/crop_detail_panel.dart`
+- `lib/features/crops/presentation/widgets/planted_crop_group.dart`
+- `lib/features/crops/presentation/widgets/planted_today_card.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Updated crop images to resolve by crop type and current growth/status state.
+- Added placeholder visuals for missing crop-state PNG assets.
+- Documented the expected crop image filename pattern for future assets.
+
+## 2026-07-10 - Crop Image Placeholder Overflow Fix
+
+Bug fixed:
+
+- Fixed crop image placeholder overflow in small crop cards.
+
+Files modified:
+
+- `lib/features/crops/presentation/widgets/crop_plant_image.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Changed compact crop placeholders to icon-only rendering.
+- Kept crop and state labels only for larger crop detail images.
+
+## 2026-07-10 - Rover Control Floating Assistant And Radius Polish
+
+Feature updated:
+
+- Hid the Rovie floating assistant button on the Rover Control screen.
+- Reduced Rover Control container corner radii.
+
+Files modified:
+
+- `lib/core/config/app_router.dart`
+- `lib/shared/widgets/app_card.dart`
+- `lib/features/rover/presentation/widgets/camera_preview_panel.dart`
+- `lib/features/rover/presentation/widgets/planting_control_panel.dart`
+- `lib/features/rover/presentation/widgets/movement_control_panel.dart`
+- `lib/features/rover/presentation/widgets/rover_sensor_card.dart`
+- `lib/features/rover/presentation/widgets/rover_status_card.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Made the authenticated shell route-aware so Rovie is not shown on Rover Control.
+- Added an optional radius override to `AppCard` while preserving its default behavior.
+- Applied sharper `AppRadius.sm` corners to Rover Control panels, camera, controls, sensors, and status cards.
+
+## 2026-07-10 - Rover Navigation Icon Update
+
+Feature updated:
+
+- Replaced the Rover navigation icon with a wheel-like icon.
+
+Files modified:
+
+- `lib/shared/widgets/authenticated_scaffold.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Changed the Rover bottom navigation icon from the repair glyph to a cleaner circular wheel-style icon.
+
+## 2026-07-11 - Rover Navigation Icon Refinement
+
+Feature updated:
+
+- Made the Rover navigation icon look more mechanical.
+
+Files modified:
+
+- `lib/shared/widgets/authenticated_scaffold.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Replaced the Rover tab icon with a manufacturing-style mechanical icon to better match the rover concept.
+
+## 2026-07-11 - Rover Navigation Icon Gear Feel
+
+Feature updated:
+
+- Adjusted the Rover navigation icon to feel more like a gear or wheel.
+
+Files modified:
+
+- `lib/shared/widgets/authenticated_scaffold.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Swapped the Rover navigation glyph to a gear-like settings icon for a more wheel-like visual impression.
+
+## 2026-07-11 - Login Welcome Copy Refresh
+
+Feature updated:
+
+- Made the login welcome text friendlier and more planting-focused.
+
+Files modified:
+
+- `lib/features/authentication/presentation/screens/login_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Replaced the login greeting with softer planting-themed language.
+- Removed the internal product-style wording from the welcome messages.
+- Updated the headline to the exact phrase `Welcome back!` while keeping the planting-focused supporting line.
+
+## 2026-07-11 - Supabase Integration Pass
+
+Feature updated:
+
+- Replaced major mock repositories with Supabase-backed data access.
+
+Files modified:
+
+- `lib/features/authentication/data/repositories/auth_repository.dart`
+- `lib/features/assistant/data/models/assistant_context_model.dart`
+- `lib/features/assistant/data/repositories/assistant_context_repository.dart`
+- `lib/features/crops/controllers/crop_monitoring_controller.dart`
+- `lib/features/crops/data/repositories/crop_repository.dart`
+- `lib/features/crops/presentation/screens/crop_details_screen.dart`
+- `lib/features/crops/providers/crop_providers.dart`
+- `lib/features/dashboard/controllers/dashboard_controller.dart`
+- `lib/features/dashboard/presentation/screens/dashboard_screen.dart`
+- `lib/features/inventory/controllers/stock_inventory_controller.dart`
+- `lib/features/inventory/data/repositories/stock_repository.dart`
+- `lib/features/inventory/presentation/screens/stock_details_screen.dart`
+- `lib/features/inventory/providers/stock_providers.dart`
+- `lib/features/notifications/controllers/notification_controller.dart`
+- `lib/features/notifications/data/repositories/notification_repository.dart`
+- `lib/features/notifications/providers/notification_providers.dart`
+- `lib/features/profile/controllers/profile_controller.dart`
+- `lib/features/profile/data/repositories/profile_repository.dart`
+- `lib/features/profile/presentation/screens/profile_screen.dart`
+- `lib/features/profile/presentation/screens/user_details_screen.dart`
+- `lib/features/rover/controllers/rover_control_controller.dart`
+- `lib/features/rover/data/repositories/rover_repository.dart`
+- `lib/features/rover/providers/rover_providers.dart`
+
+Summary:
+
+- Connected crops, inventory, notifications, dashboard, rover telemetry, profile, and activity loading to Supabase tables.
+- Added Supabase-backed create methods for crop and inventory records at the repository/controller layer.
+- Added Supabase writes for crop updates, crop maintenance actions, stock movements, stock edits, notification read/unread/delete, profile updates, rover command audit rows, and auth login/logout logs.
+- Added realtime subscriptions for crops, inventory, notifications, and rover status where the existing controllers can refresh affected state safely.
+- Preserved approved UI, navigation, layouts, loading skeletons, and reusable widgets.
+
+Known issues:
+
+- Secure System Administrator user creation and password reset require a Supabase Edge Function or backend service using admin privileges; the Flutter client must not use the service role key.
+- The current database schema does not include separate columns for some approved UI fields such as crop reminders, crop history rows, inventory supplier, inventory notes, and profile contact number, so those are derived from available live rows until a schema update is approved.
+
+## 2026-07-11 - Dashboard Supabase Realtime Refresh
+
+Feature updated:
+
+- Completed dashboard realtime refresh wiring for Supabase-backed dashboard data.
+
+Files modified:
+
+- `lib/features/dashboard/controllers/dashboard_controller.dart`
+- `lib/features/dashboard/presentation/screens/dashboard_screen.dart`
+- `lib/features/assistant/data/repositories/assistant_context_repository.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added realtime dashboard refresh events for rover status, sensor readings, and activity logs.
+- The dashboard screen now invalidates its Supabase-backed provider when related live rows change.
+- Replaced a Riverpod async convenience getter in the assistant context with explicit async handling for better compatibility.
+
+## 2026-07-11 - Profile Provider Build Fix
+
+Issue fixed:
+
+- Resolved the undefined `profileRepositoryProvider` compile error during Android debug build.
+
+Files modified:
+
+- `lib/features/profile/providers/profile_providers.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added the missing profile repository import so the profile controller provider can access the Supabase-backed repository provider.
+
+## 2026-07-11 - Crop and Inventory Refresh UX Fix
+
+Issue fixed:
+
+- Crop Monitoring and Stocks/Inventory no longer replace the page with refresh-error text when realtime refresh fails.
+
+Files modified:
+
+- `lib/features/crops/controllers/crop_monitoring_controller.dart`
+- `lib/features/crops/presentation/screens/crop_monitoring_screen.dart`
+- `lib/features/crops/presentation/widgets/crop_empty_state.dart`
+- `lib/features/inventory/controllers/stock_inventory_controller.dart`
+- `lib/features/inventory/presentation/screens/stock_list_screen.dart`
+- `lib/features/inventory/presentation/widgets/stock_empty_state.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Realtime refresh errors are now handled quietly so existing/empty content remains visible.
+- Crop and inventory empty states now use the same `You're all caught up.` message style as notifications.
+- Added a permission-aware Add Item action on the inventory list for users with `stocks.manage`.
+
+## 2026-07-11 - Stock List Controller Import Fix
+
+Issue fixed:
+
+- Resolved the hot reload compile error for the `StockInventoryController` type in the stock list screen.
+
+Files modified:
+
+- `android/app/src/main/AndroidManifest.xml`
+- `ios/Runner/Info.plist`
+- `lib/features/inventory/presentation/screens/stock_list_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added the missing stock inventory controller import used by the Add Item dialog helper.
+
+## 2026-07-11 - Inventory Add Item Field Refinement
+
+Feature updated:
+
+- Refined the Stocks/Inventory Add Item flow.
+
+Files modified:
+
+- `lib/features/inventory/controllers/stock_inventory_controller.dart`
+- `lib/features/inventory/data/models/stock_model.dart`
+- `lib/features/inventory/data/repositories/stock_repository.dart`
+- `lib/features/inventory/presentation/screens/stock_details_screen.dart`
+- `lib/features/inventory/presentation/screens/stock_list_screen.dart`
+- `lib/features/inventory/presentation/widgets/stock_card.dart`
+- `lib/features/inventory/presentation/widgets/stock_produce_image.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Moved the Add Item button beside the Stocks title on the right side.
+- Changed the Add Item unit field from free text to a preset dropdown.
+- Added a stock image selector that maps to available stock image asset slots.
+- Added user-facing stock display IDs in the `STK-001` format while keeping Supabase UUIDs internal for database operations.
+
+## 2026-07-11 - Inventory Supabase Stock Images
+
+Feature updated:
+
+- Added lightweight user-uploaded stock image support for Stocks/Inventory.
+
+Files modified:
+
+- `pubspec.yaml`
+- `supabase/migrations/20260711170000_inventory_stock_images.sql`
+- `lib/features/inventory/controllers/stock_inventory_controller.dart`
+- `lib/features/inventory/data/models/stock_model.dart`
+- `lib/features/inventory/data/repositories/stock_repository.dart`
+- `lib/features/inventory/presentation/screens/stock_details_screen.dart`
+- `lib/features/inventory/presentation/screens/stock_list_screen.dart`
+- `lib/features/inventory/presentation/widgets/stock_card.dart`
+- `lib/features/inventory/presentation/widgets/stock_produce_image.dart`
+- `ios/Runner/Info.plist`
+- `docs/database-schema.md`
+- `docs/database-specification.md`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added `inventory.image_path` and `inventory.stock_code` through a new Supabase migration.
+- Added the `stock-images` Supabase Storage bucket with permission-aware object policies.
+- Replaced the temporary stock image asset selector with a gallery image picker and local preview.
+- Uploaded selected stock images to Supabase Storage and stored only the storage path in the database.
+- Stock cards and stock details now load uploaded stock images from Supabase Storage.
+- Added the iOS photo library usage description required by the image picker.
+
+## 2026-07-11 - Stock Image Picker Interaction Fix
+
+Issue fixed:
+
+- The stock image control did not visibly respond when tapped.
+
+Files modified:
+
+- `lib/features/inventory/presentation/screens/stock_list_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Made the whole stock image field tappable instead of relying only on the icon.
+- Added an upload bottom sheet with Gallery and Camera options before opening the native picker.
+- Added visible error handling if the native image picker cannot open or an image cannot be read.
+- Added camera permission declarations for Android and iOS.
+
+## 2026-07-11 - Caught Up Empty State Button Removal
+
+Feature updated:
+
+- Simplified the caught-up empty states across the app.
+
+Files modified:
+
+- `lib/features/notifications/presentation/widgets/notification_empty_state.dart`
+- `lib/features/notifications/presentation/screens/notification_list_screen.dart`
+- `lib/features/crops/presentation/widgets/crop_empty_state.dart`
+- `lib/features/crops/presentation/screens/crop_monitoring_screen.dart`
+- `lib/features/inventory/presentation/widgets/stock_empty_state.dart`
+- `lib/features/inventory/presentation/screens/stock_list_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Removed the `Clear Filters` button from Notifications, Crop Monitoring, and Stocks/Inventory caught-up empty states.
+- Kept the existing caught-up message and module-specific empty-state copy.
+
+## 2026-07-11 - Crop Planted Today Conditional Display
+
+Issue fixed:
+
+- Removed the hanging hardcoded `Planted Today` section from the Crop Monitoring screen.
+
+Files modified:
+
+- `lib/features/crops/presentation/screens/crop_monitoring_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- The `Planted Today` section now appears only when a crop record has today's planting date.
+- Removed the fixed `May 19, 2026` text and hardcoded Calamansi fallback.
+- The section now uses the current date and lists all crops planted today.
+
+## 2026-07-11 - Notification Unread Indicator Color
+
+Feature updated:
+
+- Adjusted the unread counter styling in the Notifications page.
+
+Files modified:
+
+- `lib/features/notifications/presentation/screens/notification_list_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Changed the unread indicator outline and text from green to white.
+
+## 2026-07-11 - Rovie Farm Analytics Context
+
+Feature updated:
+
+- Expanded Rovie's assistant context so it can analyze farm analytics.
+
+Files modified:
+
+- `lib/features/assistant/data/models/assistant_context_model.dart`
+- `lib/features/assistant/data/repositories/assistant_context_repository.dart`
+- `lib/features/assistant/controllers/assistant_controller.dart`
+- `supabase/functions/assistant/index.ts`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added `farmAnalytics` to the assistant context payload.
+- Rovie now receives monthly sales movement, monthly planting counts, top sold items, top planted crops, latest stock-out activity, best observed sales month, and recommendation hints.
+- Updated the assistant Edge Function prompt to use `farmAnalytics` for sales seasonality, best time to sell, top product, and trend questions.
+- Added a local fallback answer for analytics questions when the Gemini Edge Function is unavailable.
+
+## 2026-07-11 - Profile Image Storage Integration
+
+Feature updated:
+
+- Connected profile picture upload/removal to Supabase Storage instead of local-only state.
+
+Files created:
+
+- `supabase/migrations/20260711173000_profile_images.sql`
+
+Files modified:
+
+- `lib/features/profile/controllers/profile_controller.dart`
+- `lib/features/profile/data/models/profile_user_model.dart`
+- `lib/features/profile/data/repositories/profile_repository.dart`
+- `lib/features/profile/presentation/screens/profile_screen.dart`
+- `lib/features/profile/presentation/screens/user_details_screen.dart`
+- `lib/features/profile/presentation/widgets/profile_avatar.dart`
+- `lib/features/profile/presentation/widgets/user_management_card.dart`
+- `ios/Runner/Info.plist`
+- `docs/database-schema.md`
+- `docs/database-specification.md`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added `profiles.profile_image_path` and a public Supabase Storage bucket named `profile-images`.
+- Added Storage RLS policies so authenticated users with profile/user management permissions can upload, update, and remove profile pictures.
+- Updated the profile repository to upload image bytes to Storage and save only the object path in the database.
+- Updated profile avatars to render uploaded images from Supabase public URLs with the existing fallback style.
+
+## 2026-07-11 - Profile Detail Tile Label Icon Alignment
+
+Feature updated:
+
+- Refined the Personal Information field layout in the Profile page.
+
+Files modified:
+
+- `lib/features/profile/presentation/widgets/profile_detail_tile.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Moved each field icon beside the field label instead of vertically between the label and value.
+- Kept the existing SeedRover colors, spacing, and typography.
+
+## 2026-07-11 - Notification Initial Load Retry
+
+Issue fixed:
+
+- Prevented the Notifications page from showing an initial load error before Supabase/auth state fully settles.
+
+Files modified:
+
+- `lib/features/notifications/controllers/notification_controller.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added quiet retry attempts for the first notification load.
+- Ignored realtime stream errors while the initial notification fetch is still loading with no cached data.
+- Kept manual refresh behavior unchanged.
+
+## 2026-07-11 - Notification Realtime Error Handling
+
+Issue fixed:
+
+- Prevented realtime notification stream errors from replacing the Notifications page with `Unable to refresh notifications`.
+
+Files modified:
+
+- `lib/features/notifications/controllers/notification_controller.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Kept the regular Supabase fetch as the visible source of load errors.
+- Made realtime startup errors silent so notifications can still appear after the successful fetch.
+
+## 2026-07-11 - Dashboard Connection Badge Text Wrap
+
+Feature updated:
+
+- Refined dashboard connection status badge text wrapping.
+
+Files modified:
+
+- `lib/features/dashboard/presentation/widgets/connection_status_row.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Kept connection badge labels on one compact line.
+- Shortened Bluetooth to `BT` and Camera to `Cam` so statuses stay readable.
+- Shortened status text from `Online`/`Offline` to `On`/`Off`.
+
+## 2026-07-11 - Stocks Header Add Item Button Sizing
+
+Feature updated:
+
+- Reduced the Add Item button size on the Stocks page header.
+
+Files modified:
+
+- `lib/features/inventory/presentation/screens/stock_list_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Reduced the Add Item button icon size, padding, and minimum height.
+- Kept the existing outlined SeedRover action style.
+
+## 2026-07-11 - Profile Header Edit Button Styling
+
+Feature updated:
+
+- Matched the Profile page Edit button style to the compact Stocks Add Item button.
+
+Files modified:
+
+- `lib/features/profile/presentation/screens/profile_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Changed the Profile Edit menu trigger to use a smaller transparent outlined style.
+- Kept the existing edit dropdown menu behavior.
+
+## 2026-07-11 - Rovie Current Sales Status Context
+
+Issue fixed:
+
+- Improved Rovie's answer quality for current sales status questions.
+
+Files modified:
+
+- `lib/features/assistant/data/repositories/assistant_context_repository.dart`
+- `lib/features/assistant/controllers/assistant_controller.dart`
+- `supabase/functions/assistant/index.ts`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added `currentSalesStatus` to the assistant analytics context.
+- Included stock-out transaction count, total sold quantity, latest sale movement, recent sales, and active sold item types.
+- Updated local fallback and Gemini instructions so current sales questions do not get treated as long-term sales trend questions.
+
+## 2026-07-11 - Native Launch Screen Branding
+
+Feature updated:
+
+- Replaced the default native launch screen appearance with SeedRover branding.
+
+Files created:
+
+- `android/app/src/main/res/drawable-nodpi/launch_logo.png`
+
+Files modified:
+
+- `android/app/src/main/res/drawable/launch_background.xml`
+- `android/app/src/main/res/drawable-v21/launch_background.xml`
+- `ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage.png`
+- `ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage@2x.png`
+- `ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage@3x.png`
+- `ios/Runner/Base.lproj/LaunchScreen.storyboard`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added a centered SeedRover logo to the native Android and iOS launch screens.
+- Changed the native launch background to the app's dark gray `#1B1B1B`.
+
+## 2026-07-11 - Android 12 Splash Screen Branding
+
+Issue fixed:
+
+- Prevented Android 12+ from showing the default Flutter launcher splash before SeedRover loads.
+
+Files created:
+
+- `android/app/src/main/res/values-v31/styles.xml`
+
+Files modified:
+
+- `android/app/src/main/res/values/styles.xml`
+- `android/app/src/main/res/values-night/styles.xml`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added Android 12+ `windowSplashScreen` attributes using the SeedRover launch logo.
+- Set light and dark normal Android window backgrounds to SeedRover dark gray `#1B1B1B`.
+- Removed unsupported `android:postSplashScreenTheme` attribute after Android resource linking failed.
+
+## 2026-07-11 - Square SeedRover Splash Asset
+
+Feature updated:
+
+- Replaced the native splash logo output with the new square SeedRover splash asset.
+
+Files modified:
+
+- `android/app/src/main/res/drawable-nodpi/launch_logo.png`
+- `ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage.png`
+- `ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage@2x.png`
+- `ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage@3x.png`
+- `ios/Runner/Base.lproj/LaunchScreen.storyboard`
+- `docs/activity-log.md`
+
+Summary:
+
+- Regenerated native launch assets from `assets/images/seedrover_splash.png`.
+- Updated iOS launch image metadata to square dimensions.

@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 enum StockCategory {
   leafyVegetables,
   fruitVegetables,
@@ -71,6 +73,7 @@ class StockTransactionModel {
 class StockModel {
   const StockModel({
     required this.id,
+    required this.displayId,
     required this.name,
     required this.category,
     required this.currentQuantity,
@@ -82,9 +85,13 @@ class StockModel {
     required this.lastUpdated,
     required this.notes,
     required this.transactions,
+    this.imagePath,
+    this.imageUrl,
+    this.imageAssetPath,
   });
 
   final String id;
+  final String displayId;
   final String name;
   final StockCategory category;
   final double currentQuantity;
@@ -96,6 +103,9 @@ class StockModel {
   final DateTime lastUpdated;
   final String notes;
   final List<StockTransactionModel> transactions;
+  final String? imagePath;
+  final String? imageUrl;
+  final String? imageAssetPath;
 
   StockStatus get status {
     if (currentQuantity <= 0) {
@@ -115,6 +125,7 @@ class StockModel {
 
   StockModel copyWith({
     String? id,
+    String? displayId,
     String? name,
     StockCategory? category,
     double? currentQuantity,
@@ -126,9 +137,13 @@ class StockModel {
     DateTime? lastUpdated,
     String? notes,
     List<StockTransactionModel>? transactions,
+    Object? imagePath = _noChange,
+    Object? imageUrl = _noChange,
+    Object? imageAssetPath = _noChange,
   }) {
     return StockModel(
       id: id ?? this.id,
+      displayId: displayId ?? this.displayId,
       name: name ?? this.name,
       category: category ?? this.category,
       currentQuantity: currentQuantity ?? this.currentQuantity,
@@ -140,6 +155,25 @@ class StockModel {
       lastUpdated: lastUpdated ?? this.lastUpdated,
       notes: notes ?? this.notes,
       transactions: transactions ?? this.transactions,
+      imagePath: imagePath == _noChange ? this.imagePath : imagePath as String?,
+      imageUrl: imageUrl == _noChange ? this.imageUrl : imageUrl as String?,
+      imageAssetPath: imageAssetPath == _noChange
+          ? this.imageAssetPath
+          : imageAssetPath as String?,
     );
   }
 }
+
+class StockImageUpload {
+  const StockImageUpload({
+    required this.bytes,
+    required this.fileName,
+    required this.mimeType,
+  });
+
+  final Uint8List bytes;
+  final String fileName;
+  final String mimeType;
+}
+
+const _noChange = Object();

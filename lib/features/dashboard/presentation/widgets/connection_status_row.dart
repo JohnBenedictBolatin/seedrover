@@ -29,12 +29,12 @@ class ConnectionStatusRow extends StatelessWidget {
           icon: CupertinoIcons.wifi,
         ),
         _ConnectionBadge(
-          label: 'Bluetooth',
+          label: 'BT',
           connected: bluetoothConnected,
           icon: CupertinoIcons.bluetooth,
         ),
         _ConnectionBadge(
-          label: 'Camera',
+          label: 'Cam',
           connected: cameraConnected,
           icon: CupertinoIcons.camera,
         ),
@@ -57,6 +57,7 @@ class _ConnectionBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = connected ? AppColors.primaryGreen : AppColors.inactiveBorder;
+    final status = connected ? 'On' : 'Off';
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -78,7 +79,9 @@ class _ConnectionBadge extends StatelessWidget {
             ),
             const SizedBox(width: AppSpacing.xs),
             Text(
-              (connected ? '$label Online' : '$label Offline').toUpperCase(),
+              '$label $status'.toUpperCase(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: AppTypography.statusBadge.copyWith(color: color),
             ),
           ],

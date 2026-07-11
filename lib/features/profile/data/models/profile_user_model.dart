@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 enum ProfileAccountStatus {
   active,
   inactive,
@@ -59,6 +61,8 @@ class ProfileUserModel {
     required this.roleName,
     required this.dateJoined,
     required this.status,
+    this.profileImagePath,
+    this.profileImageUrl,
     this.hasProfilePicture = true,
   });
 
@@ -71,6 +75,8 @@ class ProfileUserModel {
   final String roleName;
   final DateTime dateJoined;
   final ProfileAccountStatus status;
+  final String? profileImagePath;
+  final String? profileImageUrl;
   final bool hasProfilePicture;
 
   bool get isOnline => status == ProfileAccountStatus.active;
@@ -80,6 +86,8 @@ class ProfileUserModel {
     String? contactNumber,
     String? roleName,
     ProfileAccountStatus? status,
+    Object? profileImagePath = _noChange,
+    Object? profileImageUrl = _noChange,
     bool? hasProfilePicture,
   }) {
     return ProfileUserModel(
@@ -92,10 +100,30 @@ class ProfileUserModel {
       roleName: roleName ?? this.roleName,
       dateJoined: dateJoined,
       status: status ?? this.status,
+      profileImagePath: profileImagePath == _noChange
+          ? this.profileImagePath
+          : profileImagePath as String?,
+      profileImageUrl: profileImageUrl == _noChange
+          ? this.profileImageUrl
+          : profileImageUrl as String?,
       hasProfilePicture: hasProfilePicture ?? this.hasProfilePicture,
     );
   }
 }
+
+class ProfileImageUpload {
+  const ProfileImageUpload({
+    required this.bytes,
+    required this.fileName,
+    required this.mimeType,
+  });
+
+  final Uint8List bytes;
+  final String fileName;
+  final String mimeType;
+}
+
+const _noChange = Object();
 
 class ProfileActivityModel {
   const ProfileActivityModel({

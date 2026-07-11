@@ -7,12 +7,7 @@ import '../../../../shared/widgets/app_card.dart';
 import '../../../../shared/widgets/seedrover_mascot.dart';
 
 class StockEmptyState extends StatelessWidget {
-  const StockEmptyState({
-    required this.onClearFilters,
-    super.key,
-  });
-
-  final VoidCallback onClearFilters;
+  const StockEmptyState({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -26,21 +21,12 @@ class StockEmptyState extends StatelessWidget {
             size: 88,
           ),
           const SizedBox(height: AppSpacing.md),
-          Text('No inventory items found.', style: AppTypography.cardTitle),
-          const SizedBox(height: AppSpacing.sm),
+          Text("You're all caught up.", style: AppTypography.cardTitle),
+          const SizedBox(height: AppSpacing.xs),
           Text(
-            'Clear a filter to check the available stock records again.',
+            'No inventory items match the current view.',
             textAlign: TextAlign.center,
-            style: AppTypography.small,
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          OutlinedButton(
-            onPressed: onClearFilters,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.primaryGreen,
-              side: const BorderSide(color: AppColors.primaryGreen),
-            ),
-            child: const Text('Clear Filters'),
+            style: AppTypography.caption,
           ),
         ],
       ),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/models/stock_model.dart';
@@ -8,13 +10,23 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
   StockInventoryController(this._repository)
       : super(StockInventoryState.initial()) {
     loadStocks();
+    _subscription = _repository.watchStocks().listen(
+      (stocks) => _setStocks(stocks, successMessage: null, isLoading: false),
+      onError: (_) {
+        state = state.copyWith(
+          isLoading: false,
+          errorMessage: null,
+        );
+      },
+    );
   }
 
   final StockRepository _repository;
+  StreamSubscription<List<StockModel>>? _subscription;
 
-  void loadStocks() {
+  Future<void> loadStocks() async {
     try {
-      final stocks = _repository.getStocks();
+      final stocks = await _repository.getStocks();
       _setStocks(stocks, successMessage: null, isLoading: false);
     } catch (_) {
       state = state.copyWith(
@@ -27,7 +39,7 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
   Future<void> refreshStocks() async {
     state = state.copyWith(isLoading: true, successMessage: null);
     await Future<void>.delayed(const Duration(milliseconds: 450));
-    loadStocks();
+    await loadStocks();
   }
 
   StockModel? stockById(String stockId) {
@@ -38,6 +50,25 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
     }
 
     return null;
+  }
+
+  Future<void> createStock(
+    StockModel stock, {
+    StockImageUpload? imageUpload,
+  }) async {
+    try {
+      final createdStock = await _repository.createStock(
+        stock,
+        imageUpload: imageUpload,
+      );
+      _setStocks(
+        [createdStock, ...state.stocks],
+        successMessage: 'Stock item created.',
+        isLoading: false,
+      );
+    } catch (_) {
+      state = state.copyWith(errorMessage: 'Unable to create stock item.');
+    }
   }
 
   void updateSearch(String query) {
@@ -75,13 +106,13 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
     );
   }
 
-  String? stockIn({
+  Future<String?> stockIn({
     required String stockId,
     required double quantity,
     required String supplier,
     required String remarks,
     required String performedBy,
-  }) {
+  }) async {
     if (quantity <= 0) {
       return 'Quantity must be greater than zero.';
     }
@@ -92,37 +123,31 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
       return 'Stock item was not found.';
     }
 
-    final now = DateTime.now();
-
-    _replaceStock(
-      stock.copyWith(
-        currentQuantity: stock.currentQuantity + quantity,
-        supplier: supplier.trim().isEmpty ? stock.supplier : supplier.trim(),
-        lastUpdated: now,
-        transactions: [
-          StockTransactionModel(
-            type: StockTransactionType.stockIn,
-            quantity: quantity,
-            performedAt: now,
-            remarks: _cleanRemarks(remarks, fallback: 'Harvest stock added.'),
-            performedBy: performedBy,
-          ),
-          ...stock.transactions,
-        ],
-      ),
-      successMessage: 'Harvest stock added successfully.',
-    );
+    try {
+      final updatedStock = await _repository.stockIn(
+        stock: stock,
+        quantity: quantity,
+        supplier: supplier,
+        remarks: remarks,
+      );
+      _replaceStock(
+        updatedStock,
+        successMessage: 'Harvest stock added successfully.',
+      );
+    } catch (_) {
+      return 'Unable to add stock.';
+    }
 
     return null;
   }
 
-  String? stockOut({
+  Future<String?> stockOut({
     required String stockId,
     required double quantity,
     required String purpose,
     required String remarks,
     required String performedBy,
-  }) {
+  }) async {
     if (quantity <= 0) {
       return 'Quantity must be greater than zero.';
     }
@@ -137,38 +162,28 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
       return 'Quantity cannot exceed current stock.';
     }
 
-    final now = DateTime.now();
-    final purposeText = purpose.trim().isEmpty ? 'Stock used.' : purpose.trim();
-    final remarksText = remarks.trim().isEmpty ? purposeText : remarks.trim();
-
-    _replaceStock(
-      stock.copyWith(
-        currentQuantity: stock.currentQuantity - quantity,
-        lastUpdated: now,
-        transactions: [
-          StockTransactionModel(
-            type: StockTransactionType.stockOut,
-            quantity: quantity,
-            performedAt: now,
-            remarks: '$purposeText - $remarksText',
-            performedBy: performedBy,
-          ),
-          ...stock.transactions,
-        ],
-      ),
-      successMessage: 'Stock deducted successfully.',
-    );
+    try {
+      final updatedStock = await _repository.stockOut(
+        stock: stock,
+        quantity: quantity,
+        purpose: purpose,
+        remarks: remarks,
+      );
+      _replaceStock(updatedStock, successMessage: 'Stock deducted successfully.');
+    } catch (_) {
+      return 'Unable to deduct stock.';
+    }
 
     return null;
   }
 
-  String? adjustStock({
+  Future<String?> adjustStock({
     required String stockId,
     required double newQuantity,
     required String reason,
     required String remarks,
     required String performedBy,
-  }) {
+  }) async {
     if (newQuantity < 0) {
       return 'New quantity cannot be negative.';
     }
@@ -179,41 +194,38 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
       return 'Stock item was not found.';
     }
 
-    final now = DateTime.now();
-    final reasonText = reason.trim().isEmpty ? 'Stock adjusted.' : reason.trim();
-    final remarksText = remarks.trim().isEmpty ? reasonText : remarks.trim();
-
-    _replaceStock(
-      stock.copyWith(
-        currentQuantity: newQuantity,
-        lastUpdated: now,
-        transactions: [
-          StockTransactionModel(
-            type: StockTransactionType.adjustment,
-            quantity: newQuantity,
-            performedAt: now,
-            remarks: '$reasonText - $remarksText',
-            performedBy: performedBy,
-          ),
-          ...stock.transactions,
-        ],
-      ),
-      successMessage: 'Stock adjusted successfully.',
-    );
+    try {
+      final updatedStock = await _repository.adjustStock(
+        stock: stock,
+        newQuantity: newQuantity,
+        reason: reason,
+        remarks: remarks,
+      );
+      _replaceStock(updatedStock, successMessage: 'Stock adjusted successfully.');
+    } catch (_) {
+      return 'Unable to adjust stock.';
+    }
 
     return null;
   }
 
-  void updateStock(StockModel stock) {
-    _replaceStock(
-      stock.copyWith(lastUpdated: DateTime.now()),
-      successMessage: 'Stock item updated.',
-    );
+  Future<void> updateStock(StockModel stock) async {
+    try {
+      final updatedStock = await _repository.updateStock(stock);
+      _replaceStock(updatedStock, successMessage: 'Stock item updated.');
+    } catch (_) {
+      state = state.copyWith(errorMessage: 'Unable to update stock item.');
+    }
   }
 
-  void deleteStock(String stockId) {
-    final stocks = state.stocks.where((stock) => stock.id != stockId).toList();
-    _setStocks(stocks, successMessage: 'Stock item deleted.', isLoading: false);
+  Future<void> deleteStock(String stockId) async {
+    try {
+      await _repository.deleteStock(stockId);
+      final stocks = state.stocks.where((stock) => stock.id != stockId).toList();
+      _setStocks(stocks, successMessage: 'Stock item deleted.', isLoading: false);
+    } catch (_) {
+      state = state.copyWith(errorMessage: 'Unable to delete stock item.');
+    }
   }
 
   void clearSuccessMessage() {
@@ -324,8 +336,10 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
     );
   }
 
-  String _cleanRemarks(String value, {required String fallback}) {
-    return value.trim().isEmpty ? fallback : value.trim();
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
   }
 }
 

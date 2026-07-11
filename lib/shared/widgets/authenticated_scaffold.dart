@@ -290,7 +290,7 @@ class NavigationIcons {
   const NavigationIcons._();
 
   static const dashboard = CupertinoIcons.square_grid_2x2;
-  static const rover = Icons.tire_repair_outlined;
+  static const rover = Icons.settings_outlined;
   static const crops = Icons.spa_outlined;
   static const stocks = CupertinoIcons.cube_box;
   static const notifications = CupertinoIcons.bell;

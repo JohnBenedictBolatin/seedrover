@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../authentication/providers/auth_providers.dart';
 import '../controllers/profile_controller.dart';
 import '../controllers/profile_state.dart';
+import '../data/repositories/profile_repository.dart';
 
 final profileControllerProvider =
     StateNotifierProvider<ProfileController, ProfileState>((ref) {

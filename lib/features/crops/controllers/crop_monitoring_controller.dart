@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/models/crop_model.dart';
@@ -8,13 +10,23 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
   CropMonitoringController(this._repository)
       : super(CropMonitoringState.initial()) {
     loadCrops();
+    _subscription = _repository.watchCrops().listen(
+      (crops) => _setCrops(crops, successMessage: null, isLoading: false),
+      onError: (_) {
+        state = state.copyWith(
+          isLoading: false,
+          errorMessage: null,
+        );
+      },
+    );
   }
 
   final CropRepository _repository;
+  StreamSubscription<List<CropModel>>? _subscription;
 
-  void loadCrops() {
+  Future<void> loadCrops() async {
     try {
-      final crops = _repository.getCrops();
+      final crops = await _repository.getCrops();
       _setCrops(crops, successMessage: null, isLoading: false);
     } catch (_) {
       state = state.copyWith(
@@ -27,7 +39,7 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
   Future<void> refreshCrops() async {
     state = state.copyWith(isLoading: true, successMessage: null);
     await Future<void>.delayed(const Duration(milliseconds: 450));
-    loadCrops();
+    await loadCrops();
   }
 
   void updateSearch(String query) {
@@ -68,17 +80,30 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
     return null;
   }
 
-  void waterCrop({
+  Future<void> createCrop(CropModel crop) async {
+    try {
+      final createdCrop = await _repository.createCrop(crop);
+      _setCrops(
+        [createdCrop, ...state.crops],
+        successMessage: 'Crop created.',
+        isLoading: false,
+      );
+    } catch (_) {
+      state = state.copyWith(errorMessage: 'Unable to create crop.');
+    }
+  }
+
+  Future<void> waterCrop({
     required String cropId,
     required String notes,
     required DateTime date,
     String? amount,
-  }) {
+  }) async {
     final amountText = amount == null || amount.trim().isEmpty
         ? ''
         : ' Amount: ${amount.trim()}.';
 
-    _addMaintenance(
+    await _addMaintenance(
       cropId: cropId,
       activity: CropMaintenanceActivity.watered,
       date: date,
@@ -89,18 +114,18 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
     );
   }
 
-  void fertilizeCrop({
+  Future<void> fertilizeCrop({
     required String cropId,
     required String fertilizerType,
     required String notes,
     required DateTime date,
     String? quantity,
-  }) {
+  }) async {
     final quantityText = quantity == null || quantity.trim().isEmpty
         ? ''
         : ' Quantity: ${quantity.trim()}.';
 
-    _addMaintenance(
+    await _addMaintenance(
       cropId: cropId,
       activity: CropMaintenanceActivity.fertilized,
       date: date,
@@ -110,10 +135,10 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
     );
   }
 
-  void harvestCrop(String cropId) {
+  Future<void> harvestCrop(String cropId) async {
     final now = DateTime.now();
 
-    _addMaintenance(
+    await _addMaintenance(
       cropId: cropId,
       activity: CropMaintenanceActivity.harvested,
       date: now,
@@ -126,13 +151,23 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
     );
   }
 
-  void updateCrop(CropModel crop) {
-    _replaceCrop(crop, successMessage: 'Crop information updated.');
+  Future<void> updateCrop(CropModel crop) async {
+    try {
+      final updatedCrop = await _repository.updateCrop(crop);
+      _replaceCrop(updatedCrop, successMessage: 'Crop information updated.');
+    } catch (_) {
+      state = state.copyWith(errorMessage: 'Unable to update crop.');
+    }
   }
 
-  void deleteCrop(String cropId) {
-    final crops = state.crops.where((crop) => crop.id != cropId).toList();
-    _setCrops(crops, successMessage: 'Crop deleted.', isLoading: false);
+  Future<void> deleteCrop(String cropId) async {
+    try {
+      await _repository.deleteCrop(cropId);
+      final crops = state.crops.where((crop) => crop.id != cropId).toList();
+      _setCrops(crops, successMessage: 'Crop deleted.', isLoading: false);
+    } catch (_) {
+      state = state.copyWith(errorMessage: 'Unable to delete crop.');
+    }
   }
 
   void clearFilters() {
@@ -270,7 +305,7 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
     return filtered;
   }
 
-  void _addMaintenance({
+  Future<void> _addMaintenance({
     required String cropId,
     required CropMaintenanceActivity activity,
     required DateTime date,
@@ -281,34 +316,30 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
     double? progress,
     DateTime? harvestDate,
     DateTime? lastWateredAt,
-  }) {
+  }) async {
     final crop = cropById(cropId);
 
     if (crop == null) {
       return;
     }
 
-    final history = [
-      CropMaintenanceRecord(
+    try {
+      final updatedCrop = await _repository.recordMaintenance(
+        crop: crop,
         activity: activity,
-        performedAt: date,
+        date: date,
         notes: notes,
-        performedBy: 'Current User',
-      ),
-      ...crop.maintenanceHistory,
-    ]..sort((left, right) => right.performedAt.compareTo(left.performedAt));
-
-    _replaceCrop(
-      crop.copyWith(
         status: status,
         growthStage: growthStage,
         progress: progress,
         harvestDate: harvestDate,
         lastWateredAt: lastWateredAt,
-        maintenanceHistory: history,
-      ),
-      successMessage: successMessage,
-    );
+      );
+
+      _replaceCrop(updatedCrop, successMessage: successMessage);
+    } catch (_) {
+      state = state.copyWith(errorMessage: 'Unable to record crop activity.');
+    }
   }
 
   void _replaceCrop(CropModel crop, {required String successMessage}) {
@@ -350,6 +381,12 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
     return left.year == right.year &&
         left.month == right.month &&
         left.day == right.day;
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
   }
 }
 

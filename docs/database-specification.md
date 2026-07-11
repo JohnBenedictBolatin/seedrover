@@ -57,6 +57,7 @@ Fields
 - username
 - email
 - full_name
+- profile_image_path
 - role_id
 - is_active
 - created_at
@@ -69,6 +70,9 @@ Relationships
 Notes
 
 Username must be unique.
+
+Profile pictures must be stored in Supabase Storage bucket `profile-images`.
+The `profiles.profile_image_path` field stores only the Storage object path.
 
 ---
 
@@ -252,10 +256,12 @@ Stores all available planting materials.
 Fields
 
 - id
+- stock_code
 - item_name
 - quantity
 - unit
 - minimum_quantity
+- image_path
 - storage_location
 - updated_by
 - created_at
@@ -265,6 +271,7 @@ Fields
 Relationships
 
 - updated_by references profiles
+- image_path references a file path in Supabase Storage bucket `stock-images`
 
 Examples
 

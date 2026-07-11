@@ -36,134 +36,148 @@ class _DashboardAnalyticsSectionState
       range: _selectedRange,
     );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Align(
-          alignment: Alignment.centerRight,
-          child: _AnalyticsRangeFilter(
-            selectedRange: _selectedRange,
-            onChanged: (range) {
-              setState(() => _selectedRange = range);
+    return AppCard(
+      backgroundColor: AppColors.secondaryBackground,
+      borderColor: AppColors.inactiveBorder,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: AnimatedTypingText(
+                  'Farm Analytics',
+                  style: AppTypography.sectionHeading,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              _AnalyticsRangeFilter(
+                selectedRange: _selectedRange,
+                onChanged: (range) {
+                  setState(() => _selectedRange = range);
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 640;
+
+              return Wrap(
+                spacing: AppSpacing.md,
+                runSpacing: AppSpacing.md,
+                children: [
+                  _KpiCard(
+                    width: compact
+                        ? (constraints.maxWidth - AppSpacing.md) / 2
+                        : (constraints.maxWidth - AppSpacing.md * 3) / 4,
+                    label: 'Crops',
+                    value: analytics.totalCrops.toString(),
+                    caption: 'records',
+                    color: AppColors.primaryGreen,
+                    icon: Icons.spa_outlined,
+                  ),
+                  _KpiCard(
+                    width: compact
+                        ? (constraints.maxWidth - AppSpacing.md) / 2
+                        : (constraints.maxWidth - AppSpacing.md * 3) / 4,
+                    label: 'Seeds',
+                    value: analytics.totalSeeds.toString(),
+                    caption: 'planted',
+                    color: AppColors.accentGreen,
+                    icon: Icons.grass_outlined,
+                  ),
+                  _KpiCard(
+                    width: compact
+                        ? (constraints.maxWidth - AppSpacing.md) / 2
+                        : (constraints.maxWidth - AppSpacing.md * 3) / 4,
+                    label: 'Sold',
+                    value: _formatAnalyticsQuantity(analytics.totalSold),
+                    caption: 'units',
+                    color: AppColors.information,
+                    icon: Icons.sell_outlined,
+                  ),
+                  _KpiCard(
+                    width: compact
+                        ? (constraints.maxWidth - AppSpacing.md) / 2
+                        : (constraints.maxWidth - AppSpacing.md * 3) / 4,
+                    label: 'Top Item',
+                    value: analytics.topSoldItemCount,
+                    caption: analytics.topSoldItem,
+                    color: AppColors.warning,
+                    icon: Icons.emoji_events_outlined,
+                  ),
+                ],
+              );
             },
           ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final compact = constraints.maxWidth < 640;
+          const SizedBox(height: AppSpacing.md),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final twoColumns = constraints.maxWidth >= 760;
+              final chartWidth = twoColumns
+                  ? (constraints.maxWidth - AppSpacing.md) / 2
+                  : constraints.maxWidth;
 
-            return Wrap(
-              spacing: AppSpacing.md,
-              runSpacing: AppSpacing.md,
-              children: [
-                _KpiCard(
-                  width: compact
-                      ? (constraints.maxWidth - AppSpacing.md) / 2
-                      : (constraints.maxWidth - AppSpacing.md * 3) / 4,
-                  label: 'Crops',
-                  value: analytics.totalCrops.toString(),
-                  caption: 'records',
-                  color: AppColors.primaryGreen,
-                  icon: Icons.spa_outlined,
-                ),
-                _KpiCard(
-                  width: compact
-                      ? (constraints.maxWidth - AppSpacing.md) / 2
-                      : (constraints.maxWidth - AppSpacing.md * 3) / 4,
-                  label: 'Seeds',
-                  value: analytics.totalSeeds.toString(),
-                  caption: 'planted',
-                  color: AppColors.accentGreen,
-                  icon: Icons.grass_outlined,
-                ),
-                _KpiCard(
-                  width: compact
-                      ? (constraints.maxWidth - AppSpacing.md) / 2
-                      : (constraints.maxWidth - AppSpacing.md * 3) / 4,
-                  label: 'Sold',
-                  value: _formatAnalyticsQuantity(analytics.totalSold),
-                  caption: 'units',
-                  color: AppColors.information,
-                  icon: Icons.sell_outlined,
-                ),
-                _KpiCard(
-                  width: compact
-                      ? (constraints.maxWidth - AppSpacing.md) / 2
-                      : (constraints.maxWidth - AppSpacing.md * 3) / 4,
-                  label: 'Top Item',
-                  value: analytics.topSoldItemCount,
-                  caption: analytics.topSoldItem,
-                  color: AppColors.warning,
-                  icon: Icons.emoji_events_outlined,
-                ),
-              ],
-            );
-          },
-        ),
-        const SizedBox(height: AppSpacing.md),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final twoColumns = constraints.maxWidth >= 760;
-            final chartWidth = twoColumns
-                ? (constraints.maxWidth - AppSpacing.md) / 2
-                : constraints.maxWidth;
-
-            return Wrap(
-              spacing: AppSpacing.md,
-              runSpacing: AppSpacing.md,
-              children: [
-                SizedBox(
-                  width: chartWidth,
-                  child: _AnalyticsChartCard(
-                    title: 'Crops Planted',
-                    subtitle: '${analytics.rangeLabel} by seed type',
-                    icon: Icons.spa_outlined,
-                    child: _BarChart(
-                      entries: analytics.cropsByName,
-                      color: AppColors.primaryGreen,
+              return Wrap(
+                spacing: AppSpacing.md,
+                runSpacing: AppSpacing.md,
+                children: [
+                  SizedBox(
+                    width: chartWidth,
+                    child: _AnalyticsChartCard(
+                      title: 'Crops Planted',
+                      subtitle: '${analytics.rangeLabel} by seed type',
+                      icon: Icons.spa_outlined,
+                      child: _BarChart(
+                        entries: analytics.cropsByName,
+                        color: AppColors.primaryGreen,
+                      ),
                     ),
                   ),
-                ),
-                SizedBox(
-                  width: chartWidth,
-                  child: _AnalyticsChartCard(
-                    title: 'Products Sold',
-                    subtitle: '${analytics.rangeLabel} stock out',
-                    icon: Icons.sell_outlined,
-                    child: _BarChart(
-                      entries: analytics.soldByItem,
-                      color: AppColors.information,
+                  SizedBox(
+                    width: chartWidth,
+                    child: _AnalyticsChartCard(
+                      title: 'Products Sold',
+                      subtitle: '${analytics.rangeLabel} stock out',
+                      icon: Icons.sell_outlined,
+                      child: _BarChart(
+                        entries: analytics.soldByItem,
+                        color: AppColors.information,
+                      ),
                     ),
                   ),
-                ),
-                SizedBox(
-                  width: chartWidth,
-                  child: _AnalyticsChartCard(
-                    title: 'Crop Progress',
-                    subtitle: '${analytics.rangeLabel} average by seed type',
-                    icon: Icons.timeline,
-                    child: _BarChart(
-                      entries: analytics.averageProgressByName,
-                      color: AppColors.accentGreen,
-                      suffix: '%',
+                  SizedBox(
+                    width: chartWidth,
+                    child: _AnalyticsChartCard(
+                      title: 'Crop Progress',
+                      subtitle: '${analytics.rangeLabel} average by seed type',
+                      icon: Icons.timeline,
+                      child: _BarChart(
+                        entries: analytics.averageProgressByName,
+                        color: AppColors.accentGreen,
+                        suffix: '%',
+                      ),
                     ),
                   ),
-                ),
-                SizedBox(
-                  width: chartWidth,
-                  child: _AnalyticsChartCard(
-                    title: 'Sales Trend',
-                    subtitle: analytics.trendLabel,
-                    icon: Icons.show_chart,
-                    child: _LineChart(entries: analytics.salesTrend),
+                  SizedBox(
+                    width: chartWidth,
+                    child: _AnalyticsChartCard(
+                      title: 'Sales Trend',
+                      subtitle: analytics.trendLabel,
+                      icon: Icons.show_chart,
+                      child: _LineChart(entries: analytics.salesTrend),
+                    ),
                   ),
-                ),
-              ],
-            );
-          },
-        ),
-      ],
+                ],
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -283,19 +297,11 @@ class _KpiCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(icon, color: color, size: 15),
-                const SizedBox(width: AppSpacing.xs),
-                Expanded(
-                  child: AnimatedTypingText(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTypography.caption,
-                  ),
-                ),
-              ],
+            AnimatedTypingText(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.caption,
             ),
             const SizedBox(height: AppSpacing.xs),
             Row(

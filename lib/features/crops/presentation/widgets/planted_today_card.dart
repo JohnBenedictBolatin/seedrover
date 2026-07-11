@@ -29,7 +29,7 @@ class PlantedTodayCard extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.sm),
         child: Row(
           children: [
-            CropPlantImage(cropName: crop.name, size: 32),
+            CropPlantImage(crop: crop, size: 32),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(

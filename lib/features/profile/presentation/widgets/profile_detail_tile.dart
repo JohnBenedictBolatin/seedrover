@@ -29,25 +29,31 @@ class ProfileDetailTile extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.sm),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 16, color: AppColors.primaryGreen),
-            const SizedBox(width: AppSpacing.xs),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  AnimatedTypingText(label, style: AppTypography.caption),
-                  const SizedBox(height: AppSpacing.xs),
-                  AnimatedTypingText(
-                    value,
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 14, color: AppColors.primaryGreen),
+                const SizedBox(width: AppSpacing.xs),
+                Flexible(
+                  child: AnimatedTypingText(
+                    label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppTypography.small.copyWith(
-                      color: AppColors.primaryText,
-                    ),
+                    style: AppTypography.caption,
                   ),
-                ],
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            AnimatedTypingText(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.small.copyWith(
+                color: AppColors.primaryText,
               ),
             ),
           ],

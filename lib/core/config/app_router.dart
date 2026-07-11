@@ -309,7 +309,9 @@ Widget _withAuthenticatedShell(
       return AuthenticatedScaffold(
         currentLocation: currentLocation,
         items: _navigationItemsFor(authState, unreadNotificationCount),
-        floatingAction: const AssistantFloatingButton(),
+        floatingAction: currentLocation == AppRoutes.rover
+            ? null
+            : const AssistantFloatingButton(),
         child: child,
       );
     },
