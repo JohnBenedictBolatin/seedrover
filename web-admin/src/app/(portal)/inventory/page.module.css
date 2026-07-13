@@ -1,0 +1,212 @@
+.page {
+  display: grid;
+  gap: 24px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--green-accent);
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.header h1,
+.sectionHeader h2 {
+  margin: 0;
+}
+
+.header h1 {
+  font-size: clamp(2rem, 4vw, 3.3rem);
+  line-height: 1.04;
+}
+
+.header p:last-child {
+  max-width: 720px;
+  margin: 12px 0 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.notice,
+.emptyState,
+.metric,
+.tableSection {
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(49, 49, 49, 0.82);
+}
+
+.notice {
+  display: grid;
+  gap: 6px;
+  color: var(--warning);
+  padding: 16px;
+}
+
+.notice span {
+  color: var(--text-secondary);
+}
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.metric {
+  display: grid;
+  min-height: 126px;
+  align-content: space-between;
+  padding: 18px;
+}
+
+.metric p,
+.salesBand p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.metric strong,
+.salesBand strong {
+  font-size: 1.22rem;
+}
+
+.salesBand {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--border-soft);
+}
+
+.salesBand div {
+  display: grid;
+  min-height: 98px;
+  align-content: space-between;
+  background: var(--surface);
+  padding: 16px;
+}
+
+.tableSection {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.emptyState {
+  display: grid;
+  gap: 6px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  padding: 20px;
+}
+
+.emptyState strong {
+  color: var(--text);
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  min-width: 920px;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  border-bottom: 1px solid var(--border-soft);
+  padding: 14px 12px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.table th {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.table td {
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+}
+
+.itemName,
+.itemCode {
+  display: block;
+}
+
+.itemName {
+  color: var(--text);
+  font-weight: 900;
+}
+
+.itemCode {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-family: var(--font-roboto-mono);
+  font-size: 0.78rem;
+}
+
+.status {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  border: 1px solid rgba(65, 215, 91, 0.24);
+  border-radius: 999px;
+  color: var(--success);
+  background: rgba(65, 215, 91, 0.08);
+  font-size: 0.78rem;
+  font-weight: 900;
+  padding: 0 10px;
+}
+
+.status[data-status="Low Stock"] {
+  border-color: rgba(255, 176, 0, 0.24);
+  color: var(--warning);
+  background: rgba(255, 176, 0, 0.08);
+}
+
+.status[data-status="Critical Stock"],
+.status[data-status="Out of Stock"] {
+  border-color: rgba(255, 59, 48, 0.24);
+  color: var(--danger);
+  background: rgba(255, 59, 48, 0.08);
+}
+
+@media (max-width: 1100px) {
+  .metricGrid,
+  .salesBand {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .metricGrid,
+  .salesBand {
+    grid-template-columns: 1fr;
+  }
+}

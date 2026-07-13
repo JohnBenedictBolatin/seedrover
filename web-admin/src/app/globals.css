@@ -1,0 +1,67 @@
+:root {
+  --font-inter: Inter, "Segoe UI", Arial, sans-serif;
+  --font-roboto-mono: "Roboto Mono", "Cascadia Mono", Consolas, monospace;
+  --background: #1b1b1b;
+  --surface: #252525;
+  --surface-raised: #313131;
+  --surface-soft: #2a2a2a;
+  --border: #505050;
+  --border-soft: rgba(255, 255, 255, 0.08);
+  --text: #ffffff;
+  --text-secondary: #d4d4d4;
+  --text-muted: #9a9a9a;
+  --green: #53d11e;
+  --green-secondary: #2faf3e;
+  --green-accent: #8dff2a;
+  --success: #41d75b;
+  --warning: #ffb000;
+  --danger: #ff3b30;
+  --info: #2196f3;
+  --shadow: 0 20px 55px rgba(0, 0, 0, 0.26);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  background: var(--background);
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top left, rgba(83, 209, 30, 0.08), transparent 28rem),
+    var(--background);
+  font-family: var(--font-inter);
+  letter-spacing: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.mono {
+  font-family: var(--font-roboto-mono);
+}
+
+::selection {
+  color: #102006;
+  background: var(--green-accent);
+}

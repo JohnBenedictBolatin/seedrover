@@ -13,6 +13,16 @@
 .swiftpm/
 migrate_working_dir/
 supabase/.temp/
+/tmp/node-runtime/
+/tmp/node-*.zip
+
+# Next.js
+**/node_modules/
+**/.next/
+**/out/
+**/.vercel/
+**/.env.local
+**/.env.*.local
 
 # IntelliJ related
 *.iml

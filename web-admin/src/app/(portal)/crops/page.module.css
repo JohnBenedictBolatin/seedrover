@@ -1,0 +1,193 @@
+.page {
+  display: grid;
+  gap: 24px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--green-accent);
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.header h1,
+.sectionHeader h2 {
+  margin: 0;
+}
+
+.header h1 {
+  font-size: clamp(2rem, 4vw, 3.3rem);
+  line-height: 1.04;
+}
+
+.header p:last-child {
+  max-width: 760px;
+  margin: 12px 0 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.notice,
+.emptyState,
+.metric,
+.listSection,
+.cropCard {
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(49, 49, 49, 0.82);
+}
+
+.notice {
+  display: grid;
+  gap: 6px;
+  color: var(--warning);
+  padding: 16px;
+}
+
+.notice span {
+  color: var(--text-secondary);
+}
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.metric {
+  display: grid;
+  min-height: 126px;
+  align-content: space-between;
+  padding: 18px;
+}
+
+.metric p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.metric strong {
+  font-size: 1.24rem;
+}
+
+.listSection {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.emptyState {
+  display: grid;
+  gap: 6px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  padding: 20px;
+}
+
+.emptyState strong {
+  color: var(--text);
+}
+
+.cropList {
+  display: grid;
+  gap: 12px;
+}
+
+.cropCard {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) repeat(4, minmax(120px, 0.7fr));
+  gap: 14px;
+  background: var(--surface);
+  padding: 16px;
+}
+
+.cropCard div {
+  display: grid;
+  gap: 5px;
+  align-content: start;
+}
+
+.cropCard span,
+.cropCard small {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.cropCard strong {
+  color: var(--text);
+}
+
+.cropCard p {
+  grid-column: 1 / -1;
+  margin: 2px 0 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.cropCard small {
+  grid-column: 1 / -1;
+}
+
+.status {
+  width: fit-content;
+  border: 1px solid rgba(65, 215, 91, 0.24);
+  border-radius: 999px;
+  color: var(--success);
+  background: rgba(65, 215, 91, 0.08);
+  font-size: 0.78rem;
+  padding: 7px 10px;
+}
+
+.status[data-status="Needs Attention"] {
+  border-color: rgba(255, 176, 0, 0.24);
+  color: var(--warning);
+  background: rgba(255, 176, 0, 0.08);
+}
+
+.status[data-status="Harvest Ready"] {
+  border-color: rgba(141, 255, 42, 0.32);
+  color: var(--green-accent);
+  background: rgba(83, 209, 30, 0.1);
+}
+
+.status[data-status="Completed"],
+.status[data-status="Cancelled"] {
+  border-color: rgba(154, 154, 154, 0.24);
+  color: var(--text-muted);
+  background: rgba(154, 154, 154, 0.08);
+}
+
+@media (max-width: 1180px) {
+  .metricGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cropCard {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .metricGrid,
+  .cropCard {
+    grid-template-columns: 1fr;
+  }
+}

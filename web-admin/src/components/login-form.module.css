@@ -1,0 +1,154 @@
+.form {
+  display: grid;
+  gap: 15px;
+}
+
+.form label {
+  display: grid;
+  gap: 8px;
+}
+
+.form label > span {
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.inputWrap {
+  display: grid;
+  min-height: 52px;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  background: rgba(27, 27, 27, 0.84);
+  padding: 0 12px;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease;
+}
+
+.inputWrap:focus-within {
+  border-color: rgba(141, 255, 42, 0.72);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px rgba(83, 209, 30, 0.13);
+}
+
+.inputWrap input {
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  color: var(--text);
+  background: transparent;
+  outline: 0;
+}
+
+.inputWrap input::placeholder {
+  color: rgba(212, 212, 212, 0.48);
+}
+
+.iconButton {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  color: var(--green-accent);
+  background: rgba(83, 209, 30, 0.08);
+}
+
+.options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: -2px;
+}
+
+.checkLabel {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px !important;
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.checkLabel input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--green);
+}
+
+.linkButton {
+  border: 0;
+  color: var(--green-accent);
+  background: transparent;
+  font-size: 0.82rem;
+  font-weight: 900;
+  cursor: pointer;
+  padding: 0;
+}
+
+.linkButton:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.message {
+  margin: 0;
+  border: 1px solid rgba(255, 176, 0, 0.28);
+  border-radius: 8px;
+  color: var(--warning);
+  background: rgba(255, 176, 0, 0.08);
+  font-size: 0.88rem;
+  font-weight: 800;
+  line-height: 1.4;
+  padding: 12px;
+}
+
+.resetMessage {
+  margin: -4px 0 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.submitButton {
+  display: inline-flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 0;
+  border-radius: 8px;
+  color: #102006;
+  background: linear-gradient(135deg, var(--green-accent), var(--green));
+  box-shadow: 0 12px 28px rgba(83, 209, 30, 0.18);
+  font-weight: 950;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.submitButton:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+@media (max-width: 460px) {
+  .options {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

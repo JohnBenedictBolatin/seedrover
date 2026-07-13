@@ -1,0 +1,171 @@
+.page {
+  display: grid;
+  gap: 26px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--green-accent);
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 3.4rem);
+  line-height: 1.04;
+}
+
+.subcopy {
+  max-width: 760px;
+  margin: 14px 0 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.phase {
+  flex: 0 0 auto;
+  border: 1px solid rgba(83, 209, 30, 0.26);
+  border-radius: 999px;
+  color: var(--green-accent);
+  font-size: 0.8rem;
+  font-weight: 900;
+  padding: 9px 12px;
+}
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.metricCard,
+.panel {
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(49, 49, 49, 0.82);
+}
+
+.metricCard {
+  display: grid;
+  min-height: 132px;
+  align-content: space-between;
+  padding: 18px;
+}
+
+.metricCard p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.metricCard strong {
+  color: var(--text);
+  font-size: 1.25rem;
+}
+
+.contentGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.8fr);
+  gap: 14px;
+}
+
+.panel {
+  min-height: 260px;
+  padding: 20px;
+}
+
+.panel:first-child {
+  grid-row: span 2;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.panel h2 {
+  margin: 0;
+  font-size: 1.24rem;
+}
+
+.steps {
+  display: grid;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.step {
+  display: grid;
+  min-height: 58px;
+  grid-template-columns: 46px minmax(0, 1fr);
+  align-items: center;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 0 14px;
+}
+
+.step span {
+  color: var(--green-accent);
+  font-size: 0.9rem;
+}
+
+.step p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-weight: 800;
+}
+
+.emptyState,
+.statusList {
+  display: grid;
+  gap: 12px;
+  margin-top: 22px;
+  color: var(--text-secondary);
+}
+
+.emptyState span {
+  color: var(--text-muted);
+  font-size: 2rem;
+}
+
+.emptyState p,
+.statusList span {
+  margin: 0;
+  border-left: 3px solid rgba(83, 209, 30, 0.48);
+  padding-left: 12px;
+}
+
+@media (max-width: 1100px) {
+  .metricGrid,
+  .contentGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .header {
+    flex-direction: column;
+  }
+
+  .metricGrid,
+  .contentGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .panel:first-child {
+    grid-row: auto;
+  }
+}

@@ -1,0 +1,162 @@
+.page {
+  display: grid;
+  gap: 20px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.toolbar a {
+  color: var(--green-accent);
+  font-weight: 900;
+}
+
+.receipt {
+  display: grid;
+  width: min(100%, 860px);
+  gap: 24px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: #f7f7f2;
+  color: #1b1b1b;
+  padding: clamp(22px, 4vw, 38px);
+}
+
+.receiptHeader,
+.infoGrid,
+.totals div {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.brand {
+  margin: 0 0 8px;
+  color: #2faf3e;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.receipt h1 {
+  margin: 0;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.receiptHeader span,
+.infoGrid span,
+.infoGrid small,
+.totals span,
+.remarks span {
+  color: #616161;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.receiptMeta {
+  display: grid;
+  gap: 6px;
+  text-align: right;
+}
+
+.receiptMeta strong {
+  font-family: var(--font-roboto-mono);
+  font-size: 1rem;
+}
+
+.infoGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-block: 1px solid #d7d7cd;
+  padding-block: 16px;
+}
+
+.infoGrid div {
+  display: grid;
+  gap: 5px;
+}
+
+.items {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.items th,
+.items td {
+  border-bottom: 1px solid #d7d7cd;
+  padding: 12px 8px;
+  text-align: left;
+}
+
+.items th {
+  color: #616161;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+
+.items th:nth-child(n + 2),
+.items td:nth-child(n + 2) {
+  text-align: right;
+}
+
+.totals {
+  display: grid;
+  justify-self: end;
+  width: min(100%, 390px);
+  gap: 10px;
+}
+
+.grandTotal {
+  border-top: 2px solid #1b1b1b;
+  padding-top: 12px;
+}
+
+.grandTotal strong {
+  font-size: 1.35rem;
+}
+
+.remarks {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid #d7d7cd;
+  padding-top: 14px;
+}
+
+.remarks p {
+  margin: 0;
+}
+
+@media (max-width: 700px) {
+  .toolbar,
+  .receiptHeader,
+  .infoGrid {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .receiptMeta {
+    text-align: left;
+  }
+}
+
+@media print {
+  .page {
+    display: block;
+  }
+
+  .toolbar {
+    display: none;
+  }
+
+  .receipt {
+    width: 100%;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+  }
+}

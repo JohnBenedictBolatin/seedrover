@@ -1,0 +1,191 @@
+.page {
+  display: grid;
+  gap: 24px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--green-accent);
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.header h1,
+.sectionHeader h2 {
+  margin: 0;
+}
+
+.header h1 {
+  font-size: clamp(2rem, 4vw, 3.3rem);
+  line-height: 1.04;
+}
+
+.header p:last-child {
+  max-width: 760px;
+  margin: 12px 0 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.notice,
+.emptyState,
+.metric,
+.listSection,
+.notificationCard {
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(49, 49, 49, 0.82);
+}
+
+.notice {
+  display: grid;
+  gap: 6px;
+  color: var(--warning);
+  padding: 16px;
+}
+
+.notice span {
+  color: var(--text-secondary);
+}
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.metric {
+  display: grid;
+  min-height: 126px;
+  align-content: space-between;
+  padding: 18px;
+}
+
+.metric p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.metric strong {
+  font-size: 1.24rem;
+}
+
+.listSection {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.emptyState {
+  display: grid;
+  gap: 6px;
+  color: var(--text-secondary);
+  background: var(--surface);
+  padding: 18px;
+}
+
+.emptyState strong {
+  color: var(--text);
+}
+
+.notificationList {
+  display: grid;
+  gap: 12px;
+}
+
+.notificationCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px 220px;
+  align-items: center;
+  gap: 14px;
+  background: var(--surface);
+  padding: 16px;
+}
+
+.notificationCard[data-read="false"] {
+  border-color: rgba(141, 255, 42, 0.28);
+}
+
+.notificationCopy {
+  display: grid;
+  gap: 8px;
+}
+
+.notificationCopy div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.notificationCopy span,
+.notificationCopy small,
+.status {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.notificationCopy p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.actions button {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid rgba(141, 255, 42, 0.28);
+  border-radius: 8px;
+  color: var(--green-accent);
+  background: transparent;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.dangerButton {
+  border-color: rgba(255, 59, 48, 0.28) !important;
+  color: var(--danger) !important;
+}
+
+@media (max-width: 980px) {
+  .metricGrid,
+  .notificationCard {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .notificationCopy {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .metricGrid,
+  .notificationCard,
+  .actions {
+    grid-template-columns: 1fr;
+  }
+}
