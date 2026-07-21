@@ -7,6 +7,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/utils/currency_formatter.dart';
 import '../../../../features/crops/data/models/crop_model.dart';
 import '../../../../features/crops/providers/crop_providers.dart';
 import '../../../../features/inventory/data/models/stock_model.dart';
@@ -29,10 +30,12 @@ class _DashboardAnalyticsSectionState
   @override
   Widget build(BuildContext context) {
     final crops = ref.watch(cropMonitoringControllerProvider).crops;
-    final stocks = ref.watch(stockInventoryControllerProvider).stocks;
+    final stockState = ref.watch(stockInventoryControllerProvider);
+    final stocks = stockState.stocks;
     final analytics = _DashboardAnalytics.from(
       crops: crops,
       stocks: stocks,
+      salesSummary: stockState.salesSummary,
       range: _selectedRange,
     );
 
@@ -70,6 +73,46 @@ class _DashboardAnalyticsSectionState
                 spacing: AppSpacing.md,
                 runSpacing: AppSpacing.md,
                 children: [
+                  _KpiCard(
+                    width: compact
+                        ? (constraints.maxWidth - AppSpacing.md) / 2
+                        : (constraints.maxWidth - AppSpacing.md * 3) / 4,
+                    label: 'Sales Today',
+                    value: CurrencyFormatter.php(analytics.salesToday),
+                    caption: 'today',
+                    color: AppColors.primaryGreen,
+                    icon: Icons.today_outlined,
+                  ),
+                  _KpiCard(
+                    width: compact
+                        ? (constraints.maxWidth - AppSpacing.md) / 2
+                        : (constraints.maxWidth - AppSpacing.md * 3) / 4,
+                    label: 'This Month',
+                    value: CurrencyFormatter.php(analytics.salesThisMonth),
+                    caption: 'sales',
+                    color: AppColors.accentGreen,
+                    icon: Icons.calendar_month_outlined,
+                  ),
+                  _KpiCard(
+                    width: compact
+                        ? (constraints.maxWidth - AppSpacing.md) / 2
+                        : (constraints.maxWidth - AppSpacing.md * 3) / 4,
+                    label: 'Units Sold',
+                    value: _formatAnalyticsQuantity(analytics.unitsSoldThisMonth),
+                    caption: 'this month',
+                    color: AppColors.information,
+                    icon: Icons.scale_outlined,
+                  ),
+                  _KpiCard(
+                    width: compact
+                        ? (constraints.maxWidth - AppSpacing.md) / 2
+                        : (constraints.maxWidth - AppSpacing.md * 3) / 4,
+                    label: 'Sales Txns',
+                    value: analytics.salesTransactions.toString(),
+                    caption: 'this month',
+                    color: AppColors.warning,
+                    icon: Icons.receipt_long_outlined,
+                  ),
                   _KpiCard(
                     width: compact
                         ? (constraints.maxWidth - AppSpacing.md) / 2
@@ -572,6 +615,10 @@ class _LineChartPainter extends CustomPainter {
 
 class _DashboardAnalytics {
   const _DashboardAnalytics({
+    required this.salesToday,
+    required this.salesThisMonth,
+    required this.unitsSoldThisMonth,
+    required this.salesTransactions,
     required this.totalCrops,
     required this.totalSeeds,
     required this.totalSold,
@@ -585,6 +632,10 @@ class _DashboardAnalytics {
     required this.salesTrend,
   });
 
+  final double salesToday;
+  final double salesThisMonth;
+  final double unitsSoldThisMonth;
+  final int salesTransactions;
   final int totalCrops;
   final int totalSeeds;
   final double totalSold;
@@ -600,6 +651,7 @@ class _DashboardAnalytics {
   factory _DashboardAnalytics.from({
     required List<CropModel> crops,
     required List<StockModel> stocks,
+    required StockSalesSummaryModel salesSummary,
     required _AnalyticsRange range,
   }) {
     final cropCounts = <String, double>{};
@@ -609,6 +661,11 @@ class _DashboardAnalytics {
     final trendByDay = <DateTime, double>{};
     final referenceDate = _latestDataDate(crops, stocks) ?? DateTime.now();
     final rangeStart = _rangeStart(referenceDate, range);
+    final hasRecordedSales = stocks.any(
+      (stock) => stock.sales.any(
+        (sale) => sale.status == SalesTransactionStatus.completed,
+      ),
+    );
     final filteredCrops = crops
         .where((crop) => !_isBeforeDay(crop.plantingDate, rangeStart))
         .toList();
@@ -634,6 +691,36 @@ class _DashboardAnalytics {
     }
 
     for (final stock in stocks) {
+      if (hasRecordedSales) {
+        for (final sale in stock.sales) {
+          if (sale.status != SalesTransactionStatus.completed) {
+            continue;
+          }
+
+          if (_isBeforeDay(sale.saleDate, rangeStart)) {
+            continue;
+          }
+
+          soldByItem.update(
+            stock.name,
+            (value) => value + sale.quantitySold,
+            ifAbsent: () => sale.quantitySold,
+          );
+
+          final trendKey = _trendKeyFor(
+            date: sale.saleDate,
+            range: range,
+            buckets: trendBuckets,
+          );
+
+          if (trendKey != null) {
+            trendByDay[trendKey] = trendByDay[trendKey]! + sale.totalAmount;
+          }
+        }
+
+        continue;
+      }
+
       for (final transaction in stock.transactions) {
         if (transaction.type != StockTransactionType.stockOut) {
           continue;
@@ -672,6 +759,10 @@ class _DashboardAnalytics {
     final topSale = sales.isEmpty ? null : sales.first;
 
     return _DashboardAnalytics(
+      salesToday: salesSummary.salesToday,
+      salesThisMonth: salesSummary.salesThisMonth,
+      unitsSoldThisMonth: salesSummary.unitsSoldThisMonth,
+      salesTransactions: salesSummary.salesTransactions,
       totalCrops: filteredCrops.length,
       totalSeeds: filteredCrops.fold<int>(
         0,
@@ -682,7 +773,7 @@ class _DashboardAnalytics {
       topSoldItemCount:
           topSale == null ? '0' : _formatAnalyticsQuantity(topSale.value),
       rangeLabel: range.label,
-      trendLabel: _trendLabel(range),
+      trendLabel: _trendLabel(range, amountBased: hasRecordedSales),
       cropsByName: _entriesFromMap(seedCounts),
       averageProgressByName: cropProgress,
       soldByItem: sales,
@@ -713,6 +804,10 @@ class _DashboardAnalytics {
     }
 
     for (final stock in stocks) {
+      for (final sale in stock.sales) {
+        visit(sale.saleDate);
+      }
+
       for (final transaction in stock.transactions) {
         visit(transaction.performedAt);
       }
@@ -838,11 +933,13 @@ class _DashboardAnalytics {
     return '${date.month}/${date.day}';
   }
 
-  static String _trendLabel(_AnalyticsRange range) {
+  static String _trendLabel(_AnalyticsRange range, {required bool amountBased}) {
+    final metric = amountBased ? 'sales value' : 'stock out';
+
     return switch (range) {
-      _AnalyticsRange.week => 'Daily stock out',
-      _AnalyticsRange.month => 'Weekly stock out',
-      _AnalyticsRange.year => 'Monthly stock out',
+      _AnalyticsRange.week => 'Daily $metric',
+      _AnalyticsRange.month => 'Weekly $metric',
+      _AnalyticsRange.year => 'Monthly $metric',
     };
   }
 }

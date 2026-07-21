@@ -18,37 +18,43 @@
   text-transform: uppercase;
 }
 
-.header h1,
-.panelHeader h2 {
-  margin: 0;
-}
-
 .header h1 {
+  margin: 0;
   font-size: clamp(2rem, 4vw, 3.3rem);
   line-height: 1.04;
 }
 
 .header p:last-child {
-  max-width: 760px;
+  max-width: 720px;
   margin: 12px 0 0;
   color: var(--text-secondary);
   line-height: 1.6;
 }
 
-.readOnly {
-  flex: 0 0 auto;
-  border: 1px solid rgba(141, 255, 42, 0.3);
-  border-radius: 999px;
+.liveDateTime {
+  align-self: flex-start;
+  text-align: right;
+}
+
+.liveDateTime p {
+  margin: 0 0 6px;
+  color: var(--text-muted);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.liveDateTime strong {
   color: var(--green-accent);
-  font-size: 0.78rem;
+  font-family: var(--font-roboto-mono);
+  font-size: 1.34rem;
   font-weight: 900;
-  padding: 9px 12px;
 }
 
 .notice,
 .emptyState,
 .metric,
-.panel {
+.panel,
+.commandPanel {
   border: 1px solid var(--border-soft);
   border-radius: 8px;
   background: rgba(49, 49, 49, 0.82);
@@ -72,55 +78,202 @@
 }
 
 .metric {
-  display: grid;
-  min-height: 126px;
-  align-content: space-between;
+  display: flex;
+  min-height: 104px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
   padding: 18px;
+}
+
+.metricMeta {
+  display: grid;
+  gap: 8px;
+}
+
+.metricIcon,
+.panelHeader h2 span {
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(141, 255, 42, 0.2);
+  border-radius: 8px;
+  color: var(--green-accent);
+  background: rgba(83, 209, 30, 0.08);
 }
 
 .metric p {
   margin: 0;
   color: var(--text-muted);
-  font-size: 0.86rem;
+  font-size: 0.98rem;
   font-weight: 800;
 }
 
-.metric strong {
-  font-size: 1.24rem;
+.metric strong,
+.metricValue {
+  color: var(--text);
+  font-family: var(--font-roboto-mono);
+  font-size: clamp(1.65rem, 2vw, 2.1rem);
+  font-weight: 900;
+  line-height: 1.05;
+  text-align: right;
 }
 
-.contentGrid {
+.metricValue {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.metricValue span {
+  font-family: var(--font-roboto-mono);
+}
+
+.monitorGrid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.8fr);
+  grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1fr);
   gap: 16px;
 }
 
-.panel {
+.panel,
+.commandPanel {
   display: grid;
   gap: 18px;
   align-content: start;
   padding: 20px;
 }
 
-.panelHeader {
+.panelHeader,
+.commandPanelTop {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 14px;
 }
 
+.panelHeader h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+
+.panelHeader h2 span {
+  width: 34px;
+  height: 34px;
+}
+
+.cameraPanel {
+  grid-row: span 2;
+}
+
+.cameraPreview {
+  display: grid;
+  min-height: 260px;
+  place-items: center;
+  gap: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  color: var(--green-accent);
+  background:
+    radial-gradient(circle at center, rgba(141, 255, 42, 0.1), transparent 42%),
+    linear-gradient(135deg, rgba(20, 31, 22, 0.95), rgba(24, 24, 24, 0.98));
+  padding: 20px;
+  text-align: center;
+}
+
+.cameraPreview[data-connected="false"] {
+  color: var(--text-muted);
+  background:
+    radial-gradient(circle at center, rgba(255, 176, 0, 0.08), transparent 42%),
+    linear-gradient(135deg, rgba(31, 27, 20, 0.95), rgba(24, 24, 24, 0.98));
+}
+
+.cameraPreview strong {
+  color: var(--text);
+  font-size: 1.1rem;
+}
+
+.cameraPreview span {
+  color: var(--text-secondary);
+  font-weight: 800;
+}
+
+.pillRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.statusPill,
+.readOnly,
+.status {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(65, 215, 91, 0.24);
+  border-radius: 999px;
+  color: var(--success);
+  background: rgba(65, 215, 91, 0.08);
+  font-size: 0.78rem;
+  font-weight: 900;
+  line-height: 1;
+  padding: 8px 10px;
+}
+
+.statusPill[data-active="false"],
+.status[data-status="Offline"],
+.status[data-status="Failed"],
+.status[data-status="Disconnected"],
+.status[data-status="Invalid Command"],
+.status[data-status="Error"] {
+  border-color: rgba(255, 59, 48, 0.24);
+  color: var(--danger);
+  background: rgba(255, 59, 48, 0.08);
+}
+
+.status[data-status="Pending"],
+.status[data-status="Busy"],
+.status[data-status="Checking Soil"],
+.status[data-status="Needs Attention"] {
+  border-color: rgba(255, 176, 0, 0.24);
+  color: var(--warning);
+  background: rgba(255, 176, 0, 0.08);
+}
+
+.status[data-status="Idle"],
+.status[data-status="Sent"],
+.status[data-status="Moderate"],
+.status[data-status="Emergency Stopped"] {
+  border-color: rgba(154, 154, 154, 0.24);
+  color: var(--text-muted);
+  background: rgba(154, 154, 154, 0.08);
+}
+
+.readOnly {
+  flex: 0 0 auto;
+  border-color: rgba(141, 255, 42, 0.26);
+  color: var(--green-accent);
+  background: rgba(83, 209, 30, 0.08);
+  text-transform: uppercase;
+}
+
 .healthGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 8px;
 }
 
 .healthGrid div,
-.commandItem,
+.sensorCard,
 .emptyState {
   border: 1px solid var(--border-soft);
   border-radius: 8px;
-  background: var(--surface);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .healthGrid div {
@@ -132,14 +285,17 @@
 }
 
 .healthGrid span,
+.sensorCard small,
 .commandItem span,
-.commandItem small {
+.commandItem small,
+.commandItem time {
   color: var(--text-muted);
   font-size: 0.78rem;
   font-weight: 800;
 }
 
 .healthGrid strong,
+.sensorCard strong,
 .commandItem strong {
   color: var(--text);
 }
@@ -148,16 +304,105 @@
   color: var(--danger) !important;
 }
 
+.sensorGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sensorGrid time {
+  grid-column: 1 / -1;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.sensorCard {
+  display: grid;
+  min-height: 88px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+}
+
+.sensorCard > span {
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(65, 215, 91, 0.2);
+  border-radius: 8px;
+  color: var(--success);
+  background: rgba(65, 215, 91, 0.08);
+}
+
+.sensorCard div {
+  display: grid;
+  gap: 4px;
+}
+
+.sensorCard strong {
+  font-family: var(--font-roboto-mono);
+  font-size: 1.28rem;
+}
+
+.sensorCard em {
+  grid-column: 1 / -1;
+  width: fit-content;
+  color: var(--success);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.sensorCard[data-status="Moderate"] > span,
+.sensorCard[data-status="Moderate"] em {
+  color: var(--warning);
+}
+
+.sensorCard[data-status="Moderate"] > span {
+  border-color: rgba(255, 176, 0, 0.2);
+  background: rgba(255, 176, 0, 0.08);
+}
+
+.sensorCard[data-status="Needs Attention"] > span,
+.sensorCard[data-status="Needs Attention"] em {
+  color: var(--danger);
+}
+
+.sensorCard[data-status="Needs Attention"] > span {
+  border-color: rgba(255, 59, 48, 0.2);
+  background: rgba(255, 59, 48, 0.08);
+}
+
+.commandPanel {
+  gap: 16px;
+}
+
+.commandLayout {
+  display: block;
+}
+
+.historyWrap {
+  min-width: 0;
+}
+
 .commandList {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .commandItem {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 100px 150px;
+  grid-template-columns: minmax(150px, 1fr) 120px minmax(90px, 0.6fr) minmax(150px, 0.8fr);
   align-items: center;
   gap: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface);
   padding: 12px;
 }
 
@@ -177,22 +422,189 @@
   color: var(--text);
 }
 
-@media (max-width: 1120px) {
+:global(html[data-theme="light"]) .page {
+  --surface: #ffffff;
+  --surface-raised: #f9fcf7;
+  --surface-soft: rgba(18, 60, 27, 0.05);
+  --surface-overlay: #ffffff;
+  --border-soft: rgba(18, 60, 27, 0.18);
+  --text: #123c1b;
+  --text-secondary: #243c2a;
+  --text-muted: rgba(18, 60, 27, 0.62);
+  --green: #16451f;
+  --green-secondary: #123c1b;
+  --green-accent: #16451f;
+}
+
+:global(html[data-theme="light"]) .panel,
+:global(html[data-theme="light"]) .commandPanel,
+:global(html[data-theme="light"]) .notice,
+:global(html[data-theme="light"]) .emptyState {
+  border-color: rgba(18, 60, 27, 0.18);
+  color: #123c1b;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(18, 60, 27, 0.06);
+}
+
+:global(html[data-theme="light"]) .panelHeader h2,
+:global(html[data-theme="light"]) .commandPanelTop h2,
+:global(html[data-theme="light"]) .cameraPreview strong,
+:global(html[data-theme="light"]) .healthGrid strong,
+:global(html[data-theme="light"]) .sensorCard strong,
+:global(html[data-theme="light"]) .commandItem strong,
+:global(html[data-theme="light"]) .emptyState strong {
+  color: #123c1b;
+}
+
+:global(html[data-theme="light"]) .panelHeader h2 span,
+:global(html[data-theme="light"]) .metricIcon {
+  border-color: rgba(18, 60, 27, 0.22);
+  color: #16451f;
+  background: rgba(18, 60, 27, 0.08);
+}
+
+:global(html[data-theme="light"]) .cameraPreview {
+  border-color: rgba(18, 60, 27, 0.16);
+  color: #16451f;
+  background:
+    radial-gradient(circle at center, rgba(18, 60, 27, 0.1), transparent 42%),
+    linear-gradient(135deg, #eef6eb, #ffffff);
+}
+
+:global(html[data-theme="light"]) .cameraPreview[data-connected="false"] {
+  color: rgba(18, 60, 27, 0.62);
+  background:
+    radial-gradient(circle at center, rgba(184, 123, 0, 0.1), transparent 42%),
+    linear-gradient(135deg, #fbf7ec, #ffffff);
+}
+
+:global(html[data-theme="light"]) .cameraPreview span,
+:global(html[data-theme="light"]) .healthGrid span,
+:global(html[data-theme="light"]) .sensorCard small,
+:global(html[data-theme="light"]) .commandItem span,
+:global(html[data-theme="light"]) .commandItem small,
+:global(html[data-theme="light"]) .commandItem time,
+:global(html[data-theme="light"]) .sensorGrid time {
+  color: rgba(18, 60, 27, 0.66);
+}
+
+:global(html[data-theme="light"]) .healthGrid div,
+:global(html[data-theme="light"]) .sensorCard {
+  border-color: rgba(18, 60, 27, 0.14);
+  color: #123c1b;
+  background: #f9fcf7;
+}
+
+:global(html[data-theme="light"]) .statusPill,
+:global(html[data-theme="light"]) .status {
+  border-color: rgba(22, 102, 41, 0.22);
+  color: #13752f;
+  background: rgba(31, 145, 56, 0.08);
+}
+
+:global(html[data-theme="light"]) .statusPill[data-active="false"],
+:global(html[data-theme="light"]) .status[data-status="Offline"],
+:global(html[data-theme="light"]) .status[data-status="Failed"],
+:global(html[data-theme="light"]) .status[data-status="Disconnected"],
+:global(html[data-theme="light"]) .status[data-status="Invalid Command"],
+:global(html[data-theme="light"]) .status[data-status="Error"] {
+  border-color: rgba(184, 38, 31, 0.22);
+  color: #b8261f;
+  background: rgba(184, 38, 31, 0.08);
+}
+
+:global(html[data-theme="light"]) .status[data-status="Pending"],
+:global(html[data-theme="light"]) .status[data-status="Busy"],
+:global(html[data-theme="light"]) .status[data-status="Checking Soil"],
+:global(html[data-theme="light"]) .status[data-status="Needs Attention"] {
+  border-color: rgba(184, 123, 0, 0.24);
+  color: #9a6500;
+  background: rgba(184, 123, 0, 0.08);
+}
+
+:global(html[data-theme="light"]) .status[data-status="Idle"],
+:global(html[data-theme="light"]) .status[data-status="Sent"],
+:global(html[data-theme="light"]) .status[data-status="Moderate"],
+:global(html[data-theme="light"]) .status[data-status="Emergency Stopped"] {
+  border-color: rgba(18, 60, 27, 0.16);
+  color: rgba(18, 60, 27, 0.68);
+  background: rgba(18, 60, 27, 0.06);
+}
+
+:global(html[data-theme="light"]) .readOnly {
+  border-color: rgba(18, 60, 27, 0.24);
+  color: #16451f;
+  background: rgba(18, 60, 27, 0.08);
+}
+
+:global(html[data-theme="light"]) .sensorCard > span {
+  border-color: rgba(22, 102, 41, 0.2);
+  color: #13752f;
+  background: rgba(31, 145, 56, 0.08);
+}
+
+:global(html[data-theme="light"]) .sensorCard[data-status="Moderate"] > span,
+:global(html[data-theme="light"]) .sensorCard[data-status="Moderate"] em {
+  color: #9a6500;
+}
+
+:global(html[data-theme="light"]) .sensorCard[data-status="Moderate"] > span {
+  border-color: rgba(184, 123, 0, 0.22);
+  background: rgba(184, 123, 0, 0.08);
+}
+
+:global(html[data-theme="light"]) .sensorCard[data-status="Needs Attention"] > span,
+:global(html[data-theme="light"]) .sensorCard[data-status="Needs Attention"] em {
+  color: #b8261f;
+}
+
+:global(html[data-theme="light"]) .sensorCard[data-status="Needs Attention"] > span {
+  border-color: rgba(184, 38, 31, 0.22);
+  background: rgba(184, 38, 31, 0.08);
+}
+
+:global(html[data-theme="light"]) .sensorCard em {
+  color: #13752f;
+}
+
+:global(html[data-theme="light"]) .commandItem {
+  border-color: rgba(18, 60, 27, 0.14);
+  color: #243c2a;
+  background: #ffffff;
+  box-shadow: 0 8px 18px rgba(18, 60, 27, 0.06);
+}
+
+:global(html[data-theme="light"]) .commandItem:hover {
+  border-color: rgba(18, 60, 27, 0.28);
+  background: #f9fcf7;
+}
+
+@media (max-width: 1180px) {
   .metricGrid,
-  .healthGrid,
-  .contentGrid {
+  .monitorGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .cameraPanel {
+    grid-row: auto;
+  }
+
 }
 
 @media (max-width: 760px) {
-  .header {
+  .header,
+  .commandPanelTop {
     flex-direction: column;
   }
 
+  .liveDateTime {
+    text-align: left;
+  }
+
   .metricGrid,
+  .monitorGrid,
   .healthGrid,
-  .contentGrid,
+  .sensorGrid,
   .commandItem {
     grid-template-columns: 1fr;
   }

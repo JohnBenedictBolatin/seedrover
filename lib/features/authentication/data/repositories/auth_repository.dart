@@ -142,12 +142,16 @@ class AuthRepository {
     required String activity,
     required String description,
   }) async {
-    await _client.from(DatabaseTables.activityLogs).insert({
-      'user_id': userId,
-      'activity': activity,
-      'description': description,
-      'module': 'Authentication',
-    });
+    try {
+      await _client.from(DatabaseTables.activityLogs).insert({
+        'user_id': userId,
+        'activity': activity,
+        'description': description,
+        'module': 'Authentication',
+      });
+    } catch (_) {
+      // Activity logging should not block authentication.
+    }
   }
 }
 

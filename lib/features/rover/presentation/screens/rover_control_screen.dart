@@ -13,6 +13,7 @@ import '../../../../features/authentication/providers/auth_providers.dart';
 import '../../../../shared/widgets/content_skeleton.dart';
 import '../../../../shared/widgets/seedrover_mascot.dart';
 import '../../controllers/rover_control_state.dart';
+import '../../data/models/rover_command_model.dart';
 import '../../providers/rover_providers.dart';
 import '../widgets/camera_preview_panel.dart';
 import '../widgets/movement_control_panel.dart';
@@ -73,8 +74,13 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen> {
                 children: [
                   _RoverHeader(
                     connected: state.isConnected,
+                    selectedSeed: state.selectedSeed,
+                    seedSelectorEnabled: !state.isPlantingLocked,
                     errorMessage: state.errorMessage,
                     lastCommand: state.lastCommand,
+                    onSeedChanged: controller.selectSeed,
+                    onConnect: controller.connectSimulation,
+                    onDisconnect: controller.disconnectSimulation,
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Expanded(
@@ -138,7 +144,7 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen> {
                                   context,
                                   title: 'Start Planting',
                                   message:
-                                      'Start the planting process with the current soil state?',
+                                      'Start planting ${state.selectedSeed.label} with the current soil state?',
                                   confirmLabel: 'Start',
                                   onConfirm: controller.startPlanting,
                                 ),
@@ -427,13 +433,23 @@ class _RoverLoadingSkeleton extends StatelessWidget {
 class _RoverHeader extends StatelessWidget {
   const _RoverHeader({
     required this.connected,
+    required this.selectedSeed,
+    required this.seedSelectorEnabled,
     required this.errorMessage,
     required this.lastCommand,
+    required this.onSeedChanged,
+    required this.onConnect,
+    required this.onDisconnect,
   });
 
   final bool connected;
+  final PlantingSeedType selectedSeed;
+  final bool seedSelectorEnabled;
   final String? errorMessage;
   final String? lastCommand;
+  final ValueChanged<PlantingSeedType> onSeedChanged;
+  final Future<void> Function() onConnect;
+  final Future<void> Function() onDisconnect;
 
   @override
   Widget build(BuildContext context) {
@@ -470,7 +486,131 @@ class _RoverHeader extends StatelessWidget {
               style: AppTypography.monoCaption,
             ),
           ),
+        const SizedBox(width: AppSpacing.sm),
+        _HeaderSeedSelector(
+          selectedSeed: selectedSeed,
+          enabled: seedSelectorEnabled,
+          onChanged: onSeedChanged,
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        _SimulationLinkButton(
+          connected: connected,
+          onConnect: onConnect,
+          onDisconnect: onDisconnect,
+        ),
       ],
+    );
+  }
+}
+
+class _HeaderSeedSelector extends StatelessWidget {
+  const _HeaderSeedSelector({
+    required this.selectedSeed,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final PlantingSeedType selectedSeed;
+  final bool enabled;
+  final ValueChanged<PlantingSeedType> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.secondaryBackground,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(color: AppColors.inactiveBorder),
+      ),
+      child: SizedBox(
+        width: 154,
+        height: 34,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+          child: Row(
+            children: [
+              Icon(
+                Icons.grass_outlined,
+                color: enabled ? AppColors.primaryGreen : AppColors.mutedText,
+                size: 16,
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<PlantingSeedType>(
+                    value: selectedSeed,
+                    isExpanded: true,
+                    isDense: true,
+                    dropdownColor: AppColors.secondaryBackground,
+                    iconEnabledColor: AppColors.primaryText,
+                    iconDisabledColor: AppColors.mutedText,
+                    style: AppTypography.monoCaption.copyWith(
+                      color: AppColors.primaryText,
+                    ),
+                    onChanged: enabled
+                        ? (seed) {
+                            if (seed != null) {
+                              onChanged(seed);
+                            }
+                          }
+                        : null,
+                    items: [
+                      for (final seed in PlantingSeedType.values)
+                        DropdownMenuItem(
+                          value: seed,
+                          child: Text(seed.label),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SimulationLinkButton extends StatelessWidget {
+  const _SimulationLinkButton({
+    required this.connected,
+    required this.onConnect,
+    required this.onDisconnect,
+  });
+
+  final bool connected;
+  final Future<void> Function() onConnect;
+  final Future<void> Function() onDisconnect;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = connected ? AppColors.primaryText : AppColors.primaryGreen;
+
+    return OutlinedButton.icon(
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(0, 34),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+        foregroundColor: color,
+        side: BorderSide(color: color),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+        ),
+        textStyle: AppTypography.monoCaption,
+      ),
+      onPressed: () {
+        if (connected) {
+          onDisconnect();
+        } else {
+          onConnect();
+        }
+      },
+      icon: Icon(
+        connected ? Icons.link_off : Icons.settings_input_antenna,
+        size: 16,
+        color: color,
+      ),
+      label: Text(connected ? 'Disconnect' : 'Connect Sim'),
     );
   }
 }

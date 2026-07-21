@@ -54,3 +54,27 @@ extension PlantingCommandLabel on PlantingCommand {
     };
   }
 }
+
+enum PlantingSeedType {
+  calamansi,
+  sitaw,
+  peanut,
+}
+
+extension PlantingSeedTypeLabel on PlantingSeedType {
+  String get label {
+    return switch (this) {
+      PlantingSeedType.calamansi => 'Calamansi',
+      PlantingSeedType.sitaw => 'Sitaw',
+      PlantingSeedType.peanut => 'Peanut',
+    };
+  }
+
+  String get payloadValue {
+    return switch (this) {
+      PlantingSeedType.calamansi => 'calamansi',
+      PlantingSeedType.sitaw => 'sitaw',
+      PlantingSeedType.peanut => 'peanut',
+    };
+  }
+}

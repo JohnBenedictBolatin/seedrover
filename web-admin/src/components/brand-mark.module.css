@@ -1,56 +1,25 @@
 .brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-.icon {
-  position: relative;
   display: inline-grid;
-  width: 42px;
-  height: 42px;
-  flex: 0 0 auto;
-  place-items: center;
-  border: 1px solid rgba(141, 255, 42, 0.34);
-  border-radius: 8px;
-  background: linear-gradient(145deg, #242424, #313131);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-}
-
-.leaf {
-  width: 17px;
-  height: 22px;
-  border-radius: 16px 16px 4px 16px;
-  background: linear-gradient(160deg, var(--green-accent), var(--green-secondary));
-  transform: rotate(38deg) translate(1px, -3px);
-}
-
-.stem {
-  position: absolute;
-  bottom: 8px;
-  width: 3px;
-  height: 18px;
-  border-radius: 999px;
-  background: var(--green);
-  transform: rotate(-22deg);
-}
-
-.copy {
-  display: grid;
+  align-items: center;
   min-width: 0;
-  line-height: 1.1;
+  max-width: 100%;
 }
 
-.name {
-  font-size: 1rem;
-  font-weight: 800;
+.logo {
+  grid-area: 1 / 1;
+  width: min(100%, 138px);
+  height: auto;
+  object-fit: contain;
 }
 
-.label {
-  margin-top: 4px;
-  color: var(--text-muted);
-  font-size: 0.74rem;
-  font-weight: 700;
-  text-transform: uppercase;
+.logoLight {
+  display: none;
+}
+
+:global(html[data-theme="light"]) .logoDark {
+  display: none;
+}
+
+:global(html[data-theme="light"]) .logoLight {
+  display: block;
 }

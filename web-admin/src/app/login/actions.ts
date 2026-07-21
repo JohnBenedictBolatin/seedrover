@@ -1,15 +1,24 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isAdminRole } from "@/lib/auth";
+import { checkRateLimit, formatRetryAfter } from "@/lib/rate-limit";
 
 export type LoginState = {
   message: string;
 };
 
-async function resolveEmailForUsername(username: string) {
-  const supabase = await createSupabaseServerClient();
+const genericLoginError = "Invalid username or password.";
+const genericResetMessage =
+  "If that username exists, a password reset email will be sent.";
+
+async function resolveEmailForUsername(
+  username: string,
+  rememberSession?: boolean,
+) {
+  const supabase = await createSupabaseServerClient({ rememberSession });
 
   if (!supabase) {
     return {
@@ -27,7 +36,7 @@ async function resolveEmailForUsername(username: string) {
     return {
       supabase,
       email: null,
-      message: "Username not found or the account is inactive.",
+      message: genericLoginError,
     };
   }
 
@@ -44,6 +53,7 @@ export async function signInAction(
 ): Promise<LoginState> {
   const username = String(formData.get("username") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+  const rememberSession = formData.get("rememberMe") === "true";
   let signedIn = false;
 
   if (!username) {
@@ -54,7 +64,25 @@ export async function signInAction(
     return { message: "Enter your password." };
   }
 
-  const { supabase, email, message } = await resolveEmailForUsername(username);
+  const loginLimit = await checkRateLimit({
+    identifierParts: [username.toLowerCase()],
+    limit: 5,
+    namespace: "login",
+    windowMs: 15 * 60 * 1000,
+  });
+
+  if (loginLimit.limited) {
+    return {
+      message: `Too many login attempts. Please wait ${formatRetryAfter(
+        loginLimit.retryAfterSeconds,
+      )} before trying again.`,
+    };
+  }
+
+  const { supabase, email, message } = await resolveEmailForUsername(
+    username,
+    rememberSession,
+  );
 
   if (!supabase || !email) {
     return { message };
@@ -68,7 +96,7 @@ export async function signInAction(
       });
 
     if (signInError || !authData.user) {
-      return { message: "Incorrect password. Please try again." };
+      return { message: genericLoginError };
     }
 
     const { data: profile, error: profileError } = await supabase
@@ -87,7 +115,7 @@ export async function signInAction(
 
     if (profileError || !isAdminRole(roleName)) {
       await supabase.auth.signOut();
-      return { message: "This web console is only for admins and farm managers." };
+      return { message: genericLoginError };
     }
 
     await supabase.from("activity_logs").insert({
@@ -95,6 +123,15 @@ export async function signInAction(
       activity: "Web Login",
       description: `${profile.username} signed in to the web admin.`,
       module: "Authentication",
+    });
+
+    const cookieStore = await cookies();
+    cookieStore.set("seedrover-remember", rememberSession ? "1" : "0", {
+      httpOnly: true,
+      maxAge: rememberSession ? 60 * 60 * 24 * 365 : undefined,
+      path: "/",
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
     });
 
     signedIn = true;
@@ -116,17 +153,28 @@ export async function forgotPasswordAction(username: string) {
     return "Enter your username first.";
   }
 
-  const { supabase, email, message } = await resolveEmailForUsername(
-    normalizedUsername,
-  );
+  const resetLimit = await checkRateLimit({
+    identifierParts: [normalizedUsername.toLowerCase()],
+    limit: 3,
+    namespace: "password-reset",
+    windowMs: 15 * 60 * 1000,
+  });
+
+  if (resetLimit.limited) {
+    return `Too many password reset requests. Please wait ${formatRetryAfter(
+      resetLimit.retryAfterSeconds,
+    )} before trying again.`;
+  }
+
+  const { supabase, email } = await resolveEmailForUsername(normalizedUsername);
 
   if (!supabase || !email) {
-    return message;
+    return genericResetMessage;
   }
 
   try {
     await supabase.auth.resetPasswordForEmail(email);
-    return "Password reset email sent.";
+    return genericResetMessage;
   } catch {
     return "Unable to send reset email right now. Please try again.";
   }

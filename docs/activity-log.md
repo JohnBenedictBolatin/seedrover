@@ -3234,3 +3234,540 @@ Summary:
 
 - Regenerated native launch assets from `assets/images/seedrover_splash.png`.
 - Updated iOS launch image metadata to square dimensions.
+
+## 2026-07-12 - Android Splash Circle Frame Removal
+
+Issue fixed:
+
+- Removed the circular icon background from the Android 12+ splash screen.
+
+Files created:
+
+- `android/app/src/main/res/drawable/transparent_splash_icon.xml`
+
+Files modified:
+
+- `android/app/src/main/res/values-v31/styles.xml`
+- `docs/activity-log.md`
+
+Summary:
+
+- Removed `android:windowSplashScreenIconBackgroundColor` so the splash logo is no longer forced into a circle frame.
+- Replaced the Android 12+ system splash icon with a transparent drawable so the SeedRover logo is shown by the normal launch background without Android's circular icon mask.
+
+## 2026-07-12 - Flutter Startup Splash Logo
+
+Issue fixed:
+
+- Restored visible SeedRover branding after removing Android's circular system splash icon.
+
+Files modified:
+
+- `lib/core/config/seedrover_app.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added a short Flutter-controlled startup splash at the app root.
+- Displays `assets/images/seedrover_splash.png` centered on the SeedRover dark background.
+- Avoids Android 12's circular splash icon mask because the visible logo is rendered by Flutter.
+
+## 2026-07-12 - Splash Screen Simplification
+
+Issue fixed:
+
+- Simplified splash behavior so the SeedRover logo is displayed directly by the native launch screen.
+
+Files modified:
+
+- `android/app/src/main/res/values-v31/styles.xml`
+- `lib/core/config/seedrover_app.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Removed the Flutter startup splash overlay.
+- Restored Android 12+ splash icon to use the SeedRover launch logo directly.
+
+## 2026-07-12 - Regenerated Native Splash Images
+
+Issue fixed:
+
+- Refreshed the Android and iOS native splash image files after the SeedRover splash asset was replaced with the same filename.
+
+Files modified:
+
+- `android/app/src/main/res/drawable-nodpi/launch_logo.png`
+- `ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage.png`
+- `ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage@2x.png`
+- `ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage@3x.png`
+- `docs/activity-log.md`
+
+Summary:
+
+- Rebuilt the native splash image outputs from the current `assets/images/seedrover_splash.png`.
+
+## 2026-07-12 - Branded Startup Splash Overlay
+
+Feature updated:
+
+- Added a short in-app SeedRover startup splash with status text and loading bar.
+
+Files modified:
+
+- `lib/core/config/seedrover_app.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Displays `assets/images/seedrover_splash.png` on the SeedRover dark background before the app fully shows.
+- Uses Roboto Mono status text such as `Firing up the rover...` and `Retrieving stock data...`.
+- Adds a short animated loading bar during the startup handoff.
+
+## 2026-07-12 - Single Visible Loading Screen
+
+Issue fixed:
+
+- Removed the old-logo native launch branding so only the new SeedRover loading screen remains visible.
+
+Files modified:
+
+- `android/app/src/main/res/drawable/launch_background.xml`
+- `android/app/src/main/res/drawable-v21/launch_background.xml`
+- `android/app/src/main/res/values-v31/styles.xml`
+- `ios/Runner/Base.lproj/LaunchScreen.storyboard`
+- `docs/activity-log.md`
+
+Summary:
+
+- Native Android and iOS launch screens now show only the dark background.
+- The visible branded loading screen is now the newer Flutter SeedRover splash with the updated image, loading text, and progress bar.
+
+## 2026-07-12 - Splash Handoff Timing Refinement
+
+Issue fixed:
+
+- Reduced the awkward plain-background gap before the visible SeedRover loading screen.
+
+Files modified:
+
+- `android/app/src/main/res/drawable/launch_background.xml`
+- `android/app/src/main/res/drawable-v21/launch_background.xml`
+- `lib/core/config/seedrover_app.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Restored the centered SeedRover logo to the native Android launch background so the app no longer sits on a plain dark screen during handoff.
+- Increased the Flutter splash duration, message pacing, and loading bar duration so the branded loading screen stays visible longer.
+
+## 2026-07-12 - Login Pixel Farm Detail Pass
+
+Feature updated:
+
+- Made the login screen grass and tree footer taller and more detailed.
+
+Files modified:
+
+- `lib/features/authentication/presentation/screens/login_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Increased the pixel farm footer height.
+- Added taller layered grass clusters, fuller tree canopies, and taller saplings while keeping the retro 8-bit style.
+
+## 2026-07-12 - Hardware Communication Layer Architecture
+
+Feature completed:
+
+- Added the modular SeedRover hardware communication layer architecture without connecting to physical ESP32 hardware.
+
+Files created:
+
+- `lib/core/communication/shared/communication_command.dart`
+- `lib/core/communication/shared/communication_controller.dart`
+- `lib/core/communication/shared/communication_debug_panel.dart`
+- `lib/core/communication/shared/communication_device.dart`
+- `lib/core/communication/shared/communication_enums.dart`
+- `lib/core/communication/shared/communication_exception.dart`
+- `lib/core/communication/shared/communication_json_parser.dart`
+- `lib/core/communication/shared/communication_providers.dart`
+- `lib/core/communication/shared/communication_repository.dart`
+- `lib/core/communication/shared/communication_state.dart`
+- `lib/core/communication/shared/simulated_communication_service.dart`
+
+Files modified:
+
+- `lib/core/communication/bluetooth/bluetooth_communication_service.dart`
+- `lib/core/communication/shared/communication_message.dart`
+- `lib/core/communication/shared/communication_response.dart`
+- `lib/core/communication/shared/communication_service.dart`
+- `lib/core/communication/wifi/wifi_communication_service.dart`
+- `lib/features/rover/data/services/simulated_rover_communication_service.dart`
+- `lib/features/rover/providers/rover_providers.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added shared communication enums for connection state, transport, command type, command status, and response type.
+- Added device discovery models, command models, response models, centralized JSON parsing, and user-friendly communication exceptions.
+- Added interchangeable Bluetooth and Wi-Fi simulated services behind a shared `CommunicationService` interface.
+- Added `CommunicationRepository` with transport switching, connection management, connection timeout, auto reconnect, and sequential command queueing.
+- Added `CommunicationController` and Riverpod providers for scanning, connecting, reconnecting, disconnecting, and sending commands.
+- Added simulated disabled-transport handling for future Bluetooth/Wi-Fi availability checks.
+- Added a hidden `CommunicationDebugPanel` widget for developer-only diagnostics; it is not routed into normal app navigation.
+- Kept current UI screens unchanged and did not connect to physical ESP32 hardware.
+
+Known issues:
+
+- `dart format` and targeted `flutter analyze` timed out in the local workspace, so verification was limited to manual review and `git diff --check`.
+
+## 2026-07-12 - Hardware Simulator
+
+Feature completed:
+
+- Added a stateful hardware simulator that behaves like the future ESP32 without connecting to physical hardware.
+
+Files created:
+
+- `lib/core/communication/shared/hardware_simulator.dart`
+- `lib/core/communication/shared/hardware_simulator_state.dart`
+
+Files modified:
+
+- `lib/core/communication/shared/simulated_communication_service.dart`
+- `lib/core/communication/shared/communication_repository.dart`
+- `lib/core/communication/shared/communication_controller.dart`
+- `lib/core/communication/shared/communication_state.dart`
+- `lib/core/communication/shared/communication_debug_panel.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added simulated connection-aware command handling behind the existing `CommunicationService` contract.
+- Added realistic movement, stop, emergency stop, planting start/pause/resume/stop, status, sensor, battery, seed, camera, and ping responses.
+- Added changing sensor values, simulated camera frame rotation, battery drain during movement/planting/camera streaming, seed reduction during planting, and simulated planting completion.
+- Added simulator-generated notification events for low battery, critical battery, low seed, out of seed, connection loss, camera failure, sensor failure, emergency stop, and planting completion.
+- Added simulator-generated activity logs for movement, planting, camera, battery, and emergency actions.
+- Added random simulated failure events and manual debug triggers.
+- Expanded the hidden communication debug panel with simulator controls for disconnect, reconnect, battery, seed level, soil moisture, recharge, low/critical battery, connection loss, camera failure, and sensor failure.
+- Kept existing app screens, navigation, layouts, and normal widgets unchanged.
+
+Implementation note:
+
+- The simulator is swappable with the future ESP32 implementation by replacing the active `CommunicationService` implementation in the communication providers/repository map.
+- Simulator notifications and activity logs are currently exposed through the communication state stream, not written directly to Supabase production tables.
+
+Known issues:
+
+- `dart format`, targeted `dart analyze`, and targeted `flutter analyze` timed out in the local workspace. `git diff --check` completed with only existing line-ending warnings.
+
+## 2026-07-12 - Rover Simulation Connect Button
+
+Feature updated:
+
+- Added an explicit simulation connection control to the Rover Control screen.
+
+Files modified:
+
+- `lib/features/rover/data/repositories/rover_repository.dart`
+- `lib/features/rover/controllers/rover_control_controller.dart`
+- `lib/features/rover/presentation/screens/rover_control_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added repository support for scanning and connecting to the simulated rover through the existing communication service.
+- Added controller actions for connecting and disconnecting the simulator.
+- Added a compact `Connect Sim` / `Disconnect` button beside the rover connection status.
+- When connected, rover status, sensor values, soil checks, and camera refresh now read from the simulator instead of only the database fallback.
+
+Known issues:
+
+- Targeted `dart analyze` timed out locally. `git diff --check` passed with only existing line-ending warnings.
+
+## 2026-07-12 - Rover Seed Selector Header Placement
+
+Issue fixed:
+
+- Planting controls overflowed after the seed selector was added inside the compact planting panel.
+
+Files modified:
+
+- `lib/features/rover/presentation/screens/rover_control_screen.dart`
+- `lib/features/rover/presentation/widgets/planting_control_panel.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Removed the seed selector from the planting control panel to restore vertical space for Check Soil and Plant buttons.
+- Added the seed selector to the Rover Control header beside the simulation connection button.
+- Kept the selected seed wired to the existing rover controller state and planting command payload.
+
+## 2026-07-12 - Rover Planting Seed Selector
+
+Feature updated:
+
+- Added seed selection before simulated planting.
+
+Files modified:
+
+- `lib/features/rover/data/models/rover_command_model.dart`
+- `lib/features/rover/controllers/rover_control_state.dart`
+- `lib/features/rover/controllers/rover_control_controller.dart`
+- `lib/features/rover/data/repositories/rover_repository.dart`
+- `lib/features/rover/presentation/screens/rover_control_screen.dart`
+- `lib/features/rover/presentation/widgets/planting_control_panel.dart`
+- `lib/core/communication/shared/hardware_simulator.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added supported planting seed types: Calamansi, Sitaw, and Peanut.
+- Added a compact seed selector in the Rover Control planting panel.
+- Stored the selected seed in rover control state.
+- Included `seed_type` and `seed_name` in the planting command payload.
+- Updated confirmation text and planting progress text to include the selected seed.
+- Updated the simulator to reflect the selected seed in current activity and planting logs.
+
+Known issues:
+
+- Targeted `dart analyze` timed out locally. `git diff --check` passed with only existing line-ending warnings.
+
+## 2026-07-12 - Rover Simulator Live Refresh Fix
+
+Issue fixed:
+
+- Rover Control simulator values did not visibly change after connecting.
+- Planting control buttons showed a tiny bottom overflow.
+
+Files modified:
+
+- `lib/features/rover/data/repositories/rover_repository.dart`
+- `lib/features/rover/controllers/rover_control_controller.dart`
+- `lib/features/rover/presentation/widgets/planting_control_panel.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added a simulator status stream watcher to the rover controller so connected simulator values refresh as the simulator emits updates.
+- Mapped simulator state directly into rover telemetry for live battery, seed, camera, and sensor values.
+- Made planting action buttons more compact to remove the sub-pixel bottom overflow.
+
+Known issues:
+
+- Targeted `dart analyze` timed out locally. `git diff --check` passed with only existing line-ending warnings.
+
+## 2026-07-13 - Inventory Pricing and Sales Tracking
+
+Feature implemented:
+
+- Extended the Stocks / Inventory module with pricing and sales-recording support using live Supabase data.
+
+Files created:
+
+- `lib/core/utils/currency_formatter.dart`
+- `supabase/migrations/20260713110000_inventory_sales.sql`
+
+Files modified:
+
+- `lib/core/constants/database_tables.dart`
+- `lib/core/constants/permission_keys.dart`
+- `lib/features/inventory/data/models/stock_model.dart`
+- `lib/features/inventory/data/repositories/stock_repository.dart`
+- `lib/features/inventory/controllers/stock_inventory_state.dart`
+- `lib/features/inventory/controllers/stock_inventory_controller.dart`
+- `lib/features/inventory/presentation/screens/stock_list_screen.dart`
+- `lib/features/inventory/presentation/screens/stock_details_screen.dart`
+- `lib/features/inventory/presentation/widgets/stock_action_buttons.dart`
+- `docs/database-specification.md`
+- `docs/database-schema.md`
+- `docs/feature-specification.md`
+- `docs/screen-specification.md`
+- `docs/roadmap.md`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added optional unit cost and selling price fields to inventory items.
+- Added sales summary cards to the Stocks screen.
+- Added pricing and sales metrics to Stock Details.
+- Added a Record Sale action with quantity, unit price, total amount, sale date, customer name, and remarks.
+- Added sales history beside the existing inventory transaction history.
+- Added `sales_transactions` and the `record_inventory_sale` PostgreSQL function.
+- Sale recording now deducts inventory, creates a linked inventory movement, writes an activity log, and emits low/critical/out-of-stock notifications atomically.
+- Added `stocks.sales.record` and `stocks.pricing.manage` permissions.
+
+Known issues:
+
+- `dart analyze` and `dart format` timed out locally during this pass, so final validation used manual inspection and `git diff --check`.
+
+## 2026-07-13 - Inventory Sales Compile Fix
+
+Issue fixed:
+
+- Flutter build failed after adding inventory sales support.
+
+Files modified:
+
+- `lib/features/inventory/controllers/stock_inventory_state.dart`
+- `lib/features/inventory/presentation/widgets/stock_transaction_timeline.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Removed the invalid `const` construction around the sales summary factory in inventory state initialization.
+- Added the new `sale` transaction type to the transaction timeline color and icon switches.
+
+Known issues:
+
+- `flutter build apk --debug` and targeted `dart analyze` timed out locally, but `git diff --check` passed.
+
+## 2026-07-13 - Dashboard Sales Analytics and Rovie Sales Context
+
+Feature updated:
+
+- Moved inventory sales summary cards from Stocks into the Dashboard Farm Analytics section.
+- Expanded Rovie context so sales questions use recorded sales data.
+
+Files modified:
+
+- `lib/features/dashboard/presentation/widgets/dashboard_analytics_section.dart`
+- `lib/features/inventory/presentation/screens/stock_list_screen.dart`
+- `lib/features/assistant/data/repositories/assistant_context_repository.dart`
+- `lib/features/assistant/controllers/assistant_controller.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added Sales Today, This Month, Units Sold, and Sales Txns KPI cards to Farm Analytics.
+- Removed the same sales summary cards from the Stocks list screen.
+- Updated Dashboard product and sales trend analytics to prefer completed sales transactions when they exist, with stock-out movements kept as fallback data.
+- Added sales totals, pricing, recent sales, top sold items, top sales value items, and monthly sales values to Rovie's app context.
+- Improved Rovie's local fallback answer for current sales status.
+
+Known issues:
+
+- `dart format` and `flutter build apk --debug` timed out locally. Several Dart and Java processes from Flutter tooling remained active after timeouts.
+
+## 2026-07-13 - Stock Image Upload Button Size
+
+Issue updated:
+
+- The Add Item modal image upload button took too much horizontal space.
+
+Files modified:
+
+- `lib/features/inventory/presentation/screens/stock_list_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Replaced the Add Item image picker `Choose` text button with a compact icon-only upload button.
+- Kept the image preview and selected image text unchanged.
+
+## 2026-07-13 - Inventory Add Item Visibility Fix
+
+Issue fixed:
+
+- Newly added stock items could remain hidden behind the empty inventory state.
+
+Files modified:
+
+- `lib/features/inventory/data/repositories/stock_repository.dart`
+- `lib/features/inventory/controllers/stock_inventory_controller.dart`
+- `lib/features/inventory/presentation/screens/stock_list_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Added repository fallbacks so inventory items still load if the sales/pricing migration has not been pushed yet.
+- Sales summary now falls back to empty values instead of failing the whole inventory load when `sales_transactions` is unavailable.
+- Inventory transactions and sales history now tolerate older database columns while still supporting the newer schema.
+- Add Item now returns an error to the modal instead of closing silently on failure.
+- Successful Add Item resets stock filters so the newly created item is immediately visible.
+- Activity log insert failures no longer block successful inventory actions.
+
+## 2026-07-13 - Startup Loading Text Underline Fix
+
+Issue fixed:
+
+- Startup loading messages could show Flutter's yellow debug underline.
+
+Files modified:
+
+- `lib/core/config/seedrover_app.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Wrapped the startup splash overlay in a `Material` and explicit `DefaultTextStyle`.
+- Explicitly disabled text decoration for the splash loading messages.
+
+## 2026-07-13 - Market Distribution Sale Flow
+
+Issue updated:
+
+- Stock Details had both a Record Sale action and a Stock Out reason for Market Distribution, which made the workflow repetitive.
+
+Files modified:
+
+- `lib/features/inventory/presentation/screens/stock_details_screen.dart`
+- `lib/features/inventory/presentation/widgets/stock_action_buttons.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Removed the standalone Record Sale action button from Stock Details.
+- Updated Stock Out so selecting `Market Distribution` switches the dialog into a sale form.
+- Market Distribution now captures quantity sold, unit price, total amount, sale date/time, customer name, and sale remarks.
+- Other Stock Out reasons still behave as regular stock deductions.
+
+## 2026-07-13 - Remove Separate Recent Sales Section
+
+Issue updated:
+
+- Stock Details had a separate Recent Sales section even though sales now appear through transaction history.
+
+Files modified:
+
+- `lib/features/inventory/presentation/screens/stock_details_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Removed the Recent Sales section from Stock Details.
+- Removed the unused sales history dialog and private sales timeline widgets from the details screen.
+
+## 2026-07-13 - Remove Last Sale Metric Card
+
+Issue updated:
+
+- The Pricing and Sales section still showed a Last Sale card after sales history was folded into transaction history.
+
+Files modified:
+
+- `lib/features/inventory/presentation/screens/stock_details_screen.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Removed the Last Sale metric card from Stock Details.
+
+## 2026-07-13 - Stock Sales Metric Refresh Fix
+
+Issue fixed:
+
+- Qty Sold and Total Sales could remain unchanged after recording a Market Distribution sale.
+
+Files modified:
+
+- `lib/features/inventory/data/models/stock_model.dart`
+- `lib/features/inventory/data/repositories/stock_repository.dart`
+- `docs/activity-log.md`
+
+Summary:
+
+- Record sale now uses the returned sale data to update the stock model immediately.
+- Added a sale transaction fallback so Qty Sold and Total Sales can still calculate from sale-tagged transaction history if the sales list is temporarily empty.

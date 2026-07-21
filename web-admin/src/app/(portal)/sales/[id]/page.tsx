@@ -62,7 +62,11 @@ export default async function SalesReceiptPage({
           <div>
             <span>Payment</span>
             <strong>{receipt.paymentMethod}</strong>
-            <small>Recorded by {receipt.recordedBy}</small>
+            <small>
+              {receipt.transactionReference
+                ? `Transaction ID: ${receipt.transactionReference}`
+                : `Recorded by ${receipt.recordedBy}`}
+            </small>
           </div>
         </section>
 

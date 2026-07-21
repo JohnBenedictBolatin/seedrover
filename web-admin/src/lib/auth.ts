@@ -35,6 +35,28 @@ export function isAdminRole(roleName: string): roleName is AdminRole {
   return adminRoles.some((role) => role === roleName);
 }
 
+export async function requireAdminRole(
+  allowedRoles: readonly AdminRole[] = adminRoles,
+) {
+  const profile = await getCurrentAdminProfile();
+
+  if (!profile || !allowedRoles.includes(profile.roleName)) {
+    throw new Error("You do not have permission to perform this action.");
+  }
+
+  return profile;
+}
+
+export async function getAuthorizedAdminRole(
+  allowedRoles: readonly AdminRole[] = adminRoles,
+) {
+  try {
+    return await requireAdminRole(allowedRoles);
+  } catch {
+    return null;
+  }
+}
+
 export async function getCurrentAdminProfile(): Promise<AdminProfile | null> {
   const supabase = await createSupabaseServerClient();
 

@@ -1,87 +1,48 @@
+import { redirect } from "next/navigation";
+import { LiveDateTime } from "@/components/live-date-time";
+import { OperationsDashboardWorkspace } from "@/components/operations-dashboard-workspace";
+import { getCurrentAdminProfile } from "@/lib/auth";
+import { getOperationsDashboard, normalizeDashboardRange } from "@/lib/dashboard";
 import styles from "./page.module.css";
 
-const metrics = [
-  { label: "Sales today", value: "Awaiting data" },
-  { label: "Sales this month", value: "Awaiting data" },
-  { label: "Inventory value", value: "Awaiting data" },
-  { label: "Low stock items", value: "Awaiting data" },
-];
+type DashboardPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
 
-const setupItems = [
-  "Connect Supabase project",
-  "Enable role-based admin access",
-  "Create inventory and sales tables",
-  "Build receipt and export workflow",
-];
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
+  const profile = await getCurrentAdminProfile();
 
-export default function DashboardPage() {
+  if (!profile) {
+    redirect("/login");
+  }
+
+  const params = await searchParams;
+  const range = normalizeDashboardRange(params?.range);
+  const data = await getOperationsDashboard(range);
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
         <div>
-          <p className={styles.eyebrow}>SeedRover farm console</p>
-          <h1>Operations dashboard</h1>
-          <p className={styles.subcopy}>
-            A clean starting point for farm managers to supervise sales, inventory, crops, and
-            rover activity from the web.
+          <p className={styles.eyebrow}>SeedRover Overview</p>
+          <h1>Operations Dashboard</h1>
+          <p>
+            Full farm overview for stock, sales, crops, customers, and rover activity.
           </p>
         </div>
-        <span className={styles.phase}>Foundation</span>
+        <div className={styles.liveDateTime}>
+          <LiveDateTime />
+        </div>
       </header>
 
-      <section className={styles.metricGrid} aria-label="Farm metrics">
-        {metrics.map((metric) => (
-          <article className={styles.metricCard} key={metric.label}>
-            <p>{metric.label}</p>
-            <strong>{metric.value}</strong>
-          </article>
-        ))}
-      </section>
+      {data.error ? (
+        <section className={styles.notice}>
+          <strong>Some dashboard data could not load.</strong>
+          <span>{data.error}</span>
+        </section>
+      ) : null}
 
-      <section className={styles.contentGrid}>
-        <article className={styles.panel}>
-          <div className={styles.panelHeader}>
-            <div>
-              <p className={styles.eyebrow}>Next build steps</p>
-              <h2>Sales and inventory core</h2>
-            </div>
-          </div>
-          <div className={styles.steps}>
-            {setupItems.map((item, index) => (
-              <div className={styles.step} key={item}>
-                <span className="mono">{String(index + 1).padStart(2, "0")}</span>
-                <p>{item}</p>
-              </div>
-            ))}
-          </div>
-        </article>
-
-        <article className={styles.panel}>
-          <div className={styles.panelHeader}>
-            <div>
-              <p className={styles.eyebrow}>Inventory watch</p>
-              <h2>Low stock</h2>
-            </div>
-          </div>
-          <div className={styles.emptyState}>
-            <span className="mono">--</span>
-            <p>No inventory records are connected yet.</p>
-          </div>
-        </article>
-
-        <article className={styles.panel}>
-          <div className={styles.panelHeader}>
-            <div>
-              <p className={styles.eyebrow}>Rover monitor</p>
-              <h2>Status only</h2>
-            </div>
-          </div>
-          <div className={styles.statusList}>
-            <span>Controls are intentionally sidelined for the web console.</span>
-            <span>Activity and device health will be read-only.</span>
-          </div>
-        </article>
-      </section>
+      <OperationsDashboardWorkspace data={data} />
     </div>
   );
 }

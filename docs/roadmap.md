@@ -294,6 +294,8 @@ Tasks
 - Storage records.
 - Seed usage history.
 - Inventory analytics.
+- Pricing records.
+- Sales tracking.
 - Export inventory records.
 
 Deliverables

@@ -103,6 +103,7 @@ class _TransactionTile extends StatelessWidget {
     return switch (type) {
       StockTransactionType.stockIn => AppColors.primaryGreen,
       StockTransactionType.stockOut => AppColors.warning,
+      StockTransactionType.sale => AppColors.primaryGreen,
       StockTransactionType.adjustment => AppColors.information,
     };
   }
@@ -111,6 +112,7 @@ class _TransactionTile extends StatelessWidget {
     return switch (type) {
       StockTransactionType.stockIn => Icons.add_circle_outline,
       StockTransactionType.stockOut => Icons.remove_circle_outline,
+      StockTransactionType.sale => Icons.point_of_sale_outlined,
       StockTransactionType.adjustment => Icons.tune,
     };
   }

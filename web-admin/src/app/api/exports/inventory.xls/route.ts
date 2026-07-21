@@ -3,15 +3,27 @@ import {
   requireOperationsExporter,
   rowsToExcelHtml,
 } from "@/lib/exports";
+import { checkExportRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const exportLimit = await checkExportRateLimit(request);
+
+  if (exportLimit.limited) {
+    return rateLimitResponse("Too many export requests. Please wait before exporting again.", exportLimit);
+  }
+
   const profile = await requireOperationsExporter();
 
   if (!profile) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const rows = await getInventoryExportRows();
+  const { searchParams } = new URL(request.url);
+  const rows = await getInventoryExportRows({
+    category: searchParams.get("category") ?? undefined,
+    search: searchParams.get("search") ?? undefined,
+    status: searchParams.get("status") ?? undefined,
+  });
   const html = rowsToExcelHtml("SeedRover Inventory", [
     ["Stock Code", "Item Name", "Category", "Quantity", "Unit", "Selling Price"],
     ...rows.map((row) => [

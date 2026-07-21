@@ -3,6 +3,7 @@ import {
   deleteNotificationAction,
   markNotificationReadAction,
 } from "@/app/(portal)/notifications/actions";
+import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 import { getNotificationsDashboard } from "@/lib/notifications";
@@ -113,9 +114,13 @@ export default async function NotificationsPage() {
                       type="hidden"
                       value={notification.id}
                     />
-                    <button className={styles.dangerButton} type="submit">
+                    <ConfirmSubmitButton
+                      className={styles.dangerButton}
+                      confirmMessage="Are you sure you want to delete this notification?"
+                      type="submit"
+                    >
                       Delete
-                    </button>
+                    </ConfirmSubmitButton>
                   </form>
                 </div>
               </article>

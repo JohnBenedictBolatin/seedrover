@@ -101,6 +101,8 @@ class CropModel {
     required this.maintenanceHistory,
     required this.reminders,
     required this.notes,
+    this.imagePath,
+    this.imageUrl,
     this.seedCount,
     this.harvestDate,
     this.lastWateredAt,
@@ -121,6 +123,8 @@ class CropModel {
   final List<CropMaintenanceRecord> maintenanceHistory;
   final List<String> reminders;
   final String notes;
+  final String? imagePath;
+  final String? imageUrl;
   final int? seedCount;
   final DateTime? harvestDate;
   final DateTime? lastWateredAt;
@@ -156,6 +160,8 @@ class CropModel {
     List<CropMaintenanceRecord>? maintenanceHistory,
     List<String>? reminders,
     String? notes,
+    Object? imagePath = _noChange,
+    Object? imageUrl = _noChange,
     Object? seedCount = _noChange,
     Object? harvestDate = _noChange,
     Object? lastWateredAt = _noChange,
@@ -176,6 +182,9 @@ class CropModel {
       maintenanceHistory: maintenanceHistory ?? this.maintenanceHistory,
       reminders: reminders ?? this.reminders,
       notes: notes ?? this.notes,
+      imagePath:
+          imagePath == _noChange ? this.imagePath : imagePath as String?,
+      imageUrl: imageUrl == _noChange ? this.imageUrl : imageUrl as String?,
       seedCount: seedCount == _noChange ? this.seedCount : seedCount as int?,
       harvestDate:
           harvestDate == _noChange ? this.harvestDate : harvestDate as DateTime?,

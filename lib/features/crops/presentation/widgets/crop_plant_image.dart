@@ -18,20 +18,37 @@ class CropPlantImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final imageUrl = crop.imageUrl;
     final cropKey = _cropKeyFor(crop.name);
     final visualState = _visualStateFor(crop);
 
     return SizedBox.square(
       dimension: size,
-      child: Image.asset(
-        'assets/images/crops/${cropKey}_$visualState.png',
-        fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => _CropStatePlaceholder(
-          cropName: crop.name,
-          label: _visualLabelFor(crop),
-          size: size,
-          color: _stateColorFor(crop),
-        ),
+      child: imageUrl != null
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _assetFallback(
+                  cropKey,
+                  visualState,
+                ),
+              ),
+            )
+          : _assetFallback(cropKey, visualState),
+    );
+  }
+
+  Widget _assetFallback(String cropKey, String visualState) {
+    return Image.asset(
+      'assets/images/crops/${cropKey}_$visualState.png',
+      fit: BoxFit.contain,
+      errorBuilder: (_, __, ___) => _CropStatePlaceholder(
+        cropName: crop.name,
+        label: _visualLabelFor(crop),
+        size: size,
+        color: _stateColorFor(crop),
       ),
     );
   }

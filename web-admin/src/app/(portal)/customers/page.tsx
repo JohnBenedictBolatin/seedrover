@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { getCustomersDashboard } from "@/lib/customers";
-import { formatCurrency, formatDateTime } from "@/lib/format";
+import { CustomersWorkspace } from "@/components/customers-workspace";
+import { LiveDateTime } from "@/components/live-date-time";
 import styles from "./page.module.css";
 
 export default async function CustomersPage() {
@@ -15,7 +16,7 @@ export default async function CustomersPage() {
     redirect("/dashboard");
   }
 
-  const { customers, stats, error } = await getCustomersDashboard();
+  const { customers, discounts, stats, error, profileError } = await getCustomersDashboard();
 
   return (
     <div className={styles.page}>
@@ -23,9 +24,10 @@ export default async function CustomersPage() {
         <div>
           <p className={styles.eyebrow}>Operations</p>
           <h1>Customers</h1>
-          <p>
-            Review customer activity from recorded sales receipts and spot repeat buyers.
-          </p>
+          <p>Track farm buyers, repeat purchases, payment habits, and customer notes.</p>
+        </div>
+        <div className={styles.liveDateTime}>
+          <LiveDateTime />
         </div>
       </header>
 
@@ -36,67 +38,14 @@ export default async function CustomersPage() {
         </section>
       ) : null}
 
-      <section className={styles.metricGrid} aria-label="Customer summary">
-        <article className={styles.metric}>
-          <p>Total customers</p>
-          <strong className="mono">{stats?.totalCustomers ?? 0}</strong>
-        </article>
-        <article className={styles.metric}>
-          <p>Repeat customers</p>
-          <strong className="mono">{stats?.repeatCustomers ?? 0}</strong>
-        </article>
-        <article className={styles.metric}>
-          <p>Customer sales</p>
-          <strong>{formatCurrency(stats?.totalCustomerSales ?? 0)}</strong>
-        </article>
-        <article className={styles.metric}>
-          <p>Top customer</p>
-          <strong>{stats?.topCustomer ?? "None yet"}</strong>
-        </article>
-      </section>
+      {profileError ? (
+        <section className={styles.notice}>
+          <strong>Saved customer profiles are not available yet.</strong>
+          <span>{profileError}</span>
+        </section>
+      ) : null}
 
-      <section className={styles.listSection}>
-        <div className={styles.sectionHeader}>
-          <div>
-            <p className={styles.eyebrow}>Customer list</p>
-            <h2>Sales-derived customer records</h2>
-          </div>
-        </div>
-
-        {customers.length === 0 ? (
-          <div className={styles.emptyState}>
-            <strong>No customers found yet.</strong>
-            <span>Customers will appear after sales receipts are recorded.</span>
-          </div>
-        ) : (
-          <div className={styles.customerList}>
-            {customers.map((customer) => (
-              <article className={styles.customerCard} key={customer.key}>
-                <div>
-                  <strong>{customer.name}</strong>
-                  <span>{customer.contact}</span>
-                </div>
-                <div>
-                  <span>Receipts</span>
-                  <strong className="mono">{customer.receiptCount}</strong>
-                </div>
-                <div>
-                  <span>Total spent</span>
-                  <strong>{formatCurrency(customer.totalSpent)}</strong>
-                </div>
-                <div>
-                  <span>Last purchase</span>
-                  <strong>{formatDateTime(customer.lastPurchaseAt)}</strong>
-                </div>
-                <div>
-                  <span>Payment</span>
-                  <strong>{customer.paymentMethods.join(", ")}</strong>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
+      <CustomersWorkspace customers={customers} discounts={discounts} stats={stats} />
     </div>
   );
 }

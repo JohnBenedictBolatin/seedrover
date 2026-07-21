@@ -26,7 +26,11 @@ Create `web-admin/.env.local` with the same Supabase project values used by the 
 ```text
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
 ```
+
+`SUPABASE_SERVICE_ROLE_KEY` is server-only and is required for System Administrator
+user creation. Never prefix it with `NEXT_PUBLIC_`.
 
 ```powershell
 $nodeRoot = Resolve-Path '..\tmp\node-runtime\node-v24.18.0-win-x64'
@@ -56,6 +60,37 @@ npm run build
 
 The UI uses local/system font fallbacks so builds do not depend on downloading remote font files.
 
+## Production Auth Checklist
+
+Before deploying publicly:
+
+1. Apply every file in `../supabase/migrations` to the production Supabase project.
+2. Confirm Row Level Security is enabled on production tables, especially:
+   - `profiles`
+   - `roles`
+   - `inventory`
+   - `inventory_transactions`
+   - `sales_transactions`
+   - `sales_orders`
+   - `sales_order_items`
+   - `customers`
+   - `customer_discounts`
+   - `crops`
+   - `notifications`
+   - `activity_logs`
+3. In Vercel, set these environment variables for the `web-admin` project:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `OPENAI_API_KEY`, if Rovie uses an external AI provider
+4. In Supabase Auth URL configuration, set:
+   - Site URL: your Vercel production URL
+   - Redirect URLs:
+     - `https://your-domain.vercel.app/login`
+     - `https://your-domain.vercel.app/dashboard`
+     - your custom production domain equivalents, if used
+5. Keep `web-admin/.env.local` local only. Do not commit real secrets.
+
 ## Build Order
 
 1. Foundation UI and routing
@@ -77,6 +112,13 @@ Multi-item web sales require the migration:
 ```
 
 Apply it to Supabase before recording web sales. The page can load before the migration, but submitting a receipt needs the `record_sales_order` RPC.
+
+For staging/demo testing, use:
+
+```text
+../docs/web-admin-staging-checklist.md
+../supabase/seed_demo_data.sql
+```
 
 ## Exports
 

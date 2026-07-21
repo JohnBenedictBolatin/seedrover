@@ -14,6 +14,7 @@ class AssistantController extends StateNotifier<AssistantState> {
 
   final AssistantRepository _repository;
   final AssistantContextModel Function() _readContext;
+  final List<DateTime> _recentRequests = [];
 
   void open() {
     state = state.copyWith(isOpen: true, clearError: true);
@@ -27,6 +28,12 @@ class AssistantController extends StateNotifier<AssistantState> {
     final question = rawQuestion.trim();
 
     if (question.isEmpty || state.isSending) {
+      return;
+    }
+
+    final rateLimitMessage = _checkLocalRateLimit();
+    if (rateLimitMessage != null) {
+      state = state.copyWith(errorMessage: rateLimitMessage);
       return;
     }
 
@@ -77,6 +84,20 @@ class AssistantController extends StateNotifier<AssistantState> {
     }
   }
 
+  String? _checkLocalRateLimit() {
+    final now = DateTime.now();
+    _recentRequests.removeWhere(
+      (timestamp) => now.difference(timestamp) > const Duration(minutes: 1),
+    );
+
+    if (_recentRequests.length >= 20) {
+      return 'Rovie is receiving too many requests. Please wait a moment before asking again.';
+    }
+
+    _recentRequests.add(now);
+    return null;
+  }
+
   AssistantMessageModel _message({
     required AssistantMessageRole role,
     required String content,
@@ -121,14 +142,21 @@ class AssistantController extends StateNotifier<AssistantState> {
         final latestSale = currentSalesStatus['latestSale'];
         final topItem =
             topItems is List && topItems.isNotEmpty ? topItems.first : null;
+        final salesToday = currentSalesStatus['salesToday'];
+        final salesThisMonth = currentSalesStatus['salesThisMonth'];
+        final unitsSoldThisMonth = currentSalesStatus['unitsSoldThisMonth'];
+        final salesTransactionsThisMonth =
+            currentSalesStatus['salesTransactionsThisMonth'];
         final latestSaleText = latestSale is Map && latestSale['item'] != null
-            ? ' Latest sale movement: ${latestSale['item']} (${latestSale['quantity']} ${latestSale['unit'] ?? ''}).'
+            ? ' Latest sale: ${latestSale['item']} (${latestSale['quantity']} ${latestSale['unit'] ?? ''}${latestSale['totalAmount'] == null ? '' : ', ${_formatPeso(latestSale['totalAmount'])}'}).'
             : '';
         final topItemText = topItem is Map && topItem['label'] != null
             ? ' Top sold item so far: ${topItem['label']}.'
             : '';
+        final dashboardText =
+            ' Dashboard sales: today ${_formatPeso(salesToday)}, this month ${_formatPeso(salesThisMonth)}, units sold ${_formatNumber(unitsSoldThisMonth)}, sales txns ${salesTransactionsThisMonth ?? 0}.';
 
-        return 'Based on the current app data, ${summary ?? 'sales status is available from stock-out transactions.'}$latestSaleText$topItemText';
+        return 'Based on the current app data, ${summary ?? 'sales status is available from stock records.'}$dashboardText$latestSaleText$topItemText';
       }
 
       if (bestMonth is Map && bestMonth['label'] != null) {
@@ -160,5 +188,17 @@ class AssistantController extends StateNotifier<AssistantState> {
     }
 
     return 'Based on the current app data, I can help with SeedRover modules, crop monitoring, planting steps, sensor readings, inventory, and general farming questions.';
+  }
+
+  String _formatPeso(Object? value) {
+    final amount = value is num ? value.toDouble() : 0;
+
+    return 'PHP ${amount.toStringAsFixed(2)}';
+  }
+
+  String _formatNumber(Object? value) {
+    final amount = value is num ? value.toDouble() : 0;
+
+    return amount % 1 == 0 ? amount.toStringAsFixed(0) : amount.toStringAsFixed(1);
   }
 }

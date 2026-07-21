@@ -254,6 +254,9 @@ Functions
 - Edit inventory
 - Delete inventory
 - Update quantities
+- Set unit cost
+- Set selling price
+- View sales summary
 - Search
 - Filter
 - Low-stock monitoring
@@ -262,6 +265,7 @@ Requirements
 
 - Prevent negative inventory values.
 - Log every inventory change.
+- Pricing values must be optional but never negative when provided.
 
 ---
 
@@ -281,6 +285,7 @@ Functions
 - Stock In
 - Stock Out
 - Adjustment
+- Record Sale
 - View history
 - Search history
 
@@ -288,6 +293,9 @@ Requirements
 
 - Every transaction must record the responsible user.
 - Inventory should update automatically.
+- Sales must deduct stock only through the approved database transaction flow.
+- Sales must record quantity sold, unit price, total amount, sale date, optional customer name, optional remarks, and the responsible user.
+- Sale recording must prevent negative inventory.
 
 ---
 

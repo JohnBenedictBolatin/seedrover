@@ -328,6 +328,8 @@ Stores available seeds, materials, tools, and supplies.
 | `quantity` | numeric(12,2) | Required, default `0` |
 | `unit` | text | Required |
 | `minimum_quantity` | numeric(12,2) | Required, default `0` |
+| `unit_cost` | numeric(12,2) | Optional, must be `>= 0` when set |
+| `selling_price` | numeric(12,2) | Optional, must be `>= 0` when set |
 | `image_path` | text | Optional, references a file path in Supabase Storage bucket `stock-images` |
 | `storage_location` | text | Optional |
 | `category` | text | Required |
@@ -339,6 +341,8 @@ Constraints:
 
 - `quantity >= 0`
 - `minimum_quantity >= 0`
+- `unit_cost is null or unit_cost >= 0`
+- `selling_price is null or selling_price >= 0`
 
 Allowed `category` values:
 
@@ -366,6 +370,8 @@ Stores stock movement history.
 | `quantity` | numeric(12,2) | Required |
 | `remarks` | text | Optional |
 | `performed_by` | uuid | Required, references `profiles(id)` |
+| `source` | text | Required, default `manual` |
+| `source_id` | uuid | Optional, links a movement to its source record such as a sale |
 | `created_at` | timestamptz | Required |
 | `updated_at` | timestamptz | Required |
 
@@ -380,6 +386,47 @@ Rules:
 - `quantity` must be greater than 0.
 - Every stock change must create an inventory transaction.
 - Inventory quantity must never become negative.
+- Sale-generated stock deductions must use `source = 'sale'`.
+
+Allowed `source` values:
+
+- `manual`
+- `sale`
+- `void_sale`
+
+## `sales_transactions`
+
+Stores completed and voided sales recorded from the Stocks module.
+
+| Column | Type | Rules |
+| --- | --- | --- |
+| `id` | uuid | Primary key, default `gen_random_uuid()` |
+| `inventory_id` | uuid | Required, references `inventory(id)` on delete restrict |
+| `quantity_sold` | numeric(12,2) | Required, must be greater than `0` |
+| `unit_price` | numeric(12,2) | Required, must be `>= 0` |
+| `total_amount` | numeric(12,2) | Required, must be `>= 0` |
+| `sale_date` | timestamptz | Required |
+| `customer_name` | text | Optional |
+| `remarks` | text | Optional |
+| `recorded_by` | uuid | Required, references `profiles(id)` |
+| `status` | text | Required, default `Completed` |
+| `voided_at` | timestamptz | Optional |
+| `voided_by` | uuid | Optional, references `profiles(id)` |
+| `void_reason` | text | Optional |
+| `created_at` | timestamptz | Required |
+| `updated_at` | timestamptz | Required |
+
+Allowed `status` values:
+
+- `Completed`
+- `Voided`
+
+Rules:
+
+- Sales must be recorded through `record_inventory_sale`.
+- Direct inserts are denied by RLS.
+- The RPC must insert the sale, deduct inventory, create a linked inventory transaction, write an activity log, and create stock-status notifications atomically.
+- Completed sale quantity, price, total, sale date, inventory item, recorder, and created timestamp must not be edited directly.
 
 ---
 
@@ -524,6 +571,10 @@ Required indexes:
 - `inventory.category`
 - `inventory_transactions.inventory_id`
 - `inventory_transactions.performed_by`
+- `sales_transactions.inventory_id`
+- `sales_transactions.recorded_by`
+- `sales_transactions.sale_date`
+- `sales_transactions.status`
 - `notifications.recipient_id`
 - `notifications.is_read`
 - `activity_logs.user_id`

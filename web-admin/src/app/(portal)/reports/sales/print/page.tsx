@@ -6,7 +6,11 @@ import { getSalesExportRows } from "@/lib/exports";
 import { formatCurrency, formatDateTime, formatQuantity } from "@/lib/format";
 import styles from "./page.module.css";
 
-export default async function SalesPrintPage() {
+export default async function SalesPrintPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ end?: string; payment?: string; start?: string; status?: string }>;
+}) {
   const profile = await getCurrentAdminProfile();
 
   if (!profile) {
@@ -17,16 +21,16 @@ export default async function SalesPrintPage() {
     redirect("/dashboard");
   }
 
-  const rows = await getSalesExportRows();
+  const rows = await getSalesExportRows(await searchParams);
 
   return (
     <div className={styles.page}>
       <header className={styles.toolbar}>
-        <Link href="/reports">Back to reports</Link>
+        <Link href="/sales">Back to sales</Link>
         <PrintButton />
       </header>
 
-      <article className={styles.report}>
+      <article className={styles.report} data-print-ready="true">
         <header className={styles.reportHeader}>
           <div>
             <p>SeedRover</p>

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import styles from "./brand-mark.module.css";
 
 type BrandMarkProps = {
@@ -5,18 +6,28 @@ type BrandMarkProps = {
 };
 
 export function BrandMark({ compact = false }: BrandMarkProps) {
+  if (compact) {
+    return null;
+  }
+
   return (
     <div className={styles.brand} aria-label="SeedRover">
-      <span className={styles.icon} aria-hidden="true">
-        <span className={styles.leaf} />
-        <span className={styles.stem} />
-      </span>
-      {!compact && (
-        <span className={styles.copy}>
-          <span className={styles.name}>SeedRover</span>
-          <span className={styles.label}>Farm Admin</span>
-        </span>
-      )}
+      <Image
+        alt="SeedRover"
+        className={`${styles.logo} ${styles.logoDark}`}
+        height={46}
+        priority
+        src="/brand/seedrover-sidebar.png"
+        width={138}
+      />
+      <Image
+        alt="SeedRover"
+        className={`${styles.logo} ${styles.logoLight}`}
+        height={46}
+        priority
+        src="/brand/seedrover-sidebar-light.png"
+        width={138}
+      />
     </div>
   );
 }

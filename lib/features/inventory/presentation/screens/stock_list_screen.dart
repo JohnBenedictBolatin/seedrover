@@ -118,6 +118,8 @@ class StockListScreen extends ConsumerWidget {
     final nameController = TextEditingController();
     final quantityController = TextEditingController(text: '0');
     final minimumController = TextEditingController(text: '0');
+    final unitCostController = TextEditingController();
+    final sellingPriceController = TextEditingController();
     final locationController = TextEditingController(text: 'Harvest Bay');
     final notesController = TextEditingController(text: 'Inventory item added.');
     var category = StockCategory.leafyVegetables;
@@ -229,6 +231,35 @@ class StockListScreen extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(height: AppSpacing.md),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: unitCostController,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                decimal: true,
+                              ),
+                              decoration:
+                                  const InputDecoration(labelText: 'Unit Cost'),
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(
+                            child: TextField(
+                              controller: sellingPriceController,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                decimal: true,
+                              ),
+                              decoration: const InputDecoration(
+                                labelText: 'Selling Price',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.md),
                       TextField(
                         controller: locationController,
                         decoration: const InputDecoration(
@@ -310,6 +341,12 @@ class StockListScreen extends ConsumerWidget {
                                   double.tryParse(quantityController.text) ?? -1;
                               final minimum =
                                   double.tryParse(minimumController.text) ?? -1;
+                              final unitCost = _parseOptionalMoney(
+                                unitCostController.text,
+                              );
+                              final sellingPrice = _parseOptionalMoney(
+                                sellingPriceController.text,
+                              );
 
                               if (name.isEmpty) {
                                 setDialogState(() {
@@ -326,7 +363,15 @@ class StockListScreen extends ConsumerWidget {
                                 return;
                               }
 
-                              await controller.createStock(
+                              if (unitCost == -1 || sellingPrice == -1) {
+                                setDialogState(() {
+                                  errorMessage =
+                                      'Prices must be valid nonnegative values.';
+                                });
+                                return;
+                              }
+
+                              final createError = await controller.createStock(
                                 StockModel(
                                   id: 'new',
                                   displayId: 'STK-000',
@@ -339,6 +384,8 @@ class StockListScreen extends ConsumerWidget {
                                           ? 'Unassigned'
                                           : locationController.text.trim(),
                                   minimumStockLevel: minimum,
+                                  unitCost: unitCost,
+                                  sellingPrice: sellingPrice,
                                   supplier: 'Farm Harvest',
                                   dateAdded: DateTime.now(),
                                   lastUpdated: DateTime.now(),
@@ -355,6 +402,13 @@ class StockListScreen extends ConsumerWidget {
                                             'image/jpeg',
                                       ),
                               );
+
+                              if (createError != null) {
+                                setDialogState(() {
+                                  errorMessage = createError;
+                                });
+                                return;
+                              }
 
                               if (context.mounted) {
                                 Navigator.of(dialogContext).pop();
@@ -383,6 +437,22 @@ class StockListScreen extends ConsumerWidget {
         );
       },
     );
+  }
+
+  double? _parseOptionalMoney(String value) {
+    final trimmed = value.trim();
+
+    if (trimmed.isEmpty) {
+      return null;
+    }
+
+    final parsed = double.tryParse(trimmed);
+
+    if (parsed == null || parsed < 0) {
+      return -1;
+    }
+
+    return parsed;
   }
 
   String _mimeTypeFor(String fileName) {
@@ -535,15 +605,24 @@ class _StockImagePickerField extends StatelessWidget {
                     ],
                   ),
                 ),
-                OutlinedButton.icon(
-                  onPressed: onPickImage,
-                  icon: const Icon(Icons.add_photo_alternate_outlined),
-                  label: const Text('Choose'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primaryGreen,
-                    side: const BorderSide(color: AppColors.primaryGreen),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                Tooltip(
+                  message: 'Upload image',
+                  child: SizedBox.square(
+                    dimension: 36,
+                    child: IconButton.outlined(
+                      onPressed: onPickImage,
+                      icon: const Icon(
+                        Icons.file_upload_outlined,
+                        size: 18,
+                      ),
+                      color: AppColors.primaryGreen,
+                      style: IconButton.styleFrom(
+                        side: const BorderSide(color: AppColors.primaryGreen),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
+                        ),
+                        padding: EdgeInsets.zero,
+                      ),
                     ),
                   ),
                 ),

@@ -9,8 +9,10 @@ class DatabaseTables {
   static const sensorReadings = 'sensor_readings';
   static const plantingLogs = 'planting_logs';
   static const crops = 'crops';
+  static const cropHarvests = 'crop_harvests';
   static const inventory = 'inventory';
   static const inventoryTransactions = 'inventory_transactions';
+  static const salesTransactions = 'sales_transactions';
   static const notifications = 'notifications';
   static const activityLogs = 'activity_logs';
   static const robotCommands = 'robot_commands';

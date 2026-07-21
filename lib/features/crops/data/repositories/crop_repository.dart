@@ -8,6 +8,8 @@ import '../models/crop_model.dart';
 class CropRepository {
   const CropRepository(this._client);
 
+  static const _cropImagesBucket = 'crop-images';
+
   final SupabaseClient _client;
 
   Stream<List<CropModel>> watchCrops() {
@@ -23,7 +25,7 @@ class CropRepository {
         .from(DatabaseTables.crops)
         .select(
           'id, crop_name, assigned_manager, planting_date, estimated_harvest, '
-          'growth_stage, maintenance_notes, crop_status, created_at, '
+          'growth_stage, maintenance_notes, image_path, crop_status, created_at, '
           'updated_at, profiles(full_name)',
         )
         .order('planting_date', ascending: false) as List<dynamic>;
@@ -43,13 +45,13 @@ class CropRepository {
         })
         .select(
           'id, crop_name, assigned_manager, planting_date, estimated_harvest, '
-          'growth_stage, maintenance_notes, crop_status, created_at, '
+          'growth_stage, maintenance_notes, image_path, crop_status, created_at, '
           'updated_at, profiles(full_name)',
         )
         .single();
 
     await _recordActivity(
-      activity: 'Crop Created',
+      activity: 'Crop record created',
       description: '${crop.name} crop record created.',
     );
 
@@ -63,13 +65,13 @@ class CropRepository {
         .eq('id', crop.id)
         .select(
           'id, crop_name, assigned_manager, planting_date, estimated_harvest, '
-          'growth_stage, maintenance_notes, crop_status, created_at, '
+          'growth_stage, maintenance_notes, image_path, crop_status, created_at, '
           'updated_at, profiles(full_name)',
         )
         .single();
 
     await _recordActivity(
-      activity: 'Crop Updated',
+      activity: 'Crop record updated',
       description: '${crop.name} crop record updated.',
     );
 
@@ -79,8 +81,59 @@ class CropRepository {
   Future<void> deleteCrop(String cropId) async {
     await _client.from(DatabaseTables.crops).delete().eq('id', cropId);
     await _recordActivity(
-      activity: 'Crop Deleted',
+      activity: 'Crop record deleted',
       description: 'Crop record deleted.',
+    );
+  }
+
+  Future<CropModel> harvestCropToInventory({
+    required CropModel crop,
+    required String inventoryId,
+    required String inventoryName,
+    required String unit,
+    required double quantity,
+    required DateTime harvestDate,
+    required String notes,
+  }) async {
+    final userId = _client.auth.currentUser?.id;
+
+    if (userId == null) {
+      throw StateError('Sign in before recording harvest.');
+    }
+
+    final remarks = notes.trim().isEmpty ? 'Harvest recorded.' : notes.trim();
+
+    final response = await _client.rpc<Object?>(
+      'harvest_crop_to_inventory',
+      params: {
+        'p_crop_id': crop.id,
+        'p_inventory_id': inventoryId,
+        'p_quantity': quantity,
+        'p_harvest_date': _dateOnly(harvestDate),
+        'p_remarks': remarks,
+      },
+    );
+
+    if (response is! Map<String, dynamic>) {
+      throw StateError('Crop harvest database response was unreadable.');
+    }
+
+    final updatedCrop = _cropFromRow(response, await _latestSensorSnapshot());
+
+    return updatedCrop.copyWith(
+      maintenanceHistory: [
+        CropMaintenanceRecord(
+          activity: CropMaintenanceActivity.harvested,
+          performedAt: harvestDate,
+          notes:
+              'Harvested $quantity $unit into $inventoryName inventory. $remarks',
+          performedBy: 'Current User',
+        ),
+        ...crop.maintenanceHistory,
+      ],
+      harvestDate: harvestDate,
+      imagePath: crop.imagePath,
+      imageUrl: crop.imageUrl,
     );
   }
 
@@ -114,7 +167,7 @@ class CropRepository {
 
     final updatedCrop = await updateCrop(nextCrop);
     await _recordActivity(
-      activity: _activityTitle(activity),
+      activity: 'Crop activity recorded',
       description: '${crop.name}: $notes',
     );
 
@@ -148,6 +201,7 @@ class CropRepository {
     final status = _statusFromDb(row['crop_status'] as String?);
     final growthStage = _growthStageFromDb(row['growth_stage'] as String?);
     final notes = row['maintenance_notes'] as String?;
+    final imagePath = row['image_path'] as String?;
     final manager = row['profiles'] as Map<String, dynamic>?;
     final updatedAt = _parseDateTime(row['updated_at']) ?? DateTime.now();
 
@@ -176,10 +230,20 @@ class CropRepository {
       notes: notes?.trim().isNotEmpty == true
           ? notes!.trim()
           : '$cropName crop record loaded from Supabase.',
+      imagePath: imagePath,
+      imageUrl: _publicCropImageUrl(imagePath),
       seedCount: null,
       harvestDate: status == CropStatus.harvested ? updatedAt : null,
       lastWateredAt: null,
     );
+  }
+
+  String? _publicCropImageUrl(String? imagePath) {
+    if (imagePath == null || imagePath.trim().isEmpty) {
+      return null;
+    }
+
+    return _client.storage.from(_cropImagesBucket).getPublicUrl(imagePath);
   }
 
   Future<CropSensorSnapshot> _latestSensorSnapshot() async {
@@ -216,22 +280,16 @@ class CropRepository {
   }) async {
     final userId = _client.auth.currentUser?.id;
 
-    await _client.from(DatabaseTables.activityLogs).insert({
-      'user_id': userId,
-      'activity': activity,
-      'description': description,
-      'module': 'Crops',
-    });
-  }
-
-  String _activityTitle(CropMaintenanceActivity activity) {
-    return switch (activity) {
-      CropMaintenanceActivity.watered => 'Crop Watered',
-      CropMaintenanceActivity.fertilized => 'Crop Fertilized',
-      CropMaintenanceActivity.harvested => 'Crop Harvested',
-      CropMaintenanceActivity.inspected => 'Crop Inspected',
-      CropMaintenanceActivity.planted => 'Crop Planted',
-    };
+    try {
+      await _client.from(DatabaseTables.activityLogs).insert({
+        'user_id': userId,
+        'activity': activity,
+        'description': description,
+        'module': 'Crops',
+      });
+    } catch (_) {
+      // Activity logging should not block the crop action itself.
+    }
   }
 
   String _encodeMaintenanceNotes(CropModel crop) {

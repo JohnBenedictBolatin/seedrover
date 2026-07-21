@@ -1,6 +1,6 @@
 .form {
   display: grid;
-  gap: 15px;
+  gap: 18px;
 }
 
 .form label {
@@ -10,13 +10,13 @@
 
 .form label > span {
   color: var(--text-secondary);
-  font-size: 0.86rem;
+  font-size: 0.94rem;
   font-weight: 900;
 }
 
 .inputWrap {
   display: grid;
-  min-height: 52px;
+  min-height: 58px;
   grid-template-columns: 24px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
@@ -24,7 +24,7 @@
   border-radius: 8px;
   color: var(--text-muted);
   background: rgba(27, 27, 27, 0.84);
-  padding: 0 12px;
+  padding: 0 14px;
   transition:
     border-color 160ms ease,
     box-shadow 160ms ease,
@@ -44,6 +44,7 @@
   color: var(--text);
   background: transparent;
   outline: 0;
+  font-size: 0.98rem;
 }
 
 .inputWrap input::placeholder {
@@ -52,8 +53,8 @@
 
 .iconButton {
   display: grid;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   place-items: center;
   border: 0;
   border-radius: 8px;
@@ -78,24 +79,83 @@
 .checkLabel {
   display: inline-flex !important;
   align-items: center;
-  gap: 8px !important;
+  gap: 10px !important;
   color: var(--text-secondary);
-  font-size: 0.84rem;
+  font-size: 0.9rem;
   font-weight: 800;
+  position: relative;
   cursor: pointer;
 }
 
 .checkLabel input {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--green);
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.checkLabel span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding-left: 32px;
+  position: relative;
+}
+
+.checkLabel span::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  background: rgba(16, 16, 16, 0.5);
+  box-shadow: 0 0 0 2px rgba(141, 255, 42, 0.72);
+  box-sizing: border-box;
+  transform: translateY(-50%);
+  transition: all 0.2s ease;
+}
+
+.checkLabel span::after {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 50%;
+  width: 6px;
+  height: 12px;
+  border: solid #ffffff;
+  border-width: 0 0.18em 0.18em 0;
+  opacity: 0;
+  transform: translateY(-58%) rotate(45deg) scale(0.9);
+  transition: all 220ms ease-in-out;
+}
+
+.checkLabel input:checked + span::before {
+  background: rgba(83, 209, 30, 0.45);
+  box-shadow: 0 0 0 2px var(--green-accent);
+}
+
+.checkLabel input:checked + span::after {
+  opacity: 1;
+  transform: translateY(-58%) rotate(45deg) scale(1);
+}
+
+.checkLabel:hover span::before {
+  background: rgba(83, 209, 30, 0.12);
+}
+
+.checkLabel input:focus-visible + span::before {
+  box-shadow:
+    0 0 0 2px var(--green-accent),
+    0 0 0 5px rgba(83, 209, 30, 0.16);
 }
 
 .linkButton {
   border: 0;
   color: var(--green-accent);
   background: transparent;
-  font-size: 0.82rem;
+  font-size: 0.88rem;
   font-weight: 900;
   cursor: pointer;
   padding: 0;
@@ -112,7 +172,7 @@
   border-radius: 8px;
   color: var(--warning);
   background: rgba(255, 176, 0, 0.08);
-  font-size: 0.88rem;
+  font-size: 0.92rem;
   font-weight: 800;
   line-height: 1.4;
   padding: 12px;
@@ -121,29 +181,171 @@
 .resetMessage {
   margin: -4px 0 0;
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: 0.86rem;
   font-weight: 800;
 }
 
 .submitButton {
   display: inline-flex;
-  min-height: 52px;
+  min-height: 58px;
   align-items: center;
   justify-content: center;
   gap: 9px;
-  border: 0;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(141, 255, 42, 0.34);
   border-radius: 8px;
-  color: #102006;
-  background: linear-gradient(135deg, var(--green-accent), var(--green));
-  box-shadow: 0 12px 28px rgba(83, 209, 30, 0.18);
+  color: #eff8e7;
+  background: linear-gradient(135deg, rgba(83, 209, 30, 0.18), rgba(108, 235, 49, 0.12));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   font-weight: 950;
+  font-size: 0.96rem;
   text-transform: uppercase;
   cursor: pointer;
+  isolation: isolate;
+  transition:
+    color 180ms ease,
+    border-color 220ms ease,
+    transform 180ms ease,
+    box-shadow 220ms ease;
+}
+
+.submitButton > * {
+  position: relative;
+  z-index: 1;
+}
+
+.submitButton::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 105%;
+  z-index: 0;
+  width: 140%;
+  height: 180%;
+  border-radius: 50%;
+  background: rgba(141, 255, 42, 0.12);
+  transform: translateX(-50%) scaleY(1) scaleX(1.25);
+  transition: all 0.5s 0.08s cubic-bezier(0.55, 0, 0.1, 1);
+}
+
+.submitButton::after {
+  content: "";
+  position: absolute;
+  left: 55%;
+  top: 180%;
+  z-index: 0;
+  width: 160%;
+  height: 190%;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--green-accent), var(--green));
+  transform: translateX(-50%) scaleY(1) scaleX(1.45);
+  transition: all 0.5s 0.1s cubic-bezier(0.55, 0, 0.1, 1);
+}
+
+.submitButton:hover:not(:disabled) {
+  color: #050805;
+  border-color: rgba(141, 255, 42, 0.68);
+  box-shadow:
+    0 18px 34px rgba(83, 209, 30, 0.22),
+    0 0 0 1px rgba(141, 255, 42, 0.08);
+  transform: translateY(-1px);
+}
+
+.submitButton:hover:not(:disabled)::before {
+  top: -35%;
+  background: rgba(141, 255, 42, 0.4);
+  transform: translateX(-50%) scaleY(1.3) scaleX(0.8);
+}
+
+.submitButton:hover:not(:disabled)::after {
+  top: -45%;
+  transform: translateX(-50%) scaleY(1.3) scaleX(0.8);
+}
+
+.submitButton:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .submitButton:disabled {
   cursor: wait;
   opacity: 0.72;
+}
+
+:global(html[data-theme="light"]) .form label > span,
+:global(html[data-theme="light"]) .checkLabel {
+  color: #415640;
+}
+
+:global(html[data-theme="light"]) .inputWrap {
+  border-color: rgba(31, 83, 28, 0.18);
+  color: #4f654d;
+  background: rgba(247, 252, 245, 0.92);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+:global(html[data-theme="light"]) .inputWrap:focus-within {
+  border-color: rgba(41, 118, 42, 0.52);
+  background: #ffffff;
+  box-shadow:
+    0 0 0 3px rgba(41, 118, 42, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+}
+
+:global(html[data-theme="light"]) .inputWrap input {
+  color: #122312;
+}
+
+:global(html[data-theme="light"]) .inputWrap input::placeholder {
+  color: rgba(65, 86, 64, 0.48);
+}
+
+:global(html[data-theme="light"]) .iconButton {
+  color: #557055;
+}
+
+:global(html[data-theme="light"]) .iconButton:hover {
+  color: #1f6f24;
+  background: rgba(31, 111, 36, 0.08);
+}
+
+:global(html[data-theme="light"]) .checkLabel span::before {
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 0 0 2px rgba(41, 118, 42, 0.5);
+}
+
+:global(html[data-theme="light"]) .checkLabel input:checked + span::before {
+  background: rgba(31, 111, 36, 0.78);
+  box-shadow: 0 0 0 2px #1f6f24;
+}
+
+:global(html[data-theme="light"]) .linkButton {
+  color: #1f6f24;
+}
+
+:global(html[data-theme="light"]) .resetMessage {
+  color: #526651;
+}
+
+:global(html[data-theme="light"]) .submitButton {
+  border: 1px solid rgba(31, 111, 36, 0.72);
+  color: #123c1b;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: none;
+}
+
+:global(html[data-theme="light"]) .submitButton::before {
+  background: rgba(31, 111, 36, 0.1);
+}
+
+:global(html[data-theme="light"]) .submitButton::after {
+  background: linear-gradient(135deg, #58c431, #2f8b27);
+}
+
+:global(html[data-theme="light"]) .submitButton:hover:not(:disabled) {
+  color: #ffffff;
+  border-color: rgba(31, 111, 36, 0.9);
+  box-shadow: 0 14px 28px rgba(47, 139, 39, 0.16);
 }
 
 @media (max-width: 460px) {

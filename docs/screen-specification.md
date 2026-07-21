@@ -705,6 +705,10 @@ Displays
 - Total Inventory Items
 - Low Stock Items
 - Recently Updated Items
+- Sales Today
+- Sales This Month
+- Units Sold This Month
+- Sales Transaction Count
 
 ---
 
@@ -713,7 +717,11 @@ Displays
 Each card displays
 
 - Item Name
+- Item ID
+- Category
 - Current Quantity
+- Unit
+- Stock Status
 - Storage Location
 - Last Updated
 
@@ -725,9 +733,21 @@ Each card displays
 - Edit Item
 - Add Stock
 - Deduct Stock
+- Record Sale
 - Delete Item
 
 Actions should open modal dialogs.
+
+Record Sale displays:
+
+- Quantity Sold
+- Unit Price
+- Total Amount
+- Sale Date
+- Customer Name
+- Remarks
+
+Record Sale must confirm before saving and must not allow sales greater than current stock.
 
 ---
 
@@ -740,6 +760,21 @@ Displays
 - Quantity
 - Transaction Type
 - Updated By
+
+Newest records appear first.
+
+## Sales History
+
+Displays
+
+- Quantity Sold
+- Unit Price
+- Total Amount
+- Date
+- Time
+- Customer Name
+- Remarks
+- Recorded By
 
 Newest records appear first.
 

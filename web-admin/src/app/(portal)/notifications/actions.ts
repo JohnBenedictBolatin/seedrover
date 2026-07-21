@@ -1,27 +1,42 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getCurrentAdminProfile } from "@/lib/auth";
+import { getCurrentAdminProfile, requireAdminRole } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-async function requireAdminClient() {
-  const profile = await getCurrentAdminProfile();
-
-  if (!profile || profile.roleName !== "System Administrator") {
-    return null;
-  }
-
+async function requireNotificationClient() {
   const supabase = await createSupabaseServerClient();
 
   if (!supabase) {
     return null;
   }
 
-  return { supabase, profile };
+  try {
+    const profile = await getCurrentAdminProfile();
+    if (!profile) return null;
+    return { supabase, profile };
+  } catch {
+    return null;
+  }
+}
+
+async function requireSystemAdminClient() {
+  const supabase = await createSupabaseServerClient();
+
+  if (!supabase) {
+    return null;
+  }
+
+  try {
+    const profile = await requireAdminRole(["System Administrator"]);
+    return { supabase, profile };
+  } catch {
+    return null;
+  }
 }
 
 export async function markNotificationReadAction(formData: FormData) {
-  const context = await requireAdminClient();
+  const context = await requireNotificationClient();
 
   if (!context) {
     return;
@@ -47,10 +62,11 @@ export async function markNotificationReadAction(formData: FormData) {
   });
 
   revalidatePath("/notifications");
+  revalidatePath("/", "layout");
 }
 
 export async function deleteNotificationAction(formData: FormData) {
-  const context = await requireAdminClient();
+  const context = await requireSystemAdminClient();
 
   if (!context) {
     return;
@@ -72,4 +88,5 @@ export async function deleteNotificationAction(formData: FormData) {
   });
 
   revalidatePath("/notifications");
+  revalidatePath("/", "layout");
 }

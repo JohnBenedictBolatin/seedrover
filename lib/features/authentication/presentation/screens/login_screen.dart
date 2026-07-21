@@ -284,7 +284,7 @@ class _PixelFarmRunner extends StatelessWidget {
         animation: animation,
         builder: (context, _) {
           return SizedBox(
-            height: 96,
+            height: 132,
             width: double.infinity,
             child: CustomPaint(
               painter: _PixelFarmPainter(progress: animation.value),
@@ -304,7 +304,7 @@ class _PixelFarmPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final pixel = (size.width / 88).clamp(5.0, 9.0).toDouble();
-    final baseline = size.height - pixel * 2;
+    final baseline = size.height - pixel * 2.2;
     final primary = Paint()..color = AppColors.primaryGreen;
     final accent = Paint()..color = AppColors.accentGreen;
     final dark = Paint()..color = AppColors.darkGradientStart;
@@ -343,18 +343,47 @@ class _PixelFarmPainter extends CustomPainter {
     Paint primary,
     Paint accent,
   ) {
-    canvas.drawRect(Rect.fromLTWH(x, baseline - pixel, pixel, pixel), primary);
     canvas.drawRect(
-      Rect.fromLTWH(x + pixel * 2, baseline - pixel * 3, pixel, pixel * 3),
-      accent,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(x + pixel * 4, baseline - pixel, pixel, pixel),
+      Rect.fromLTWH(x, baseline - pixel * 1.5, pixel, pixel * 1.5),
       primary,
     );
     canvas.drawRect(
-      Rect.fromLTWH(x + pixel * 6, baseline - pixel * 2.5, pixel, pixel * 2.5),
+      Rect.fromLTWH(x + pixel, baseline - pixel * 2.2, pixel, pixel * 2.2),
       accent,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(x + pixel * 2, baseline - pixel * 4.2, pixel, pixel * 4.2),
+      accent,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(x + pixel * 3, baseline - pixel * 2.8, pixel, pixel * 2.8),
+      primary,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(x + pixel * 4, baseline - pixel * 1.5, pixel, pixel * 1.5),
+      primary,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(
+        x + pixel * 5,
+        baseline - pixel * 3.4,
+        pixel,
+        pixel * 3.4,
+      ),
+      primary,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(
+        x + pixel * 6,
+        baseline - pixel * 4.8,
+        pixel,
+        pixel * 4.8,
+      ),
+      accent,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(x + pixel * 7, baseline - pixel * 2.1, pixel, pixel * 2.1),
+      primary,
     );
   }
 
@@ -367,23 +396,39 @@ class _PixelFarmPainter extends CustomPainter {
     Paint trunk,
   ) {
     canvas.drawRect(
-      Rect.fromLTWH(x + pixel * 2, baseline - pixel * 5, pixel, pixel * 5),
+      Rect.fromLTWH(x + pixel * 2, baseline - pixel * 8, pixel, pixel * 8),
       trunk,
     );
     canvas.drawRect(
-      Rect.fromLTWH(x, baseline - pixel * 9, pixel * 5, pixel),
+      Rect.fromLTWH(x + pixel, baseline - pixel * 7.4, pixel, pixel),
+      trunk,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(x + pixel * 3, baseline - pixel * 5.8, pixel, pixel),
+      trunk,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(x, baseline - pixel * 13, pixel * 5, pixel),
+      leaf,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(x + pixel, baseline - pixel * 14, pixel * 3, pixel),
+      leaf,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(x + pixel * 2, baseline - pixel * 15, pixel, pixel),
+      leaf,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(x + pixel, baseline - pixel * 12, pixel * 3, pixel),
+      leaf,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(x, baseline - pixel * 11, pixel * 5, pixel),
       leaf,
     );
     canvas.drawRect(
       Rect.fromLTWH(x + pixel, baseline - pixel * 10, pixel * 3, pixel),
-      leaf,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(x + pixel * 2, baseline - pixel * 11, pixel, pixel),
-      leaf,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(x + pixel, baseline - pixel * 8, pixel * 3, pixel),
       leaf,
     );
   }
@@ -396,12 +441,19 @@ class _PixelFarmPainter extends CustomPainter {
     Paint paint,
   ) {
     canvas.drawRect(
-      Rect.fromLTWH(x + pixel, baseline - pixel * 5, pixel, pixel * 5),
+      Rect.fromLTWH(x + pixel, baseline - pixel * 7, pixel, pixel * 7),
       paint,
     );
-    canvas.drawRect(Rect.fromLTWH(x, baseline - pixel * 4, pixel, pixel), paint);
     canvas.drawRect(
-      Rect.fromLTWH(x + pixel * 2, baseline - pixel * 6, pixel, pixel),
+      Rect.fromLTWH(x, baseline - pixel * 5, pixel, pixel),
+      paint,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(x + pixel * 2, baseline - pixel * 8, pixel, pixel),
+      paint,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(x + pixel * 3, baseline - pixel * 6, pixel, pixel),
       paint,
     );
   }

@@ -51,6 +51,7 @@ final assistantContextProvider = Provider<AssistantContextModel>((ref) {
     farmAnalytics: _farmAnalyticsContext(
       crops: cropState.crops,
       stocks: stockState.stocks,
+      salesSummary: stockState.salesSummary,
     ),
   );
 });
@@ -109,6 +110,13 @@ Map<String, dynamic> _stockContext(StockModel stock) {
     'status': stock.status.label,
     'storageLocation': stock.storageLocation,
     'minimumStockLevel': stock.minimumStockLevel,
+    'unitCost': stock.unitCost,
+    'sellingPrice': stock.sellingPrice,
+    'currentStockValue': stock.currentStockValue,
+    'estimatedSalesValue': stock.estimatedSalesValue,
+    'quantitySold': stock.quantitySold,
+    'totalSalesValue': stock.totalSalesValue,
+    'lastSaleDate': stock.lastSaleDate?.toIso8601String(),
     'supplier': stock.supplier,
     'dateAdded': stock.dateAdded.toIso8601String(),
     'lastUpdated': stock.lastUpdated.toIso8601String(),
@@ -124,6 +132,20 @@ Map<String, dynamic> _stockContext(StockModel stock) {
             'performedBy': latestTransactions.first.performedBy,
             'remarks': latestTransactions.first.remarks,
           },
+    'recentSales': [
+      for (final sale in stock.sales
+          .where((sale) => sale.status == SalesTransactionStatus.completed)
+          .take(5))
+        {
+          'quantitySold': sale.quantitySold,
+          'unitPrice': sale.unitPrice,
+          'totalAmount': sale.totalAmount,
+          'saleDate': sale.saleDate.toIso8601String(),
+          'customerName': sale.customerName,
+          'remarks': sale.remarks,
+          'recordedBy': sale.recordedBy,
+        },
+    ],
     'notes': stock.notes,
   };
 }
@@ -131,14 +153,24 @@ Map<String, dynamic> _stockContext(StockModel stock) {
 Map<String, dynamic> _farmAnalyticsContext({
   required List<CropModel> crops,
   required List<StockModel> stocks,
+  required StockSalesSummaryModel salesSummary,
 }) {
   final monthlySales = <String, double>{};
   final monthlyPlanting = <String, int>{};
   final soldByItem = <String, double>{};
+  final salesAmountByItem = <String, double>{};
   final plantedByCrop = <String, int>{};
   final stockOutTransactions = <Map<String, dynamic>>[];
+  final salesTransactions = <Map<String, dynamic>>[];
   var totalSoldQuantity = 0.0;
+  var totalSalesAmount = 0.0;
   var stockOutCount = 0;
+  var realSalesCount = 0;
+  final hasRecordedSales = stocks.any(
+    (stock) => stock.sales.any(
+      (sale) => sale.status == SalesTransactionStatus.completed,
+    ),
+  );
 
   for (final crop in crops) {
     final monthKey = _monthKey(crop.plantingDate);
@@ -147,8 +179,49 @@ Map<String, dynamic> _farmAnalyticsContext({
   }
 
   for (final stock in stocks) {
+    for (final sale in stock.sales) {
+      if (sale.status != SalesTransactionStatus.completed) {
+        continue;
+      }
+
+      final monthKey = _monthKey(sale.saleDate);
+      totalSoldQuantity += sale.quantitySold;
+      totalSalesAmount += sale.totalAmount;
+      realSalesCount += 1;
+      monthlySales.update(
+        monthKey,
+        (value) => value + sale.totalAmount,
+        ifAbsent: () => sale.totalAmount,
+      );
+      soldByItem.update(
+        stock.name,
+        (value) => value + sale.quantitySold,
+        ifAbsent: () => sale.quantitySold,
+      );
+      salesAmountByItem.update(
+        stock.name,
+        (value) => value + sale.totalAmount,
+        ifAbsent: () => sale.totalAmount,
+      );
+      salesTransactions.add({
+        'item': stock.name,
+        'quantity': sale.quantitySold,
+        'unit': stock.unit,
+        'unitPrice': sale.unitPrice,
+        'totalAmount': sale.totalAmount,
+        'date': sale.saleDate.toIso8601String(),
+        'customerName': sale.customerName,
+        'remarks': sale.remarks,
+        'recordedBy': sale.recordedBy,
+      });
+    }
+
     for (final transaction in stock.transactions) {
       if (transaction.type != StockTransactionType.stockOut) {
+        continue;
+      }
+
+      if (hasRecordedSales) {
         continue;
       }
 
@@ -178,9 +251,12 @@ Map<String, dynamic> _farmAnalyticsContext({
   final salesByMonth = _sortedDoubleEntries(monthlySales);
   final plantingByMonth = _sortedIntEntries(monthlyPlanting);
   final topSoldItems = _sortedDoubleEntries(soldByItem);
+  final topSalesValueItems = _sortedDoubleEntries(salesAmountByItem);
   final topPlantedCrops = _sortedIntEntries(plantedByCrop);
   final bestSalesMonth = salesByMonth.isEmpty ? null : salesByMonth.first;
-  final recentSales = [...stockOutTransactions]
+  final recentSales = (realSalesCount > 0
+      ? [...salesTransactions]
+      : [...stockOutTransactions])
     ..sort(
       (left, right) => DateTime.parse(right['date'] as String)
           .compareTo(DateTime.parse(left['date'] as String)),
@@ -191,10 +267,16 @@ Map<String, dynamic> _farmAnalyticsContext({
     'purpose':
         'Use this summary to answer questions about farm performance, best selling periods, crop planting trends, inventory movement, and practical selling suggestions.',
     'currentSalesStatus': {
-      'summary': stockOutCount == 0
-          ? 'No stock-out or sales transactions are available in the current app data.'
-          : 'Current app data has $stockOutCount stock-out/sales transaction(s), totaling ${_formatQuantity(totalSoldQuantity)} units across ${soldByItem.length} item type(s).',
+      'summary': realSalesCount == 0 && stockOutCount == 0
+          ? 'No sales transactions are available in the current app data.'
+          : 'Current app data has ${realSalesCount > 0 ? realSalesCount : stockOutCount} sales-related transaction(s), totaling ${_formatQuantity(totalSoldQuantity)} units and ${_formatPeso(totalSalesAmount)} across ${soldByItem.length} item type(s).',
+      'salesToday': salesSummary.salesToday,
+      'salesThisMonth': salesSummary.salesThisMonth,
+      'unitsSoldThisMonth': salesSummary.unitsSoldThisMonth,
+      'salesTransactionsThisMonth': salesSummary.salesTransactions,
       'totalSoldQuantity': totalSoldQuantity,
+      'totalSalesAmount': totalSalesAmount,
+      'realSalesTransactionCount': realSalesCount,
       'stockOutTransactionCount': stockOutCount,
       'activeSoldItemTypes': soldByItem.length,
       'latestSale': latestSale,
@@ -203,6 +285,7 @@ Map<String, dynamic> _farmAnalyticsContext({
     'salesByMonth': salesByMonth.take(12).toList(),
     'plantingByMonth': plantingByMonth.take(12).toList(),
     'topSoldItems': topSoldItems.take(8).toList(),
+    'topSalesValueItems': topSalesValueItems.take(8).toList(),
     'topPlantedCrops': topPlantedCrops.take(8).toList(),
     'latestStockOut': latestSale,
     'bestObservedSalesMonth': bestSalesMonth,
@@ -211,10 +294,16 @@ Map<String, dynamic> _farmAnalyticsContext({
         'Existing stock-out data is strongest in ${bestSalesMonth['label']}; consider preparing harvest and market distribution before or during this period.',
       if (topSoldItems.isNotEmpty)
         '${topSoldItems.first['label']} is currently the top sold item in available inventory movement data.',
+      if (topSalesValueItems.isNotEmpty)
+        '${topSalesValueItems.first['label']} has the highest recorded sales value at ${_formatPeso(topSalesValueItems.first['value'] as double)}.',
       if (salesByMonth.length < 3)
         'Sales seasonality confidence is low because fewer than three months of stock-out data are available.',
     ],
   };
+}
+
+String _formatPeso(double value) {
+  return 'PHP ${value.toStringAsFixed(2)}';
 }
 
 String _formatQuantity(double value) {

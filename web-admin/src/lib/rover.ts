@@ -16,10 +16,19 @@ export type RoverStatus = {
 export type RoverCommand = {
   id: string;
   command: string;
+  payload: Record<string, unknown>;
   status: string;
   issuedBy: string;
   executedAt: string | null;
   createdAt: string;
+};
+
+export type RoverSensorReading = {
+  soilMoisture: number;
+  soilTemperature: number;
+  humidity: number;
+  environmentalTemperature: number;
+  recordedAt: string;
 };
 
 type RoverStatusRow = {
@@ -38,10 +47,19 @@ type RoverStatusRow = {
 type RoverCommandRow = {
   id: string;
   command: string;
+  payload: Record<string, unknown>;
   status: string;
   executed_at: string | null;
   created_at: string;
   profiles: { full_name: string } | { full_name: string }[] | null;
+};
+
+type SensorReadingRow = {
+  soil_moisture: number;
+  soil_temperature: number;
+  humidity: number;
+  environmental_temperature: number;
+  recorded_at: string;
 };
 
 function profileName(row: RoverCommandRow) {
@@ -56,11 +74,16 @@ export async function getRoverMonitor() {
     return {
       status: null,
       commands: [],
+      sensors: null,
       error: "Supabase is not configured.",
     };
   }
 
-  const [{ data: statusRows, error: statusError }, { data: commandRows }] =
+  const [
+    { data: statusRows, error: statusError },
+    { data: commandRows },
+    { data: sensorRows },
+  ] =
     await Promise.all([
       supabase
         .from("robot_status")
@@ -72,21 +95,31 @@ export async function getRoverMonitor() {
         .returns<RoverStatusRow[]>(),
       supabase
         .from("robot_commands")
-        .select("id, command, status, executed_at, created_at, profiles(full_name)")
+        .select("id, command, payload, status, executed_at, created_at, profiles(full_name)")
         .order("created_at", { ascending: false })
         .limit(8)
         .returns<RoverCommandRow[]>(),
+      supabase
+        .from("sensor_readings")
+        .select(
+          "soil_moisture, soil_temperature, humidity, environmental_temperature, recorded_at",
+        )
+        .order("recorded_at", { ascending: false })
+        .limit(1)
+        .returns<SensorReadingRow[]>(),
     ]);
 
   if (statusError) {
     return {
       status: null,
       commands: [],
+      sensors: null,
       error: statusError.message,
     };
   }
 
   const statusRow = statusRows?.[0];
+  const sensorRow = sensorRows?.[0];
 
   return {
     status: statusRow
@@ -106,11 +139,21 @@ export async function getRoverMonitor() {
     commands: (commandRows ?? []).map<RoverCommand>((row) => ({
       id: row.id,
       command: row.command,
+      payload: row.payload ?? {},
       status: row.status,
       issuedBy: profileName(row),
       executedAt: row.executed_at,
       createdAt: row.created_at,
     })),
+    sensors: sensorRow
+      ? {
+          soilMoisture: Number(sensorRow.soil_moisture),
+          soilTemperature: Number(sensorRow.soil_temperature),
+          humidity: Number(sensorRow.humidity),
+          environmentalTemperature: Number(sensorRow.environmental_temperature),
+          recordedAt: sensorRow.recorded_at,
+        }
+      : null,
     error: null,
   };
 }

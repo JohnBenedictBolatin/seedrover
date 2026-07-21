@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/models/crop_model.dart';
 import '../data/repositories/crop_repository.dart';
@@ -28,10 +29,13 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
     try {
       final crops = await _repository.getCrops();
       _setCrops(crops, successMessage: null, isLoading: false);
-    } catch (_) {
+    } catch (error) {
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Unable to load crop monitoring data.',
+        errorMessage: _friendlyError(
+          error,
+          fallback: 'Unable to load crop monitoring data.',
+        ),
       );
     }
   }
@@ -88,8 +92,10 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
         successMessage: 'Crop created.',
         isLoading: false,
       );
-    } catch (_) {
-      state = state.copyWith(errorMessage: 'Unable to create crop.');
+    } catch (error) {
+      state = state.copyWith(
+        errorMessage: _friendlyError(error, fallback: 'Unable to create crop.'),
+      );
     }
   }
 
@@ -151,12 +157,58 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
     );
   }
 
+  Future<String?> harvestCropToInventory({
+    required String cropId,
+    required String inventoryId,
+    required String inventoryName,
+    required String unit,
+    required double quantity,
+    required DateTime harvestDate,
+    required String notes,
+  }) async {
+    if (quantity <= 0) {
+      return 'Harvest quantity must be greater than zero.';
+    }
+
+    final crop = cropById(cropId);
+
+    if (crop == null) {
+      return 'Crop record was not found.';
+    }
+
+    if (harvestDate.isAfter(DateTime.now())) {
+      return 'Harvest date cannot be in the future.';
+    }
+
+    try {
+      final updatedCrop = await _repository.harvestCropToInventory(
+        crop: crop,
+        inventoryId: inventoryId,
+        inventoryName: inventoryName,
+        unit: unit,
+        quantity: quantity,
+        harvestDate: harvestDate,
+        notes: notes,
+      );
+      _replaceCrop(updatedCrop, successMessage: 'Harvest added to inventory.');
+    } catch (error) {
+      return _friendlyError(
+        error,
+        fallback: 'Unable to record harvest into inventory.',
+      );
+    }
+
+    return null;
+  }
+
   Future<void> updateCrop(CropModel crop) async {
     try {
       final updatedCrop = await _repository.updateCrop(crop);
       _replaceCrop(updatedCrop, successMessage: 'Crop information updated.');
-    } catch (_) {
-      state = state.copyWith(errorMessage: 'Unable to update crop.');
+    } catch (error) {
+      state = state.copyWith(
+        errorMessage: _friendlyError(error, fallback: 'Unable to update crop.'),
+      );
     }
   }
 
@@ -165,8 +217,10 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
       await _repository.deleteCrop(cropId);
       final crops = state.crops.where((crop) => crop.id != cropId).toList();
       _setCrops(crops, successMessage: 'Crop deleted.', isLoading: false);
-    } catch (_) {
-      state = state.copyWith(errorMessage: 'Unable to delete crop.');
+    } catch (error) {
+      state = state.copyWith(
+        errorMessage: _friendlyError(error, fallback: 'Unable to delete crop.'),
+      );
     }
   }
 
@@ -337,8 +391,13 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
       );
 
       _replaceCrop(updatedCrop, successMessage: successMessage);
-    } catch (_) {
-      state = state.copyWith(errorMessage: 'Unable to record crop activity.');
+    } catch (error) {
+      state = state.copyWith(
+        errorMessage: _friendlyError(
+          error,
+          fallback: 'Unable to record crop activity.',
+        ),
+      );
     }
   }
 
@@ -394,3 +453,26 @@ const _noStageChange = Object();
 const _noCropNameChange = Object();
 const _noPlantingDateChange = Object();
 const _noHarvestDateChange = Object();
+
+String _friendlyError(Object error, {required String fallback}) {
+  if (error is PostgrestException) {
+    final message = error.message;
+
+    if (message.contains('schema cache') ||
+        message.contains('harvest_crop_to_inventory') ||
+        message.contains('Could not find the function')) {
+      return 'Crop database is not fully upgraded yet. Apply the latest Supabase migration and try again.';
+    }
+
+    if (message.toLowerCase().contains('permission') ||
+        message.toLowerCase().contains('not allowed')) {
+      return 'You do not have permission to perform this crop action.';
+    }
+
+    if (message.trim().isNotEmpty) {
+      return message;
+    }
+  }
+
+  return fallback;
+}

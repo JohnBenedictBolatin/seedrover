@@ -8,7 +8,7 @@ import '../data/services/simulated_rover_communication_service.dart';
 
 final simulatedRoverCommunicationServiceProvider =
     Provider<SimulatedRoverCommunicationService>(
-  (ref) => const SimulatedRoverCommunicationService(),
+  (ref) => SimulatedRoverCommunicationService(),
 );
 
 final roverRepositoryProvider = Provider<RoverRepository>(

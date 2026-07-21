@@ -18,6 +18,8 @@ class AuthController extends StateNotifier<AppAuthState> {
 
   final AuthRepository _repository;
   StreamSubscription<dynamic>? _subscription;
+  final Map<String, _AttemptBucket> _attemptBuckets = {};
+  final Map<String, _AttemptBucket> _resetBuckets = {};
 
   Future<void> _initialize() async {
     try {
@@ -39,6 +41,19 @@ class AuthController extends StateNotifier<AppAuthState> {
     required String username,
     required String password,
   }) async {
+    final limitMessage = _checkLocalLimit(
+      buckets: _attemptBuckets,
+      key: username.trim().toLowerCase(),
+      limit: 5,
+      window: const Duration(minutes: 15),
+      actionLabel: 'login attempts',
+    );
+
+    if (limitMessage != null) {
+      state = AppAuthState.unauthenticated(errorMessage: limitMessage);
+      return;
+    }
+
     state = const AppAuthState.loading();
 
     try {
@@ -47,6 +62,7 @@ class AuthController extends StateNotifier<AppAuthState> {
         password: password,
       );
 
+      _attemptBuckets.remove(username.trim().toLowerCase());
       state = AppAuthState.authenticated(profile);
     } on AppException catch (error) {
       state = AppAuthState.unauthenticated(errorMessage: error.message);
@@ -64,6 +80,19 @@ class AuthController extends StateNotifier<AppAuthState> {
   }
 
   Future<void> sendPasswordResetEmail(String username) async {
+    final limitMessage = _checkLocalLimit(
+      buckets: _resetBuckets,
+      key: username.trim().toLowerCase(),
+      limit: 3,
+      window: const Duration(minutes: 15),
+      actionLabel: 'password reset requests',
+    );
+
+    if (limitMessage != null) {
+      state = AppAuthState.unauthenticated(errorMessage: limitMessage);
+      return;
+    }
+
     state = const AppAuthState.loading();
 
     try {
@@ -84,6 +113,53 @@ class AuthController extends StateNotifier<AppAuthState> {
   void dispose() {
     _subscription?.cancel();
     super.dispose();
+  }
+}
+
+String? _checkLocalLimit({
+  required Map<String, _AttemptBucket> buckets,
+  required String key,
+  required int limit,
+  required Duration window,
+  required String actionLabel,
+}) {
+  final normalizedKey = key.isEmpty ? 'anonymous' : key;
+  final now = DateTime.now();
+  final existing = buckets[normalizedKey];
+
+  if (existing == null || now.isAfter(existing.resetAt)) {
+    buckets[normalizedKey] = _AttemptBucket(
+      count: 1,
+      resetAt: now.add(window),
+    );
+    return null;
+  }
+
+  if (existing.count >= limit) {
+    final remaining = existing.resetAt.difference(now);
+    final minutes = remaining.inMinutes <= 0 ? 1 : remaining.inMinutes + 1;
+
+    return 'Too many $actionLabel. Please wait $minutes minute${minutes == 1 ? '' : 's'} before trying again.';
+  }
+
+  buckets[normalizedKey] = existing.copyWith(count: existing.count + 1);
+  return null;
+}
+
+class _AttemptBucket {
+  const _AttemptBucket({
+    required this.count,
+    required this.resetAt,
+  });
+
+  final int count;
+  final DateTime resetAt;
+
+  _AttemptBucket copyWith({int? count, DateTime? resetAt}) {
+    return _AttemptBucket(
+      count: count ?? this.count,
+      resetAt: resetAt ?? this.resetAt,
+    );
   }
 }
 

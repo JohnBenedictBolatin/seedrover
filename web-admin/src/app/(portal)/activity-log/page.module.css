@@ -35,11 +35,30 @@
   line-height: 1.6;
 }
 
+.liveDateTime {
+  align-self: flex-start;
+  text-align: right;
+}
+
+.liveDateTime p {
+  margin: 0 0 6px;
+  color: var(--text-muted);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.liveDateTime strong {
+  color: var(--green-accent);
+  font-family: var(--font-roboto-mono);
+  font-size: 1.34rem;
+  font-weight: 900;
+}
+
 .notice,
 .emptyState,
 .metric,
 .listSection,
-.logCard {
+.tableRow {
   border: 1px solid var(--border-soft);
   border-radius: 8px;
   background: rgba(49, 49, 49, 0.82);
@@ -63,21 +82,44 @@
 }
 
 .metric {
-  display: grid;
-  min-height: 126px;
-  align-content: space-between;
+  display: flex;
+  min-height: 104px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
   padding: 18px;
+}
+
+.metricMeta {
+  display: grid;
+  gap: 8px;
+}
+
+.metricIcon {
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(141, 255, 42, 0.2);
+  border-radius: 8px;
+  color: var(--green-accent);
+  background: rgba(83, 209, 30, 0.08);
 }
 
 .metric p {
   margin: 0;
   color: var(--text-muted);
-  font-size: 0.86rem;
+  font-size: 0.98rem;
   font-weight: 800;
 }
 
 .metric strong {
-  font-size: 1.24rem;
+  color: var(--text);
+  font-family: var(--font-roboto-mono);
+  font-size: clamp(1.85rem, 2.2vw, 2.35rem);
+  line-height: 1.05;
+  text-align: right;
 }
 
 .listSection {
@@ -88,9 +130,163 @@
 
 .sectionHeader {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 14px;
+}
+
+.sectionHeader > span {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.4fr) repeat(2, minmax(160px, 0.65fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.filters label {
+  display: grid;
+  gap: 7px;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.searchBox {
+  position: relative;
+}
+
+.searchBox svg {
+  position: absolute;
+  left: 12px;
+  bottom: 13px;
+  color: var(--text-muted);
+}
+
+.searchBox input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  color: var(--text);
+  background: rgba(27, 27, 27, 0.42);
+  outline: 0;
+  padding: 0 12px 0 40px;
+  transition:
+    border-color 180ms ease,
+    background 180ms ease;
+}
+
+.searchBox:focus-within input {
+  border-color: rgba(141, 255, 42, 0.18);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.themedSelect {
+  position: relative;
+  min-width: 0;
+}
+
+.themedSelectControl {
+  position: relative;
+}
+
+.themedSelectButton {
+  display: grid;
+  width: 100%;
+  min-height: 44px;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  color: var(--text);
+  background: rgba(27, 27, 27, 0.42);
+  cursor: pointer;
+  padding: 0 12px;
+  text-align: left;
+  transition:
+    border-color 180ms ease,
+    background 180ms ease;
+}
+
+.themedSelectButton:hover,
+.themedSelectButton[aria-expanded="true"] {
+  border-color: rgba(141, 255, 42, 0.18);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.themedSelectIcon,
+.themedSelectChevron {
+  display: inline-flex;
+  color: var(--text-muted);
+}
+
+.themedSelectLabel {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.themedSelectValue {
+  overflow: hidden;
+  color: var(--text);
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.themedSelectMenu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 45;
+  display: grid;
+  width: 100%;
+  min-width: 210px;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface-overlay);
+  box-shadow: var(--shadow);
+  padding: 6px;
+}
+
+.themedSelectOption {
+  display: grid;
+  min-height: 38px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0 10px;
+  text-align: left;
+}
+
+.themedSelectOption:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.themedSelectOption[data-selected="true"] {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.themedSelectOption[data-selected="true"] svg {
+  color: rgba(141, 255, 42, 0.72);
 }
 
 .emptyState {
@@ -105,52 +301,313 @@
   color: var(--text);
 }
 
-.logList {
+.logTable {
   display: grid;
-  gap: 10px;
+  gap: 8px;
+  overflow-x: auto;
 }
 
-.logCard {
+.tableHead,
+.tableRow {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 120px 150px 180px;
+  grid-template-columns: minmax(360px, 1.6fr) minmax(150px, 0.7fr) minmax(180px, 0.8fr) minmax(220px, 0.9fr);
   align-items: center;
-  gap: 14px;
-  background: var(--surface);
-  padding: 14px;
+  min-width: 1040px;
+  column-gap: 18px;
 }
 
-.logCopy {
+.tableHead {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  font-weight: 950;
+  padding: 0 14px;
+  text-transform: uppercase;
+}
+
+.tableRow {
+  min-height: 74px;
+  color: var(--text-secondary);
+  background: var(--surface);
+  padding: 13px 14px;
+}
+
+.activityCell {
   display: grid;
   gap: 5px;
+  min-width: 0;
 }
 
-.logCopy p {
-  margin: 0;
+.activityCell strong,
+.activityCell span,
+.userCell,
+.dateCell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activityCell strong {
+  color: var(--text);
+}
+
+.activityCell span {
   color: var(--text-secondary);
-  line-height: 1.5;
+  font-size: 0.82rem;
+  font-weight: 800;
 }
 
-.logCard span,
-.logCard time {
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  font-weight: 800;
+.moduleBadge {
+  width: fit-content;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 950;
+  padding: 7px 10px;
+}
+
+.systemBadge {
+  color: #dceeff;
+  background: rgba(69, 142, 255, 0.14);
+}
+
+.operationsBadge {
+  color: #d8ffb4;
+  background: rgba(83, 209, 30, 0.12);
+}
+
+.authBadge {
+  color: #ffe2b0;
+  background: rgba(255, 176, 66, 0.13);
+}
+
+.farmBadge {
+  color: #e8dcff;
+  background: rgba(160, 122, 255, 0.13);
+}
+
+.userCell {
+  color: var(--text);
+  font-weight: 900;
+}
+
+.dateCell {
+  color: var(--text);
+  font-family: var(--font-roboto-mono);
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.paginationBar {
+  display: flex;
+  min-width: 1040px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 6px 2px 0;
+}
+
+.paginationBar button,
+.pageNumbers button {
+  min-width: 42px;
+  min-height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.03);
+  font-weight: 900;
+  cursor: pointer;
+  padding: 0 12px;
+  transition:
+    border-color 180ms ease,
+    color 180ms ease,
+    background 180ms ease,
+    transform 180ms ease;
+}
+
+.paginationBar button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.paginationBar button:hover:not(:disabled),
+.pageNumbers button:hover {
+  border-color: rgba(141, 255, 42, 0.32);
+  color: var(--text);
+  background: rgba(83, 209, 30, 0.08);
+  transform: translateY(-1px);
+}
+
+.pageNumbers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pageNumbers button[data-active="true"] {
+  border-color: rgba(141, 255, 42, 0.34);
+  color: var(--text);
+  background: rgba(83, 209, 30, 0.08);
+}
+
+:global(html[data-theme="light"]) .page {
+  --surface: #ffffff;
+  --surface-raised: #f9fcf7;
+  --surface-soft: rgba(18, 60, 27, 0.05);
+  --surface-overlay: #ffffff;
+  --border-soft: rgba(18, 60, 27, 0.18);
+  --border: rgba(18, 60, 27, 0.18);
+  --text: #123c1b;
+  --text-secondary: #243c2a;
+  --text-muted: rgba(18, 60, 27, 0.62);
+  --green: #16451f;
+  --green-secondary: #123c1b;
+  --green-accent: #16451f;
+}
+
+:global(html[data-theme="light"]) .listSection,
+:global(html[data-theme="light"]) .notice,
+:global(html[data-theme="light"]) .emptyState {
+  border-color: rgba(18, 60, 27, 0.18);
+  color: #123c1b;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(18, 60, 27, 0.06);
+}
+
+:global(html[data-theme="light"]) .sectionHeader h2,
+:global(html[data-theme="light"]) .emptyState strong,
+:global(html[data-theme="light"]) .activityCell strong,
+:global(html[data-theme="light"]) .userCell,
+:global(html[data-theme="light"]) .dateCell {
+  color: #123c1b;
+}
+
+:global(html[data-theme="light"]) .sectionHeader > span,
+:global(html[data-theme="light"]) .filters label,
+:global(html[data-theme="light"]) .activityCell span {
+  color: rgba(18, 60, 27, 0.66);
+}
+
+:global(html[data-theme="light"]) .searchBox input,
+:global(html[data-theme="light"]) .themedSelectButton {
+  border-color: rgba(18, 60, 27, 0.22);
+  color: #123c1b;
+  background: #ffffff;
+}
+
+:global(html[data-theme="light"]) .searchBox input::placeholder {
+  color: rgba(18, 60, 27, 0.52);
+}
+
+:global(html[data-theme="light"]) .searchBox svg,
+:global(html[data-theme="light"]) .themedSelectIcon,
+:global(html[data-theme="light"]) .themedSelectChevron {
+  color: rgba(18, 60, 27, 0.68);
+  stroke: currentColor;
+}
+
+:global(html[data-theme="light"]) .searchBox:focus-within input,
+:global(html[data-theme="light"]) .themedSelectButton:hover,
+:global(html[data-theme="light"]) .themedSelectButton[aria-expanded="true"] {
+  border-color: rgba(18, 60, 27, 0.42);
+  background: rgba(18, 60, 27, 0.04);
+}
+
+:global(html[data-theme="light"]) .themedSelectMenu {
+  border-color: rgba(18, 60, 27, 0.22);
+  color: #123c1b;
+  background: #ffffff;
+  box-shadow: 0 18px 44px rgba(18, 60, 27, 0.16);
+}
+
+:global(html[data-theme="light"]) .themedSelectOption {
+  color: #243c2a;
+  background: transparent;
+}
+
+:global(html[data-theme="light"]) .themedSelectOption:hover {
+  color: #123c1b;
+  background: rgba(18, 60, 27, 0.08);
+}
+
+:global(html[data-theme="light"]) .themedSelectOption[data-selected="true"] {
+  color: #123c1b;
+  background: rgba(18, 60, 27, 0.12);
+}
+
+:global(html[data-theme="light"]) .tableHead {
+  color: rgba(18, 60, 27, 0.66);
+}
+
+:global(html[data-theme="light"]) .tableRow {
+  border-color: rgba(18, 60, 27, 0.14);
+  color: #243c2a;
+  background: #ffffff;
+  box-shadow: 0 8px 18px rgba(18, 60, 27, 0.06);
+}
+
+:global(html[data-theme="light"]) .tableRow:hover {
+  border-color: rgba(18, 60, 27, 0.28);
+  background: #f9fcf7;
+}
+
+:global(html[data-theme="light"]) .moduleBadge {
+  border-color: rgba(18, 60, 27, 0.14);
+}
+
+:global(html[data-theme="light"]) .systemBadge {
+  color: #174f8f;
+  background: rgba(69, 142, 255, 0.12);
+}
+
+:global(html[data-theme="light"]) .operationsBadge {
+  color: #13752f;
+  background: rgba(31, 145, 56, 0.1);
+}
+
+:global(html[data-theme="light"]) .authBadge {
+  color: #9a6500;
+  background: rgba(184, 123, 0, 0.1);
+}
+
+:global(html[data-theme="light"]) .farmBadge {
+  color: #6545a5;
+  background: rgba(101, 69, 165, 0.1);
+}
+
+:global(html[data-theme="light"]) .paginationBar button,
+:global(html[data-theme="light"]) .pageNumbers button {
+  border-color: rgba(18, 60, 27, 0.18);
+  color: #123c1b;
+  background: #ffffff;
+}
+
+:global(html[data-theme="light"]) .paginationBar button:hover:not(:disabled),
+:global(html[data-theme="light"]) .pageNumbers button:hover,
+:global(html[data-theme="light"]) .pageNumbers button[data-active="true"] {
+  border-color: rgba(18, 60, 27, 0.38);
+  color: #16451f;
+  background: rgba(18, 60, 27, 0.08);
 }
 
 @media (max-width: 1040px) {
   .metricGrid,
-  .logCard {
+  .filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .logCopy {
-    grid-column: 1 / -1;
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 720px) {
+  .header,
+  .sectionHeader {
+    flex-direction: column;
+  }
+
+  .liveDateTime {
+    text-align: left;
+  }
+
   .metricGrid,
-  .logCard {
+  .filters {
     grid-template-columns: 1fr;
   }
 }

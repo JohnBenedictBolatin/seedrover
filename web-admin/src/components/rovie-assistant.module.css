@@ -1,0 +1,310 @@
+.floatingButton {
+  position: fixed;
+  right: 30px;
+  bottom: 30px;
+  z-index: 180;
+  display: inline-flex;
+  min-height: 68px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 1px solid rgba(141, 255, 42, 0.42);
+  border-radius: 999px;
+  color: var(--green-accent);
+  background:
+    linear-gradient(180deg, rgba(37, 37, 37, 0.96), rgba(25, 25, 25, 0.98)),
+    var(--surface);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.34);
+  cursor: pointer;
+  font-weight: 900;
+  font-size: 1.08rem;
+  padding: 0 26px 0 20px;
+  transition:
+    border-color 180ms ease,
+    background 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+.floatingButton img {
+  width: 50px;
+  height: 50px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 7px rgba(0, 0, 0, 0.28));
+}
+
+.floatingButton:hover {
+  border-color: rgba(141, 255, 42, 0.68);
+  color: #102006;
+  background: linear-gradient(135deg, var(--green-accent), var(--green));
+  transform: translateY(-2px);
+}
+
+:global(html[data-theme="light"]) .floatingButton {
+  border-color: rgba(18, 60, 27, 0.5);
+  color: #123c1b;
+  background: #ffffff;
+  box-shadow:
+    0 14px 30px rgba(18, 60, 27, 0.16),
+    0 0 0 1px rgba(18, 60, 27, 0.04);
+}
+
+:global(html[data-theme="light"]) .floatingButton:hover {
+  border-color: rgba(18, 60, 27, 0.72);
+  color: #ffffff;
+  background: linear-gradient(135deg, #1e5f2b 0%, #123c1b 100%);
+}
+
+:global(html[data-theme="light"]) .floatingButton img {
+  filter: drop-shadow(0 4px 7px rgba(18, 60, 27, 0.2));
+}
+
+.chatDock {
+  position: fixed;
+  right: 30px;
+  bottom: 110px;
+  z-index: 1000;
+  width: min(430px, calc(100vw - 38px));
+}
+
+.modal {
+  display: grid;
+  width: 100%;
+  max-height: min(680px, calc(100vh - 138px));
+  grid-template-rows: auto minmax(220px, 1fr) auto auto;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+  background: var(--surface-overlay);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.46);
+  transform-origin: bottom right;
+  animation: rovieOpen 180ms ease-out;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-bottom: 1px solid var(--border-soft);
+  padding: 16px;
+}
+
+.titleGroup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatar {
+  display: inline-flex;
+  width: 54px;
+  height: 54px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(141, 255, 42, 0.24);
+  border-radius: 12px;
+  color: var(--green-accent);
+  background: rgba(83, 209, 30, 0.08);
+  overflow: hidden;
+  padding: 4px;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 5px 8px rgba(0, 0, 0, 0.34));
+}
+
+.header p,
+.header h2 {
+  margin: 0;
+}
+
+.header p {
+  color: var(--green-accent);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.header h2 {
+  font-size: 1.28rem;
+}
+
+.header button {
+  display: inline-grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    color 180ms ease,
+    background 180ms ease;
+}
+
+.header button:hover {
+  border-color: rgba(255, 59, 48, 0.36);
+  color: #ff6b6b;
+  background: rgba(255, 59, 48, 0.08);
+}
+
+.messages {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  overflow-y: auto;
+  padding: 18px;
+}
+
+.message {
+  display: flex;
+  align-items: flex-end;
+  gap: 9px;
+}
+
+.message p {
+  max-width: 84%;
+  margin: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+  line-height: 1.55;
+  padding: 12px 14px;
+  white-space: pre-wrap;
+}
+
+.message[data-role="user"] {
+  justify-content: flex-end;
+}
+
+.messageMascot {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 7px rgba(0, 0, 0, 0.3));
+}
+
+.message[data-role="user"] p {
+  border-color: rgba(141, 255, 42, 0.28);
+  color: var(--text);
+  background: rgba(83, 209, 30, 0.12);
+  font-weight: 800;
+}
+
+.typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.typing svg,
+.spin {
+  animation: spin 0.85s linear infinite;
+}
+
+.notice {
+  margin: 0 18px 14px;
+  border-left: 4px solid var(--warning);
+  border-radius: 8px;
+  color: #ffe6ae;
+  background: rgba(255, 176, 0, 0.08);
+  font-size: 0.82rem;
+  font-weight: 800;
+  padding: 10px 12px;
+}
+
+.form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 46px;
+  gap: 10px;
+  border-top: 1px solid var(--border-soft);
+  padding: 14px;
+}
+
+.form input {
+  min-height: 46px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  color: var(--text);
+  background: rgba(20, 20, 20, 0.72);
+  outline: none;
+  padding: 0 14px;
+  transition:
+    border-color 180ms ease,
+    background 180ms ease;
+}
+
+.form input:focus {
+  border-color: rgba(141, 255, 42, 0.42);
+  background: rgba(18, 18, 18, 0.94);
+}
+
+.form button {
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid rgba(141, 255, 42, 0.42);
+  border-radius: 8px;
+  color: #102006;
+  background: linear-gradient(135deg, var(--green-accent), var(--green));
+  cursor: pointer;
+}
+
+.form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes rovieOpen {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 720px) {
+  .floatingButton {
+    right: 18px;
+    bottom: 18px;
+    min-height: 60px;
+    padding: 0 16px;
+  }
+
+  .floatingButton img {
+    width: 44px;
+    height: 44px;
+  }
+
+  .floatingButton span {
+    display: none;
+  }
+
+  .chatDock {
+    right: 14px;
+    bottom: 88px;
+    width: calc(100vw - 28px);
+  }
+
+  .modal {
+    max-height: calc(100vh - 112px);
+  }
+}

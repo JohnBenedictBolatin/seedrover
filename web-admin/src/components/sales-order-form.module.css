@@ -42,7 +42,7 @@
   font-size: 1.15rem;
 }
 
-.panelHeader button,
+.actionButton,
 .submitButton,
 .removeButton {
   min-height: 44px;
@@ -51,12 +51,159 @@
   cursor: pointer;
 }
 
-.panelHeader button,
-.submitButton {
-  border: 0;
+.actionButton {
+  --action-button-bg: linear-gradient(135deg, var(--green-accent), var(--green));
+  --action-button-bg-hover: linear-gradient(135deg, var(--green-accent), var(--green));
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(141, 255, 42, 0.52);
+  color: var(--green-accent);
+  background: transparent;
+  padding: 0;
+  transition:
+    border-color 0.3s ease,
+    transform 0.2s ease;
+}
+
+.actionButton:hover {
+  border-color: rgba(141, 255, 42, 0.7);
+}
+
+.actionButton:active {
+  transform: translateY(1px);
+}
+
+.actionButtonText,
+.actionButtonIcon {
+  position: relative;
+  z-index: 1;
+  transition: all 0.3s ease;
+}
+
+.actionButtonText {
+  display: flex;
+  width: calc(100% - 46px);
+  flex: 0 0 calc(100% - 46px);
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  color: var(--green-accent);
+  font-size: 0.84rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.actionButtonIcon {
+  position: absolute;
+  right: 0;
+  display: flex;
+  width: 46px;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid rgba(141, 255, 42, 0.22);
   color: #102006;
-  background: var(--green);
-  padding: 0 16px;
+  background: var(--action-button-bg);
+}
+
+.actionButton:hover .actionButtonText {
+  color: transparent;
+}
+
+.actionButton:hover .actionButtonIcon {
+  width: 100%;
+  border-left-color: transparent;
+  background: var(--action-button-bg-hover);
+}
+
+.addItemButton {
+  width: 164px;
+}
+
+.submitButton {
+  display: inline-flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(141, 255, 42, 0.34);
+  color: #eff8e7;
+  background: linear-gradient(135deg, rgba(83, 209, 30, 0.18), rgba(108, 235, 49, 0.12));
+  isolation: isolate;
+  padding: 0 14px;
+  transition:
+    color 180ms ease,
+    border-color 220ms ease,
+    background 180ms ease,
+    transform 180ms ease,
+    box-shadow 220ms ease;
+}
+
+.submitButton > * {
+  position: relative;
+  z-index: 1;
+}
+
+.submitButton::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 105%;
+  z-index: 0;
+  width: 140%;
+  height: 180%;
+  border-radius: 50%;
+  background: rgba(141, 255, 42, 0.12);
+  transform: translateX(-50%) scaleY(1) scaleX(1.25);
+  transition: all 0.5s 0.08s cubic-bezier(0.55, 0, 0.1, 1);
+}
+
+.submitButton::after {
+  content: "";
+  position: absolute;
+  left: 55%;
+  top: 180%;
+  z-index: 0;
+  width: 160%;
+  height: 190%;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--green-accent), var(--green));
+  transform: translateX(-50%) scaleY(1) scaleX(1.45);
+  transition: all 0.5s 0.1s cubic-bezier(0.55, 0, 0.1, 1);
+}
+
+.submitButton:hover:not(:disabled) {
+  color: #102006;
+  border-color: rgba(141, 255, 42, 0.68);
+  box-shadow:
+    0 18px 34px rgba(83, 209, 30, 0.22),
+    0 0 0 1px rgba(141, 255, 42, 0.08);
+  transform: translateY(-1px);
+}
+
+.submitButton:hover:not(:disabled)::before {
+  top: -35%;
+  background: rgba(141, 255, 42, 0.4);
+  transform: translateX(-50%) scaleY(1.3) scaleX(0.8);
+}
+
+.submitButton:hover:not(:disabled)::after {
+  top: -45%;
+  transform: translateX(-50%) scaleY(1.3) scaleX(0.8);
+}
+
+.submitButton:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.submitButton:disabled {
+  cursor: wait;
+  opacity: 0.72;
 }
 
 .lines {
@@ -66,13 +213,83 @@
 
 .lineItem {
   display: grid;
-  grid-template-columns: minmax(220px, 1.3fr) minmax(120px, 0.5fr) minmax(120px, 0.5fr) minmax(170px, 0.7fr) 88px;
+  grid-template-columns: minmax(220px, 1fr) 120px 120px minmax(130px, 0.6fr) 46px;
   gap: 10px;
   align-items: end;
   border: 1px solid var(--border-soft);
   border-radius: 8px;
   background: var(--surface);
   padding: 12px;
+}
+
+.itemPickerLabel {
+  min-width: 0;
+}
+
+.itemPicker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  color: var(--text-muted);
+  background: rgba(27, 27, 27, 0.42);
+  padding: 0 12px;
+}
+
+.itemPicker:focus-within {
+  border-color: rgba(141, 255, 42, 0.18);
+  outline: 2px solid rgba(141, 255, 42, 0.05);
+}
+
+.itemPicker input {
+  min-height: 42px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.itemPickerMenu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  display: grid;
+  max-height: 240px;
+  overflow: auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface-overlay);
+  box-shadow: var(--shadow);
+  padding: 6px;
+}
+
+.itemPickerMenu button {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: transparent;
+  text-align: left;
+  padding: 10px;
+  cursor: pointer;
+}
+
+.itemPickerMenu button:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.itemPickerMenu small,
+.itemPickerMenu > span {
+  color: var(--text-muted);
+  font-weight: 800;
 }
 
 .twoColumn {
@@ -86,6 +303,100 @@
   gap: 12px;
 }
 
+.themedSelectLabel {
+  position: relative;
+}
+
+.themedSelect {
+  position: relative;
+}
+
+.themedSelectButton {
+  display: grid;
+  width: 100%;
+  min-height: 46px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  color: var(--text);
+  background: rgba(27, 27, 27, 0.42);
+  cursor: pointer;
+  font: inherit;
+  padding: 0 12px;
+  text-align: left;
+  transition:
+    border-color 180ms ease,
+    background 180ms ease;
+}
+
+.themedSelectButton span {
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.themedSelectButton svg {
+  color: var(--text-muted);
+}
+
+.themedSelectButton:hover,
+.themedSelectButton:focus-visible {
+  border-color: rgba(141, 255, 42, 0.18);
+  background: rgba(255, 255, 255, 0.035);
+  outline: 2px solid rgba(141, 255, 42, 0.05);
+}
+
+.themedSelectMenu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 45;
+  display: grid;
+  width: 100%;
+  min-width: 210px;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface-overlay);
+  box-shadow: var(--shadow);
+  padding: 6px;
+}
+
+.themedSelectOption {
+  display: grid;
+  min-height: 38px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0 10px;
+  text-align: left;
+}
+
+.themedSelectOption:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.themedSelectOption[data-selected="true"] {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.themedSelectOption[data-selected="true"] svg {
+  color: rgba(141, 255, 42, 0.72);
+}
+
 .form label {
   display: grid;
   gap: 7px;
@@ -95,15 +406,49 @@
 }
 
 .form input,
-.form select,
 .form textarea {
   width: 100%;
   min-height: 46px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-soft);
   border-radius: 8px;
   color: var(--text);
-  background: var(--surface);
+  background: rgba(27, 27, 27, 0.42);
   padding: 0 12px;
+}
+
+.form input[type="number"],
+.form input[type="date"],
+.form input[type="time"] {
+  color-scheme: dark;
+}
+
+.form input[type="number"] {
+  padding-right: 10px;
+}
+
+.form input[type="number"]::-webkit-outer-spin-button,
+.form input[type="number"]::-webkit-inner-spin-button {
+  opacity: 1;
+  margin: 0;
+  filter: invert(82%) sepia(63%) saturate(602%) hue-rotate(34deg) brightness(108%) contrast(105%);
+  cursor: pointer;
+}
+
+.form input[type="date"]::-webkit-calendar-picker-indicator,
+.form input[type="time"]::-webkit-calendar-picker-indicator {
+  opacity: 0.9;
+  filter: invert(82%) sepia(63%) saturate(602%) hue-rotate(34deg) brightness(108%) contrast(105%);
+  cursor: pointer;
+}
+
+.form input[type="date"]::-webkit-datetime-edit,
+.form input[type="time"]::-webkit-datetime-edit {
+  color: var(--text);
+}
+
+.form input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+.form input[type="time"]::-webkit-datetime-edit-fields-wrapper {
+  color: var(--text);
 }
 
 .form textarea {
@@ -113,10 +458,27 @@
 }
 
 .form input:focus,
-.form select:focus,
 .form textarea:focus {
-  border-color: rgba(141, 255, 42, 0.74);
-  outline: 2px solid rgba(83, 209, 30, 0.18);
+  border-color: rgba(141, 255, 42, 0.18);
+  outline: 2px solid rgba(141, 255, 42, 0.05);
+}
+
+.discountCodeHint,
+.discountCodeError {
+  margin: -3px 0 0;
+  border-left: 3px solid rgba(141, 255, 42, 0.72);
+  border-radius: 8px;
+  color: #dcffd5;
+  background: rgba(83, 209, 30, 0.08);
+  font-size: 0.8rem;
+  font-weight: 850;
+  padding: 9px 10px;
+}
+
+.discountCodeError {
+  border-left-color: rgba(255, 59, 48, 0.78);
+  color: #ffe8e8;
+  background: rgba(255, 59, 48, 0.08);
 }
 
 .lineMeta {
@@ -132,9 +494,17 @@
 }
 
 .removeButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid rgba(255, 59, 48, 0.28);
   color: var(--danger);
   background: rgba(255, 59, 48, 0.08);
+  padding: 0;
+}
+
+.removeButton:hover {
+  background: rgba(255, 59, 48, 0.16);
 }
 
 .totals {
@@ -162,7 +532,7 @@
 }
 
 .grandTotal strong {
-  color: var(--green-accent);
+  color: var(--text);
   font-size: 1.35rem;
 }
 
@@ -172,7 +542,7 @@
   margin: 18px 0 0;
   border: 1px solid rgba(83, 209, 30, 0.22);
   border-radius: 8px;
-  color: var(--green-accent);
+  color: var(--text);
   background: rgba(83, 209, 30, 0.08);
   font-weight: 800;
   line-height: 1.4;
@@ -196,6 +566,476 @@
   opacity: 0.72;
 }
 
+.toastAlert {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(380px, calc(100vw - 32px));
+  border-left: 5px solid;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 900;
+  padding: 16px 18px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+}
+
+.toastAlert p {
+  margin: 0;
+}
+
+.toastAlert[data-tone="success"] {
+  border-color: #56d33b;
+  color: #dcffd5;
+  background: rgba(25, 91, 33, 0.95);
+}
+
+.toastAlert[data-tone="error"] {
+  border-color: #ff4d45;
+  color: #ffe8e8;
+  background: rgba(102, 27, 27, 0.96);
+}
+
+.confirmBackdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.78);
+  -webkit-backdrop-filter: blur(14px) saturate(0.72);
+  backdrop-filter: blur(14px) saturate(0.72);
+  padding: 20px;
+}
+
+.confirmModal {
+  position: relative;
+  display: grid;
+  gap: 14px;
+  width: min(460px, 100%);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  color: var(--text);
+  background: #2a2a2a;
+  padding: 26px;
+}
+
+.confirmClose {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.confirmClose:hover {
+  color: var(--danger);
+  background: rgba(255, 59, 48, 0.12);
+}
+
+.confirmIcon {
+  display: inline-grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--green-accent);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.confirmModal h2,
+.confirmModal p {
+  margin: 0;
+}
+
+.confirmModal p {
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.confirmTotals {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 14px;
+}
+
+.confirmTotals span {
+  color: var(--text-muted);
+  font-weight: 900;
+}
+
+.confirmTotals strong {
+  color: var(--text);
+  font-size: 1.4rem;
+}
+
+.confirmActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.confirmActions button {
+  min-height: 44px;
+  border-radius: 8px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.confirmActions button:first-child {
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  background: transparent;
+}
+
+.confirmActions button:last-child {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(141, 255, 42, 0.34);
+  color: #eff8e7;
+  background: linear-gradient(135deg, rgba(83, 209, 30, 0.18), rgba(108, 235, 49, 0.12));
+  isolation: isolate;
+  transition:
+    color 180ms ease,
+    border-color 220ms ease,
+    background 180ms ease,
+    transform 180ms ease,
+    box-shadow 220ms ease;
+}
+
+.confirmActions button:last-child > * {
+  position: relative;
+  z-index: 1;
+}
+
+.confirmActions button:last-child::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 105%;
+  z-index: 0;
+  width: 140%;
+  height: 180%;
+  border-radius: 50%;
+  background: rgba(141, 255, 42, 0.12);
+  transform: translateX(-50%) scaleY(1) scaleX(1.25);
+  transition: all 0.5s 0.08s cubic-bezier(0.55, 0, 0.1, 1);
+}
+
+.confirmActions button:last-child::after {
+  content: "";
+  position: absolute;
+  left: 55%;
+  top: 180%;
+  z-index: 0;
+  width: 160%;
+  height: 190%;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--green-accent), var(--green));
+  transform: translateX(-50%) scaleY(1) scaleX(1.45);
+  transition: all 0.5s 0.1s cubic-bezier(0.55, 0, 0.1, 1);
+}
+
+.confirmActions button:last-child:hover {
+  color: #102006;
+  border-color: rgba(141, 255, 42, 0.68);
+  box-shadow:
+    0 18px 34px rgba(83, 209, 30, 0.22),
+    0 0 0 1px rgba(141, 255, 42, 0.08);
+  transform: translateY(-1px);
+}
+
+.confirmActions button:last-child:hover::before {
+  top: -35%;
+  background: rgba(141, 255, 42, 0.4);
+  transform: translateX(-50%) scaleY(1.3) scaleX(0.8);
+}
+
+.confirmActions button:last-child:hover::after {
+  top: -45%;
+  transform: translateX(-50%) scaleY(1.3) scaleX(0.8);
+}
+
+:global(html[data-theme="light"]) .form {
+  --surface: #ffffff;
+  --surface-raised: #f9fcf7;
+  --surface-soft: rgba(18, 60, 27, 0.05);
+  --surface-overlay: #ffffff;
+  --border-soft: rgba(18, 60, 27, 0.18);
+  --text: #123c1b;
+  --text-secondary: #243c2a;
+  --text-muted: rgba(18, 60, 27, 0.62);
+  --green: #16451f;
+  --green-secondary: #123c1b;
+  --green-accent: #16451f;
+  color: #123c1b;
+}
+
+:global(html[data-theme="light"]) .panel,
+:global(html[data-theme="light"]) .emptyState {
+  border-color: rgba(18, 60, 27, 0.18);
+  color: #123c1b;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(18, 60, 27, 0.06);
+}
+
+:global(html[data-theme="light"]) .panelHeader p {
+  color: #16451f;
+}
+
+:global(html[data-theme="light"]) .panelHeader h2,
+:global(html[data-theme="light"]) .emptyState strong {
+  color: #123c1b;
+}
+
+:global(html[data-theme="light"]) .lineItem {
+  border-color: rgba(18, 60, 27, 0.14);
+  background: #f9fcf7;
+}
+
+:global(html[data-theme="light"]) .form label,
+:global(html[data-theme="light"]) .lineMeta,
+:global(html[data-theme="light"]) .totals span {
+  color: rgba(18, 60, 27, 0.68);
+}
+
+:global(html[data-theme="light"]) .form input,
+:global(html[data-theme="light"]) .form textarea,
+:global(html[data-theme="light"]) .itemPicker,
+:global(html[data-theme="light"]) .themedSelectButton {
+  border-color: rgba(18, 60, 27, 0.22);
+  color: #123c1b;
+  color-scheme: light;
+  background: #ffffff;
+  background-color: #ffffff;
+}
+
+:global(html[data-theme="light"]) .form input::placeholder,
+:global(html[data-theme="light"]) .form textarea::placeholder,
+:global(html[data-theme="light"]) .itemPicker input::placeholder {
+  color: rgba(18, 60, 27, 0.52);
+}
+
+:global(html[data-theme="light"]) .form input:focus,
+:global(html[data-theme="light"]) .form textarea:focus,
+:global(html[data-theme="light"]) .itemPicker:focus-within,
+:global(html[data-theme="light"]) .themedSelectButton:hover,
+:global(html[data-theme="light"]) .themedSelectButton:focus-visible {
+  border-color: rgba(18, 60, 27, 0.42);
+  background: rgba(18, 60, 27, 0.04);
+  outline: 2px solid rgba(18, 60, 27, 0.08);
+}
+
+:global(html[data-theme="light"]) .form input[type="number"],
+:global(html[data-theme="light"]) .form input[type="date"],
+:global(html[data-theme="light"]) .form input[type="time"] {
+  color-scheme: light only;
+  accent-color: #123c1b;
+}
+
+:global(html[data-theme="light"]) .form input[type="number"]::-webkit-outer-spin-button,
+:global(html[data-theme="light"]) .form input[type="number"]::-webkit-inner-spin-button,
+:global(html[data-theme="light"]) .form input[type="date"]::-webkit-calendar-picker-indicator,
+:global(html[data-theme="light"]) .form input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(19%) sepia(21%) saturate(1676%) hue-rotate(82deg) brightness(88%) contrast(89%);
+}
+
+:global(html[data-theme="light"]) .itemPicker svg,
+:global(html[data-theme="light"]) .themedSelectButton svg {
+  color: rgba(18, 60, 27, 0.68);
+  stroke: currentColor;
+}
+
+:global(html[data-theme="light"]) .itemPickerMenu,
+:global(html[data-theme="light"]) .themedSelectMenu {
+  border-color: rgba(18, 60, 27, 0.22);
+  color: #123c1b;
+  background: #ffffff;
+  box-shadow: 0 18px 44px rgba(18, 60, 27, 0.16);
+}
+
+:global(html[data-theme="light"]) .itemPickerMenu button,
+:global(html[data-theme="light"]) .themedSelectOption {
+  border: 0;
+  color: #243c2a;
+  background: transparent;
+}
+
+:global(html[data-theme="light"]) .itemPickerMenu button:hover,
+:global(html[data-theme="light"]) .themedSelectOption:hover {
+  color: #123c1b;
+  background: rgba(18, 60, 27, 0.08);
+}
+
+:global(html[data-theme="light"]) .themedSelectOption[data-selected="true"] {
+  color: #123c1b;
+  background: rgba(18, 60, 27, 0.12);
+}
+
+:global(html[data-theme="light"]) .lineMeta strong,
+:global(html[data-theme="light"]) .totals strong,
+:global(html[data-theme="light"]) .grandTotal strong {
+  color: #123c1b;
+}
+
+:global(html[data-theme="light"]) .totals div {
+  border-bottom-color: rgba(18, 60, 27, 0.14);
+}
+
+:global(html[data-theme="light"]) .discountCodeHint {
+  border-left-color: rgba(22, 102, 41, 0.64);
+  color: #123c1b;
+  background: rgba(18, 60, 27, 0.08);
+}
+
+:global(html[data-theme="light"]) .discountCodeError {
+  border-left-color: rgba(184, 38, 31, 0.72);
+  color: #7b1d18;
+  background: rgba(184, 38, 31, 0.08);
+}
+
+:global(html[data-theme="light"]) .actionButton {
+  --action-button-bg: linear-gradient(135deg, #1e5f2b 0%, #123c1b 100%);
+  --action-button-bg-hover: linear-gradient(135deg, #1e5f2b 0%, #123c1b 100%);
+  border: 2px solid rgba(18, 60, 27, 0.72);
+  color: #123c1b;
+  background: transparent;
+}
+
+:global(html[data-theme="light"]) .actionButtonText {
+  color: #123c1b;
+}
+
+:global(html[data-theme="light"]) .actionButtonIcon {
+  border-left-color: rgba(18, 60, 27, 0.2);
+  color: #ffffff;
+  background: var(--action-button-bg);
+}
+
+:global(html[data-theme="light"]) .actionButtonIcon svg {
+  color: #ffffff;
+  stroke: currentColor;
+}
+
+:global(html[data-theme="light"]) .actionButton:hover {
+  border-color: rgba(18, 60, 27, 0.9);
+}
+
+:global(html[data-theme="light"]) .actionButton:hover .actionButtonIcon {
+  color: #ffffff;
+  background: var(--action-button-bg-hover);
+}
+
+:global(html[data-theme="light"]) .removeButton {
+  border-color: rgba(184, 38, 31, 0.28);
+  color: #b8261f;
+  background: rgba(184, 38, 31, 0.06);
+}
+
+:global(html[data-theme="light"]) .removeButton:hover {
+  background: rgba(184, 38, 31, 0.12);
+}
+
+:global(html[data-theme="light"]) .confirmBackdrop {
+  background: rgba(4, 12, 5, 0.54);
+  backdrop-filter: blur(12px) saturate(0.9);
+}
+
+:global(html[data-theme="light"]) .confirmModal {
+  --surface: #ffffff;
+  --surface-raised: #f9fcf7;
+  --surface-soft: rgba(18, 60, 27, 0.05);
+  --border-soft: rgba(18, 60, 27, 0.18);
+  --text: #123c1b;
+  --text-secondary: #243c2a;
+  --text-muted: rgba(18, 60, 27, 0.62);
+  --green: #16451f;
+  --green-secondary: #123c1b;
+  --green-accent: #16451f;
+  border-color: rgba(18, 60, 27, 0.22);
+  color: #123c1b;
+  background: #ffffff;
+  box-shadow: 0 24px 80px rgba(18, 60, 27, 0.22);
+}
+
+:global(html[data-theme="light"]) .confirmClose {
+  color: rgba(18, 60, 27, 0.62);
+  background: transparent;
+}
+
+:global(html[data-theme="light"]) .confirmClose:hover {
+  color: #b8261f;
+  background: rgba(184, 38, 31, 0.08);
+}
+
+:global(html[data-theme="light"]) .confirmIcon {
+  color: #16451f;
+  background: rgba(18, 60, 27, 0.08);
+}
+
+:global(html[data-theme="light"]) .confirmModal h2,
+:global(html[data-theme="light"]) .confirmTotals strong {
+  color: #123c1b;
+}
+
+:global(html[data-theme="light"]) .confirmModal p,
+:global(html[data-theme="light"]) .confirmTotals span {
+  color: rgba(18, 60, 27, 0.72);
+}
+
+:global(html[data-theme="light"]) .confirmTotals {
+  border-color: rgba(18, 60, 27, 0.16);
+  background: #f9fcf7;
+}
+
+:global(html[data-theme="light"]) .confirmActions button:first-child {
+  border: 2px solid rgba(18, 60, 27, 0.24);
+  color: #123c1b;
+  background: #ffffff;
+}
+
+:global(html[data-theme="light"]) .confirmActions button:first-child:hover {
+  border-color: rgba(18, 60, 27, 0.42);
+  background: rgba(18, 60, 27, 0.06);
+}
+
+:global(html[data-theme="light"]) .confirmActions button:last-child {
+  border: 2px solid rgba(18, 60, 27, 0.78);
+  color: #123c1b;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+:global(html[data-theme="light"]) .confirmActions button:last-child::before {
+  background: rgba(18, 60, 27, 0.08);
+}
+
+:global(html[data-theme="light"]) .confirmActions button:last-child::after {
+  background: linear-gradient(135deg, #1e5f2b 0%, #123c1b 100%);
+}
+
+:global(html[data-theme="light"]) .confirmActions button:last-child:hover {
+  border-color: rgba(18, 60, 27, 0.95);
+  color: #ffffff;
+  box-shadow: 0 14px 28px rgba(18, 60, 27, 0.16);
+}
+
 @media (max-width: 1180px) {
   .lineItem,
   .twoColumn {
@@ -204,5 +1044,9 @@
 
   .removeButton {
     width: 100%;
+  }
+
+  .confirmActions {
+    grid-template-columns: 1fr;
   }
 }

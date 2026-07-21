@@ -11,10 +11,16 @@ class RoverControlController extends StateNotifier<RoverControlState> {
       : super(const RoverControlState.loading()) {
     load();
     _subscription = _repository.watchRoverStatus().listen((_) => load());
+    _simulationSubscription = _repository.watchSimulationStatus().listen((_) {
+      if (_repository.isSimulationConnected) {
+        load();
+      }
+    });
   }
 
   final RoverRepository _repository;
   StreamSubscription<void>? _subscription;
+  StreamSubscription<void>? _simulationSubscription;
 
   Future<void> load() async {
     try {
@@ -38,6 +44,52 @@ class RoverControlController extends StateNotifier<RoverControlState> {
     }
 
     state = state.copyWith(speed: value.round());
+  }
+
+  void selectSeed(PlantingSeedType seed) {
+    if (state.isPlantingLocked) {
+      return;
+    }
+
+    state = state.copyWith(selectedSeed: seed);
+  }
+
+  Future<void> connectSimulation() async {
+    try {
+      state = state.copyWith(errorMessage: 'Connecting simulation...');
+      await _repository.connectSimulation();
+      final telemetry = await _repository.loadStatus();
+      state = state.copyWith(
+        telemetry: telemetry,
+        lastCommand: 'Simulation connected',
+        clearErrorMessage: true,
+      );
+    } catch (_) {
+      state = state.copyWith(
+        errorMessage: 'Unable to connect simulation.',
+      );
+    }
+  }
+
+  Future<void> disconnectSimulation() async {
+    try {
+      await _repository.disconnectSimulation();
+      final telemetry = state.telemetry;
+      state = state.copyWith(
+        telemetry: telemetry?.copyWith(
+          wifiConnected: false,
+          bluetoothConnected: false,
+          cameraConnected: false,
+        ),
+        clearActiveMovement: true,
+        lastCommand: 'Simulation disconnected',
+        clearErrorMessage: true,
+      );
+    } catch (_) {
+      state = state.copyWith(
+        errorMessage: 'Unable to disconnect simulation.',
+      );
+    }
   }
 
   Future<void> sendMovement(RoverMovementCommand command) async {
@@ -120,12 +172,13 @@ class RoverControlController extends StateNotifier<RoverControlState> {
 
     final lastCommand = await _repository.sendPlantingCommand(
       PlantingCommand.start,
+      seed: state.selectedSeed,
     );
 
     state = state.copyWith(
       plantingStatus: PlantingStatus.active,
       lastCommand: lastCommand,
-      soilCheckMessage: 'Planting is in progress.',
+      soilCheckMessage: 'Planting ${state.selectedSeed.label} is in progress.',
       clearErrorMessage: true,
     );
   }
@@ -177,6 +230,7 @@ class RoverControlController extends StateNotifier<RoverControlState> {
   @override
   void dispose() {
     _subscription?.cancel();
+    _simulationSubscription?.cancel();
     super.dispose();
   }
 }

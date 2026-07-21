@@ -44,20 +44,24 @@ class StockInventoryState {
     required this.selectedCategory,
     required this.selectedFilter,
     required this.selectedSort,
+    required this.salesSummary,
     required this.isLoading,
+    required this.isSavingSale,
     required this.successMessage,
     required this.errorMessage,
   });
 
   factory StockInventoryState.initial() {
-    return const StockInventoryState(
-      stocks: [],
-      filteredStocks: [],
+    return StockInventoryState(
+      stocks: const [],
+      filteredStocks: const [],
       searchQuery: '',
       selectedCategory: null,
       selectedFilter: StockFilterType.all,
       selectedSort: StockSortType.recentlyUpdated,
+      salesSummary: StockSalesSummaryModel.empty(),
       isLoading: true,
+      isSavingSale: false,
       successMessage: null,
       errorMessage: null,
     );
@@ -69,7 +73,9 @@ class StockInventoryState {
   final StockCategory? selectedCategory;
   final StockFilterType selectedFilter;
   final StockSortType selectedSort;
+  final StockSalesSummaryModel salesSummary;
   final bool isLoading;
+  final bool isSavingSale;
   final String? successMessage;
   final String? errorMessage;
 
@@ -80,7 +86,9 @@ class StockInventoryState {
     Object? selectedCategory = _noChange,
     StockFilterType? selectedFilter,
     StockSortType? selectedSort,
+    StockSalesSummaryModel? salesSummary,
     bool? isLoading,
+    bool? isSavingSale,
     Object? successMessage = _noChange,
     Object? errorMessage = _noChange,
   }) {
@@ -93,7 +101,9 @@ class StockInventoryState {
           : selectedCategory as StockCategory?,
       selectedFilter: selectedFilter ?? this.selectedFilter,
       selectedSort: selectedSort ?? this.selectedSort,
+      salesSummary: salesSummary ?? this.salesSummary,
       isLoading: isLoading ?? this.isLoading,
+      isSavingSale: isSavingSale ?? this.isSavingSale,
       successMessage: successMessage == _noChange
           ? this.successMessage
           : successMessage as String?,

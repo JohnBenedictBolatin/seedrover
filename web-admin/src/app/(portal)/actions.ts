@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function signOutAction() {
@@ -22,6 +23,9 @@ export async function signOutAction() {
 
     await supabase.auth.signOut();
   }
+
+  const cookieStore = await cookies();
+  cookieStore.delete("seedrover-remember");
 
   redirect("/login");
 }

@@ -261,6 +261,8 @@ Fields
 - quantity
 - unit
 - minimum_quantity
+- unit_cost
+- selling_price
 - image_path
 - storage_location
 - updated_by
@@ -272,6 +274,7 @@ Relationships
 
 - updated_by references profiles
 - image_path references a file path in Supabase Storage bucket `stock-images`
+- unit_cost and selling_price are optional nonnegative pricing values
 
 Examples
 
@@ -311,6 +314,8 @@ Fields
 - quantity
 - remarks
 - performed_by
+- source
+- source_id
 - created_at
 
 Relationships
@@ -323,6 +328,62 @@ Transaction Types
 - IN
 - OUT
 - ADJUSTMENT
+
+Source Types
+
+- manual
+- sale
+- void_sale
+
+Rules
+
+- Sale deductions must be linked to a sales transaction through source and source_id.
+
+---
+
+## 8.1 sales_transactions
+
+Purpose
+
+Stores inventory sales recorded from the Stocks module.
+
+Fields
+
+- id
+- inventory_id
+- quantity_sold
+- unit_price
+- total_amount
+- sale_date
+- customer_name
+- remarks
+- recorded_by
+- status
+- voided_at
+- voided_by
+- void_reason
+- created_at
+- updated_at
+
+Relationships
+
+- inventory_id references inventory
+- recorded_by references profiles
+- voided_by references profiles
+
+Status Values
+
+- Completed
+- Voided
+
+Rules
+
+- Sales must be recorded through the database function `record_inventory_sale`.
+- Recording a sale must deduct inventory, create an inventory transaction, write an activity log, and create stock-status notifications in one atomic operation.
+- Quantity sold must be greater than zero.
+- Unit price and total amount must not be negative.
+- A sale cannot reduce inventory below zero.
+- Completed sale financial fields must not be directly edited.
 
 ---
 

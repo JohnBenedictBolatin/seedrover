@@ -72,7 +72,9 @@ export function LoginForm() {
         <label className={styles.checkLabel}>
           <input
             checked={rememberMe}
+            name="rememberMe"
             type="checkbox"
+            value="true"
             onChange={(event) => setRememberMe(event.target.checked)}
           />
           <span>Remember me</span>
@@ -98,7 +100,7 @@ export function LoginForm() {
       ) : null}
       <button className={styles.submitButton} type="submit" disabled={pending}>
         <LogIn aria-hidden="true" size={18} />
-        {pending ? "Signing in..." : "Log in"}
+        <span>{pending ? "Signing in..." : "Log in"}</span>
       </button>
     </form>
   );

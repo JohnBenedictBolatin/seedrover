@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_routes.dart';
+import '../../../../core/constants/permission_keys.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/utils/currency_formatter.dart';
 import '../../../../shared/widgets/animated_content.dart';
 import '../../../../shared/widgets/app_card.dart';
 import '../../../../shared/widgets/loading_indicator.dart';
@@ -44,6 +46,14 @@ class StockDetailsScreen extends ConsumerWidget {
     'Staff Allocation',
   ];
 
+  static const _paymentMethods = [
+    'Cash',
+    'GCash',
+    'Bank Transfer',
+    'Card',
+    'Other',
+  ];
+
   final String stockId;
 
   @override
@@ -76,6 +86,10 @@ class StockDetailsScreen extends ConsumerWidget {
 
     final canDelete =
         profile?.isAdministrator == true || profile?.isInventoryManager == true;
+    final canEditPricing = profile?.isAdministrator == true ||
+        profile?.isInventoryManager == true ||
+        (profile?.hasPermission(PermissionKeys.stocksPricingManage) ?? false) ||
+        (profile?.hasPermission(PermissionKeys.stocksManage) ?? false);
     final performedBy = profile?.fullName ?? 'Current User';
 
     return ListView(
@@ -105,6 +119,8 @@ class StockDetailsScreen extends ConsumerWidget {
               const SizedBox(height: AppSpacing.lg),
               _StockMetricGrid(stock: stock),
               const SizedBox(height: AppSpacing.lg),
+              _PricingSalesSection(stock: stock),
+              const SizedBox(height: AppSpacing.lg),
               StockActionButtons(
                 onStockIn: () => _showStockInDialog(
                   context,
@@ -129,6 +145,7 @@ class StockDetailsScreen extends ConsumerWidget {
                   controller,
                   stock,
                   canDelete: canDelete,
+                  canEditPricing: canEditPricing,
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
@@ -204,38 +221,223 @@ class StockDetailsScreen extends ConsumerWidget {
   }
 
   void _showStockOutDialog(
-    BuildContext context,
+    BuildContext parentContext,
     StockInventoryController controller,
     StockModel stock,
     String performedBy,
   ) {
     final quantityController = TextEditingController();
+    final priceController = TextEditingController(
+      text: (stock.sellingPrice ?? 0).toStringAsFixed(2),
+    );
+    final customerController = TextEditingController();
+    final transactionReferenceController = TextEditingController();
+    final otherPaymentMethodController = TextEditingController();
     final remarksController = TextEditingController(text: 'Stock deducted.');
     var selectedReason = _stockOutReasons.first;
+    var selectedPaymentMethod = _paymentMethods.first;
+    var saleDate = DateTime.now();
+    String? errorMessage;
+    var isSaving = false;
 
-    _showTransactionDialog(
-      context: context,
-      title: 'Stock Out',
-      fields: [
-        _quantityField(quantityController, 'Quantity'),
-        _dropdownField(
-          label: 'Reason',
-          value: selectedReason,
-          options: _stockOutReasons,
-          onChanged: (value) => selectedReason = value,
-        ),
-        TextField(
-          controller: remarksController,
-          decoration: const InputDecoration(labelText: 'Remarks'),
-        ),
-      ],
-      onConfirm: () {
-        return controller.stockOut(
-          stockId: stock.id,
-          quantity: _parseQuantity(quantityController.text),
-          purpose: selectedReason,
-          remarks: remarksController.text,
-          performedBy: performedBy,
+    showDialog<void>(
+      context: parentContext,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final quantity = _parseQuantity(quantityController.text);
+            final isSale = selectedReason == 'Market Distribution';
+            final unitPrice = _parseQuantity(priceController.text);
+            final hasValidTotal = quantity > 0 && unitPrice >= 0;
+            final totalAmount = hasValidTotal ? quantity * unitPrice : 0.0;
+
+            return _StockStyledDialog(
+              title: isSale ? 'Stock Out Sale' : 'Stock Out',
+              child: SingleChildScrollView(
+                child: _dialogFieldColumn([
+                  _ReadOnlyInfoRow(label: 'Item', value: stock.name),
+                  _ReadOnlyInfoRow(
+                    label: 'Available',
+                    value:
+                        '${_formatQuantity(stock.currentQuantity)} ${stock.unit}',
+                  ),
+                  TextField(
+                    controller: quantityController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: InputDecoration(
+                      labelText:
+                          isSale ? 'Quantity Sold (${stock.unit})' : 'Quantity',
+                    ),
+                    onChanged: (_) => setDialogState(() {}),
+                  ),
+                  _dropdownField(
+                    label: 'Reason',
+                    value: selectedReason,
+                    options: _stockOutReasons,
+                    onChanged: (value) {
+                      setDialogState(() {
+                        selectedReason = value;
+                        errorMessage = null;
+                      });
+                    },
+                  ),
+                  if (isSale) ...[
+                    TextField(
+                      controller: priceController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(labelText: 'Unit Price'),
+                      onChanged: (_) => setDialogState(() {}),
+                    ),
+                    _ReadOnlyInfoRow(
+                      label: 'Total Amount',
+                      value: CurrencyFormatter.php(totalAmount),
+                      highlight: true,
+                    ),
+                    _DateTimeSalePicker(
+                      saleDate: saleDate,
+                      onChanged: (value) {
+                        setDialogState(() => saleDate = value);
+                      },
+                    ),
+                    _dropdownField(
+                      label: 'Payment Method',
+                      value: selectedPaymentMethod,
+                      options: _paymentMethods,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          selectedPaymentMethod = value;
+                          errorMessage = null;
+                        });
+                      },
+                    ),
+                    if (selectedPaymentMethod != 'Cash')
+                      TextField(
+                        controller: transactionReferenceController,
+                        decoration: const InputDecoration(
+                          labelText: 'Transaction ID',
+                          helperText: 'Required for GCash, bank, card, or other.',
+                        ),
+                      ),
+                    if (selectedPaymentMethod == 'Other')
+                      TextField(
+                        controller: otherPaymentMethodController,
+                        decoration: const InputDecoration(
+                          labelText: 'Other Payment Method',
+                        ),
+                      ),
+                    TextField(
+                      controller: customerController,
+                      decoration: const InputDecoration(
+                        labelText: 'Customer Name (optional)',
+                      ),
+                    ),
+                  ],
+                  TextField(
+                    controller: remarksController,
+                    decoration: InputDecoration(
+                      labelText: isSale ? 'Sale Remarks (optional)' : 'Remarks',
+                    ),
+                  ),
+                  if (errorMessage != null)
+                    _DialogErrorMessage(message: errorMessage!),
+                ]),
+              ),
+              actions: [
+                _dialogActionButton(
+                  label: 'Cancel',
+                  color: AppColors.secondaryText,
+                  borderColor: AppColors.inactiveBorder,
+                  onPressed: isSaving
+                      ? () {}
+                      : () => Navigator.of(dialogContext).pop(),
+                ),
+                _dialogActionButton(
+                  label: isSaving ? 'Saving' : 'Confirm',
+                  icon: Icons.check,
+                  onPressed: isSaving
+                      ? () {}
+                      : () {
+                          final validation = isSale
+                              ? _validateSale(
+                                  stock: stock,
+                                  quantity: quantity,
+                                  unitPrice: unitPrice,
+                                  paymentMethod: selectedPaymentMethod,
+                                  transactionReference:
+                                      transactionReferenceController.text,
+                                  otherPaymentMethod:
+                                      otherPaymentMethodController.text,
+                                )
+                              : _validateStockOut(
+                                  stock: stock,
+                                  quantity: quantity,
+                                );
+
+                          if (validation != null) {
+                            setDialogState(() => errorMessage = validation);
+                            return;
+                          }
+
+                          _showTransactionDialog(
+                            context: dialogContext,
+                            title: isSale ? 'Confirm Sale' : 'Confirm Stock Out',
+                            message: isSale
+                                ? 'Record ${_formatQuantity(quantity)} ${stock.unit} of ${stock.name} as market distribution for ${CurrencyFormatter.php(totalAmount)}?'
+                                : 'Deduct ${_formatQuantity(quantity)} ${stock.unit} of ${stock.name} for $selectedReason?',
+                            fields: const [],
+                            onConfirm: () async {
+                              setDialogState(() => isSaving = true);
+
+                              final result = isSale
+                                  ? await controller.recordSale(
+                                      RecordSaleRequest(
+                                        stock: stock,
+                                        quantitySold: quantity,
+                                        unitPrice: unitPrice,
+                                        saleDate: saleDate,
+                                        paymentMethod: selectedPaymentMethod,
+                                        transactionReference:
+                                            transactionReferenceController.text
+                                                .trim(),
+                                        otherPaymentMethod:
+                                            otherPaymentMethodController.text
+                                                .trim(),
+                                        customerName:
+                                            customerController.text.trim(),
+                                        remarks: remarksController.text.trim(),
+                                      ),
+                                    )
+                                  : await controller.stockOut(
+                                      stockId: stock.id,
+                                      quantity: quantity,
+                                      purpose: selectedReason,
+                                      remarks: remarksController.text,
+                                      performedBy: performedBy,
+                                    );
+
+                              if (result != null) {
+                                setDialogState(() {
+                                  isSaving = false;
+                                  errorMessage = result;
+                                });
+                                return result;
+                              }
+
+                              Future<void>.microtask(
+                                () => Navigator.of(dialogContext).pop(),
+                              );
+                              return null;
+                            },
+                          );
+                        },
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -284,11 +486,20 @@ class StockDetailsScreen extends ConsumerWidget {
     StockInventoryController controller,
     StockModel stock, {
     required bool canDelete,
+    required bool canEditPricing,
   }) {
     final nameController = TextEditingController(text: stock.name);
     final unitController = TextEditingController(text: stock.unit);
     final minimumController = TextEditingController(
       text: _formatQuantity(stock.minimumStockLevel),
+    );
+    final unitCostController = TextEditingController(
+      text: stock.unitCost == null ? '' : stock.unitCost!.toStringAsFixed(2),
+    );
+    final sellingPriceController = TextEditingController(
+      text: stock.sellingPrice == null
+          ? ''
+          : stock.sellingPrice!.toStringAsFixed(2),
     );
     final locationController = TextEditingController(text: stock.storageLocation);
     final supplierController = TextEditingController(text: stock.supplier);
@@ -327,6 +538,34 @@ class StockDetailsScreen extends ConsumerWidget {
                     decoration: const InputDecoration(labelText: 'Unit'),
                   ),
                   _quantityField(minimumController, 'Minimum Stock Level'),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          enabled: canEditPricing,
+                          controller: unitCostController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration:
+                              const InputDecoration(labelText: 'Unit Cost'),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: TextField(
+                          enabled: canEditPricing,
+                          controller: sellingPriceController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Selling Price',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                   TextField(
                     controller: locationController,
                     decoration: const InputDecoration(
@@ -371,10 +610,24 @@ class StockDetailsScreen extends ConsumerWidget {
                   icon: Icons.check,
                   onPressed: () {
                     final minimum = _parseQuantity(minimumController.text);
+                    final unitCost = _parseOptionalMoney(
+                      unitCostController.text,
+                    );
+                    final sellingPrice = _parseOptionalMoney(
+                      sellingPriceController.text,
+                    );
 
                     if (minimum < 0) {
                       setDialogState(() {
                         errorMessage = 'Minimum stock level cannot be negative.';
+                      });
+                      return;
+                    }
+
+                    if (unitCost == -1 || sellingPrice == -1) {
+                      setDialogState(() {
+                        errorMessage =
+                            'Prices must be valid nonnegative values.';
                       });
                       return;
                     }
@@ -384,6 +637,9 @@ class StockDetailsScreen extends ConsumerWidget {
                       category: category,
                       unit: unitController.text,
                       minimumStockLevel: minimum,
+                      unitCost: canEditPricing ? unitCost : stock.unitCost,
+                      sellingPrice:
+                          canEditPricing ? sellingPrice : stock.sellingPrice,
                       storageLocation: locationController.text,
                       supplier: supplierController.text,
                       notes: notesController.text,
@@ -578,6 +834,68 @@ class StockDetailsScreen extends ConsumerWidget {
     return double.tryParse(value.trim()) ?? -1;
   }
 
+  double? _parseOptionalMoney(String value) {
+    final trimmed = value.trim();
+
+    if (trimmed.isEmpty) {
+      return null;
+    }
+
+    final parsed = double.tryParse(trimmed);
+
+    if (parsed == null || parsed < 0) {
+      return -1;
+    }
+
+    return parsed;
+  }
+
+  String? _validateSale({
+    required StockModel stock,
+    required double quantity,
+    required double unitPrice,
+    required String paymentMethod,
+    required String transactionReference,
+    required String otherPaymentMethod,
+  }) {
+    if (quantity <= 0) {
+      return 'Quantity sold must be greater than zero.';
+    }
+
+    if (quantity > stock.currentQuantity) {
+      return 'Quantity sold cannot exceed current stock.';
+    }
+
+    if (unitPrice < 0) {
+      return 'Unit price cannot be negative.';
+    }
+
+    if (paymentMethod == 'Other' && otherPaymentMethod.trim().isEmpty) {
+      return 'Enter the other payment method used.';
+    }
+
+    if (paymentMethod != 'Cash' && transactionReference.trim().isEmpty) {
+      return 'Transaction ID is required for non-cash sales.';
+    }
+
+    return null;
+  }
+
+  String? _validateStockOut({
+    required StockModel stock,
+    required double quantity,
+  }) {
+    if (quantity <= 0) {
+      return 'Quantity must be greater than zero.';
+    }
+
+    if (quantity > stock.currentQuantity) {
+      return 'Quantity cannot exceed current stock.';
+    }
+
+    return null;
+  }
+
   String _formatQuantity(double value) {
     return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
   }
@@ -758,6 +1076,77 @@ class _StockMetricGrid extends StatelessWidget {
   }
 }
 
+class _PricingSalesSection extends StatelessWidget {
+  const _PricingSalesSection({required this.stock});
+
+  final StockModel stock;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Pricing and Sales', style: AppTypography.cardTitle),
+        const SizedBox(height: AppSpacing.md),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            const columns = 3;
+            final spacing = AppSpacing.xs * (columns - 1);
+            final tileWidth = (constraints.maxWidth - spacing) / columns;
+
+            return Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xs,
+              children: [
+                StockDetailMetric(
+                  width: tileWidth,
+                  label: 'Unit Cost',
+                  value: CurrencyFormatter.phpOrUnset(stock.unitCost),
+                  icon: Icons.price_change_outlined,
+                ),
+                StockDetailMetric(
+                  width: tileWidth,
+                  label: 'Sell Price',
+                  value: CurrencyFormatter.phpOrUnset(stock.sellingPrice),
+                  icon: Icons.sell_outlined,
+                ),
+                StockDetailMetric(
+                  width: tileWidth,
+                  label: 'Stock Value',
+                  value: CurrencyFormatter.php(stock.currentStockValue),
+                  icon: Icons.inventory_outlined,
+                ),
+                StockDetailMetric(
+                  width: tileWidth,
+                  label: 'Est. Sales',
+                  value: CurrencyFormatter.php(stock.estimatedSalesValue),
+                  icon: Icons.trending_up_outlined,
+                ),
+                StockDetailMetric(
+                  width: tileWidth,
+                  label: 'Qty Sold',
+                  value: _formatQuantity(stock.quantitySold),
+                  icon: Icons.scale_outlined,
+                ),
+                StockDetailMetric(
+                  width: tileWidth,
+                  label: 'Total Sales',
+                  value: CurrencyFormatter.php(stock.totalSalesValue),
+                  icon: Icons.point_of_sale_outlined,
+                ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  String _formatQuantity(double value) {
+    return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
+  }
+}
+
 class _SectionCard extends StatelessWidget {
   const _SectionCard({
     required this.title,
@@ -875,6 +1264,149 @@ class _DialogErrorMessage extends StatelessWidget {
       message,
       style: AppTypography.small.copyWith(color: AppColors.danger),
     );
+  }
+}
+
+class _ReadOnlyInfoRow extends StatelessWidget {
+  const _ReadOnlyInfoRow({
+    required this.label,
+    required this.value,
+    this.highlight = false,
+  });
+
+  final String label;
+  final String value;
+  final bool highlight;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        child: Row(
+          children: [
+            Expanded(child: Text(label, style: AppTypography.caption)),
+            const SizedBox(width: AppSpacing.md),
+            Flexible(
+              child: Text(
+                value,
+                textAlign: TextAlign.right,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.monoSmall.copyWith(
+                  color: highlight
+                      ? AppColors.primaryGreen
+                      : AppColors.primaryText,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DateTimeSalePicker extends StatelessWidget {
+  const _DateTimeSalePicker({
+    required this.saleDate,
+    required this.onChanged,
+  });
+
+  final DateTime saleDate;
+  final ValueChanged<DateTime> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                '${_formatDate(saleDate)} ${_formatTime(saleDate)}',
+                style: AppTypography.monoSmall.copyWith(
+                  color: AppColors.primaryText,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Pick date',
+              onPressed: () async {
+                final pickedDate = await showDatePicker(
+                  context: context,
+                  initialDate: saleDate,
+                  firstDate: DateTime(2020),
+                  lastDate: DateTime.now().add(const Duration(days: 1)),
+                );
+
+                if (pickedDate == null) {
+                  return;
+                }
+
+                onChanged(
+                  DateTime(
+                    pickedDate.year,
+                    pickedDate.month,
+                    pickedDate.day,
+                    saleDate.hour,
+                    saleDate.minute,
+                  ),
+                );
+              },
+              icon: const Icon(Icons.calendar_month_outlined),
+              color: AppColors.primaryGreen,
+            ),
+            IconButton(
+              tooltip: 'Pick time',
+              onPressed: () async {
+                final pickedTime = await showTimePicker(
+                  context: context,
+                  initialTime: TimeOfDay.fromDateTime(saleDate),
+                );
+
+                if (pickedTime == null) {
+                  return;
+                }
+
+                onChanged(
+                  DateTime(
+                    saleDate.year,
+                    saleDate.month,
+                    saleDate.day,
+                    pickedTime.hour,
+                    pickedTime.minute,
+                  ),
+                );
+              },
+              icon: const Icon(Icons.schedule),
+              color: AppColors.primaryGreen,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.month}/${date.day}/${date.year.toString().substring(2)}';
+  }
+
+  String _formatTime(DateTime date) {
+    final hour = date.hour % 12 == 0 ? 12 : date.hour % 12;
+    final minute = date.minute.toString().padLeft(2, '0');
+    final marker = date.hour >= 12 ? 'PM' : 'AM';
+
+    return '$hour:$minute $marker';
   }
 }
 

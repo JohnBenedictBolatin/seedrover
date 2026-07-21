@@ -11,6 +11,8 @@ class PermissionKeys {
   static const stocksView = 'stocks.view';
   static const stocksManage = 'stocks.manage';
   static const stocksTransactionsView = 'stocks.transactions.view';
+  static const stocksSalesRecord = 'stocks.sales.record';
+  static const stocksPricingManage = 'stocks.pricing.manage';
   static const notificationsView = 'notifications.view';
   static const notificationsManage = 'notifications.manage';
   static const profileView = 'profile.view';

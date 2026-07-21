@@ -11,6 +11,8 @@ import '../../../../shared/widgets/app_card.dart';
 import '../../../../shared/widgets/loading_indicator.dart';
 import '../../../../shared/widgets/seedrover_mascot.dart';
 import '../../../authentication/providers/auth_providers.dart';
+import '../../../inventory/data/models/stock_model.dart';
+import '../../../inventory/providers/stock_providers.dart';
 import '../../controllers/crop_monitoring_controller.dart';
 import '../../data/models/crop_model.dart';
 import '../../providers/crop_providers.dart';
@@ -32,6 +34,7 @@ class CropDetailsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(cropMonitoringControllerProvider);
     final controller = ref.read(cropMonitoringControllerProvider.notifier);
+    final stockState = ref.watch(stockInventoryControllerProvider);
     final profile = ref.watch(authControllerProvider).profile;
     final crop = controller.cropById(cropId);
 
@@ -82,7 +85,12 @@ class CropDetailsScreen extends ConsumerWidget {
           actions: CropActionButtons(
             onWater: () => _showWaterDialog(context, controller, crop),
             onFertilize: () => _showFertilizeDialog(context, controller, crop),
-            onHarvest: () => _confirmHarvest(context, controller, crop),
+            onHarvest: () => _showHarvestDialog(
+              context,
+              controller,
+              crop,
+              stockState.stocks,
+            ),
             onEdit: () => _showEditDialog(
               context,
               controller,
@@ -374,16 +382,145 @@ class CropDetailsScreen extends ConsumerWidget {
     );
   }
 
-  void _confirmHarvest(
+  void _showHarvestDialog(
     BuildContext context,
     CropMonitoringController controller,
     CropModel crop,
+    List<StockModel> stocks,
   ) {
-    _showConfirmationDialog(
+    final quantityController = TextEditingController();
+    final notesController = TextEditingController(text: 'Harvest recorded.');
+    var selectedStock = stocks.isEmpty ? null : stocks.first;
+    var harvestDate = DateTime.now();
+    String? errorMessage;
+
+    showDialog<void>(
       context: context,
-      title: 'Harvest Crop',
-      message: 'Mark ${crop.name} ${crop.id} as harvested?',
-      onConfirm: () => controller.harvestCrop(crop.id),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return _CropStyledDialog(
+              title: 'Harvest Crop',
+              child: SingleChildScrollView(
+                child: _dialogFieldColumn([
+                  _DialogDateLabel(date: harvestDate),
+                  if (stocks.isEmpty)
+                    const SeedRoverMascotMessage(
+                      message:
+                          'Create an inventory item first before recording crop harvest output.',
+                      expression: SeedRoverMascotExpression.thinking,
+                    )
+                  else
+                    DropdownButtonFormField<StockModel>(
+                      value: selectedStock,
+                      decoration:
+                          const InputDecoration(labelText: 'Inventory Item'),
+                      items: [
+                        for (final item in stocks)
+                          DropdownMenuItem(
+                            value: item,
+                            child: Text('${item.name} · ${item.unit}'),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        setDialogState(() {
+                          selectedStock = value;
+                          errorMessage = null;
+                        });
+                      },
+                    ),
+                  TextField(
+                    controller: quantityController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: InputDecoration(
+                      labelText:
+                          'Harvested Quantity (${selectedStock?.unit ?? 'unit'})',
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final pickedDate = await showDatePicker(
+                        context: context,
+                        initialDate: harvestDate,
+                        firstDate: crop.plantingDate,
+                        lastDate: DateTime.now(),
+                      );
+
+                      if (pickedDate != null) {
+                        setDialogState(() {
+                          harvestDate = pickedDate;
+                          errorMessage = null;
+                        });
+                      }
+                    },
+                    icon: const Icon(Icons.calendar_today_outlined, size: 16),
+                    label: Text(
+                      'Harvest Date: ${_formatDateInput(harvestDate)}',
+                    ),
+                  ),
+                  TextField(
+                    controller: notesController,
+                    decoration: const InputDecoration(labelText: 'Remarks'),
+                  ),
+                  if (errorMessage != null)
+                    _DialogErrorMessage(message: errorMessage!),
+                ]),
+              ),
+              actions: [
+                _dialogActionButton(
+                  label: 'Cancel',
+                  color: AppColors.secondaryText,
+                  borderColor: AppColors.inactiveBorder,
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+                _dialogActionButton(
+                  label: 'Confirm',
+                  icon: Icons.check,
+                  onPressed: () async {
+                    final stock = selectedStock;
+                    final quantity =
+                        double.tryParse(quantityController.text.trim()) ?? 0;
+
+                    if (stock == null) {
+                      setDialogState(() {
+                        errorMessage = 'Choose an inventory item first.';
+                      });
+                      return;
+                    }
+
+                    if (quantity <= 0) {
+                      setDialogState(() {
+                        errorMessage =
+                            'Harvest quantity must be greater than zero.';
+                      });
+                      return;
+                    }
+
+                    final result = await controller.harvestCropToInventory(
+                      cropId: crop.id,
+                      inventoryId: stock.id,
+                      inventoryName: stock.name,
+                      unit: stock.unit,
+                      quantity: quantity,
+                      harvestDate: harvestDate,
+                      notes: notesController.text,
+                    );
+
+                    if (result != null) {
+                      setDialogState(() => errorMessage = result);
+                      return;
+                    }
+
+                    Navigator.of(context).pop();
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -789,6 +926,38 @@ class _DialogDateLabel extends StatelessWidget {
           style: AppTypography.monoSmall.copyWith(
             color: AppColors.primaryGreen,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DialogErrorMessage extends StatelessWidget {
+  const _DialogErrorMessage({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.danger.withValues(alpha: 0.1),
+        border: Border.all(color: AppColors.danger.withValues(alpha: 0.35)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        child: Row(
+          children: [
+            const Icon(Icons.error_outline, color: AppColors.danger, size: 18),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                message,
+                style: AppTypography.small.copyWith(color: AppColors.danger),
+              ),
+            ),
+          ],
         ),
       ),
     );

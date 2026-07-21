@@ -27,6 +27,7 @@ class RoverControlState {
     required this.telemetry,
     required this.speed,
     required this.plantingStatus,
+    required this.selectedSeed,
     required this.soilCheckPassed,
     required this.soilCheckMessage,
     required this.cameraFullscreen,
@@ -40,6 +41,7 @@ class RoverControlState {
         telemetry = null,
         speed = 70,
         plantingStatus = PlantingStatus.idle,
+        selectedSeed = PlantingSeedType.sitaw,
         soilCheckPassed = false,
         soilCheckMessage = 'Check the soil before planting.',
         cameraFullscreen = false,
@@ -51,6 +53,7 @@ class RoverControlState {
   final RoverControlModel? telemetry;
   final int speed;
   final PlantingStatus plantingStatus;
+  final PlantingSeedType selectedSeed;
   final bool soilCheckPassed;
   final String soilCheckMessage;
   final bool cameraFullscreen;
@@ -82,6 +85,7 @@ class RoverControlState {
     RoverControlModel? telemetry,
     int? speed,
     PlantingStatus? plantingStatus,
+    PlantingSeedType? selectedSeed,
     bool? soilCheckPassed,
     String? soilCheckMessage,
     bool? cameraFullscreen,
@@ -96,6 +100,7 @@ class RoverControlState {
       telemetry: telemetry ?? this.telemetry,
       speed: speed ?? this.speed,
       plantingStatus: plantingStatus ?? this.plantingStatus,
+      selectedSeed: selectedSeed ?? this.selectedSeed,
       soilCheckPassed: soilCheckPassed ?? this.soilCheckPassed,
       soilCheckMessage: soilCheckMessage ?? this.soilCheckMessage,
       cameraFullscreen: cameraFullscreen ?? this.cameraFullscreen,
