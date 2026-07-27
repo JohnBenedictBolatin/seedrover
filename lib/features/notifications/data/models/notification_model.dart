@@ -172,22 +172,121 @@ class SeedRoverNotification {
 }
 
 String notificationRouteFor(SeedRoverNotification notification) {
-  if (notification.actionRoute.isNotEmpty) {
-    return notification.actionRoute;
+  final sanitizedActionRoute = _sanitizeNotificationRoute(
+    notification.actionRoute,
+  );
+
+  if (sanitizedActionRoute != null) {
+    return sanitizedActionRoute;
   }
 
   return switch (notification.relatedModule) {
-    NotificationRelatedModule.inventory =>
-      AppRoutes.stockDetailsPath(notification.relatedId ?? ''),
-    NotificationRelatedModule.crops =>
-      AppRoutes.cropDetailsPath(notification.relatedId ?? ''),
+    NotificationRelatedModule.inventory => _detailsOrList(
+        notification.relatedId, AppRoutes.stocks, AppRoutes.stockDetailsPath),
+    NotificationRelatedModule.crops => _detailsOrList(
+        notification.relatedId, AppRoutes.crops, AppRoutes.cropDetailsPath),
     NotificationRelatedModule.rover ||
-    NotificationRelatedModule.camera => AppRoutes.rover,
-    NotificationRelatedModule.planting =>
-      AppRoutes.plantingLogDetailsPath(notification.relatedId ?? ''),
-    NotificationRelatedModule.users =>
-      AppRoutes.userDetailsPath(notification.relatedId ?? ''),
+    NotificationRelatedModule.camera =>
+      AppRoutes.rover,
+    NotificationRelatedModule.planting => _detailsOrList(
+        notification.relatedId,
+        AppRoutes.rover,
+        AppRoutes.plantingLogDetailsPath,
+      ),
+    NotificationRelatedModule.users => _detailsOrList(
+        notification.relatedId, AppRoutes.profile, AppRoutes.userDetailsPath),
     NotificationRelatedModule.dashboard => AppRoutes.dashboard,
     NotificationRelatedModule.system => AppRoutes.notifications,
   };
+}
+
+String _detailsOrList(
+  String? id,
+  String fallbackRoute,
+  String Function(String id) detailsRoute,
+) {
+  final normalizedId = id?.trim();
+
+  if (normalizedId == null || normalizedId.isEmpty) {
+    return fallbackRoute;
+  }
+
+  return detailsRoute(normalizedId);
+}
+
+String? _sanitizeNotificationRoute(String route) {
+  final normalized = route.trim();
+
+  if (normalized.isEmpty) {
+    return null;
+  }
+
+  final lower = normalized.toLowerCase();
+
+  if (lower == 'home' || lower == '/home') {
+    return null;
+  }
+
+  if (lower == 'dashboard') {
+    return AppRoutes.dashboard;
+  }
+
+  if (lower == 'rover') {
+    return AppRoutes.rover;
+  }
+
+  if (lower == 'crops') {
+    return AppRoutes.crops;
+  }
+
+  if (lower == 'stocks' || lower == 'inventory' || lower == '/inventory') {
+    return AppRoutes.stocks;
+  }
+
+  if (lower == '/rover-monitor') {
+    return AppRoutes.rover;
+  }
+
+  if (lower == 'notifications') {
+    return AppRoutes.notifications;
+  }
+
+  if (lower == 'profile' || lower == 'users') {
+    return AppRoutes.profile;
+  }
+
+  if (!normalized.startsWith('/')) {
+    return null;
+  }
+
+  if (normalized == AppRoutes.dashboard ||
+      normalized == AppRoutes.rover ||
+      normalized == AppRoutes.crops ||
+      normalized == AppRoutes.stocks ||
+      normalized == AppRoutes.notifications ||
+      normalized == AppRoutes.profile) {
+    return normalized;
+  }
+
+  if (normalized.startsWith('${AppRoutes.crops}/') &&
+      normalized.length > AppRoutes.crops.length + 1) {
+    return normalized;
+  }
+
+  if (normalized.startsWith('${AppRoutes.stocks}/') &&
+      normalized.length > AppRoutes.stocks.length + 1) {
+    return normalized;
+  }
+
+  if (normalized.startsWith('/planting-logs/') &&
+      normalized.length > '/planting-logs/'.length) {
+    return normalized;
+  }
+
+  if (normalized.startsWith('/users/') &&
+      normalized.length > '/users/'.length) {
+    return normalized;
+  }
+
+  return null;
 }

@@ -53,7 +53,10 @@ class DashboardHeader extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),
-              StatusBadge(label: roleName),
+              StatusBadge(
+                label: roleName,
+                textStyle: AppTypography.statusBadge.copyWith(fontSize: 10),
+              ),
             ],
           ),
         ),

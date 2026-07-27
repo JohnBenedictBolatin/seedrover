@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -34,6 +33,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: AppRoutes.login,
     refreshListenable: refreshListenable,
+    errorPageBuilder: (context, state) => _smoothPage(
+      state,
+      const FeatureUnavailableScreen(
+        title: 'Page not found',
+        message: 'This SeedRover screen is not available in the mobile app.',
+      ),
+    ),
     redirect: (context, state) {
       final authState = ref.read(authControllerProvider);
       final isLoggingIn = state.matchedLocation == AppRoutes.login;
@@ -309,6 +315,7 @@ Widget _withAuthenticatedShell(
       return AuthenticatedScaffold(
         currentLocation: currentLocation,
         items: _navigationItemsFor(authState, unreadNotificationCount),
+        showNavigation: currentLocation != AppRoutes.rover,
         floatingAction: currentLocation == AppRoutes.rover
             ? null
             : const AssistantFloatingButton(),

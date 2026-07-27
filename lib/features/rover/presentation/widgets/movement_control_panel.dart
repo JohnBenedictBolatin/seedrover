@@ -21,7 +21,7 @@ class MovementControlPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.xs),
       child: Center(
         child: _DirectionalPad(
           enabled: enabled,
@@ -125,8 +125,8 @@ class _DirectionalPad extends StatelessWidget {
   }
 
   double _padSizeFor(double availableWidth, double availableHeight) {
-    final boundedWidth = availableWidth.clamp(156.0, 260.0).toDouble();
-    final boundedHeight = availableHeight.clamp(156.0, 260.0).toDouble();
+    final boundedWidth = availableWidth.clamp(140.0, 220.0).toDouble();
+    final boundedHeight = availableHeight.clamp(140.0, 220.0).toDouble();
 
     return boundedWidth < boundedHeight ? boundedWidth : boundedHeight;
   }
@@ -166,7 +166,7 @@ class _ArrowButton extends StatelessWidget {
             builder: (context, constraints) {
               final shortestSide = constraints.biggest.shortestSide;
               final iconSize =
-                  (shortestSide * 0.42).clamp(24.0, 34.0).toDouble();
+                  (shortestSide * 0.40).clamp(20.0, 30.0).toDouble();
 
               return IconButton(
                 onPressed: enabled ? () => onCommand(command) : null,

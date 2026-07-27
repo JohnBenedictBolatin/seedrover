@@ -42,56 +42,58 @@ class StockFilterBar extends StatelessWidget {
           onChanged: onSearchChanged,
           onClear: onClear,
         ),
-        const SizedBox(height: AppSpacing.md),
-        Wrap(
-          alignment: WrapAlignment.center,
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
-          children: [
-            _FilterSlot(
-              child: _CompactFilterButton(
-                icon: CupertinoIcons.cube_box,
-                label: selectedCategory?.label ?? 'Category',
-                items: [
-                  _CompactFilterItem(
-                    label: 'All Categories',
-                    onSelected: () => onCategoryChanged(null),
-                  ),
-                  for (final category in StockCategory.values)
+        const SizedBox(height: AppSpacing.sm),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _FilterSlot(
+                child: _CompactFilterButton(
+                  icon: CupertinoIcons.cube_box,
+                  label: selectedCategory?.label ?? 'Category',
+                  items: [
                     _CompactFilterItem(
-                      label: category.label,
-                      onSelected: () => onCategoryChanged(category),
+                      label: 'All Categories',
+                      onSelected: () => onCategoryChanged(null),
                     ),
-                ],
+                    for (final category in StockCategory.values)
+                      _CompactFilterItem(
+                        label: category.label,
+                        onSelected: () => onCategoryChanged(category),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            _FilterSlot(
-              child: _CompactFilterButton(
-                icon: CupertinoIcons.check_mark_circled,
-                label: selectedFilter.label,
-                items: [
-                  for (final filter in StockFilterType.values)
-                    _CompactFilterItem(
-                      label: filter.label,
-                      onSelected: () => onFilterChanged(filter),
-                    ),
-                ],
+              const SizedBox(width: AppSpacing.xs),
+              _FilterSlot(
+                child: _CompactFilterButton(
+                  icon: CupertinoIcons.check_mark_circled,
+                  label: selectedFilter.label,
+                  items: [
+                    for (final filter in StockFilterType.values)
+                      _CompactFilterItem(
+                        label: filter.label,
+                        onSelected: () => onFilterChanged(filter),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            _FilterSlot(
-              child: _CompactFilterButton(
-                icon: Icons.sort,
-                label: selectedSort.label,
-                items: [
-                  for (final sort in StockSortType.values)
-                    _CompactFilterItem(
-                      label: sort.label,
-                      onSelected: () => onSortChanged(sort),
-                    ),
-                ],
+              const SizedBox(width: AppSpacing.xs),
+              _FilterSlot(
+                child: _CompactFilterButton(
+                  icon: Icons.sort,
+                  label: selectedSort.label,
+                  items: [
+                    for (final sort in StockSortType.values)
+                      _CompactFilterItem(
+                        label: sort.label,
+                        onSelected: () => onSortChanged(sort),
+                      ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
@@ -105,7 +107,7 @@ class _FilterSlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(width: 112, child: child);
+    return SizedBox(width: 104, child: child);
   }
 }
 
@@ -153,13 +155,13 @@ class _CompactFilterButton extends StatelessWidget {
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.sm,
-            vertical: AppSpacing.sm,
+            horizontal: AppSpacing.xs,
+            vertical: 7,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 15, color: AppColors.primaryText),
+              Icon(icon, size: 13, color: AppColors.primaryText),
               const SizedBox(width: AppSpacing.xs),
               Flexible(
                 child: Text(
@@ -168,6 +170,7 @@ class _CompactFilterButton extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: AppTypography.caption.copyWith(
                     color: AppColors.primaryText,
+                    fontSize: 10.5,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -175,7 +178,7 @@ class _CompactFilterButton extends StatelessWidget {
               const SizedBox(width: AppSpacing.xs),
               const Icon(
                 CupertinoIcons.chevron_down,
-                size: 12,
+                size: 10,
                 color: AppColors.primaryText,
               ),
             ],
@@ -232,6 +235,11 @@ class _StockSearchFieldState extends State<_StockSearchField> {
       onChanged: widget.onChanged,
       textInputAction: TextInputAction.search,
       decoration: InputDecoration(
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: 12,
+        ),
         prefixIcon: const Icon(CupertinoIcons.search),
         suffixIcon: _controller.text.isEmpty
             ? null

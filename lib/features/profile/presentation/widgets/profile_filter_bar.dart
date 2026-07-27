@@ -34,7 +34,7 @@ class ProfileUserFilterBar extends StatelessWidget {
           onChanged: onSearchChanged,
           onClear: onClear,
         ),
-        const SizedBox(height: AppSpacing.md),
+        const SizedBox(height: AppSpacing.sm),
         if (leading == null)
           Align(
             alignment: Alignment.center,
@@ -71,7 +71,7 @@ class _UserFilterButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 132,
+      width: 112,
       child: _FilterButton(
         label: selectedFilter.label,
         icon: CupertinoIcons.slider_horizontal_3,
@@ -100,7 +100,7 @@ class ActivityFilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 132,
+      width: 112,
       child: _FilterButton(
         label: selectedFilter.label,
         icon: CupertinoIcons.calendar,
@@ -161,6 +161,11 @@ class _SearchFieldState extends State<_SearchField> {
       controller: _controller,
       onChanged: widget.onChanged,
       decoration: InputDecoration(
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: 12,
+        ),
         hintText: 'Search users',
         prefixIcon: const Icon(CupertinoIcons.search),
         suffixIcon: _controller.text.isEmpty
@@ -219,13 +224,13 @@ class _FilterButton extends StatelessWidget {
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.sm,
-            vertical: AppSpacing.sm,
+            horizontal: AppSpacing.xs,
+            vertical: 7,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 15, color: AppColors.primaryText),
+              Icon(icon, size: 13, color: AppColors.primaryText),
               const SizedBox(width: AppSpacing.xs),
               Flexible(
                 child: Text(
@@ -234,6 +239,7 @@ class _FilterButton extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: AppTypography.caption.copyWith(
                     color: AppColors.primaryText,
+                    fontSize: 10.5,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -241,7 +247,7 @@ class _FilterButton extends StatelessWidget {
               const SizedBox(width: AppSpacing.xs),
               const Icon(
                 CupertinoIcons.chevron_down,
-                size: 12,
+                size: 10,
                 color: AppColors.primaryText,
               ),
             ],

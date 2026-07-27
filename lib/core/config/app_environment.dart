@@ -4,6 +4,8 @@ class AppEnvironment {
   const AppEnvironment({
     required this.supabaseUrl,
     required this.supabaseAnonKey,
+    required this.roverToken,
+    required this.roverBaseUrl,
   });
 
   factory AppEnvironment.fromDotEnv(Map<String, String> values) {
@@ -23,11 +25,15 @@ class AppEnvironment {
     return AppEnvironment(
       supabaseUrl: supabaseUrl,
       supabaseAnonKey: supabaseAnonKey,
+      roverToken: values['ROVER_TOKEN']?.trim() ?? '',
+      roverBaseUrl: values['ROVER_BASE_URL']?.trim() ?? '',
     );
   }
 
   final String supabaseUrl;
   final String supabaseAnonKey;
+  final String roverToken;
+  final String roverBaseUrl;
 }
 
 class AppEnvironmentException implements Exception {

@@ -21,8 +21,8 @@ class RoverStatusGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     if (compact) {
       return Wrap(
-        spacing: AppSpacing.xs,
-        runSpacing: AppSpacing.xs,
+        spacing: 3,
+        runSpacing: 3,
         children: [
           _CompactStatusPill(
             label: 'BAT',
@@ -136,15 +136,18 @@ class _CompactStatusPill extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm,
-          vertical: AppSpacing.xs,
+          horizontal: AppSpacing.xs,
+          vertical: 2,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 14),
-            const SizedBox(width: AppSpacing.xs),
-            Text('$label $value', style: AppTypography.monoCaption),
+            Icon(icon, color: color, size: 12),
+            const SizedBox(width: 3),
+            Text(
+              '$label $value',
+              style: AppTypography.monoCaption.copyWith(fontSize: 10),
+            ),
           ],
         ),
       ),

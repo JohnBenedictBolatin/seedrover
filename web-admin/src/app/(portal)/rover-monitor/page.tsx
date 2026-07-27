@@ -16,10 +16,12 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { CountUpValue } from "@/components/count-up-value";
 import { LiveDateTime } from "@/components/live-date-time";
+import { RoverLiveRefresh } from "@/components/rover-live-refresh";
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 import { getRoverMonitor, type RoverCommand, type RoverSensorReading, type RoverStatus } from "@/lib/rover";
 import styles from "./page.module.css";
+import { pingRoverAction, releaseRoverLeaseAction } from "./actions";
 
 export default async function RoverMonitorPage() {
   const profile = await getCurrentAdminProfile();
@@ -36,6 +38,7 @@ export default async function RoverMonitorPage() {
 
   return (
     <div className={styles.page}>
+      <RoverLiveRefresh />
       <header className={styles.header}>
         <div>
           <p className={styles.eyebrow}>Farm supervision</p>
@@ -90,7 +93,14 @@ export default async function RoverMonitorPage() {
       <section className={styles.commandPanel}>
         <div className={styles.commandPanelTop}>
           <PanelTitle eyebrow="Recent activity" title="Command history" icon={<Antenna size={18} />} />
-          <span className={styles.readOnly}>Read only</span>
+          <div className={styles.commandActions}>
+            <form action={pingRoverAction}>
+              <button className={styles.pingButton} type="submit">Ping rover</button>
+            </form>
+            <form action={releaseRoverLeaseAction}>
+              <button className={styles.releaseButton} type="submit">Release control</button>
+            </form>
+          </div>
         </div>
         <div className={styles.commandLayout}>
           <div className={styles.historyWrap}>
@@ -264,6 +274,12 @@ function payloadSummary(command: RoverCommand) {
   if (typeof speed === "number") {
     return `Speed ${speed}%`;
   }
+
+  if (command.command === "PING" && command.acknowledgedAt) {
+    return `PONG in ${Math.max(0, new Date(command.acknowledgedAt).getTime() - new Date(command.createdAt).getTime())} ms`;
+  }
+
+  if (command.failureDetails) return command.failureDetails;
 
   return command.executedAt ? "Executed" : "Queued";
 }

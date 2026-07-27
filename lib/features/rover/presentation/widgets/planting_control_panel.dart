@@ -36,7 +36,7 @@ class PlantingControlPanel extends StatelessWidget {
       backgroundColor: AppColors.secondaryBackground,
       borderColor: AppColors.inactiveBorder,
       radius: AppRadius.sm,
-      padding: const EdgeInsets.all(AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.xs),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -46,14 +46,14 @@ class PlantingControlPanel extends StatelessWidget {
               color: AppColors.primaryGreen,
             ),
           ),
-          const SizedBox(height: AppSpacing.xs),
+          const SizedBox(height: 2),
           Text(
             soilCheckMessage,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: AppTypography.small.copyWith(color: AppColors.secondaryText),
           ),
-          const SizedBox(height: AppSpacing.xs),
+          const SizedBox(height: 2),
           if (!isPlantingActive) ...[
             Row(
               children: [
@@ -65,7 +65,7 @@ class PlantingControlPanel extends StatelessWidget {
                     onPressed: onCheckSoil,
                   ),
                 ),
-                const SizedBox(width: AppSpacing.sm),
+                const SizedBox(width: AppSpacing.xs),
                 Expanded(
                   child: _ActionButton(
                     label: 'Plant',
@@ -122,7 +122,7 @@ class _ActionButton extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
       ),
       style: OutlinedButton.styleFrom(
-        minimumSize: const Size(0, 32),
+        minimumSize: const Size(0, 28),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         visualDensity: VisualDensity.compact,
         foregroundColor: color,

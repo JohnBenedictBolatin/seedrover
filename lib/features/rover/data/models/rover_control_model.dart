@@ -9,6 +9,43 @@ class RoverControlModel {
     required this.sensors,
   });
 
+  factory RoverControlModel.offline() {
+    return const RoverControlModel(
+      batteryLevel: 0,
+      seedLevel: 0,
+      wifiConnected: false,
+      bluetoothConnected: false,
+      cameraConnected: false,
+      cameraLoading: false,
+      sensors: [
+        RoverSensorModel(
+          label: 'Soil Moisture',
+          value: 0,
+          unit: '%',
+          status: 'Unavailable',
+        ),
+        RoverSensorModel(
+          label: 'Soil Temperature',
+          value: 0,
+          unit: 'C',
+          status: 'Unavailable',
+        ),
+        RoverSensorModel(
+          label: 'Environmental Temperature',
+          value: 0,
+          unit: 'C',
+          status: 'Unavailable',
+        ),
+        RoverSensorModel(
+          label: 'Humidity',
+          value: 0,
+          unit: '%',
+          status: 'Unavailable',
+        ),
+      ],
+    );
+  }
+
   final int batteryLevel;
   final int seedLevel;
   final bool wifiConnected;

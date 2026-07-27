@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -12,19 +11,13 @@ class CameraPreviewPanel extends StatelessWidget {
   const CameraPreviewPanel({
     required this.connected,
     required this.loading,
-    required this.fullscreen,
     required this.canView,
-    required this.onRefresh,
-    required this.onToggleFullscreen,
     super.key,
   });
 
   final bool connected;
   final bool loading;
-  final bool fullscreen;
   final bool canView;
-  final VoidCallback? onRefresh;
-  final VoidCallback? onToggleFullscreen;
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +25,7 @@ class CameraPreviewPanel extends StatelessWidget {
       padding: EdgeInsets.zero,
       radius: AppRadius.sm,
       child: AspectRatio(
-        aspectRatio: fullscreen ? 9 / 16 : 16 / 9,
+        aspectRatio: 16 / 9,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(AppRadius.sm),
           child: Stack(
@@ -57,27 +50,6 @@ class CameraPreviewPanel extends StatelessWidget {
                   color: connected && canView
                       ? AppColors.primaryGreen
                       : AppColors.inactiveBorder,
-                ),
-              ),
-              Positioned(
-                right: AppSpacing.sm,
-                top: AppSpacing.sm,
-                child: Row(
-                  children: [
-                    _CameraIconButton(
-                      icon: CupertinoIcons.refresh,
-                      tooltip: 'Refresh camera',
-                      onPressed: canView ? onRefresh : null,
-                    ),
-                    const SizedBox(width: AppSpacing.xs),
-                    _CameraIconButton(
-                      icon: fullscreen
-                          ? CupertinoIcons.arrow_down_right_arrow_up_left
-                          : CupertinoIcons.arrow_up_left_arrow_down_right,
-                      tooltip: 'Toggle fullscreen',
-                      onPressed: canView ? onToggleFullscreen : null,
-                    ),
-                  ],
                 ),
               ),
             ],
@@ -141,29 +113,6 @@ class _CameraMessage extends StatelessWidget {
         message,
         textAlign: TextAlign.center,
         style: AppTypography.small,
-      ),
-    );
-  }
-}
-
-class _CameraIconButton extends StatelessWidget {
-  const _CameraIconButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: IconButton.filledTonal(
-        onPressed: onPressed,
-        icon: Icon(icon, size: 18),
       ),
     );
   }

@@ -34,6 +34,10 @@ class RoverControlState {
     this.activeMovement,
     this.lastCommand,
     this.errorMessage,
+    this.pingRoundTripMs,
+    this.isPinging = false,
+    this.localWifiConnected = false,
+    this.localWifiConnecting = false,
   });
 
   const RoverControlState.loading()
@@ -47,7 +51,11 @@ class RoverControlState {
         cameraFullscreen = false,
         activeMovement = null,
         lastCommand = null,
-        errorMessage = null;
+        errorMessage = null,
+        pingRoundTripMs = null,
+        isPinging = false,
+        localWifiConnected = false,
+        localWifiConnecting = false;
 
   final bool isLoading;
   final RoverControlModel? telemetry;
@@ -60,9 +68,15 @@ class RoverControlState {
   final RoverMovementCommand? activeMovement;
   final String? lastCommand;
   final String? errorMessage;
+  final int? pingRoundTripMs;
+  final bool isPinging;
+  final bool localWifiConnected;
+  final bool localWifiConnecting;
 
   bool get isConnected {
-    return telemetry?.wifiConnected == true || telemetry?.bluetoothConnected == true;
+    return localWifiConnected ||
+        telemetry?.wifiConnected == true ||
+        telemetry?.bluetoothConnected == true;
   }
 
   bool get isPlantingLocked {
@@ -94,6 +108,11 @@ class RoverControlState {
     String? lastCommand,
     String? errorMessage,
     bool clearErrorMessage = false,
+    int? pingRoundTripMs,
+    bool clearPingRoundTrip = false,
+    bool? isPinging,
+    bool? localWifiConnected,
+    bool? localWifiConnecting,
   }) {
     return RoverControlState(
       isLoading: isLoading ?? this.isLoading,
@@ -107,7 +126,13 @@ class RoverControlState {
       activeMovement:
           clearActiveMovement ? null : activeMovement ?? this.activeMovement,
       lastCommand: lastCommand ?? this.lastCommand,
-      errorMessage: clearErrorMessage ? null : errorMessage ?? this.errorMessage,
+      errorMessage:
+          clearErrorMessage ? null : errorMessage ?? this.errorMessage,
+      pingRoundTripMs:
+          clearPingRoundTrip ? null : pingRoundTripMs ?? this.pingRoundTripMs,
+      isPinging: isPinging ?? this.isPinging,
+      localWifiConnected: localWifiConnected ?? this.localWifiConnected,
+      localWifiConnecting: localWifiConnecting ?? this.localWifiConnecting,
     );
   }
 }

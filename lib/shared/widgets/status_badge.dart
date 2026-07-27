@@ -10,10 +10,12 @@ class StatusBadge extends StatelessWidget {
     required this.label,
     super.key,
     this.color = AppColors.primaryGreen,
+    this.textStyle,
   });
 
   final String label;
   final Color color;
+  final TextStyle? textStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +31,7 @@ class StatusBadge extends StatelessWidget {
         ),
         child: Text(
           label.toUpperCase(),
-          style: AppTypography.statusBadge.copyWith(color: color),
+          style: (textStyle ?? AppTypography.statusBadge).copyWith(color: color),
         ),
       ),
     );

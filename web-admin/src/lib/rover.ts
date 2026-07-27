@@ -21,6 +21,8 @@ export type RoverCommand = {
   issuedBy: string;
   executedAt: string | null;
   createdAt: string;
+  acknowledgedAt: string | null;
+  failureDetails: string | null;
 };
 
 export type RoverSensorReading = {
@@ -51,6 +53,8 @@ type RoverCommandRow = {
   status: string;
   executed_at: string | null;
   created_at: string;
+  acknowledged_at: string | null;
+  failure_details: string | null;
   profiles: { full_name: string } | { full_name: string }[] | null;
 };
 
@@ -95,7 +99,7 @@ export async function getRoverMonitor() {
         .returns<RoverStatusRow[]>(),
       supabase
         .from("robot_commands")
-        .select("id, command, payload, status, executed_at, created_at, profiles(full_name)")
+        .select("id, command, payload, status, executed_at, created_at, acknowledged_at, failure_details, profiles(full_name)")
         .order("created_at", { ascending: false })
         .limit(8)
         .returns<RoverCommandRow[]>(),
@@ -120,14 +124,17 @@ export async function getRoverMonitor() {
 
   const statusRow = statusRows?.[0];
   const sensorRow = sensorRows?.[0];
+  const heartbeatFresh = statusRow
+    ? Date.now() - new Date(statusRow.last_updated).getTime() <= 9_000
+    : false;
 
   return {
     status: statusRow
       ? {
           batteryLevel: statusRow.battery_level,
           seedLevel: statusRow.seed_level,
-          roverStatus: statusRow.rover_status,
-          wifiConnected: statusRow.wifi_connected,
+          roverStatus: heartbeatFresh ? statusRow.rover_status : "Offline",
+          wifiConnected: heartbeatFresh && statusRow.wifi_connected,
           bluetoothConnected: statusRow.bluetooth_connected,
           cameraConnected: statusRow.camera_connected,
           currentActivity: statusRow.current_activity,
@@ -144,6 +151,8 @@ export async function getRoverMonitor() {
       issuedBy: profileName(row),
       executedAt: row.executed_at,
       createdAt: row.created_at,
+      acknowledgedAt: row.acknowledged_at,
+      failureDetails: row.failure_details,
     })),
     sensors: sensorRow
       ? {

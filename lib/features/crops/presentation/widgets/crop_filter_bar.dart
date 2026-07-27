@@ -45,66 +45,68 @@ class CropFilterBar extends StatelessWidget {
           onChanged: onSearchChanged,
           onClear: onClear,
         ),
-        const SizedBox(height: AppSpacing.md),
-        Wrap(
-          alignment: WrapAlignment.center,
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
-          children: [
-            _FilterSlot(
-              child: _CompactFilterButton(
-                icon: Icons.spa_outlined,
-                label: selectedCropName ?? 'Plant',
-                items: [
-                  _CompactFilterItem(
-                    label: 'All Plants',
-                    onSelected: () => onCropNameChanged(null),
-                  ),
-                  for (final cropName in cropNames)
+        const SizedBox(height: AppSpacing.sm),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _FilterSlot(
+                child: _CompactFilterButton(
+                  icon: Icons.spa_outlined,
+                  label: selectedCropName ?? 'Plant',
+                  items: [
                     _CompactFilterItem(
-                      label: cropName,
-                      onSelected: () => onCropNameChanged(cropName),
+                      label: 'All Plants',
+                      onSelected: () => onCropNameChanged(null),
                     ),
-                ],
+                    for (final cropName in cropNames)
+                      _CompactFilterItem(
+                        label: cropName,
+                        onSelected: () => onCropNameChanged(cropName),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            _FilterSlot(
-              child: _CompactFilterButton(
-                icon: CupertinoIcons.calendar,
-                label: selectedPlantingDate == null
-                    ? 'Date'
-                    : _formatShortDate(selectedPlantingDate!),
-                items: [
-                  _CompactFilterItem(
-                    label: 'All Dates',
-                    onSelected: () => onPlantingDateChanged(null),
-                  ),
-                  for (final date in plantingDates)
+              const SizedBox(width: AppSpacing.xs),
+              _FilterSlot(
+                child: _CompactFilterButton(
+                  icon: CupertinoIcons.calendar,
+                  label: selectedPlantingDate == null
+                      ? 'Date'
+                      : _formatShortDate(selectedPlantingDate!),
+                  items: [
                     _CompactFilterItem(
-                      label: _formatDate(date),
-                      onSelected: () => onPlantingDateChanged(date),
+                      label: 'All Dates',
+                      onSelected: () => onPlantingDateChanged(null),
                     ),
-                ],
+                    for (final date in plantingDates)
+                      _CompactFilterItem(
+                        label: _formatDate(date),
+                        onSelected: () => onPlantingDateChanged(date),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            _FilterSlot(
-              child: _CompactFilterButton(
-                icon: CupertinoIcons.chart_bar_alt_fill,
-                label: selectedGrowthStage?.label ?? 'Stages',
-                items: [
-                  _CompactFilterItem(
-                    label: 'All Stages',
-                    onSelected: () => onGrowthStageChanged(null),
-                  ),
-                  for (final stage in CropGrowthStage.values)
+              const SizedBox(width: AppSpacing.xs),
+              _FilterSlot(
+                child: _CompactFilterButton(
+                  icon: CupertinoIcons.chart_bar_alt_fill,
+                  label: selectedGrowthStage?.label ?? 'Stages',
+                  items: [
                     _CompactFilterItem(
-                      label: stage.label,
-                      onSelected: () => onGrowthStageChanged(stage),
+                      label: 'All Stages',
+                      onSelected: () => onGrowthStageChanged(null),
                     ),
-                ],
+                    for (final stage in CropGrowthStage.values)
+                      _CompactFilterItem(
+                        label: stage.label,
+                        onSelected: () => onGrowthStageChanged(stage),
+                      ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
@@ -141,7 +143,7 @@ class _FilterSlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(width: 112, child: child);
+    return SizedBox(width: 104, child: child);
   }
 }
 
@@ -189,13 +191,13 @@ class _CompactFilterButton extends StatelessWidget {
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.sm,
-            vertical: AppSpacing.sm,
+            horizontal: AppSpacing.xs,
+            vertical: 7,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 15, color: AppColors.primaryText),
+              Icon(icon, size: 13, color: AppColors.primaryText),
               const SizedBox(width: AppSpacing.xs),
               Flexible(
                 child: Text(
@@ -204,6 +206,7 @@ class _CompactFilterButton extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: AppTypography.caption.copyWith(
                     color: AppColors.primaryText,
+                    fontSize: 10.5,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -211,7 +214,7 @@ class _CompactFilterButton extends StatelessWidget {
               const SizedBox(width: AppSpacing.xs),
               const Icon(
                 CupertinoIcons.chevron_down,
-                size: 12,
+                size: 10,
                 color: AppColors.primaryText,
               ),
             ],
@@ -268,6 +271,11 @@ class _CropSearchFieldState extends State<_CropSearchField> {
       onChanged: widget.onChanged,
       textInputAction: TextInputAction.search,
       decoration: InputDecoration(
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: 12,
+        ),
         prefixIcon: const Icon(CupertinoIcons.search),
         suffixIcon: _controller.text.isEmpty
             ? null

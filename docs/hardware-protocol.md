@@ -2,6 +2,57 @@
 
 Version: 1.0
 
+## Phase 1 Local Wi-Fi SoftAP Transport
+
+The ESP32 creates the WPA2 network `SeedRover-01` at `192.168.4.1`. The
+Android phone connects directly to this network and sends authenticated HTTP
+requests to `/health` and `/command`. The `ROVER_TOKEN` value is used as both
+the SoftAP password and the `X-Rover-Token` request header during this
+prototype phase, and must be 8–63 characters.
+
+The app sends `PING` to `POST /command` and expects a matching `command_id`, a
+`success` status, and `data.reply: "PONG"`. No router or internet connection is
+required for local PING.
+
+During hardware-integration simulation, movement, soil-check, planting, and
+emergency-stop commands return `data.accepted_command` and
+`data.simulation: true`. The firmware logs these commands but does not energize
+motors, relays, or actuators.
+
+## Phase 1 Bluetooth Low Energy Transport
+
+The ESP32 advertises as `SeedRover-01`. Android connects over BLE while normal
+Wi-Fi or mobile data remains available. Phase 1 uses service UUID
+`7b100001-0d91-4b68-a5e2-1b7ecb100001`, command UUID
+`7b100002-0d91-4b68-a5e2-1b7ecb100002`, and response UUID
+`7b100003-0d91-4b68-a5e2-1b7ecb100003`.
+
+The app writes this JSON to the command characteristic:
+
+```json
+{
+  "command_id": "PING-unique-id",
+  "command": "PING",
+  "token": "shared-local-token",
+  "payload": {}
+}
+```
+
+The ESP32 notifies the response characteristic with the matching `command_id`,
+`status: "success"`, and `data.reply: "PONG"`. The app rejects mismatched or
+malformed responses and times out after five seconds.
+
+Only `PING` is executable in Phase 1. Unknown commands return
+`invalid_command`, invalid JSON returns `failed`, and a missing or incorrect
+token returns `failed` with `Unauthorized`. There is deliberately no actuator
+code in the Phase 1 firmware.
+
+## Deployment secrets
+
+Store the rover token only in the ignored firmware `secrets.h`. Store the same
+token in the ignored Flutter `.env` as `ROVER_TOKEN`. Production actuator
+control will also require BLE bonding/encryption and a hardware fail-safe.
+
 This document defines the official communication protocol between the SeedRover mobile application and the ESP32-based robotic system.
 
 All communication between the mobile application and the hardware must follow this specification.

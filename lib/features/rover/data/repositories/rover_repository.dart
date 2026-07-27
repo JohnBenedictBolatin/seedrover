@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/communication/shared/communication_device.dart';
@@ -27,8 +29,7 @@ class RoverRepository {
   Stream<void> watchRoverStatus() {
     return _client
         .from(DatabaseTables.robotStatus)
-        .stream(primaryKey: ['id'])
-        .map((_) => null);
+        .stream(primaryKey: ['id']).map((_) => null);
   }
 
   Stream<void> watchSimulationStatus() {
@@ -46,16 +47,31 @@ class RoverRepository {
       return _loadSimulatedStatus();
     }
 
-    final statusRows = await _client
-        .from(DatabaseTables.robotStatus)
-        .select()
-        .eq('is_active', true)
-        .limit(1) as List<dynamic>;
-    final sensorRows = await _client
-        .from(DatabaseTables.sensorReadings)
-        .select()
-        .order('recorded_at', ascending: false)
-        .limit(1) as List<dynamic>;
+    var statusRows = <dynamic>[];
+    var sensorRows = <dynamic>[];
+
+    // The ESP32 hotspot intentionally has no internet. Do not keep Rover
+    // Control on its loading skeleton while Supabase is unreachable.
+    try {
+      final rows = await Future.wait<List<dynamic>>([
+        (_client
+                .from(DatabaseTables.robotStatus)
+                .select()
+                .eq('is_active', true)
+                .limit(1) as Future<List<dynamic>>)
+            .timeout(const Duration(seconds: 2)),
+        (_client
+                .from(DatabaseTables.sensorReadings)
+                .select()
+                .order('recorded_at', ascending: false)
+                .limit(1) as Future<List<dynamic>>)
+            .timeout(const Duration(seconds: 2)),
+      ]);
+      statusRows = rows[0];
+      sensorRows = rows[1];
+    } catch (_) {
+      // Local PING remains available with empty telemetry.
+    }
 
     final status = statusRows.isEmpty
         ? <String, dynamic>{}
@@ -63,11 +79,16 @@ class RoverRepository {
     final sensors = sensorRows.isEmpty
         ? <String, dynamic>{}
         : sensorRows.first as Map<String, dynamic>;
+    final lastUpdated =
+        DateTime.tryParse(status['last_updated']?.toString() ?? '');
+    final heartbeatFresh = lastUpdated != null &&
+        DateTime.now().difference(lastUpdated) <= const Duration(seconds: 9);
 
     return RoverControlModel(
       batteryLevel: status['battery_level'] as int? ?? 0,
       seedLevel: status['seed_level'] as int? ?? 0,
-      wifiConnected: status['wifi_connected'] as bool? ?? false,
+      wifiConnected:
+          heartbeatFresh && (status['wifi_connected'] as bool? ?? false),
       bluetoothConnected: status['bluetooth_connected'] as bool? ?? false,
       cameraConnected: status['camera_connected'] as bool? ?? false,
       cameraLoading: false,
@@ -197,8 +218,8 @@ class RoverRepository {
       return;
     }
 
-    final devicesFuture = _communicationService.discoveredDevicesStream.first
-        .timeout(
+    final devicesFuture =
+        _communicationService.discoveredDevicesStream.first.timeout(
       const Duration(seconds: 3),
       onTimeout: () => <CommunicationDevice>[],
     );

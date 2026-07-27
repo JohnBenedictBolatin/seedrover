@@ -37,16 +37,14 @@ class NotificationRepository {
   Future<void> markAsRead(String notificationId) async {
     await _client
         .from(DatabaseTables.notifications)
-        .update({'is_read': true})
-        .eq('id', notificationId);
+        .update({'is_read': true}).eq('id', notificationId);
     await _recordActivity('Notification Read');
   }
 
   Future<void> markAsUnread(String notificationId) async {
     await _client
         .from(DatabaseTables.notifications)
-        .update({'is_read': false})
-        .eq('id', notificationId);
+        .update({'is_read': false}).eq('id', notificationId);
   }
 
   Future<void> deleteNotification(String notificationId) async {
@@ -117,33 +115,50 @@ class NotificationRepository {
   }
 
   NotificationRelatedModule _relatedModuleFromRoute(String route, String type) {
-    if (route.startsWith(AppRoutes.stocks)) {
+    final normalizedRoute = route.trim().toLowerCase();
+
+    if (normalizedRoute.startsWith(AppRoutes.stocks) ||
+        normalizedRoute == '/inventory') {
       return NotificationRelatedModule.inventory;
     }
 
-    if (route.startsWith(AppRoutes.crops)) {
+    if (normalizedRoute.startsWith(AppRoutes.crops)) {
       return NotificationRelatedModule.crops;
     }
 
-    if (route.startsWith(AppRoutes.rover)) {
+    if (normalizedRoute.startsWith(AppRoutes.rover) ||
+        normalizedRoute == '/rover-monitor') {
       return type == 'Camera'
           ? NotificationRelatedModule.camera
           : NotificationRelatedModule.rover;
     }
 
-    if (route.startsWith('/users')) {
+    if (normalizedRoute.startsWith('/users')) {
       return NotificationRelatedModule.users;
     }
 
-    if (route.startsWith('/planting-logs')) {
+    if (normalizedRoute.startsWith('/planting-logs')) {
       return NotificationRelatedModule.planting;
     }
 
-    if (route.startsWith(AppRoutes.dashboard)) {
+    if (normalizedRoute.startsWith(AppRoutes.dashboard)) {
       return NotificationRelatedModule.dashboard;
     }
 
-    return NotificationRelatedModule.system;
+    return _relatedModuleFromType(type);
+  }
+
+  NotificationRelatedModule _relatedModuleFromType(String type) {
+    return switch (type) {
+      'Inventory' => NotificationRelatedModule.inventory,
+      'Crop Reminder' => NotificationRelatedModule.crops,
+      'Battery' ||
+      'Seed Level' ||
+      'Robot Status' =>
+        NotificationRelatedModule.rover,
+      'Camera' => NotificationRelatedModule.camera,
+      _ => NotificationRelatedModule.system,
+    };
   }
 
   String? _relatedIdFromRoute(String route) {
