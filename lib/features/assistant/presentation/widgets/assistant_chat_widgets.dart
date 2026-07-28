@@ -29,7 +29,7 @@ class AssistantHeader extends StatelessWidget {
                 Text('Rovie', style: AppTypography.cardTitle),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  'Ask about SeedRover, crops, stocks, or planting.',
+                  'Ask about SeedRover, crops, inventory, or planting.',
                   style: AppTypography.caption,
                 ),
               ],
@@ -38,7 +38,7 @@ class AssistantHeader extends StatelessWidget {
           IconButton(
             tooltip: 'Close assistant',
             onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(CupertinoIcons.xmark, color: AppColors.primaryText),
+            icon: Icon(CupertinoIcons.xmark, color: AppColors.primaryText),
           ),
         ],
       ),
@@ -179,7 +179,7 @@ class AssistantInput extends StatelessWidget {
                     dimension: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(
+                : Icon(
                     CupertinoIcons.arrow_up_circle_fill,
                     color: AppColors.primaryGreen,
                   ),

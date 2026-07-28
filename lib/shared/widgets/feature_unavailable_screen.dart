@@ -28,7 +28,7 @@ class FeatureUnavailableScreen extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(
+                Icon(
                   CupertinoIcons.lock_shield,
                   color: AppColors.primaryGreen,
                 ),

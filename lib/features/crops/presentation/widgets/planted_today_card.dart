@@ -49,7 +49,7 @@ class PlantedTodayCard extends StatelessWidget {
                 backgroundColor: AppColors.cardBackground,
                 foregroundColor: AppColors.primaryGreen,
                 minimumSize: const Size(64, 34),
-                side: const BorderSide(color: AppColors.primaryGreen),
+                side: BorderSide(color: AppColors.primaryGreen),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppRadius.sm),
                 ),

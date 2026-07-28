@@ -9,6 +9,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/theme/theme_mode_controller.dart';
 import '../../../../shared/widgets/animated_content.dart';
 import '../../../../shared/widgets/app_card.dart';
 import '../../../../shared/widgets/content_skeleton.dart';
@@ -45,9 +46,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final controller = ref.read(profileControllerProvider.notifier);
     final authProfile = ref.watch(authControllerProvider).profile;
     final authController = ref.read(authControllerProvider.notifier);
+    final themeMode = ref.watch(themeModeControllerProvider);
+    final themeController = ref.read(themeModeControllerProvider.notifier);
     final isAdmin = authProfile?.isAdministrator ?? false;
 
     ref.listen(profileControllerProvider, (previous, next) {
+      final error = next.errorMessage;
+      if (error != null && error != previous?.errorMessage) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error)),
+        );
+        ref.read(profileControllerProvider.notifier).clearMessages();
+        return;
+      }
       final message = next.generatedPassword == null
           ? next.successMessage
           : '${next.successMessage} ${next.generatedPassword}';
@@ -66,7 +77,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       return const _ProfileLoadingSkeleton();
     }
 
-    if (state.errorMessage != null) {
+    if (state.errorMessage != null && state.users.isEmpty) {
       return _ProfileErrorState(
         message: state.errorMessage!,
         onRetry: controller.loadProfile,
@@ -111,6 +122,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           _ProfileHeader(
             user: currentUser,
             onAvatarTap: () => _showProfilePictureSheet(context, controller),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          _ThemeModeCard(
+            lightModeEnabled: themeMode == ThemeMode.light,
+            onChanged: themeController.setLightMode,
           ),
           const SizedBox(height: AppSpacing.lg),
           _QuickStats(stats: controller.statsForRole(currentUser.roleName)),
@@ -248,7 +264,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     () => _confirmAction(
                       context,
                       title: 'Remove Profile Picture',
-                      message: 'Remove your current profile picture from this profile?',
+                      message:
+                          'Remove your current profile picture from this profile?',
                       confirmLabel: 'Remove',
                       onConfirm: () async => controller.removeProfilePicture(),
                     ),
@@ -419,20 +436,38 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     BuildContext context,
     ProfileController controller,
   ) {
+    final currentPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmationController = TextEditingController();
     _showSeedRoverDialog(
       context,
       title: 'Change Password',
-      child: const Column(
+      child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          TextField(decoration: InputDecoration(labelText: 'Current Password')),
-          SizedBox(height: AppSpacing.md),
-          TextField(decoration: InputDecoration(labelText: 'New Password')),
-          SizedBox(height: AppSpacing.md),
-          TextField(decoration: InputDecoration(labelText: 'Confirm Password')),
+          TextField(
+              controller: currentPasswordController,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Current Password')),
+          const SizedBox(height: AppSpacing.md),
+          TextField(
+              controller: newPasswordController,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'New Password')),
+          const SizedBox(height: AppSpacing.md),
+          TextField(
+              controller: confirmationController,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Confirm Password')),
         ],
       ),
-      onConfirm: () async => controller.changePassword(),
+      onConfirm: () async {
+        await controller.changePassword(
+          currentPassword: currentPasswordController.text,
+          newPassword: newPasswordController.text,
+          confirmation: confirmationController.text,
+        );
+      },
       confirmationMessage: 'Change your account password now?',
     );
   }
@@ -494,7 +529,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         },
       ),
       onConfirm: () async {
-        controller.createUser(
+        await controller.createUser(
           fullName: fullNameController.text,
           username: usernameController.text,
           email: emailController.text,
@@ -665,7 +700,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         OutlinedButton(
                           style: OutlinedButton.styleFrom(
                             foregroundColor: AppColors.primaryText,
-                            side: const BorderSide(
+                            side: BorderSide(
                               color: AppColors.primaryText,
                             ),
                             shape: RoundedRectangleBorder(
@@ -682,8 +717,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         OutlinedButton.icon(
                           onPressed: () async {
                             if (confirmationMessage == null) {
+                              if (title.contains('Logout')) {
+                                Navigator.of(dialogContext).pop();
+                                await onConfirm();
+                                return;
+                              }
+
                               await onConfirm();
-                              Navigator.of(dialogContext).pop();
+                              if (dialogContext.mounted) {
+                                Navigator.of(dialogContext).pop();
+                              }
                               return;
                             }
 
@@ -694,11 +737,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               confirmLabel: confirmLabel,
                               onConfirm: () async {
                                 await onConfirm();
-                                Navigator.of(dialogContext).pop();
+                                if (dialogContext.mounted) {
+                                  Navigator.of(dialogContext).pop();
+                                }
                               },
                             );
                           },
-                          icon: const Icon(
+                          icon: Icon(
                             CupertinoIcons.check_mark,
                             size: 15,
                             color: AppColors.primaryGreen,
@@ -706,7 +751,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           label: Text(confirmLabel),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: AppColors.primaryGreen,
-                            side: const BorderSide(
+                            side: BorderSide(
                               color: AppColors.primaryGreen,
                             ),
                             shape: RoundedRectangleBorder(
@@ -886,7 +931,13 @@ class _ProfileHeader extends StatelessWidget {
                   spacing: AppSpacing.sm,
                   runSpacing: AppSpacing.sm,
                   children: [
-                    StatusBadge(label: user.roleName),
+                    StatusBadge(
+                      label: user.roleName,
+                      textStyle: AppTypography.statusBadge.copyWith(
+                        fontSize: 9,
+                        height: 12 / 9,
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -960,7 +1011,7 @@ class _ProfileEditMenu extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               const SizedBox(width: AppSpacing.sm),
-              const Icon(
+              Icon(
                 CupertinoIcons.pencil,
                 color: AppColors.primaryGreen,
                 size: 15,
@@ -976,6 +1027,63 @@ class _ProfileEditMenu extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ThemeModeCard extends StatelessWidget {
+  const _ThemeModeCard({
+    required this.lightModeEnabled,
+    required this.onChanged,
+  });
+
+  final bool lightModeEnabled;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      backgroundColor: AppColors.secondaryBackground,
+      borderColor: AppColors.inactiveBorder,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppColors.primaryGreen.withOpacity(.12),
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(
+                color: AppColors.primaryGreen.withOpacity(.24),
+              ),
+            ),
+            child: Icon(
+              lightModeEnabled
+                  ? CupertinoIcons.sun_max_fill
+                  : CupertinoIcons.moon_stars_fill,
+              color: AppColors.primaryGreen,
+              size: 19,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  lightModeEnabled ? 'Light mode' : 'Dark mode',
+                  style: AppTypography.cardTitle,
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: lightModeEnabled,
+            onChanged: onChanged,
+          ),
+        ],
       ),
     );
   }
@@ -1083,8 +1191,7 @@ class _PersonalInformation extends StatelessWidget {
           LayoutBuilder(
             builder: (context, constraints) {
               const columns = 2;
-              final width =
-                  (constraints.maxWidth - AppSpacing.xs) / columns;
+              final width = (constraints.maxWidth - AppSpacing.xs) / columns;
 
               return Wrap(
                 spacing: AppSpacing.xs,
@@ -1164,7 +1271,7 @@ class _ActivityRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Icon(
+        Icon(
           CupertinoIcons.clock,
           color: AppColors.primaryGreen,
           size: 18,
@@ -1202,7 +1309,7 @@ class _ManageUsersEntry extends StatelessWidget {
       borderColor: AppColors.inactiveBorder,
       child: Row(
         children: [
-          const Icon(
+          Icon(
             CupertinoIcons.person_2,
             color: AppColors.primaryGreen,
             size: 20,
@@ -1248,7 +1355,7 @@ class _ProfileStyledDialog extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(
+                Icon(
                   CupertinoIcons.person_2,
                   color: AppColors.primaryGreen,
                   size: 20,
@@ -1265,7 +1372,7 @@ class _ProfileStyledDialog extends StatelessWidget {
                 IconButton(
                   tooltip: 'Close',
                   onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(
+                  icon: Icon(
                     CupertinoIcons.xmark,
                     color: AppColors.primaryText,
                   ),
@@ -1425,7 +1532,7 @@ class _ProfileErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
+            Icon(
               CupertinoIcons.exclamationmark_triangle,
               color: AppColors.warning,
               size: 42,

@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/utils/date_time_formatter.dart';
 import '../../../../shared/widgets/animated_content.dart';
-import '../../../../shared/widgets/seedrover_mascot.dart';
-import '../../../../shared/widgets/status_badge.dart';
+import '../../../../shared/widgets/page_header_actions.dart';
 
-class DashboardHeader extends StatelessWidget {
+class DashboardHeader extends ConsumerWidget {
   const DashboardHeader({
     required this.fullName,
     required this.roleName,
@@ -21,51 +21,41 @@ class DashboardHeader extends StatelessWidget {
   final DateTime timestamp;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _GradientText(
+              AnimatedTypingText(
                 _greeting(timestamp),
-                style: AppTypography.sectionHeading.copyWith(
-                  fontSize: 18,
-                  height: 24 / 18,
+                style: AppTypography.small.copyWith(
+                  color: AppColors.mutedText,
                 ),
               ),
               const SizedBox(height: AppSpacing.xs),
-              _GradientText(
+              AnimatedTypingText(
                 _firstName(fullName),
                 style: AppTypography.displayHeading.copyWith(
-                  fontSize: 34,
-                  height: 40 / 34,
+                  fontSize: 28,
+                  height: 34 / 28,
                 ),
               ),
-              const SizedBox(height: AppSpacing.sm),
+              const SizedBox(height: AppSpacing.xs),
               AnimatedTypingText(
                 '${DateTimeFormatter.formatDate(timestamp)} '
                 '${DateTimeFormatter.formatTime(timestamp)}',
-                style: AppTypography.monoSmall.copyWith(
-                  color: AppColors.secondaryText,
+                style: AppTypography.monoCaption.copyWith(
+                  color: AppColors.mutedText,
                 ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              StatusBadge(
-                label: roleName,
-                textStyle: AppTypography.statusBadge.copyWith(fontSize: 10),
               ),
             ],
           ),
         ),
         const SizedBox(width: AppSpacing.md),
-        const SeedRoverMascot(
-          expression: SeedRoverMascotExpression.dashboard,
-          size: 128,
-          alignment: Alignment.centerRight,
-        ),
+        const PageHeaderActions(),
       ],
     );
   }
@@ -84,36 +74,5 @@ class DashboardHeader extends StatelessWidget {
     }
 
     return 'Good evening,';
-  }
-}
-
-class _GradientText extends StatelessWidget {
-  const _GradientText(
-    this.text, {
-    required this.style,
-  });
-
-  final String text;
-  final TextStyle style;
-
-  @override
-  Widget build(BuildContext context) {
-    return ShaderMask(
-      blendMode: BlendMode.srcIn,
-      shaderCallback: (bounds) {
-        return const LinearGradient(
-          colors: [
-            AppColors.buttonGradientStart,
-            AppColors.buttonGradientEnd,
-          ],
-        ).createShader(bounds);
-      },
-      child: AnimatedTypingText(
-        text,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: style,
-      ),
-    );
   }
 }

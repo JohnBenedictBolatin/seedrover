@@ -233,7 +233,7 @@ class _DebugButton extends StatelessWidget {
         minimumSize: const Size(0, 34),
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
         foregroundColor: AppColors.primaryText,
-        side: const BorderSide(color: AppColors.inactiveBorder),
+        side: BorderSide(color: AppColors.inactiveBorder),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.sm),
         ),

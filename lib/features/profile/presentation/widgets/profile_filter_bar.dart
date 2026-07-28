@@ -145,7 +145,10 @@ class _SearchFieldState extends State<_SearchField> {
     super.didUpdateWidget(oldWidget);
 
     if (widget.searchQuery != _controller.text) {
-      _controller.text = widget.searchQuery;
+      _controller.value = TextEditingValue(
+        text: widget.searchQuery,
+        selection: TextSelection.collapsed(offset: widget.searchQuery.length),
+      );
     }
   }
 
@@ -159,7 +162,10 @@ class _SearchFieldState extends State<_SearchField> {
   Widget build(BuildContext context) {
     return TextField(
       controller: _controller,
-      onChanged: widget.onChanged,
+      onChanged: (value) {
+        setState(() {});
+        widget.onChanged(value);
+      },
       decoration: InputDecoration(
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(
@@ -172,7 +178,10 @@ class _SearchFieldState extends State<_SearchField> {
             ? null
             : IconButton(
                 tooltip: 'Clear search',
-                onPressed: widget.onClear,
+                onPressed: () {
+                  setState(_controller.clear);
+                  widget.onClear();
+                },
                 icon: const Icon(CupertinoIcons.xmark_circle),
               ),
       ),
@@ -245,7 +254,7 @@ class _FilterButton extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSpacing.xs),
-              const Icon(
+              Icon(
                 CupertinoIcons.chevron_down,
                 size: 10,
                 color: AppColors.primaryText,

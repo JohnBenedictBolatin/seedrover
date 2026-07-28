@@ -12,7 +12,8 @@ class NotificationLoadingList extends StatelessWidget {
     return ListView.separated(
       padding: const EdgeInsets.all(AppSpacing.lg),
       itemBuilder: (context, index) => const _LoadingCard(),
-      separatorBuilder: (context, index) => const SizedBox(height: AppSpacing.md),
+      separatorBuilder: (context, index) =>
+          const SizedBox(height: AppSpacing.md),
       itemCount: 5,
     );
   }

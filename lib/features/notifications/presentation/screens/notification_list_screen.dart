@@ -24,6 +24,15 @@ class NotificationListScreen extends ConsumerWidget {
     final controller = ref.read(notificationControllerProvider.notifier);
 
     ref.listen(notificationControllerProvider, (previous, next) {
+      final error = next.errorMessage;
+      if (error != null && error != previous?.errorMessage &&
+          next.notifications.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error)),
+        );
+        ref.read(notificationControllerProvider.notifier).clearErrorMessage();
+        return;
+      }
       final message = next.successMessage;
 
       if (message != null && message != previous?.successMessage) {
@@ -38,7 +47,7 @@ class NotificationListScreen extends ConsumerWidget {
       return const NotificationLoadingList();
     }
 
-    if (state.errorMessage != null) {
+    if (state.errorMessage != null && state.notifications.isEmpty) {
       return _NotificationErrorState(
         message: state.errorMessage!,
         onRetry: controller.loadNotifications,
@@ -82,9 +91,23 @@ class NotificationListScreen extends ConsumerWidget {
           else
             _NotificationList(
               notifications: state.filteredNotifications,
-              onView: (notification) {
-                controller.markAsRead(notification.id);
-                context.push(controller.routeForNotification(notification));
+              onView: (notification) async {
+                if (!notification.isRead) {
+                  try {
+                    await controller.markAsRead(notification.id);
+                  } catch (_) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('Unable to open notification.')),
+                      );
+                    }
+                    return;
+                  }
+                }
+                if (context.mounted) {
+                  context.push(controller.routeForNotification(notification));
+                }
               },
             ),
         ],
@@ -141,7 +164,7 @@ class _AlreadyReadDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Expanded(
+        Expanded(
           child: Divider(color: AppColors.inactiveBorder, thickness: 1),
         ),
         Padding(
@@ -153,7 +176,7 @@ class _AlreadyReadDivider extends StatelessWidget {
             ),
           ),
         ),
-        const Expanded(
+        Expanded(
           child: Divider(color: AppColors.inactiveBorder, thickness: 1),
         ),
       ],
@@ -207,7 +230,7 @@ class _NotificationErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
+            Icon(
               CupertinoIcons.exclamationmark_triangle,
               color: AppColors.warning,
               size: 42,

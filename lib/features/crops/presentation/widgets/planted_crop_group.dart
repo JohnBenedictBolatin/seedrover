@@ -136,7 +136,7 @@ class _PlantedCropTile extends StatelessWidget {
                   backgroundColor: AppColors.cardBackground,
                   foregroundColor: AppColors.primaryGreen,
                   minimumSize: const Size.fromHeight(32),
-                  side: const BorderSide(color: AppColors.primaryGreen),
+                  side: BorderSide(color: AppColors.primaryGreen),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(AppRadius.sm),
                   ),

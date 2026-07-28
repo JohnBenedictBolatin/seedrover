@@ -78,7 +78,7 @@ class _CameraPlaceholder extends StatelessWidget {
     }
 
     if (loading) {
-      return const Center(
+      return Center(
         child: CircularProgressIndicator(color: AppColors.primaryGreen),
       );
     }

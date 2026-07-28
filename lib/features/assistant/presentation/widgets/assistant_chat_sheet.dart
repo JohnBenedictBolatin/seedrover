@@ -34,6 +34,9 @@ class _AssistantChatSheetState extends ConsumerState<AssistantChatSheet> {
 
   Future<void> _send(String message) async {
     await ref.read(assistantControllerProvider.notifier).sendMessage(message);
+    if (!mounted) {
+      return;
+    }
     _messageController.clear();
     _scrollToBottom();
   }

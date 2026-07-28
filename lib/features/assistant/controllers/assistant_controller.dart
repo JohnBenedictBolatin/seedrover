@@ -184,7 +184,7 @@ class AssistantController extends StateNotifier<AssistantState> {
     }
 
     if (normalized.contains('stock') || normalized.contains('inventory')) {
-      return 'Based on the current app data, use the Stocks module to review harvested produce quantity, status, transaction history, stock in, stock out, and adjustments.';
+      return 'Based on the current app data, use the Inventory module to review harvested produce quantity, status, transaction history, stock in, stock out, and adjustments.';
     }
 
     return 'Based on the current app data, I can help with SeedRover modules, crop monitoring, planting steps, sensor readings, inventory, and general farming questions.';

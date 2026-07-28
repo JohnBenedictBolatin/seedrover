@@ -77,6 +77,8 @@ class NotificationController extends StateNotifier<NotificationState> {
     return notificationRouteFor(notification);
   }
 
+  bool get canDeleteNotifications => _profile?.isAdministrator ?? false;
+
   Future<void> markAsRead(String notificationId) async {
     await _repository.markAsRead(notificationId);
     _replaceNotification(
@@ -122,7 +124,17 @@ class NotificationController extends StateNotifier<NotificationState> {
     );
   }
 
-  void markAllAsRead() {
+  Future<void> markAllAsRead() async {
+    final unreadIds = state.notifications
+        .where((notification) => !notification.isRead)
+        .map((notification) => notification.id);
+    try {
+      await _repository.markAllAsRead(unreadIds);
+    } catch (_) {
+      state = state.copyWith(
+          errorMessage: 'Unable to mark all notifications as read.');
+      return;
+    }
     final notifications = [
       for (final notification in state.notifications)
         notification.copyWith(isRead: true),
@@ -134,7 +146,23 @@ class NotificationController extends StateNotifier<NotificationState> {
     );
   }
 
-  void deleteReadNotifications() {
+  Future<void> deleteReadNotifications() async {
+    if (!canDeleteNotifications) {
+      state = state.copyWith(
+          errorMessage: 'Only administrators can delete notifications.');
+      return;
+    }
+    final readIds = state.notifications
+        .where((notification) => notification.isRead)
+        .map((notification) => notification.id)
+        .toList(growable: false);
+    try {
+      await _repository.deleteNotifications(readIds);
+    } catch (_) {
+      state =
+          state.copyWith(errorMessage: 'Unable to delete read notifications.');
+      return;
+    }
     final notifications = state.notifications
         .where((notification) => !notification.isRead)
         .toList();
@@ -145,7 +173,20 @@ class NotificationController extends StateNotifier<NotificationState> {
     );
   }
 
-  void clearAllNotifications() {
+  Future<void> clearAllNotifications() async {
+    if (!canDeleteNotifications) {
+      state = state.copyWith(
+          errorMessage: 'Only administrators can delete notifications.');
+      return;
+    }
+    try {
+      await _repository.deleteNotifications(
+        state.notifications.map((notification) => notification.id),
+      );
+    } catch (_) {
+      state = state.copyWith(errorMessage: 'Unable to clear notifications.');
+      return;
+    }
     _setNotifications(
       const [],
       successMessage: 'Notifications cleared.',
@@ -202,6 +243,10 @@ class NotificationController extends StateNotifier<NotificationState> {
 
   void clearSuccessMessage() {
     state = state.copyWith(successMessage: null);
+  }
+
+  void clearErrorMessage() {
+    state = state.copyWith(errorMessage: null);
   }
 
   @override
@@ -287,10 +332,10 @@ class NotificationController extends StateNotifier<NotificationState> {
               .toLowerCase()
               .contains(normalizedQuery) ||
           notification.category.label.toLowerCase().contains(normalizedQuery);
-      final matchesCategory = selectedCategory == null ||
-          notification.category == selectedCategory;
-      final matchesPriority = selectedPriority == null ||
-          notification.priority == selectedPriority;
+      final matchesCategory =
+          selectedCategory == null || notification.category == selectedCategory;
+      final matchesPriority =
+          selectedPriority == null || notification.priority == selectedPriority;
       final matchesStatus = switch (selectedStatus) {
         NotificationStatusFilter.all => true,
         NotificationStatusFilter.unread => !notification.isRead,
@@ -358,7 +403,8 @@ class NotificationController extends StateNotifier<NotificationState> {
       return left.isRead ? 1 : -1;
     }
 
-    final priorityComparison = right.priority.rank.compareTo(left.priority.rank);
+    final priorityComparison =
+        right.priority.rank.compareTo(left.priority.rank);
     if (priorityComparison != 0) {
       return priorityComparison;
     }

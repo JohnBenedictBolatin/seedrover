@@ -15,7 +15,7 @@ class AssistantState {
           id: 'assistant-welcome',
           role: AssistantMessageRole.assistant,
           content:
-              'Hi, I\'m Rovie. I can help with SeedRover workflows, current app crop/stock data, rover basics, planting, and farm-care questions.',
+              'Hi, I\'m Rovie. I can help with SeedRover workflows, current app crop/inventory data, rover basics, planting, and farm-care questions.',
           createdAt: DateTime.now(),
         ),
       ],

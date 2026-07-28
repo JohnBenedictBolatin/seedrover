@@ -74,9 +74,19 @@ class AuthController extends StateNotifier<AppAuthState> {
   }
 
   Future<void> signOut() async {
-    state = const AppAuthState.loading();
-    await _repository.signOut();
     state = const AppAuthState.unauthenticated();
+    try {
+      await _repository.signOut();
+    } catch (_) {
+      state = const AppAuthState.unauthenticated(
+        errorMessage: 'You were signed out locally.',
+      );
+    }
+  }
+
+  Future<void> refreshProfile() async {
+    final profile = await _repository.getCurrentProfile();
+    if (profile != null) state = AppAuthState.authenticated(profile);
   }
 
   Future<void> sendPasswordResetEmail(String username) async {

@@ -140,7 +140,7 @@ class _ProgressHeader extends StatelessWidget {
                   minHeight: 28,
                 ),
                 onPressed: onViewGrowthTimeline,
-                icon: const Icon(
+                icon: Icon(
                   Icons.info_outline,
                   color: AppColors.primaryText,
                   size: 17,

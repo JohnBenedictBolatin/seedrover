@@ -176,7 +176,7 @@ class _ModifyMenu extends StatelessWidget {
           border: Border.all(color: AppColors.inactiveBorder),
           borderRadius: BorderRadius.circular(AppRadius.sm),
         ),
-        child: const Padding(
+        child: Padding(
           padding: EdgeInsets.all(AppSpacing.xs),
           child: Icon(
             CupertinoIcons.pencil,

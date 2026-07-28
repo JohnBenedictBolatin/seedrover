@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../constants/app_routes.dart';
 import '../constants/permission_keys.dart';
+import '../theme/app_colors.dart';
+import '../theme/theme_mode_controller.dart';
 import '../../features/assistant/presentation/widgets/assistant_floating_button.dart';
 import '../../features/authentication/presentation/screens/login_screen.dart';
 import '../../features/authentication/providers/auth_providers.dart';
@@ -309,12 +311,11 @@ Widget _withAuthenticatedShell(
   return Consumer(
     builder: (context, widgetRef, _) {
       final authState = widgetRef.watch(authControllerProvider);
-      final unreadNotificationCount =
-          widgetRef.watch(notificationControllerProvider).unreadCount;
-
+      final themeMode = widgetRef.watch(themeModeControllerProvider);
+      AppColors.useLightPalette(themeMode == ThemeMode.light);
       return AuthenticatedScaffold(
         currentLocation: currentLocation,
-        items: _navigationItemsFor(authState, unreadNotificationCount),
+        items: _navigationItemsFor(authState),
         showNavigation: currentLocation != AppRoutes.rover,
         floatingAction: currentLocation == AppRoutes.rover
             ? null
@@ -325,10 +326,7 @@ Widget _withAuthenticatedShell(
   );
 }
 
-List<NavigationItemData> _navigationItemsFor(
-  AppAuthState authState,
-  int unreadNotificationCount,
-) {
+List<NavigationItemData> _navigationItemsFor(AppAuthState authState) {
   final profile = authState.profile;
 
   bool canView(String permissionKey) {
@@ -356,22 +354,9 @@ List<NavigationItemData> _navigationItemsFor(
       ),
     if (canView(PermissionKeys.stocksView))
       const NavigationItemData(
-        label: 'Stocks',
+        label: 'Inventory',
         location: AppRoutes.stocks,
         icon: NavigationIcons.stocks,
-      ),
-    if (canView(PermissionKeys.notificationsView))
-      NavigationItemData(
-        label: 'Notifications',
-        location: AppRoutes.notifications,
-        icon: NavigationIcons.notifications,
-        badgeCount: unreadNotificationCount,
-      ),
-    if (canView(PermissionKeys.profileView))
-      const NavigationItemData(
-        label: 'Profile',
-        location: AppRoutes.profile,
-        icon: NavigationIcons.profile,
       ),
   ];
 }

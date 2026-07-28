@@ -73,7 +73,7 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
       );
       _setStocks(
         [createdStock, ...state.stocks],
-        successMessage: 'Stock item created.',
+        successMessage: 'Inventory item created.',
         isLoading: false,
         resetFilters: true,
       );
@@ -137,7 +137,7 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
     final stock = stockById(stockId);
 
     if (stock == null) {
-      return 'Stock item was not found.';
+      return 'Inventory item was not found.';
     }
 
     try {
@@ -172,7 +172,7 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
     final stock = stockById(stockId);
 
     if (stock == null) {
-      return 'Stock item was not found.';
+      return 'Inventory item was not found.';
     }
 
     if (quantity > stock.currentQuantity) {
@@ -186,7 +186,8 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
         purpose: purpose,
         remarks: remarks,
       );
-      _replaceStock(updatedStock, successMessage: 'Stock deducted successfully.');
+      _replaceStock(updatedStock,
+          successMessage: 'Stock deducted successfully.');
     } catch (error) {
       return _friendlyError(error, fallback: 'Unable to deduct stock.');
     }
@@ -208,7 +209,7 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
     final stock = stockById(stockId);
 
     if (stock == null) {
-      return 'Stock item was not found.';
+      return 'Inventory item was not found.';
     }
 
     try {
@@ -218,7 +219,8 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
         reason: reason,
         remarks: remarks,
       );
-      _replaceStock(updatedStock, successMessage: 'Stock adjusted successfully.');
+      _replaceStock(updatedStock,
+          successMessage: 'Stock adjusted successfully.');
     } catch (error) {
       return _friendlyError(error, fallback: 'Unable to adjust stock.');
     }
@@ -279,7 +281,7 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
       final salesSummary = await _repository.getSalesSummary();
       _replaceStock(
         updatedStock,
-        successMessage: 'Stock item updated.',
+        successMessage: 'Inventory item updated.',
         salesSummary: salesSummary,
       );
     } catch (error) {
@@ -292,11 +294,14 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
     }
   }
 
-  Future<void> deleteStock(String stockId) async {
+  Future<bool> deleteStock(String stockId) async {
     try {
       await _repository.deleteStock(stockId);
-      final stocks = state.stocks.where((stock) => stock.id != stockId).toList();
-      _setStocks(stocks, successMessage: 'Stock item deleted.', isLoading: false);
+      final stocks =
+          state.stocks.where((stock) => stock.id != stockId).toList();
+      _setStocks(stocks,
+          successMessage: 'Inventory item deleted.', isLoading: false);
+      return true;
     } catch (error) {
       state = state.copyWith(
         errorMessage: _friendlyError(
@@ -304,6 +309,7 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
           fallback: 'Unable to delete stock item.',
         ),
       );
+      return false;
     }
   }
 

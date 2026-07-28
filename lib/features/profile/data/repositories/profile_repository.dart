@@ -13,12 +13,24 @@ class ProfileRepository {
   final SupabaseClient _client;
 
   Future<List<ProfileUserModel>> getUsers() async {
-    final rows = await _client
-        .from(DatabaseTables.profiles)
-        .select(
-          'id, username, email, full_name, profile_image_path, is_active, created_at, roles(role_name)',
-        )
-        .order('created_at', ascending: false) as List<dynamic>;
+    List<dynamic> rows;
+    try {
+      rows = await _client
+          .from(DatabaseTables.profiles)
+          .select(
+            'id, username, email, full_name, contact_number, profile_image_path, is_active, created_at, roles(role_name)',
+          )
+          .order('created_at', ascending: false) as List<dynamic>;
+    } catch (_) {
+      // Keep profile loading compatible with projects where the optional
+      // contact_number migration has not been applied yet.
+      rows = await _client
+          .from(DatabaseTables.profiles)
+          .select(
+            'id, username, email, full_name, profile_image_path, is_active, created_at, roles(role_name)',
+          )
+          .order('created_at', ascending: false) as List<dynamic>;
+    }
 
     return rows
         .map((row) => _userFromRow(row as Map<String, dynamic>))
@@ -71,13 +83,14 @@ class ProfileRepository {
   Future<ProfileUserModel> updateCurrentProfile({
     required String profileId,
     required String fullName,
+    required String contactNumber,
   }) async {
     final row = await _client
         .from(DatabaseTables.profiles)
-        .update({'full_name': fullName})
+        .update({'full_name': fullName, 'contact_number': contactNumber})
         .eq('id', profileId)
         .select(
-          'id, username, email, full_name, profile_image_path, is_active, created_at, roles(role_name)',
+          'id, username, email, full_name, contact_number, profile_image_path, is_active, created_at, roles(role_name)',
         )
         .single();
 
@@ -88,6 +101,40 @@ class ProfileRepository {
     );
 
     return _userFromRow(row);
+  }
+
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final email = _client.auth.currentUser?.email;
+    if (email == null) throw StateError('No authenticated user.');
+
+    await _client.auth
+        .signInWithPassword(email: email, password: currentPassword);
+    await _client.auth.updateUser(UserAttributes(password: newPassword));
+  }
+
+  Future<void> createUser({
+    required String fullName,
+    required String username,
+    required String email,
+    required String contactNumber,
+    required String roleName,
+    required String temporaryPassword,
+  }) async {
+    await _client.functions.invoke(
+      'user-admin',
+      body: {
+        'action': 'create',
+        'full_name': fullName,
+        'username': username,
+        'email': email,
+        'contact_number': contactNumber,
+        'role_name': roleName,
+        'temporary_password': temporaryPassword,
+      },
+    );
   }
 
   Future<ProfileUserModel> updateProfileImage({
@@ -180,11 +227,12 @@ class ProfileRepository {
       fullName: row['full_name'] as String? ?? 'SeedRover User',
       username: row['username'] as String? ?? 'operator',
       email: row['email'] as String? ?? '',
-      contactNumber: '+63 917 000 0000',
+      contactNumber: row['contact_number'] as String? ?? '',
       roleName: role?['role_name'] as String? ?? 'Farm Staff',
       dateJoined: _parseDate(row['created_at']) ?? DateTime.now(),
-      status:
-          isActive ? ProfileAccountStatus.active : ProfileAccountStatus.inactive,
+      status: isActive
+          ? ProfileAccountStatus.active
+          : ProfileAccountStatus.inactive,
       profileImagePath: imagePath,
       profileImageUrl: _publicProfileImageUrl(imagePath),
       hasProfilePicture: imagePath != null && imagePath.trim().isNotEmpty,

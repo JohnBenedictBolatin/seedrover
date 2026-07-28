@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_routes.dart';
+import '../../../../core/constants/permission_keys.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
@@ -45,7 +46,9 @@ class CropDetailsScreen extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(message)),
         );
-        ref.read(cropMonitoringControllerProvider.notifier).clearSuccessMessage();
+        ref
+            .read(cropMonitoringControllerProvider.notifier)
+            .clearSuccessMessage();
       }
     });
 
@@ -59,8 +62,9 @@ class CropDetailsScreen extends ConsumerWidget {
       );
     }
 
-    final canDelete =
-        profile?.isAdministrator == true || profile?.isPlantingManager == true;
+    final canManage =
+        profile?.hasPermission(PermissionKeys.cropsManage) ?? false;
+    final canDelete = profile?.isAdministrator ?? false;
 
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -82,22 +86,25 @@ class CropDetailsScreen extends ConsumerWidget {
         CropDetailPanel(
           crop: crop,
           onViewGrowthTimeline: () => _showGrowthTimelineDialog(context, crop),
-          actions: CropActionButtons(
-            onWater: () => _showWaterDialog(context, controller, crop),
-            onFertilize: () => _showFertilizeDialog(context, controller, crop),
-            onHarvest: () => _showHarvestDialog(
-              context,
-              controller,
-              crop,
-              stockState.stocks,
-            ),
-            onEdit: () => _showEditDialog(
-              context,
-              controller,
-              crop,
-              canDelete: canDelete,
-            ),
-          ),
+          actions: canManage
+              ? CropActionButtons(
+                  onWater: () => _showWaterDialog(context, controller, crop),
+                  onFertilize: () =>
+                      _showFertilizeDialog(context, controller, crop),
+                  onHarvest: () => _showHarvestDialog(
+                    context,
+                    controller,
+                    crop,
+                    stockState.stocks,
+                  ),
+                  onEdit: () => _showEditDialog(
+                    context,
+                    controller,
+                    crop,
+                    canDelete: canDelete,
+                  ),
+                )
+              : null,
         ),
         const SizedBox(height: AppSpacing.lg),
         _SectionCard(
@@ -194,7 +201,7 @@ class CropDetailsScreen extends ConsumerWidget {
         ),
       ],
       onConfirm: () async {
-        await controller.waterCrop(
+        return controller.waterCrop(
           cropId: crop.id,
           amount: amountController.text,
           notes: notesController.text,
@@ -232,7 +239,7 @@ class CropDetailsScreen extends ConsumerWidget {
         ),
       ],
       onConfirm: () async {
-        await controller.fertilizeCrop(
+        return controller.fertilizeCrop(
           cropId: crop.id,
           fertilizerType: typeController.text,
           quantity: quantityController.text,
@@ -247,11 +254,12 @@ class CropDetailsScreen extends ConsumerWidget {
     BuildContext context,
     CropMonitoringController controller,
     CropModel crop, {
-      required bool canDelete,
-    }) {
+    required bool canDelete,
+  }) {
     final nameController = TextEditingController(text: crop.name);
     final varietyController = TextEditingController(text: crop.variety);
-    final quantityController = TextEditingController(text: '${crop.safeSeedCount}');
+    final quantityController =
+        TextEditingController(text: '${crop.safeSeedCount}');
     final harvestController = TextEditingController(
       text: _formatDateInput(crop.estimatedHarvest),
     );
@@ -292,14 +300,17 @@ class CropDetailsScreen extends ConsumerWidget {
                     ),
                     TextField(
                       controller: staffController,
-                      decoration: const InputDecoration(labelText: 'Assigned Staff'),
+                      decoration:
+                          const InputDecoration(labelText: 'Assigned Staff'),
                     ),
                     DropdownButtonFormField<CropGrowthStage>(
                       value: stage,
-                      decoration: const InputDecoration(labelText: 'Growth Stage'),
+                      decoration:
+                          const InputDecoration(labelText: 'Growth Stage'),
                       items: [
                         for (final item in CropGrowthStage.values)
-                          DropdownMenuItem(value: item, child: Text(item.label)),
+                          DropdownMenuItem(
+                              value: item, child: Text(item.label)),
                       ],
                       onChanged: (value) {
                         if (value != null) {
@@ -309,10 +320,12 @@ class CropDetailsScreen extends ConsumerWidget {
                     ),
                     DropdownButtonFormField<CropStatus>(
                       value: status,
-                      decoration: const InputDecoration(labelText: 'Crop Status'),
+                      decoration:
+                          const InputDecoration(labelText: 'Crop Status'),
                       items: [
                         for (final item in CropStatus.values)
-                          DropdownMenuItem(value: item, child: Text(item.label)),
+                          DropdownMenuItem(
+                              value: item, child: Text(item.label)),
                       ],
                       onChanged: (value) {
                         if (value != null) {
@@ -366,10 +379,13 @@ class CropDetailsScreen extends ConsumerWidget {
                       title: 'Save Crop Changes',
                       message: 'Save changes to ${crop.name} ${crop.id}?',
                       onConfirm: () async {
-                        await controller.updateCrop(updatedCrop);
-                        Future<void>.microtask(
-                          () => Navigator.of(context).pop(),
-                        );
+                        final saved = await controller.updateCrop(updatedCrop);
+                        if (saved && context.mounted) {
+                          Future<void>.microtask(
+                            () => Navigator.of(context).pop(),
+                          );
+                        }
+                        return saved;
                       },
                     );
                   },
@@ -534,8 +550,9 @@ class CropDetailsScreen extends ConsumerWidget {
       title: 'Delete Crop',
       message: 'Delete ${crop.name} ${crop.id}?',
       onConfirm: () async {
-        await controller.deleteCrop(crop.id);
-        context.go(AppRoutes.crops);
+        final deleted = await controller.deleteCrop(crop.id);
+        if (deleted && context.mounted) context.go(AppRoutes.crops);
+        return deleted;
       },
     );
   }
@@ -544,7 +561,7 @@ class CropDetailsScreen extends ConsumerWidget {
     required BuildContext context,
     required String title,
     required List<Widget> fields,
-    required Future<void> Function() onConfirm,
+    required Future<bool> Function() onConfirm,
   }) {
     showDialog<void>(
       context: context,
@@ -565,8 +582,8 @@ class CropDetailsScreen extends ConsumerWidget {
               label: 'Confirm',
               icon: Icons.check,
               onPressed: () async {
-                await onConfirm();
-                Navigator.of(context).pop();
+                final succeeded = await onConfirm();
+                if (succeeded && context.mounted) Navigator.of(context).pop();
               },
             ),
           ],
@@ -579,7 +596,7 @@ class CropDetailsScreen extends ConsumerWidget {
     required BuildContext context,
     required String title,
     required String message,
-    required Future<void> Function() onConfirm,
+    required Future<bool> Function() onConfirm,
   }) {
     showDialog<void>(
       context: context,
@@ -603,8 +620,8 @@ class CropDetailsScreen extends ConsumerWidget {
               label: 'Confirm',
               icon: Icons.check,
               onPressed: () async {
-                await onConfirm();
-                Navigator.of(context).pop();
+                final succeeded = await onConfirm();
+                if (succeeded && context.mounted) Navigator.of(context).pop();
               },
             ),
           ],
@@ -617,12 +634,12 @@ class CropDetailsScreen extends ConsumerWidget {
     required String label,
     required VoidCallback onPressed,
     IconData? icon,
-    Color color = AppColors.primaryGreen,
+    Color? color,
     Color? borderColor,
   }) {
     final style = OutlinedButton.styleFrom(
-      foregroundColor: color,
-      side: BorderSide(color: borderColor ?? color),
+      foregroundColor: color ?? AppColors.primaryGreen,
+      side: BorderSide(color: borderColor ?? color ?? AppColors.primaryGreen),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
@@ -653,8 +670,7 @@ class CropDetailsScreen extends ConsumerWidget {
       children: [
         for (var index = 0; index < fields.length; index++) ...[
           fields[index],
-          if (index != fields.length - 1)
-            const SizedBox(height: AppSpacing.md),
+          if (index != fields.length - 1) const SizedBox(height: AppSpacing.md),
         ],
       ],
     );
@@ -703,7 +719,7 @@ class _CropDetailsHeader extends StatelessWidget {
           child: IconButton(
             tooltip: 'Back',
             onPressed: onBack,
-            icon: const Icon(Icons.arrow_back, color: AppColors.primaryText),
+            icon: Icon(Icons.arrow_back, color: AppColors.primaryText),
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
@@ -728,7 +744,7 @@ class _CropDetailsHeader extends StatelessWidget {
                   IconButton(
                     tooltip: 'View environmental information',
                     onPressed: onViewEnvironmentalInfo,
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.info_outline,
                       color: AppColors.primaryText,
                     ),
@@ -753,7 +769,7 @@ class _GreenGradient extends StatelessWidget {
     return ShaderMask(
       blendMode: BlendMode.srcIn,
       shaderCallback: (bounds) {
-        return const LinearGradient(
+        return LinearGradient(
           colors: [
             AppColors.buttonGradientStart,
             AppColors.buttonGradientEnd,
@@ -790,7 +806,7 @@ class _SectionCard extends StatelessWidget {
               IconButton(
                 tooltip: 'View full history',
                 onPressed: onHistoryTap,
-                icon: const Icon(
+                icon: Icon(
                   Icons.history,
                   color: AppColors.primaryGreen,
                   size: 20,
@@ -844,7 +860,7 @@ class _CropStyledDialog extends StatelessWidget {
                 IconButton(
                   tooltip: 'Close',
                   onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.close,
                     color: AppColors.primaryText,
                   ),
@@ -949,7 +965,7 @@ class _DialogErrorMessage extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.sm),
         child: Row(
           children: [
-            const Icon(Icons.error_outline, color: AppColors.danger, size: 18),
+            Icon(Icons.error_outline, color: AppColors.danger, size: 18),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(

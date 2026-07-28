@@ -128,8 +128,6 @@ class LocalWifiRoverService {
     }
   }
 
-  Future<void> disconnect() async => _setConnected(false);
-
   void _setConnected(bool value) {
     _isConnected = value;
     _connectedController.add(value);

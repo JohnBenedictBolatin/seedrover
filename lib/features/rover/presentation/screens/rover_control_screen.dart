@@ -211,7 +211,7 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen> {
     required String message,
     required String confirmLabel,
     required Future<void> Function() onConfirm,
-    Color confirmColor = AppColors.primaryGreen,
+    Color? confirmColor,
   }) {
     showDialog<void>(
       context: context,
@@ -220,7 +220,7 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen> {
           title: title,
           message: message,
           confirmLabel: confirmLabel,
-          confirmColor: confirmColor,
+          confirmColor: confirmColor ?? AppColors.primaryGreen,
           onConfirm: () {
             Navigator.of(dialogContext).pop();
             onConfirm();
@@ -562,7 +562,7 @@ class _RoverHeader extends StatelessWidget {
           onPressed: onBack,
           tooltip: 'Back',
           visualDensity: VisualDensity.compact,
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(Icons.arrow_back),
           color: AppColors.primaryText,
         ),
         const SizedBox(width: AppSpacing.xs),

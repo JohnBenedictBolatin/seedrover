@@ -9,29 +9,33 @@ class StatusBadge extends StatelessWidget {
   const StatusBadge({
     required this.label,
     super.key,
-    this.color = AppColors.primaryGreen,
+    this.color,
     this.textStyle,
+    this.padding = const EdgeInsets.symmetric(
+      horizontal: AppSpacing.sm,
+      vertical: AppSpacing.xs,
+    ),
   });
 
   final String label;
-  final Color color;
+  final Color? color;
   final TextStyle? textStyle;
+  final EdgeInsetsGeometry padding;
 
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        border: Border.all(color: color),
+        border: Border.all(color: color ?? AppColors.primaryGreen),
         borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm,
-          vertical: AppSpacing.xs,
-        ),
+        padding: padding,
         child: Text(
           label.toUpperCase(),
-          style: (textStyle ?? AppTypography.statusBadge).copyWith(color: color),
+          style: (textStyle ?? AppTypography.statusBadge).copyWith(
+            color: color ?? AppColors.primaryGreen,
+          ),
         ),
       ),
     );

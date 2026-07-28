@@ -176,16 +176,6 @@ class RoverControlController extends StateNotifier<RoverControlState> {
     }
   }
 
-  Future<void> disconnectLocalWifi() async {
-    await _localWifiService.disconnect();
-    state = state.copyWith(
-      localWifiConnected: false,
-      clearPingRoundTrip: true,
-      lastCommand: 'Local Wi-Fi disconnected',
-      clearErrorMessage: true,
-    );
-  }
-
   Future<void> pingRover() async {
     state = state.copyWith(
       isPinging: true,

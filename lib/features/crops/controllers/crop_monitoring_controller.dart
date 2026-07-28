@@ -99,7 +99,7 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
     }
   }
 
-  Future<void> waterCrop({
+  Future<bool> waterCrop({
     required String cropId,
     required String notes,
     required DateTime date,
@@ -109,7 +109,7 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
         ? ''
         : ' Amount: ${amount.trim()}.';
 
-    await _addMaintenance(
+    return _addMaintenance(
       cropId: cropId,
       activity: CropMaintenanceActivity.watered,
       date: date,
@@ -120,7 +120,7 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
     );
   }
 
-  Future<void> fertilizeCrop({
+  Future<bool> fertilizeCrop({
     required String cropId,
     required String fertilizerType,
     required String notes,
@@ -131,7 +131,7 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
         ? ''
         : ' Quantity: ${quantity.trim()}.';
 
-    await _addMaintenance(
+    return _addMaintenance(
       cropId: cropId,
       activity: CropMaintenanceActivity.fertilized,
       date: date,
@@ -201,26 +201,30 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
     return null;
   }
 
-  Future<void> updateCrop(CropModel crop) async {
+  Future<bool> updateCrop(CropModel crop) async {
     try {
       final updatedCrop = await _repository.updateCrop(crop);
       _replaceCrop(updatedCrop, successMessage: 'Crop information updated.');
+      return true;
     } catch (error) {
       state = state.copyWith(
         errorMessage: _friendlyError(error, fallback: 'Unable to update crop.'),
       );
+      return false;
     }
   }
 
-  Future<void> deleteCrop(String cropId) async {
+  Future<bool> deleteCrop(String cropId) async {
     try {
       await _repository.deleteCrop(cropId);
       final crops = state.crops.where((crop) => crop.id != cropId).toList();
       _setCrops(crops, successMessage: 'Crop deleted.', isLoading: false);
+      return true;
     } catch (error) {
       state = state.copyWith(
         errorMessage: _friendlyError(error, fallback: 'Unable to delete crop.'),
       );
+      return false;
     }
   }
 
@@ -359,7 +363,7 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
     return filtered;
   }
 
-  Future<void> _addMaintenance({
+  Future<bool> _addMaintenance({
     required String cropId,
     required CropMaintenanceActivity activity,
     required DateTime date,
@@ -374,7 +378,7 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
     final crop = cropById(cropId);
 
     if (crop == null) {
-      return;
+      return false;
     }
 
     try {
@@ -391,6 +395,7 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
       );
 
       _replaceCrop(updatedCrop, successMessage: successMessage);
+      return true;
     } catch (error) {
       state = state.copyWith(
         errorMessage: _friendlyError(
@@ -398,6 +403,7 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
           fallback: 'Unable to record crop activity.',
         ),
       );
+      return false;
     }
   }
 

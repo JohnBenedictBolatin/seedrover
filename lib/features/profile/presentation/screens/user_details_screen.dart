@@ -59,7 +59,7 @@ class UserDetailsScreen extends ConsumerWidget {
 
                 context.go(AppRoutes.profile);
               },
-              icon: const Icon(
+              icon: Icon(
                 CupertinoIcons.arrow_left,
                 color: AppColors.primaryGreen,
               ),
@@ -95,7 +95,8 @@ class UserDetailsScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(user.fullName, style: AppTypography.sectionHeading),
+                        Text(user.fullName,
+                            style: AppTypography.sectionHeading),
                         const SizedBox(height: AppSpacing.xs),
                         Text(user.username, style: AppTypography.monoCaption),
                         const SizedBox(height: AppSpacing.sm),
@@ -126,7 +127,7 @@ class UserDetailsScreen extends ConsumerWidget {
                     controller,
                     user,
                   ),
-                  icon: const Icon(
+                  icon: Icon(
                     CupertinoIcons.pencil,
                     color: AppColors.danger,
                     size: 15,
@@ -134,7 +135,7 @@ class UserDetailsScreen extends ConsumerWidget {
                   label: const Text('Edit User'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.danger,
-                    side: const BorderSide(color: AppColors.danger),
+                    side: BorderSide(color: AppColors.danger),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(AppRadius.sm),
                     ),
@@ -180,7 +181,8 @@ class UserDetailsScreen extends ConsumerWidget {
                       const SizedBox(height: AppSpacing.md),
                       TextField(
                         controller: fullNameController,
-                        decoration: const InputDecoration(labelText: 'Full Name'),
+                        decoration:
+                            const InputDecoration(labelText: 'Full Name'),
                       ),
                       const SizedBox(height: AppSpacing.md),
                       TextField(
@@ -192,7 +194,8 @@ class UserDetailsScreen extends ConsumerWidget {
                       TextField(
                         enabled: false,
                         controller: TextEditingController(text: user.username),
-                        decoration: const InputDecoration(labelText: 'Username'),
+                        decoration:
+                            const InputDecoration(labelText: 'Username'),
                       ),
                       const SizedBox(height: AppSpacing.md),
                       DropdownButtonFormField<String>(
@@ -238,7 +241,7 @@ class UserDetailsScreen extends ConsumerWidget {
                             OutlinedButton(
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: AppColors.primaryText,
-                                side: const BorderSide(
+                                side: BorderSide(
                                   color: AppColors.primaryText,
                                 ),
                                 shape: RoundedRectangleBorder(
@@ -249,7 +252,8 @@ class UserDetailsScreen extends ConsumerWidget {
                                   vertical: AppSpacing.sm,
                                 ),
                               ),
-                              onPressed: () => Navigator.of(dialogContext).pop(),
+                              onPressed: () =>
+                                  Navigator.of(dialogContext).pop(),
                               child: const Text('Cancel'),
                             ),
                             OutlinedButton.icon(
@@ -273,7 +277,7 @@ class UserDetailsScreen extends ConsumerWidget {
                                   },
                                 );
                               },
-                              icon: const Icon(
+                              icon: Icon(
                                 CupertinoIcons.check_mark,
                                 color: AppColors.primaryGreen,
                                 size: 15,
@@ -281,7 +285,7 @@ class UserDetailsScreen extends ConsumerWidget {
                               label: const Text('Save'),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: AppColors.primaryGreen,
-                                side: const BorderSide(
+                                side: BorderSide(
                                   color: AppColors.primaryGreen,
                                 ),
                                 shape: RoundedRectangleBorder(

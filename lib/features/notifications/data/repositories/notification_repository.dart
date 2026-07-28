@@ -47,6 +47,25 @@ class NotificationRepository {
         .update({'is_read': false}).eq('id', notificationId);
   }
 
+  Future<void> markAllAsRead(Iterable<String> notificationIds) async {
+    final ids = notificationIds.toList(growable: false);
+    if (ids.isEmpty) return;
+
+    await _client
+        .from(DatabaseTables.notifications)
+        .update({'is_read': true}).inFilter('id', ids);
+  }
+
+  Future<void> deleteNotifications(Iterable<String> notificationIds) async {
+    final ids = notificationIds.toList(growable: false);
+    if (ids.isEmpty) return;
+
+    await _client
+        .from(DatabaseTables.notifications)
+        .delete()
+        .inFilter('id', ids);
+  }
+
   Future<void> deleteNotification(String notificationId) async {
     await _client
         .from(DatabaseTables.notifications)

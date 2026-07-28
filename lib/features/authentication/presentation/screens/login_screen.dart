@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -18,6 +19,9 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen>
     with SingleTickerProviderStateMixin {
+  static const _rememberUsernameKey = 'seedrover.remember_username';
+  static const _rememberEnabledKey = 'seedrover.remember_enabled';
+
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -31,6 +35,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   void initState() {
     super.initState();
     _fieldAnimationController = _createFieldAnimationController();
+    _restoreRememberedUsername();
   }
 
   @override
@@ -61,6 +66,54 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           username: _usernameController.text,
           password: _passwordController.text,
         );
+
+    if (ref.read(authControllerProvider).isAuthenticated) {
+      await _saveRememberPreference();
+    }
+  }
+
+  Future<void> _restoreRememberedUsername() async {
+    final preferences = await SharedPreferences.getInstance();
+    final shouldRemember = preferences.getBool(_rememberEnabledKey) ?? false;
+    final rememberedUsername = preferences.getString(_rememberUsernameKey);
+
+    if (!mounted || !shouldRemember || rememberedUsername == null) {
+      return;
+    }
+
+    setState(() {
+      _rememberMe = true;
+      _usernameController.text = rememberedUsername;
+    });
+  }
+
+  Future<void> _saveRememberPreference() async {
+    final preferences = await SharedPreferences.getInstance();
+
+    if (_rememberMe) {
+      await preferences.setBool(_rememberEnabledKey, true);
+      await preferences.setString(
+        _rememberUsernameKey,
+        _usernameController.text.trim(),
+      );
+      return;
+    }
+
+    await preferences.setBool(_rememberEnabledKey, false);
+    await preferences.remove(_rememberUsernameKey);
+    _usernameController.clear();
+  }
+
+  Future<void> _setRememberMe(bool value) async {
+    setState(() => _rememberMe = value);
+
+    if (value) {
+      return;
+    }
+
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setBool(_rememberEnabledKey, false);
+    await preferences.remove(_rememberUsernameKey);
   }
 
   Future<void> _sendPasswordResetEmail() async {
@@ -89,7 +142,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         children: [
           SafeArea(
             child: DecoratedBox(
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -215,7 +268,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                     value: _rememberMe,
                                     enabled: !authState.isLoading,
                                     onChanged: (value) {
-                                      setState(() => _rememberMe = value);
+                                      _setRememberMe(value);
                                     },
                                     onForgotPassword: _sendPasswordResetEmail,
                                   ),
@@ -482,13 +535,13 @@ class _RememberMeRow extends StatelessWidget {
     return Row(
       children: [
         SizedBox(
-          height: 34,
-          width: 34,
+          height: 30,
+          width: 30,
           child: Checkbox(
             value: value,
             activeColor: AppColors.primaryGreen,
             checkColor: AppColors.primaryBackground,
-            side: const BorderSide(color: AppColors.primaryGreen),
+            side: BorderSide(color: AppColors.primaryGreen),
             onChanged: enabled
                 ? (nextValue) => onChanged(nextValue ?? false)
                 : null,
@@ -502,12 +555,27 @@ class _RememberMeRow extends StatelessWidget {
               'Remember me',
               style: AppTypography.small.copyWith(
                 color: AppColors.secondaryText,
+                fontSize: 11,
+                height: 14 / 11,
               ),
             ),
           ),
         ),
         TextButton(
           onPressed: enabled ? onForgotPassword : null,
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.xs,
+              vertical: AppSpacing.xs,
+            ),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            textStyle: AppTypography.small.copyWith(
+              fontSize: 11,
+              height: 14 / 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           child: const Text('Forgot password?'),
         ),
       ],

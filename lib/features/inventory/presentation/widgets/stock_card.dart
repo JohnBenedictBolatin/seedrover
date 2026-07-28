@@ -48,7 +48,19 @@ class StockCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: AppSpacing.xs),
-                StatusBadge(label: stock.status.label, color: statusColor),
+                StatusBadge(
+                  label: stock.status.label,
+                  color: statusColor,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  textStyle: AppTypography.statusBadge.copyWith(
+                    fontSize: 9,
+                    height: 12 / 9,
+                    letterSpacing: .35,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -73,7 +85,7 @@ class StockCard extends StatelessWidget {
                     itemName: stock.name,
                     imageUrl: stock.imageUrl,
                     assetPath: stock.imageAssetPath,
-                    size: 78,
+                    size: 64,
                   ),
                 ),
               ),
@@ -86,7 +98,7 @@ class StockCard extends StatelessWidget {
               value: '${_formatQuantity(stock.currentQuantity)} ${stock.unit}',
               isTechnical: true,
             ),
-            const SizedBox(height: AppSpacing.md),
+            const SizedBox(height: AppSpacing.sm),
             SizedBox(
               width: double.infinity,
               child: FilledButton(
@@ -95,7 +107,7 @@ class StockCard extends StatelessWidget {
                   backgroundColor: AppColors.cardBackground,
                   foregroundColor: AppColors.primaryGreen,
                   minimumSize: const Size.fromHeight(32),
-                  side: const BorderSide(color: AppColors.primaryGreen),
+                  side: BorderSide(color: AppColors.primaryGreen),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(AppRadius.sm),
                   ),

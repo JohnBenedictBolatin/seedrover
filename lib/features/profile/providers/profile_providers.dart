@@ -10,5 +10,9 @@ final profileControllerProvider =
   final repository = ref.watch(profileRepositoryProvider);
   final authProfile = ref.watch(authControllerProvider).profile;
 
-  return ProfileController(repository, authProfile);
+  return ProfileController(
+    repository,
+    authProfile,
+    ref.read(authControllerProvider.notifier).refreshProfile,
+  );
 });

@@ -6,18 +6,27 @@ import '../data/repositories/profile_repository.dart';
 import 'profile_state.dart';
 
 class ProfileController extends StateNotifier<ProfileState> {
-  ProfileController(this._repository, this._authProfile)
+  ProfileController(
+      this._repository, this._authProfile, this._refreshAuthProfile)
       : super(ProfileState.initial()) {
     loadProfile();
   }
 
   final ProfileRepository _repository;
   final AuthProfileModel? _authProfile;
+  final Future<void> Function() _refreshAuthProfile;
 
   Future<void> loadProfile() async {
     try {
       final users = _mergeAuthenticatedUser(await _repository.getUsers());
-      final activities = await _repository.getActivities();
+      // Activity logs are permission-gated for non-admin users. A profile
+      // should still load when that optional section is unavailable.
+      List<ProfileActivityModel> activities;
+      try {
+        activities = await _repository.getActivities();
+      } catch (_) {
+        activities = const <ProfileActivityModel>[];
+      }
 
       state = state.copyWith(
         users: users,
@@ -131,7 +140,7 @@ class ProfileController extends StateNotifier<ProfileState> {
             iconKey: 'inventory',
           ),
           ProfileStatModel(
-            label: 'Low Stock Items',
+            label: 'Low Inventory Items',
             value: '2',
             context: 'Now',
             iconKey: 'warning',
@@ -171,8 +180,7 @@ class ProfileController extends StateNotifier<ProfileState> {
 
     return state.activities.where((activity) {
       return switch (state.activityFilter) {
-        ProfileActivityFilter.today =>
-          _sameDay(activity.timestamp, now),
+        ProfileActivityFilter.today => _sameDay(activity.timestamp, now),
         ProfileActivityFilter.thisWeek =>
           activity.timestamp.isAfter(now.subtract(const Duration(days: 7))),
         ProfileActivityFilter.thisMonth =>
@@ -206,16 +214,17 @@ class ProfileController extends StateNotifier<ProfileState> {
   }) async {
     final current = currentUser;
     final updatedUser = current.copyWith(
-        fullName: fullName.trim().isEmpty ? current.fullName : fullName.trim(),
-        contactNumber: contactNumber.trim().isEmpty
-            ? current.contactNumber
-            : contactNumber.trim(),
+      fullName: fullName.trim().isEmpty ? current.fullName : fullName.trim(),
+      contactNumber: contactNumber.trim().isEmpty
+          ? current.contactNumber
+          : contactNumber.trim(),
     );
 
     try {
       final savedUser = await _repository.updateCurrentProfile(
         profileId: current.id,
         fullName: updatedUser.fullName,
+        contactNumber: updatedUser.contactNumber,
       );
       final users = [
         for (final user in state.users)
@@ -230,15 +239,44 @@ class ProfileController extends StateNotifier<ProfileState> {
         filteredUsers: _filterUsers(users, state.searchQuery, state.userFilter),
         successMessage: 'Profile updated.',
       );
+      await _refreshAuthProfile();
     } catch (_) {
       state = state.copyWith(errorMessage: 'Unable to update profile.');
     }
   }
 
-  void changePassword() {
-    state = state.copyWith(
-      successMessage: 'Password changes will be handled through Supabase email reset.',
-    );
+  Future<bool> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String confirmation,
+  }) async {
+    if (currentPassword.isEmpty) {
+      state = state.copyWith(errorMessage: 'Enter your current password.');
+      return false;
+    }
+    if (newPassword.length < 8) {
+      state = state.copyWith(
+          errorMessage: 'New password must be at least 8 characters.');
+      return false;
+    }
+    if (newPassword != confirmation) {
+      state = state.copyWith(
+          errorMessage: 'New password confirmation does not match.');
+      return false;
+    }
+    try {
+      await _repository.changePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+      state = state.copyWith(successMessage: 'Password changed successfully.');
+      return true;
+    } catch (_) {
+      state = state.copyWith(
+          errorMessage:
+              'Current password is incorrect or the password could not be changed.');
+      return false;
+    }
   }
 
   Future<void> changeProfilePicture(ProfileImageUpload upload) async {
@@ -272,17 +310,47 @@ class ProfileController extends StateNotifier<ProfileState> {
     }
   }
 
-  void createUser({
+  Future<void> createUser({
     required String fullName,
     required String username,
     required String email,
     required String contactNumber,
     required String roleName,
-  }) {
-    state = state.copyWith(
-      errorMessage:
-          'Creating Supabase Auth users requires a secure admin Edge Function.',
-    );
+  }) async {
+    final normalizedUsername = username.trim().toLowerCase();
+    if (fullName.trim().isEmpty ||
+        email.trim().isEmpty ||
+        !RegExp(r'^[a-z0-9_]{3,32}$').hasMatch(normalizedUsername)) {
+      state = state.copyWith(
+          errorMessage:
+              'Enter a name, email, and a valid 3-32 character username.');
+      return;
+    }
+    final temporaryPassword = _temporaryPassword();
+    try {
+      await _repository.createUser(
+        fullName: fullName.trim(),
+        username: normalizedUsername,
+        email: email.trim().toLowerCase(),
+        contactNumber: contactNumber.trim(),
+        roleName: roleName,
+        temporaryPassword: temporaryPassword,
+      );
+      await loadProfile();
+      state = state.copyWith(
+        generatedPassword: temporaryPassword,
+        successMessage: 'User created. Temporary password:',
+      );
+    } catch (_) {
+      state = state.copyWith(
+          errorMessage:
+              'Unable to create user. Check for duplicate username or email.');
+    }
+  }
+
+  String _temporaryPassword() {
+    final value = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+    return 'Sr!${value.substring(value.length - 8)}A7';
   }
 
   Future<void> updateUser(
@@ -349,6 +417,7 @@ class ProfileController extends StateNotifier<ProfileState> {
   void clearMessages() {
     state = state.copyWith(
       successMessage: null,
+      errorMessage: null,
       generatedPassword: null,
     );
   }
@@ -384,8 +453,8 @@ class ProfileController extends StateNotifier<ProfileState> {
           : ProfileAccountStatus.inactive,
       profileImagePath: existingUser?.profileImagePath,
       profileImageUrl: existingUser?.profileImageUrl,
-      hasProfilePicture: existingUser?.hasProfilePicture ??
-          !state.profilePictureRemoved,
+      hasProfilePicture:
+          existingUser?.hasProfilePicture ?? !state.profilePictureRemoved,
     );
 
     return [
@@ -429,5 +498,4 @@ class ProfileController extends StateNotifier<ProfileState> {
         left.month == right.month &&
         left.day == right.day;
   }
-
 }

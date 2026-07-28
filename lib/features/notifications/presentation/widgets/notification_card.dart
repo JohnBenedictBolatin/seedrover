@@ -92,7 +92,7 @@ class NotificationCard extends StatelessWidget {
                   _ReadDot(isRead: notification.isRead),
                   const SizedBox(height: AppSpacing.xl),
                   const SizedBox(height: AppSpacing.md),
-                  const Icon(
+                  Icon(
                     CupertinoIcons.arrow_right,
                     color: AppColors.primaryText,
                     size: 23,

@@ -5,12 +5,12 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../features/authentication/providers/auth_providers.dart';
 import '../../../../shared/widgets/content_skeleton.dart';
 import '../../providers/dashboard_providers.dart';
-import '../widgets/dashboard_analytics_section.dart';
 import '../widgets/dashboard_header.dart';
 import '../widgets/recent_activity_panel.dart';
-import '../widgets/rover_overview_card.dart';
+import '../widgets/dashboard_quick_actions.dart';
+import '../widgets/dashboard_summary_hero.dart';
+import '../widgets/sales_inventory_charts.dart';
 import '../widgets/section_title.dart';
-import '../widgets/sensor_summary_grid.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -67,7 +67,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               loading: () => const _DashboardLoadingSkeleton(),
               error: (_, __) => ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(AppSpacing.lg),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  AppSpacing.lg,
+                  AppSpacing.md,
+                  AppSpacing.lg,
+                ),
                 children: const [
                   SectionTitle(title: 'Dashboard unavailable'),
                   SizedBox(height: AppSpacing.md),
@@ -76,26 +81,30 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
               data: (dashboard) => ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(AppSpacing.lg),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  AppSpacing.lg,
+                  AppSpacing.md,
+                  AppSpacing.lg,
+                ),
                 children: [
                   DashboardHeader(
                     fullName: profile?.fullName ?? 'Operator',
                     roleName: profile?.roleName ?? 'Authenticated User',
                     timestamp: now,
                   ),
+                  const SizedBox(height: AppSpacing.lg),
+                  DashboardSummaryHero(
+                    contentAfterHero: DashboardQuickActions(
+                      rover: dashboard.rover,
+                    ),
+                  ),
                   const SizedBox(height: AppSpacing.xl),
-                  const SectionTitle(title: 'Rover Overview'),
-                  const SizedBox(height: AppSpacing.md),
-                  RoverOverviewCard(rover: dashboard.rover),
+                  SalesInventoryCharts(
+                    key: const ValueKey('dashboard-overview-v2'),
+                    rover: dashboard.rover,
+                  ),
                   const SizedBox(height: AppSpacing.xl),
-                  const SectionTitle(title: 'Sensor Summary', mono: true),
-                  const SizedBox(height: AppSpacing.md),
-                  SensorSummaryGrid(sensors: dashboard.sensors),
-                  const SizedBox(height: AppSpacing.xl),
-                  const DashboardAnalyticsSection(),
-                  const SizedBox(height: AppSpacing.xl),
-                  const SectionTitle(title: 'Recent Activities'),
-                  const SizedBox(height: AppSpacing.md),
                   RecentActivityPanel(activities: dashboard.recentActivities),
                 ],
               ),
@@ -129,41 +138,23 @@ class _DashboardLoadingSkeleton extends StatelessWidget {
           ],
         ),
         SizedBox(height: AppSpacing.xl),
-        SkeletonLine(widthFactor: 0.42, height: 18),
-        SizedBox(height: AppSpacing.md),
         Row(
           children: [
-            Expanded(child: SkeletonCard(height: 92, children: [])),
+            Expanded(child: SkeletonCard(height: 68, children: [])),
             SizedBox(width: AppSpacing.sm),
-            Expanded(child: SkeletonCard(height: 92, children: [])),
-          ],
-        ),
-        SizedBox(height: AppSpacing.sm),
-        Row(
-          children: [
-            Expanded(child: SkeletonCard(height: 92, children: [])),
+            Expanded(child: SkeletonCard(height: 68, children: [])),
             SizedBox(width: AppSpacing.sm),
-            Expanded(child: SkeletonCard(height: 92, children: [])),
+            Expanded(child: SkeletonCard(height: 68, children: [])),
           ],
         ),
         SizedBox(height: AppSpacing.xl),
         SkeletonLine(widthFactor: 0.42, height: 18),
         SizedBox(height: AppSpacing.md),
-        Row(
-          children: [
-            Expanded(child: SkeletonCard(height: 80, children: [])),
-            SizedBox(width: AppSpacing.sm),
-            Expanded(child: SkeletonCard(height: 80, children: [])),
-          ],
-        ),
-        SizedBox(height: AppSpacing.sm),
-        Row(
-          children: [
-            Expanded(child: SkeletonCard(height: 160, children: [])),
-            SizedBox(width: AppSpacing.sm),
-            Expanded(child: SkeletonCard(height: 160, children: [])),
-          ],
-        ),
+        SkeletonCard(height: 220, children: []),
+        SizedBox(height: AppSpacing.md),
+        SkeletonCard(height: 210, children: []),
+        SizedBox(height: AppSpacing.md),
+        SkeletonCard(height: 124, children: []),
         SizedBox(height: AppSpacing.xl),
         SkeletonLine(widthFactor: 0.42, height: 18),
         SizedBox(height: AppSpacing.md),

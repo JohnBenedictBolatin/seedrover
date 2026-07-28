@@ -70,7 +70,9 @@ class StockDetailsScreen extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(message)),
         );
-        ref.read(stockInventoryControllerProvider.notifier).clearSuccessMessage();
+        ref
+            .read(stockInventoryControllerProvider.notifier)
+            .clearSuccessMessage();
       }
     });
 
@@ -80,12 +82,13 @@ class StockDetailsScreen extends ConsumerWidget {
 
     if (stock == null) {
       return Center(
-        child: Text('Stock item not found.', style: AppTypography.body),
+        child: Text('Inventory item not found.', style: AppTypography.body),
       );
     }
 
-    final canDelete =
-        profile?.isAdministrator == true || profile?.isInventoryManager == true;
+    final canDelete = profile?.isAdministrator ?? false;
+    final canManage =
+        profile?.hasPermission(PermissionKeys.stocksManage) ?? false;
     final canEditPricing = profile?.isAdministrator == true ||
         profile?.isInventoryManager == true ||
         (profile?.hasPermission(PermissionKeys.stocksPricingManage) ?? false) ||
@@ -121,33 +124,34 @@ class StockDetailsScreen extends ConsumerWidget {
               const SizedBox(height: AppSpacing.lg),
               _PricingSalesSection(stock: stock),
               const SizedBox(height: AppSpacing.lg),
-              StockActionButtons(
-                onStockIn: () => _showStockInDialog(
-                  context,
-                  controller,
-                  stock,
-                  performedBy,
+              if (canManage)
+                StockActionButtons(
+                  onStockIn: () => _showStockInDialog(
+                    context,
+                    controller,
+                    stock,
+                    performedBy,
+                  ),
+                  onStockOut: () => _showStockOutDialog(
+                    context,
+                    controller,
+                    stock,
+                    performedBy,
+                  ),
+                  onAdjust: () => _showAdjustDialog(
+                    context,
+                    controller,
+                    stock,
+                    performedBy,
+                  ),
+                  onEdit: () => _showEditDialog(
+                    context,
+                    controller,
+                    stock,
+                    canDelete: canDelete,
+                    canEditPricing: canEditPricing,
+                  ),
                 ),
-                onStockOut: () => _showStockOutDialog(
-                  context,
-                  controller,
-                  stock,
-                  performedBy,
-                ),
-                onAdjust: () => _showAdjustDialog(
-                  context,
-                  controller,
-                  stock,
-                  performedBy,
-                ),
-                onEdit: () => _showEditDialog(
-                  context,
-                  controller,
-                  stock,
-                  canDelete: canDelete,
-                  canEditPricing: canEditPricing,
-                ),
-              ),
               const SizedBox(height: AppSpacing.lg),
               Text('Notes', style: AppTypography.cardTitle),
               const SizedBox(height: AppSpacing.sm),
@@ -289,7 +293,8 @@ class StockDetailsScreen extends ConsumerWidget {
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
-                      decoration: const InputDecoration(labelText: 'Unit Price'),
+                      decoration:
+                          const InputDecoration(labelText: 'Unit Price'),
                       onChanged: (_) => setDialogState(() {}),
                     ),
                     _ReadOnlyInfoRow(
@@ -319,7 +324,8 @@ class StockDetailsScreen extends ConsumerWidget {
                         controller: transactionReferenceController,
                         decoration: const InputDecoration(
                           labelText: 'Transaction ID',
-                          helperText: 'Required for GCash, bank, card, or other.',
+                          helperText:
+                              'Required for GCash, bank, card, or other.',
                         ),
                       ),
                     if (selectedPaymentMethod == 'Other')
@@ -384,7 +390,8 @@ class StockDetailsScreen extends ConsumerWidget {
 
                           _showTransactionDialog(
                             context: dialogContext,
-                            title: isSale ? 'Confirm Sale' : 'Confirm Stock Out',
+                            title:
+                                isSale ? 'Confirm Sale' : 'Confirm Stock Out',
                             message: isSale
                                 ? 'Record ${_formatQuantity(quantity)} ${stock.unit} of ${stock.name} as market distribution for ${CurrencyFormatter.php(totalAmount)}?'
                                 : 'Deduct ${_formatQuantity(quantity)} ${stock.unit} of ${stock.name} for $selectedReason?',
@@ -501,7 +508,8 @@ class StockDetailsScreen extends ConsumerWidget {
           ? ''
           : stock.sellingPrice!.toStringAsFixed(2),
     );
-    final locationController = TextEditingController(text: stock.storageLocation);
+    final locationController =
+        TextEditingController(text: stock.storageLocation);
     final supplierController = TextEditingController(text: stock.supplier);
     final notesController = TextEditingController(text: stock.notes);
     var category = stock.category;
@@ -619,7 +627,8 @@ class StockDetailsScreen extends ConsumerWidget {
 
                     if (minimum < 0) {
                       setDialogState(() {
-                        errorMessage = 'Minimum stock level cannot be negative.';
+                        errorMessage =
+                            'Minimum stock level cannot be negative.';
                       });
                       return;
                     }
@@ -679,8 +688,9 @@ class StockDetailsScreen extends ConsumerWidget {
       message: 'Delete ${stock.name} ${stock.displayId}?',
       fields: const [],
       onConfirm: () async {
-        await controller.deleteStock(stock.id);
-        context.go(AppRoutes.stocks);
+        final deleted = await controller.deleteStock(stock.id);
+        if (!deleted) return 'Unable to delete this inventory item.';
+        if (context.mounted) context.go(AppRoutes.stocks);
         return null;
       },
     );
@@ -787,12 +797,12 @@ class StockDetailsScreen extends ConsumerWidget {
     required String label,
     required VoidCallback onPressed,
     IconData? icon,
-    Color color = AppColors.primaryGreen,
+    Color? color,
     Color? borderColor,
   }) {
     final style = OutlinedButton.styleFrom(
-      foregroundColor: color,
-      side: BorderSide(color: borderColor ?? color),
+      foregroundColor: color ?? AppColors.primaryGreen,
+      side: BorderSide(color: borderColor ?? color ?? AppColors.primaryGreen),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
@@ -823,8 +833,7 @@ class StockDetailsScreen extends ConsumerWidget {
       children: [
         for (var index = 0; index < fields.length; index++) ...[
           fields[index],
-          if (index != fields.length - 1)
-            const SizedBox(height: AppSpacing.md),
+          if (index != fields.length - 1) const SizedBox(height: AppSpacing.md),
         ],
       ],
     );
@@ -918,7 +927,7 @@ class _StockDetailsHeader extends StatelessWidget {
           child: IconButton(
             tooltip: 'Back',
             onPressed: onBack,
-            icon: const Icon(Icons.arrow_back, color: AppColors.primaryText),
+            icon: Icon(Icons.arrow_back, color: AppColors.primaryText),
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
@@ -1034,7 +1043,8 @@ class _StockMetricGrid extends StatelessWidget {
             StockDetailMetric(
               width: tileWidth,
               label: 'Min Stock',
-              value: '${_formatQuantity(stock.minimumStockLevel)} ${stock.unit}',
+              value:
+                  '${_formatQuantity(stock.minimumStockLevel)} ${stock.unit}',
               icon: Icons.warning_amber_outlined,
             ),
             StockDetailMetric(
@@ -1172,7 +1182,7 @@ class _SectionCard extends StatelessWidget {
               IconButton(
                 tooltip: 'View full history',
                 onPressed: onHistoryTap,
-                icon: const Icon(
+                icon: Icon(
                   Icons.history,
                   color: AppColors.primaryGreen,
                   size: 20,
@@ -1226,7 +1236,7 @@ class _StockStyledDialog extends StatelessWidget {
                 IconButton(
                   tooltip: 'Close',
                   onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close, color: AppColors.primaryText),
+                  icon: Icon(Icons.close, color: AppColors.primaryText),
                 ),
               ],
             ),
@@ -1363,7 +1373,7 @@ class _DateTimeSalePicker extends StatelessWidget {
                   ),
                 );
               },
-              icon: const Icon(Icons.calendar_month_outlined),
+              icon: Icon(Icons.calendar_month_outlined),
               color: AppColors.primaryGreen,
             ),
             IconButton(
@@ -1388,7 +1398,7 @@ class _DateTimeSalePicker extends StatelessWidget {
                   ),
                 );
               },
-              icon: const Icon(Icons.schedule),
+              icon: Icon(Icons.schedule),
               color: AppColors.primaryGreen,
             ),
           ],
@@ -1420,7 +1430,7 @@ class _GreenGradient extends StatelessWidget {
     return ShaderMask(
       blendMode: BlendMode.srcIn,
       shaderCallback: (bounds) {
-        return const LinearGradient(
+        return LinearGradient(
           colors: [
             AppColors.buttonGradientStart,
             AppColors.buttonGradientEnd,

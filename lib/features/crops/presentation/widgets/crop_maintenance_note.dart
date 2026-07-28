@@ -17,7 +17,7 @@ class CropMaintenanceNote extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
+        Padding(
           padding: EdgeInsets.only(top: AppSpacing.xs),
           child: Icon(
             CupertinoIcons.check_mark_circled,

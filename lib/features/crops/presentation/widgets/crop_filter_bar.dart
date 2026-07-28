@@ -212,7 +212,7 @@ class _CompactFilterButton extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSpacing.xs),
-              const Icon(
+              Icon(
                 CupertinoIcons.chevron_down,
                 size: 10,
                 color: AppColors.primaryText,
@@ -254,7 +254,10 @@ class _CropSearchFieldState extends State<_CropSearchField> {
     super.didUpdateWidget(oldWidget);
 
     if (widget.searchQuery != _controller.text) {
-      _controller.text = widget.searchQuery;
+      _controller.value = TextEditingValue(
+        text: widget.searchQuery,
+        selection: TextSelection.collapsed(offset: widget.searchQuery.length),
+      );
     }
   }
 
@@ -268,7 +271,10 @@ class _CropSearchFieldState extends State<_CropSearchField> {
   Widget build(BuildContext context) {
     return TextField(
       controller: _controller,
-      onChanged: widget.onChanged,
+      onChanged: (value) {
+        setState(() {});
+        widget.onChanged(value);
+      },
       textInputAction: TextInputAction.search,
       decoration: InputDecoration(
         isDense: true,
@@ -281,7 +287,10 @@ class _CropSearchFieldState extends State<_CropSearchField> {
             ? null
             : IconButton(
                 tooltip: 'Clear search',
-                onPressed: widget.onClear,
+                onPressed: () {
+                  setState(_controller.clear);
+                  widget.onClear();
+                },
                 icon: const Icon(CupertinoIcons.xmark_circle),
               ),
         hintText: 'Search crops',

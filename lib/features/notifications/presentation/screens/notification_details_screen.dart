@@ -56,7 +56,7 @@ class NotificationDetailsScreen extends ConsumerWidget {
 
                 context.go(AppRoutes.notifications);
               },
-              icon: const Icon(
+              icon: Icon(
                 CupertinoIcons.arrow_left,
                 color: AppColors.primaryGreen,
               ),
@@ -108,18 +108,31 @@ class NotificationDetailsScreen extends ConsumerWidget {
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: () {
-                      controller.markAsRead(notification.id);
-                      context.push(resolvedActionRoute);
+                    onPressed: () async {
+                      if (!notification.isRead) {
+                        try {
+                          await controller.markAsRead(notification.id);
+                        } catch (_) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Unable to update notification.'),
+                              ),
+                            );
+                          }
+                          return;
+                        }
+                      }
+                      if (context.mounted) context.push(resolvedActionRoute);
                     },
-                    icon: const Icon(
+                    icon: Icon(
                       CupertinoIcons.arrow_right_circle,
                       color: AppColors.primaryGreen,
                     ),
                     label: Text('Open ${notification.relatedModule.label}'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.primaryGreen,
-                      side: const BorderSide(color: AppColors.primaryGreen),
+                      side: BorderSide(color: AppColors.primaryGreen),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(AppRadius.sm),
                       ),

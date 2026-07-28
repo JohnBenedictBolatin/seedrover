@@ -58,8 +58,7 @@ class StockRepository {
 
       await _client
           .from(DatabaseTables.inventory)
-          .update({'image_path': imagePath})
-          .eq('id', stockId);
+          .update({'image_path': imagePath}).eq('id', stockId);
     }
 
     await _recordActivity(
@@ -253,8 +252,7 @@ class StockRepository {
       type: StockTransactionType.sale,
       quantity: request.quantitySold,
       performedAt: request.saleDate,
-      remarks:
-          'Sale recorded: PHP ${request.totalAmount.toStringAsFixed(2)}',
+      remarks: 'Sale recorded: PHP ${request.totalAmount.toStringAsFixed(2)}',
       performedBy: 'SeedRover User',
     );
     final updatedStock = await _stockById(request.stock.id);
@@ -284,7 +282,8 @@ class StockRepository {
     required String reason,
     required String remarks,
   }) async {
-    final reasonText = reason.trim().isEmpty ? 'Stock adjusted.' : reason.trim();
+    final reasonText =
+        reason.trim().isEmpty ? 'Stock adjusted.' : reason.trim();
     final remarksText = remarks.trim().isEmpty ? reasonText : remarks.trim();
 
     await _insertTransaction(
@@ -296,7 +295,8 @@ class StockRepository {
 
     await _recordActivity(
       activity: 'Stock quantity adjusted',
-      description: '${stock.name}: stock adjusted to $newQuantity ${stock.unit}.',
+      description:
+          '${stock.name}: stock adjusted to $newQuantity ${stock.unit}.',
     );
 
     return _stockById(stock.id).then(
@@ -348,7 +348,7 @@ class StockRepository {
   Future<Map<String, dynamic>> _insertStock(StockModel stock) async {
     final payload = {
       ..._stockPayload(stock),
-      'stock_code': await _nextStockCode(),
+      'stock_code': null,
       'quantity': stock.currentQuantity,
     };
 
@@ -524,8 +524,7 @@ class StockRepository {
       totalAmount: _toDouble(data['total_amount'] ?? request.totalAmount),
       saleDate: _parseDate(data['sale_date']) ?? request.saleDate,
       recordedBy: 'SeedRover User',
-      customerName:
-          data['customer_name'] as String? ?? request.customerName,
+      customerName: data['customer_name'] as String? ?? request.customerName,
       remarks: data['remarks'] as String? ?? request.remarks,
       status: data['status'] == 'Voided'
           ? SalesTransactionStatus.voided
@@ -565,7 +564,7 @@ class StockRepository {
         'user_id': _client.auth.currentUser?.id,
         'activity': activity,
         'description': description,
-        'module': 'Stocks',
+        'module': 'Inventory',
       });
     } catch (_) {
       // Activity logging should not block the inventory action itself.
@@ -629,25 +628,6 @@ class StockRepository {
 
   String _displayIdFor(int index) {
     return 'STK-${(index + 1).toString().padLeft(3, '0')}';
-  }
-
-  Future<String> _nextStockCode() async {
-    final rows = await _client
-        .from(DatabaseTables.inventory)
-        .select('stock_code') as List<dynamic>;
-    var maxNumber = 0;
-
-    for (final row in rows) {
-      final code = (row as Map<String, dynamic>)['stock_code'] as String?;
-      final match = RegExp(r'^STK-(\d+)$').firstMatch(code ?? '');
-      final number = int.tryParse(match?.group(1) ?? '') ?? 0;
-
-      if (number > maxNumber) {
-        maxNumber = number;
-      }
-    }
-
-    return 'STK-${(maxNumber + 1).toString().padLeft(3, '0')}';
   }
 
   String _displayIdFromUuid(String stockId) {

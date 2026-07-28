@@ -14,6 +14,7 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/animated_content.dart';
 import '../../../../shared/widgets/app_card.dart';
 import '../../../../shared/widgets/content_skeleton.dart';
+import '../../../../shared/widgets/page_header_actions.dart';
 import '../../../authentication/providers/auth_providers.dart';
 import '../../controllers/stock_inventory_controller.dart';
 import '../../data/models/stock_model.dart';
@@ -21,6 +22,7 @@ import '../../providers/stock_providers.dart';
 import '../widgets/stock_card.dart';
 import '../widgets/stock_empty_state.dart';
 import '../widgets/stock_filter_bar.dart';
+import '../widgets/stock_overview_hero.dart';
 
 class StockListScreen extends ConsumerWidget {
   const StockListScreen({super.key});
@@ -42,6 +44,12 @@ class StockListScreen extends ConsumerWidget {
     final profile = ref.watch(authControllerProvider).profile;
     final canManageStocks =
         profile?.hasPermission(PermissionKeys.stocksManage) ?? false;
+    final inStockItems = state.stocks
+        .where((stock) => stock.status == StockStatus.inStock)
+        .length;
+    final needsAttentionItems = state.stocks
+        .where((stock) => stock.status != StockStatus.inStock)
+        .length;
 
     if (state.isLoading) {
       return const _StockLoadingSkeleton();
@@ -57,33 +65,29 @@ class StockListScreen extends ConsumerWidget {
             children: [
               Expanded(
                 child: AnimatedTypingText(
-                  'Stocks',
+                  'Inventory',
                   style: AppTypography.screenTitle.copyWith(
                     color: AppColors.primaryGreen,
                   ),
                 ),
               ),
-              if (canManageStocks)
-                OutlinedButton.icon(
-                  onPressed: () => _showCreateStockDialog(context, controller),
-                  icon: const Icon(Icons.add, size: 15),
-                  label: const Text('Add Item'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primaryGreen,
-                    textStyle: AppTypography.statusBadge,
-                    minimumSize: const Size(0, 32),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm,
-                      vertical: AppSpacing.xs,
-                    ),
-                    side: const BorderSide(color: AppColors.primaryGreen),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.sm),
-                    ),
-                  ),
-                ),
+              const PageHeaderActions(),
             ],
           ),
+          const SizedBox(height: AppSpacing.lg),
+          StockOverviewHero(
+            inStockItems: inStockItems,
+            needsAttentionItems: needsAttentionItems,
+          ),
+          if (canManageStocks) ...[
+            const SizedBox(height: AppSpacing.sm),
+            SizedBox(
+              width: double.infinity,
+              child: _StockAddItemButton(
+                onPressed: () => _showCreateStockDialog(context, controller),
+              ),
+            ),
+          ],
           const SizedBox(height: AppSpacing.xl),
           StockFilterBar(
             searchQuery: state.searchQuery,
@@ -324,7 +328,7 @@ class StockListScreen extends ConsumerWidget {
                             onPressed: () => Navigator.of(dialogContext).pop(),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AppColors.primaryText,
-                              side: const BorderSide(
+                              side: BorderSide(
                                 color: AppColors.inactiveBorder,
                               ),
                               shape: RoundedRectangleBorder(
@@ -414,11 +418,11 @@ class StockListScreen extends ConsumerWidget {
                                 Navigator.of(dialogContext).pop();
                               }
                             },
-                            icon: const Icon(Icons.check),
+                            icon: Icon(Icons.check),
                             label: const Text('Save'),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AppColors.primaryGreen,
-                              side: const BorderSide(
+                              side: BorderSide(
                                 color: AppColors.primaryGreen,
                               ),
                               shape: RoundedRectangleBorder(
@@ -489,7 +493,7 @@ class StockListScreen extends ConsumerWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        'Upload Stock Image',
+                        'Upload Inventory Image',
                         style: AppTypography.cardTitle,
                       ),
                     ),
@@ -594,7 +598,7 @@ class _StockImagePickerField extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Stock Image', style: AppTypography.caption),
+                      Text('Inventory Image', style: AppTypography.caption),
                       const SizedBox(height: AppSpacing.xs),
                       Text(
                         imageName ?? 'No image selected',
@@ -611,13 +615,13 @@ class _StockImagePickerField extends StatelessWidget {
                     dimension: 36,
                     child: IconButton.outlined(
                       onPressed: onPickImage,
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.file_upload_outlined,
                         size: 18,
                       ),
                       color: AppColors.primaryGreen,
                       style: IconButton.styleFrom(
-                        side: const BorderSide(color: AppColors.primaryGreen),
+                        side: BorderSide(color: AppColors.primaryGreen),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(AppRadius.sm),
                         ),
@@ -630,7 +634,7 @@ class _StockImagePickerField extends StatelessWidget {
                   IconButton(
                     tooltip: 'Remove image',
                     onPressed: onRemoveImage,
-                    icon: const Icon(Icons.close),
+                    icon: Icon(Icons.close),
                     color: AppColors.secondaryText,
                   ),
               ],
@@ -640,6 +644,103 @@ class _StockImagePickerField extends StatelessWidget {
       ),
     );
   }
+}
+
+class _StockAddItemButton extends StatelessWidget {
+  const _StockAddItemButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          child: Ink(
+            height: 42,
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment.bottomCenter,
+                radius: 1.25,
+                colors: AppColors.heroGradientColors,
+              ),
+              border: Border.all(
+                color: AppColors.primaryGreen.withOpacity(.34),
+              ),
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primaryGreen.withOpacity(.06),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(painter: _StockAddButtonStarsPainter()),
+                  ),
+                ),
+                Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.add,
+                        color: AppColors.heroIconGreen,
+                        size: 18,
+                      ),
+                      const SizedBox(width: AppSpacing.xs),
+                      Text(
+                        'Add Item',
+                        style: AppTypography.statusBadge.copyWith(
+                          color: AppColors.heroPrimaryText,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StockAddButtonStarsPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    const stars = <Offset>[
+      Offset(.08, .18),
+      Offset(.18, .54),
+      Offset(.31, .26),
+      Offset(.47, .66),
+      Offset(.62, .2),
+      Offset(.76, .5),
+      Offset(.91, .28),
+    ];
+    final paint = Paint()..color = AppColors.accentGreen.withOpacity(.3);
+    for (var index = 0; index < stars.length; index++) {
+      final star = stars[index];
+      canvas.drawCircle(
+        Offset(star.dx * size.width, star.dy * size.height),
+        index.isEven ? 1 : .65,
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _StockLoadingSkeleton extends StatelessWidget {
@@ -652,6 +753,11 @@ class _StockLoadingSkeleton extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.lg),
       children: [
         const SkeletonLine(widthFactor: 0.28, height: 30),
+        const SizedBox(height: AppSpacing.lg),
+        const SkeletonCard(
+          height: 138,
+          children: [],
+        ),
         const SizedBox(height: AppSpacing.xl),
         const SkeletonCard(
           children: [
@@ -675,9 +781,9 @@ class _StockLoadingSkeleton extends StatelessWidget {
           scrollDirection: Axis.horizontal,
           child: Row(
             children: const [
-              SizedBox(width: 280, child: _StockCardSkeleton()),
+              SizedBox(width: 230, child: _StockCardSkeleton()),
               SizedBox(width: AppSpacing.md),
-              SizedBox(width: 280, child: _StockCardSkeleton()),
+              SizedBox(width: 230, child: _StockCardSkeleton()),
             ],
           ),
         ),
@@ -688,9 +794,9 @@ class _StockLoadingSkeleton extends StatelessWidget {
           scrollDirection: Axis.horizontal,
           child: Row(
             children: const [
-              SizedBox(width: 280, child: _StockCardSkeleton()),
+              SizedBox(width: 230, child: _StockCardSkeleton()),
               SizedBox(width: AppSpacing.md),
-              SizedBox(width: 280, child: _StockCardSkeleton()),
+              SizedBox(width: 230, child: _StockCardSkeleton()),
             ],
           ),
         ),
@@ -710,7 +816,7 @@ class _StockCardSkeleton extends StatelessWidget {
         SizedBox(height: AppSpacing.sm),
         SkeletonLine(widthFactor: 0.36),
         SizedBox(height: AppSpacing.md),
-        Center(child: SkeletonBlock(height: 94, width: 110)),
+        Center(child: SkeletonBlock(height: 80, width: 92)),
         SizedBox(height: AppSpacing.md),
         SkeletonLine(widthFactor: 0.9),
         SizedBox(height: AppSpacing.sm),
@@ -804,7 +910,7 @@ class _StockGroup extends StatelessWidget {
             children: [
               for (var index = 0; index < stocks.length; index++) ...[
                 SizedBox(
-                  width: 280,
+                  width: 230,
                   child: StockCard(
                     stock: stocks[index],
                     onView: () => onStockSelected(stocks[index]),

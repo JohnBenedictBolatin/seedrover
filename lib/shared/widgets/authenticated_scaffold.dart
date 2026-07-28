@@ -1,12 +1,12 @@
-import 'dart:ui';
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_radius.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/theme/theme_mode_controller.dart';
 
 class AuthenticatedScaffold extends StatelessWidget {
   const AuthenticatedScaffold({
@@ -87,7 +87,7 @@ class NavigationItemData {
   final int badgeCount;
 }
 
-class FloatingBottomNavigation extends StatelessWidget {
+class FloatingBottomNavigation extends ConsumerWidget {
   const FloatingBottomNavigation({
     required this.currentLocation,
     required this.items,
@@ -100,11 +100,17 @@ class FloatingBottomNavigation extends StatelessWidget {
   final bool compact;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeModeControllerProvider);
+    AppColors.useLightPalette(themeMode == ThemeMode.light);
+
     return SizedBox(
+      width: double.infinity,
       height: compact ? 56 : 70,
       child: DecoratedBox(
         decoration: BoxDecoration(
+          color: AppColors.secondaryBackground,
+          border: Border.all(color: AppColors.inactiveBorder),
           borderRadius: BorderRadius.circular(AppRadius.xl),
           boxShadow: [
             BoxShadow(
@@ -116,36 +122,23 @@ class FloatingBottomNavigation extends StatelessWidget {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(AppRadius.xl),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: AppColors.secondaryBackground.withOpacity(0.28),
-                borderRadius: BorderRadius.circular(AppRadius.xl),
-                border: Border.all(
-                  color: AppColors.primaryText.withOpacity(0.12),
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.sm,
-                  vertical: AppSpacing.sm,
-                ),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (final item in items)
-                        _NavigationButton(
-                          item: item,
-                          isSelected: currentLocation == item.location,
-                          compact: compact,
-                        ),
-                    ],
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: AppSpacing.sm,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                for (final item in items)
+                  Expanded(
+                    child: _NavigationButton(
+                      item: item,
+                      isSelected: currentLocation == item.location,
+                      compact: compact,
+                    ),
                   ),
-                ),
-              ),
+              ],
             ),
           ),
         ),
@@ -174,25 +167,28 @@ class _NavigationButton extends StatelessWidget {
         onTap: () => context.go(item.location),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
-          width: compact ? 44 : 52,
-          height: compact ? 44 : 52,
+          height: compact ? 44 : 56,
           padding: const EdgeInsets.all(AppSpacing.xs),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppRadius.lg),
           ),
           child: Stack(
+            alignment: Alignment.center,
+            fit: StackFit.expand,
             clipBehavior: Clip.none,
             children: [
               _SelectedGradient(
                 isSelected: isSelected,
-                child: Center(
-                  child: Icon(
-                    item.icon,
-                    color: AppColors.primaryText,
-                    size: compact
-                        ? (isSelected ? 26 : 24)
-                        : (isSelected ? 30 : 27),
-                  ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(item.icon, size: compact ? 22 : 23),
+                    if (!compact) ...[
+                      const SizedBox(height: 3),
+                      Text(item.label, maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500)),
+                    ],
+                  ],
                 ),
               ),
               if (item.badgeCount > 0)
@@ -231,7 +227,7 @@ class _NavigationBadge extends StatelessWidget {
           child: Center(
             child: Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.primaryText,
                 fontSize: 9,
                 fontWeight: FontWeight.w700,
@@ -257,9 +253,9 @@ class _SelectedGradient extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!isSelected) {
       return IconTheme(
-        data: const IconThemeData(color: AppColors.primaryText),
+        data: IconThemeData(color: AppColors.primaryText),
         child: DefaultTextStyle.merge(
-          style: const TextStyle(color: AppColors.primaryText),
+          style: TextStyle(color: AppColors.primaryText),
           child: child,
         ),
       );
@@ -268,7 +264,7 @@ class _SelectedGradient extends StatelessWidget {
     return ShaderMask(
       blendMode: BlendMode.srcIn,
       shaderCallback: (bounds) {
-        return const LinearGradient(
+        return LinearGradient(
           colors: [
             AppColors.buttonGradientStart,
             AppColors.buttonGradientEnd,
@@ -276,9 +272,9 @@ class _SelectedGradient extends StatelessWidget {
         ).createShader(bounds);
       },
       child: IconTheme(
-        data: const IconThemeData(color: AppColors.primaryText),
+        data: IconThemeData(color: AppColors.primaryText),
         child: DefaultTextStyle.merge(
-          style: const TextStyle(color: AppColors.primaryText),
+          style: TextStyle(color: AppColors.primaryText),
           child: child,
         ),
       ),

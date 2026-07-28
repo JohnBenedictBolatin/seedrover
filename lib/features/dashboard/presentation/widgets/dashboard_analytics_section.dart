@@ -80,7 +80,7 @@ class _DashboardAnalyticsSectionState
                     label: 'Sales Today',
                     value: CurrencyFormatter.php(analytics.salesToday),
                     caption: 'today',
-                    color: AppColors.primaryGreen,
+                    color: AppColors.information,
                     icon: Icons.today_outlined,
                   ),
                   _KpiCard(
@@ -90,7 +90,7 @@ class _DashboardAnalyticsSectionState
                     label: 'This Month',
                     value: CurrencyFormatter.php(analytics.salesThisMonth),
                     caption: 'sales',
-                    color: AppColors.accentGreen,
+                    color: AppColors.primaryGreen,
                     icon: Icons.calendar_month_outlined,
                   ),
                   _KpiCard(
@@ -100,7 +100,7 @@ class _DashboardAnalyticsSectionState
                     label: 'Units Sold',
                     value: _formatAnalyticsQuantity(analytics.unitsSoldThisMonth),
                     caption: 'this month',
-                    color: AppColors.information,
+                    color: AppColors.warning,
                     icon: Icons.scale_outlined,
                   ),
                   _KpiCard(
@@ -110,7 +110,7 @@ class _DashboardAnalyticsSectionState
                     label: 'Sales Txns',
                     value: analytics.salesTransactions.toString(),
                     caption: 'this month',
-                    color: AppColors.warning,
+                    color: AppColors.secondaryText,
                     icon: Icons.receipt_long_outlined,
                   ),
                   _KpiCard(
@@ -120,7 +120,7 @@ class _DashboardAnalyticsSectionState
                     label: 'Crops',
                     value: analytics.totalCrops.toString(),
                     caption: 'records',
-                    color: AppColors.primaryGreen,
+                    color: AppColors.success,
                     icon: Icons.spa_outlined,
                   ),
                   _KpiCard(
@@ -130,7 +130,7 @@ class _DashboardAnalyticsSectionState
                     label: 'Seeds',
                     value: analytics.totalSeeds.toString(),
                     caption: 'planted',
-                    color: AppColors.accentGreen,
+                    color: AppColors.primaryGreen,
                     icon: Icons.grass_outlined,
                   ),
                   _KpiCard(
@@ -177,7 +177,7 @@ class _DashboardAnalyticsSectionState
                       icon: Icons.spa_outlined,
                       child: _BarChart(
                         entries: analytics.cropsByName,
-                        color: AppColors.primaryGreen,
+                        color: AppColors.success,
                       ),
                     ),
                   ),
@@ -201,7 +201,7 @@ class _DashboardAnalyticsSectionState
                       icon: Icons.timeline,
                       child: _BarChart(
                         entries: analytics.averageProgressByName,
-                        color: AppColors.accentGreen,
+                        color: AppColors.warning,
                         suffix: '%',
                       ),
                     ),

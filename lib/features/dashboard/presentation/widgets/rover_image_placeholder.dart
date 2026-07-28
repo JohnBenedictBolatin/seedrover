@@ -32,7 +32,7 @@ class RoverImagePlaceholder extends StatelessWidget {
           padding: const EdgeInsets.all(AppSpacing.md),
           child: Stack(
             children: [
-              const Center(
+              Center(
                 child: Icon(
                   CupertinoIcons.car_detailed,
                   color: AppColors.mutedText,

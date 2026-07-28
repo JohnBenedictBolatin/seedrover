@@ -10,6 +10,7 @@ import '../../data/models/crop_model.dart';
 import '../../providers/crop_providers.dart';
 import '../widgets/crop_empty_state.dart';
 import '../widgets/crop_filter_bar.dart';
+import '../widgets/crop_overview_hero.dart';
 import '../widgets/crop_screen_header.dart';
 import '../widgets/planted_crop_group.dart';
 import '../widgets/planted_today_card.dart';
@@ -39,6 +40,11 @@ class CropMonitoringScreen extends ConsumerWidget {
         padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
           const CropScreenHeader(),
+          const SizedBox(height: AppSpacing.lg),
+          CropOverviewHero(
+            activeCrops: state.activeCrops,
+            harvestReadyCrops: state.harvestReadyCrops,
+          ),
           const SizedBox(height: AppSpacing.xl),
           CropFilterBar(
             searchQuery: state.searchQuery,
@@ -115,6 +121,11 @@ class _CropLoadingSkeleton extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.lg),
       children: [
         const SkeletonLine(widthFactor: 0.28, height: 28),
+        const SizedBox(height: AppSpacing.lg),
+        const SkeletonCard(
+          height: 138,
+          children: [],
+        ),
         const SizedBox(height: AppSpacing.xl),
         const SkeletonCard(
           children: [

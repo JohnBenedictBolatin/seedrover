@@ -195,15 +195,15 @@ class AnimatedProgressBar extends StatelessWidget {
     required this.value,
     super.key,
     this.minHeight = 6,
-    this.color = AppColors.primaryGreen,
-    this.backgroundColor = AppColors.inactiveBorder,
+    this.color,
+    this.backgroundColor,
     this.duration = const Duration(milliseconds: 820),
   });
 
   final double value;
   final double minHeight;
-  final Color color;
-  final Color backgroundColor;
+  final Color? color;
+  final Color? backgroundColor;
   final Duration duration;
 
   @override
@@ -216,8 +216,8 @@ class AnimatedProgressBar extends StatelessWidget {
         return LinearProgressIndicator(
           value: animatedValue,
           minHeight: minHeight,
-          color: color,
-          backgroundColor: backgroundColor,
+          color: color ?? AppColors.primaryGreen,
+          backgroundColor: backgroundColor ?? AppColors.inactiveBorder,
         );
       },
     );
