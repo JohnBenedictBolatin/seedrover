@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import '../models/planting_session_model.dart';
+
 class LocalWifiRoverService {
   LocalWifiRoverService({required String baseUrl, required String roverToken})
       : _baseUrl = baseUrl.trim().replaceAll(RegExp(r'/$'), ''),
@@ -79,6 +81,48 @@ class LocalWifiRoverService {
     );
   }
 
+  Future<PlantingOperationStatus> getPlantingStatus() async {
+    if (!_isConnected) await connect();
+    final response = await _request('GET', '/planting-status');
+    _setConnected(true);
+    return PlantingOperationStatus.fromJson(
+      Map<String, dynamic>.from(response['data'] as Map),
+    );
+  }
+
+  Future<RoverCalibrationModel> getCalibration() async {
+    final response = await sendRawCommand('GET_CALIBRATION');
+    return RoverCalibrationModel.fromJson(
+      Map<String, dynamic>.from(response['data'] as Map),
+    );
+  }
+
+  Future<void> saveCalibration(RoverCalibrationModel calibration) async {
+    await sendCommand('SET_CALIBRATION', payload: calibration.toJson());
+  }
+
+  Future<void> startPlantingRow(PlantingRowConfig configuration) async {
+    await sendCommand(
+      'START_PLANTING_ROW',
+      payload: configuration.toProtocolPayload(),
+    );
+  }
+
+  Future<Map<String, dynamic>> sendRawCommand(
+    String command, {
+    Map<String, Object?> payload = const <String, Object?>{},
+  }) async {
+    if (!_isConnected) await connect();
+    final commandId = 'CMD-${DateTime.now().microsecondsSinceEpoch}';
+    final response = await _request('POST', '/command', body: {
+      'command_id': commandId,
+      'command': command,
+      'payload': payload,
+    });
+    _setConnected(true);
+    return response;
+  }
+
   Future<Map<String, dynamic>> _request(
     String method,
     String path, {
@@ -100,8 +144,7 @@ class LocalWifiRoverService {
       }
       final response =
           await request.close().timeout(const Duration(seconds: 10));
-      final text = await utf8
-          .decoder
+      final text = await utf8.decoder
           .bind(response)
           .join()
           .timeout(const Duration(seconds: 10));
@@ -110,7 +153,8 @@ class LocalWifiRoverService {
         throw StateError('ESP32 returned an invalid response.');
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw StateError(decoded['message']?.toString() ?? 'ESP32 rejected the request.');
+        throw StateError(
+            decoded['message']?.toString() ?? 'ESP32 rejected the request.');
       }
       return decoded;
     } on SocketException {

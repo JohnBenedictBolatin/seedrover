@@ -18,6 +18,12 @@ class PlantingControlPanel extends StatelessWidget {
     required this.onCheckSoil,
     required this.onStartPlanting,
     required this.onEmergencyStop,
+    required this.onCalibration,
+    required this.onResume,
+    required this.onCancel,
+    this.completedDrops = 0,
+    this.targetDrops = 0,
+    this.pendingReceipts = 0,
     super.key,
   });
 
@@ -29,6 +35,12 @@ class PlantingControlPanel extends StatelessWidget {
   final VoidCallback onCheckSoil;
   final VoidCallback onStartPlanting;
   final VoidCallback onEmergencyStop;
+  final VoidCallback onCalibration;
+  final VoidCallback onResume;
+  final VoidCallback onCancel;
+  final int completedDrops;
+  final int targetDrops;
+  final int pendingReceipts;
 
   @override
   Widget build(BuildContext context) {
@@ -49,43 +61,72 @@ class PlantingControlPanel extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             soilCheckMessage,
-            maxLines: 1,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: AppTypography.small.copyWith(color: AppColors.secondaryText),
           ),
           const SizedBox(height: 2),
+          if (targetDrops > 0) ...[
+            LinearProgressIndicator(
+              value: (completedDrops / targetDrops).clamp(0, 1),
+              minHeight: 5,
+              color: AppColors.primaryGreen,
+              backgroundColor: AppColors.inactiveBorder,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+          ],
           if (!isPlantingActive) ...[
             Row(
               children: [
                 Expanded(
                   child: _ActionButton(
-                    label: 'Check Soil',
-                    icon: CupertinoIcons.check_mark_circled,
+                    label: 'Calibration',
+                    icon: CupertinoIcons.settings,
                     enabled: canCheckSoil,
-                    onPressed: onCheckSoil,
+                    onPressed: onCalibration,
                   ),
                 ),
                 const SizedBox(width: AppSpacing.xs),
                 Expanded(
                   child: _ActionButton(
-                    label: 'Plant',
+                    label: status == PlantingStatus.paused
+                        ? 'Resume'
+                        : 'Configure Row',
                     icon: CupertinoIcons.play_fill,
-                    enabled: canStartPlanting,
-                    onPressed: onStartPlanting,
+                    enabled:
+                        status == PlantingStatus.paused || canStartPlanting,
+                    onPressed: status == PlantingStatus.paused
+                        ? onResume
+                        : onStartPlanting,
                   ),
                 ),
               ],
             ),
           ] else ...[
-            SizedBox(
-              width: double.infinity,
-              child: _ActionButton(
-                label: 'Emergency Stop',
-                icon: CupertinoIcons.exclamationmark_triangle_fill,
-                enabled: true,
-                danger: true,
-                onPressed: onEmergencyStop,
-              ),
+            Row(
+              children: [
+                Expanded(
+                    child: _ActionButton(
+                        label: 'Cancel Row',
+                        icon: CupertinoIcons.xmark_circle,
+                        enabled: true,
+                        onPressed: onCancel)),
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                    child: _ActionButton(
+                        label: 'Emergency Stop',
+                        icon: CupertinoIcons.exclamationmark_triangle_fill,
+                        enabled: true,
+                        danger: true,
+                        onPressed: onEmergencyStop)),
+              ],
+            ),
+          ],
+          if (pendingReceipts > 0) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              '$pendingReceipts planting receipt${pendingReceipts == 1 ? '' : 's'} waiting for internet',
+              style: AppTypography.small.copyWith(color: AppColors.warning),
             ),
           ],
         ],

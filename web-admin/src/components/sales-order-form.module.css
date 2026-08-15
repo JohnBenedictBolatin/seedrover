@@ -424,6 +424,8 @@
 
 .form input[type="number"] {
   padding-right: 10px;
+  color-scheme: dark only;
+  accent-color: var(--green-accent);
 }
 
 .form input[type="number"]::-webkit-outer-spin-button,
@@ -432,6 +434,12 @@
   margin: 0;
   filter: invert(82%) sepia(63%) saturate(602%) hue-rotate(34deg) brightness(108%) contrast(105%);
   cursor: pointer;
+}
+
+:global(html[data-theme="dark"]) .form input[type="number"]::-webkit-outer-spin-button,
+:global(html[data-theme="dark"]) .form input[type="number"]::-webkit-inner-spin-button {
+  opacity: 1;
+  filter: invert(82%) sepia(63%) saturate(602%) hue-rotate(34deg) brightness(108%) contrast(105%);
 }
 
 .form input[type="date"]::-webkit-calendar-picker-indicator,
@@ -606,8 +614,8 @@
   display: grid;
   place-items: center;
   background: rgba(0, 0, 0, 0.78);
-  -webkit-backdrop-filter: blur(14px) saturate(0.72);
-  backdrop-filter: blur(14px) saturate(0.72);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
   padding: 20px;
 }
 
@@ -853,7 +861,7 @@
 :global(html[data-theme="light"]) .form input[type="number"]::-webkit-inner-spin-button,
 :global(html[data-theme="light"]) .form input[type="date"]::-webkit-calendar-picker-indicator,
 :global(html[data-theme="light"]) .form input[type="time"]::-webkit-calendar-picker-indicator {
-  filter: invert(19%) sepia(21%) saturate(1676%) hue-rotate(82deg) brightness(88%) contrast(89%);
+  filter: invert(19%) sepia(21%) saturate(1676%) hue-rotate(82deg) brightness(68%) contrast(105%);
 }
 
 :global(html[data-theme="light"]) .itemPicker svg,
@@ -954,7 +962,8 @@
 
 :global(html[data-theme="light"]) .confirmBackdrop {
   background: rgba(4, 12, 5, 0.54);
-  backdrop-filter: blur(12px) saturate(0.9);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 :global(html[data-theme="light"]) .confirmModal {

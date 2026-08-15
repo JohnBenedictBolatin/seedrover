@@ -1130,8 +1130,8 @@
   display: grid;
   place-items: center;
   background: rgba(0, 0, 0, 0.78);
-  -webkit-backdrop-filter: blur(14px) saturate(0.72);
-  backdrop-filter: blur(14px) saturate(0.72);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
   padding: 24px;
 }
 

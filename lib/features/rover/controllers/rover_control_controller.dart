@@ -4,13 +4,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/models/rover_command_model.dart';
 import '../data/models/rover_control_model.dart';
+import '../data/models/planting_session_model.dart';
+import '../data/repositories/planting_receipt_repository.dart';
 import '../data/repositories/rover_repository.dart';
 import '../data/services/local_wifi_rover_service.dart';
 import 'rover_control_state.dart';
 
 class RoverControlController extends StateNotifier<RoverControlState> {
-  RoverControlController(this._repository, this._localWifiService)
-      : super(const RoverControlState.loading()) {
+  RoverControlController(
+    this._repository,
+    this._localWifiService,
+    this._receiptRepository,
+  ) : super(const RoverControlState.loading()) {
     // Render controls immediately while cloud telemetry loads in parallel.
     state = state.copyWith(
       isLoading: false,
@@ -23,7 +28,8 @@ class RoverControlController extends StateNotifier<RoverControlState> {
         load();
       }
     });
-    _localWifiSubscription = _localWifiService.connectedStream.listen((connected) {
+    _localWifiSubscription =
+        _localWifiService.connectedStream.listen((connected) {
       state = state.copyWith(localWifiConnected: connected);
     });
     unawaited(_detectLocalWifi());
@@ -31,14 +37,25 @@ class RoverControlController extends StateNotifier<RoverControlState> {
       const Duration(seconds: 5),
       (_) => unawaited(_detectLocalWifi()),
     );
+    _plantingStatusTimer = Timer.periodic(
+      const Duration(milliseconds: 700),
+      (_) => unawaited(_refreshPlantingStatus()),
+    );
+    unawaited(_refreshPendingReceiptCount());
+    unawaited(synchronizePendingReceipts());
   }
 
   final RoverRepository _repository;
   final LocalWifiRoverService _localWifiService;
+  final PlantingReceiptRepository _receiptRepository;
   StreamSubscription<void>? _subscription;
   StreamSubscription<void>? _simulationSubscription;
   StreamSubscription<bool>? _localWifiSubscription;
   Timer? _localWifiDetectionTimer;
+  Timer? _plantingStatusTimer;
+  Timer? _forwardHeartbeatTimer;
+  DateTime? _plantingStartedAt;
+  final Set<String> _storedTerminalSessions = {};
 
   Future<void> load() async {
     try {
@@ -125,8 +142,7 @@ class RoverControlController extends StateNotifier<RoverControlState> {
         localWifiConnecting: false,
         localWifiConnected: true,
         pingRoundTripMs: pingResult.roundTrip.inMilliseconds,
-        lastCommand:
-            'PONG in ${pingResult.roundTrip.inMilliseconds} ms',
+        lastCommand: 'PONG in ${pingResult.roundTrip.inMilliseconds} ms',
         clearErrorMessage: true,
       );
     } catch (error) {
@@ -164,8 +180,7 @@ class RoverControlController extends StateNotifier<RoverControlState> {
         localWifiConnecting: false,
         localWifiConnected: true,
         pingRoundTripMs: pingResult.roundTrip.inMilliseconds,
-        lastCommand:
-            'PONG in ${pingResult.roundTrip.inMilliseconds} ms',
+        lastCommand: 'PONG in ${pingResult.roundTrip.inMilliseconds} ms',
         clearErrorMessage: true,
       );
     } catch (_) {
@@ -202,6 +217,15 @@ class RoverControlController extends StateNotifier<RoverControlState> {
   }
 
   Future<void> sendMovement(RoverMovementCommand command) async {
+    if (state.isPlantingLocked &&
+        command != RoverMovementCommand.forward &&
+        command != RoverMovementCommand.stop) {
+      state = state.copyWith(
+        errorMessage:
+            'Only Forward and Stop are available while the rake is lowered.',
+      );
+      return;
+    }
     if (state.localWifiConnected) {
       try {
         final result = await _localWifiService.sendCommand(
@@ -209,13 +233,18 @@ class RoverControlController extends StateNotifier<RoverControlState> {
           payload: {'speed': state.speed},
         );
         state = state.copyWith(
-          activeMovement:
-              command == RoverMovementCommand.stop ? null : command,
+          activeMovement: command == RoverMovementCommand.stop ? null : command,
           clearActiveMovement: command == RoverMovementCommand.stop,
           lastCommand:
               '${command.label} accepted in ${result.roundTrip.inMilliseconds} ms',
           clearErrorMessage: true,
         );
+        if (command == RoverMovementCommand.forward && state.isPlantingLocked) {
+          _startForwardHeartbeat();
+        } else if (command == RoverMovementCommand.stop) {
+          _forwardHeartbeatTimer?.cancel();
+          await _refreshPlantingStatus();
+        }
       } catch (error) {
         state = state.copyWith(
           localWifiConnected: _localWifiService.isConnected,
@@ -248,6 +277,31 @@ class RoverControlController extends StateNotifier<RoverControlState> {
       lastCommand: lastCommand,
       clearErrorMessage: true,
     );
+  }
+
+  void _startForwardHeartbeat() {
+    _forwardHeartbeatTimer?.cancel();
+    _forwardHeartbeatTimer = Timer.periodic(
+      const Duration(milliseconds: 650),
+      (_) => unawaited(_sendForwardHeartbeat()),
+    );
+  }
+
+  Future<void> _sendForwardHeartbeat() async {
+    if (!state.localWifiConnected ||
+        state.activeMovement != RoverMovementCommand.forward ||
+        !state.canDrivePlantingForward) {
+      _forwardHeartbeatTimer?.cancel();
+      return;
+    }
+    try {
+      await _localWifiService.sendCommand(
+        'MOVE_FORWARD',
+        payload: {'speed': state.speed},
+      );
+    } catch (_) {
+      _forwardHeartbeatTimer?.cancel();
+    }
   }
 
   Future<void> checkSoilState() async {
@@ -301,7 +355,7 @@ class RoverControlController extends StateNotifier<RoverControlState> {
     );
   }
 
-  Future<void> startPlanting() async {
+  Future<void> startPlanting(PlantingRowConfig configuration) async {
     if (!state.isConnected) {
       state = state.copyWith(errorMessage: 'Reconnect before planting.');
       return;
@@ -314,40 +368,148 @@ class RoverControlController extends StateNotifier<RoverControlState> {
       return;
     }
 
-    if (!state.canStartPlanting) {
+    if (!state.localWifiConnected) {
       state = state.copyWith(
-        errorMessage: 'Check the soil before starting planting.',
+        errorMessage:
+            'Connect directly to SeedRover-01 before starting a measured row.',
       );
       return;
     }
-
-    final String lastCommand;
-    if (state.localWifiConnected) {
-      try {
-        final result = await _localWifiService.sendCommand(
-          PlantingCommand.start.protocolCommand,
-          payload: {'seed': state.selectedSeed.payloadValue},
-        );
-        lastCommand =
-            'Plant accepted in ${result.roundTrip.inMilliseconds} ms';
-      } catch (error) {
-        state = state.copyWith(
-          errorMessage: error.toString().replaceFirst('Bad state: ', ''),
-        );
-        return;
-      }
-    } else {
-      lastCommand = await _repository.sendPlantingCommand(
-        PlantingCommand.start,
-        seed: state.selectedSeed,
+    try {
+      await _localWifiService.startPlantingRow(configuration);
+      _plantingStartedAt = DateTime.now();
+      state = state.copyWith(
+        selectedSeed: configuration.seed,
+        plantingStatus: PlantingStatus.checking,
+        activePlantingConfig: configuration,
+        soilCheckMessage: 'Checking soil, then lowering the rake.',
+        lastCommand: 'Row ${configuration.sessionId.substring(0, 8)} accepted',
+        clearErrorMessage: true,
+      );
+      await _refreshPlantingStatus();
+    } catch (error) {
+      state = state.copyWith(
+        errorMessage: error.toString().replaceFirst('Bad state: ', ''),
       );
     }
+  }
 
+  Future<RoverCalibrationModel> loadCalibration() {
+    return _localWifiService.getCalibration();
+  }
+
+  Future<void> saveCalibration(RoverCalibrationModel calibration) async {
+    try {
+      await _localWifiService.saveCalibration(calibration);
+      await _receiptRepository.saveCalibration(calibration);
+      state = state.copyWith(
+        lastCommand: 'Rover calibration saved',
+        clearErrorMessage: true,
+      );
+    } catch (error) {
+      state = state.copyWith(
+        errorMessage: error.toString().replaceFirst('Bad state: ', ''),
+      );
+      rethrow;
+    }
+  }
+
+  Future<void> resumePlanting() async {
+    try {
+      await _localWifiService.sendCommand('RESUME_PLANTING');
+      await _refreshPlantingStatus();
+    } catch (error) {
+      state = state.copyWith(
+          errorMessage: error.toString().replaceFirst('Bad state: ', ''));
+    }
+  }
+
+  Future<void> cancelPlanting() async {
+    _forwardHeartbeatTimer?.cancel();
+    try {
+      await _localWifiService.sendCommand('CANCEL_PLANTING');
+      await _refreshPlantingStatus();
+    } catch (error) {
+      state = state.copyWith(
+          errorMessage: error.toString().replaceFirst('Bad state: ', ''));
+    }
+  }
+
+  Future<void> _refreshPlantingStatus() async {
+    if (!state.localWifiConnected) return;
+    try {
+      final operation = await _localWifiService.getPlantingStatus();
+      if (operation.sessionId.isEmpty) return;
+      final mapped = switch (operation.state) {
+        'CHECKING_SOIL' => PlantingStatus.checking,
+        'LOWERING_RAKE' => PlantingStatus.loweringRake,
+        'READY' => PlantingStatus.ready,
+        'PLANTING' => PlantingStatus.active,
+        'PAUSED' => PlantingStatus.paused,
+        'COMPLETED' => PlantingStatus.completed,
+        'EMERGENCY_STOPPED' => PlantingStatus.emergencyStopped,
+        'FAILED' || 'CANCELLED' => PlantingStatus.failed,
+        _ => PlantingStatus.idle,
+      };
+      final estimate = state.activePlantingConfig;
+      final estimatedMin =
+          operation.completedDrops * (estimate?.estimatedSeedsPerDropMin ?? 1);
+      final estimatedMax =
+          operation.completedDrops * (estimate?.estimatedSeedsPerDropMax ?? 3);
+      state = state.copyWith(
+        plantingStatus: mapped,
+        plantingOperation: operation,
+        soilCheckPassed: operation.state != 'CHECKING_SOIL',
+        soilCheckMessage:
+            '${operation.completedDrops}/${operation.targetDrops} completed drops · estimated $estimatedMin-$estimatedMax seeds',
+        clearActiveMovement: operation.state != 'PLANTING',
+        clearErrorMessage: true,
+      );
+      if (operation.isTerminal) {
+        _forwardHeartbeatTimer?.cancel();
+        await _storeTerminalReceipt(operation);
+      }
+    } catch (_) {
+      // A lost hotspot connection is handled by the firmware heartbeat safety.
+    }
+  }
+
+  Future<void> _storeTerminalReceipt(PlantingOperationStatus operation) async {
+    if (_storedTerminalSessions.contains(operation.sessionId)) return;
+    final configuration = state.activePlantingConfig;
+    if (configuration == null ||
+        configuration.sessionId != operation.sessionId) {
+      return;
+    }
+    _storedTerminalSessions.add(operation.sessionId);
+    await _receiptRepository.save(
+      PendingPlantingReceipt(
+        config: configuration,
+        status: operation,
+        startedAt: _plantingStartedAt ?? DateTime.now(),
+        completedAt: DateTime.now(),
+      ),
+    );
+    await _refreshPendingReceiptCount();
+    unawaited(synchronizePendingReceipts());
+  }
+
+  Future<void> _refreshPendingReceiptCount() async {
+    final pending = await _receiptRepository.loadPending();
+    state = state.copyWith(pendingReceiptCount: pending.length);
+  }
+
+  Future<void> synchronizePendingReceipts() async {
+    if (state.syncingReceipts) return;
+    state = state.copyWith(syncingReceipts: true);
+    final synced = await _receiptRepository.synchronize();
+    final pending = await _receiptRepository.loadPending();
     state = state.copyWith(
-      plantingStatus: PlantingStatus.active,
-      lastCommand: lastCommand,
-      soilCheckMessage: 'Planting ${state.selectedSeed.label} is in progress.',
-      clearErrorMessage: true,
+      syncingReceipts: false,
+      pendingReceiptCount: pending.length,
+      lastCommand: synced > 0
+          ? '$synced planting receipt${synced == 1 ? '' : 's'} synchronized'
+          : state.lastCommand,
     );
   }
 
@@ -377,6 +539,7 @@ class RoverControlController extends StateNotifier<RoverControlState> {
           'Emergency stop activated. Rover controls are available again.',
       clearErrorMessage: true,
     );
+    await _refreshPlantingStatus();
   }
 
   Future<void> refreshCamera() async {
@@ -409,6 +572,8 @@ class RoverControlController extends StateNotifier<RoverControlState> {
   @override
   void dispose() {
     _localWifiDetectionTimer?.cancel();
+    _plantingStatusTimer?.cancel();
+    _forwardHeartbeatTimer?.cancel();
     _subscription?.cancel();
     _simulationSubscription?.cancel();
     _localWifiSubscription?.cancel();

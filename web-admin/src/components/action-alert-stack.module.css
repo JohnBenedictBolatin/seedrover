@@ -2,7 +2,7 @@
   position: fixed;
   right: 22px;
   bottom: 116px;
-  z-index: 1200;
+  z-index: 2147483600;
   display: grid;
   width: min(380px, calc(100vw - 32px));
   gap: 8px;
@@ -32,6 +32,18 @@
   transition:
     background 180ms ease,
     transform 180ms ease;
+  animation: actionAlertIn 180ms ease-out;
+}
+
+@keyframes actionAlertIn {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .alertCard:hover {

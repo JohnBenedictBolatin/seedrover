@@ -19,8 +19,11 @@ function optionalText(formData: FormData, key: string) {
 }
 
 function numberValue(formData: FormData, key: string, fallback = 0) {
-  const value = Number(formData.get(key) ?? fallback);
-  return Number.isFinite(value) ? value : fallback;
+  const raw = text(formData, key);
+  if (!raw) return fallback;
+  const value = Number(raw);
+  if (!Number.isFinite(value)) throw new Error(`${key.replaceAll("_", " ")} must be a valid number.`);
+  return value;
 }
 
 function optionalNumber(formData: FormData, key: string) {
@@ -30,7 +33,14 @@ function optionalNumber(formData: FormData, key: string) {
   }
 
   const value = Number(raw);
-  return Number.isFinite(value) ? value : null;
+  if (!Number.isFinite(value)) throw new Error(`${key.replaceAll("_", " ")} must be a valid number.`);
+  return value;
+}
+
+function validateQuantity(value: number, unit: string, label: string, allowZero = true) {
+  if (!Number.isFinite(value) || value < 0 || (!allowZero && value === 0)) {
+    throw new Error(`${label} must be a valid non-negative value.`);
+  }
 }
 
 async function currentUserId() {
@@ -208,18 +218,17 @@ async function uploadImage(inventoryId: string, file: FormDataEntryValue | null)
 }
 
 function inventoryPayload(formData: FormData, options?: { includeQuantity?: boolean }) {
+  const unit = text(formData, "unit", "kg").toLowerCase();
+  if (unit !== "kg") {
+    throw new Error("Inventory quantities must use kg as the unit.");
+  }
   const quantity = numberValue(formData, "quantity");
   const minimumQuantity = numberValue(formData, "minimum_quantity");
   const unitCost = optionalNumber(formData, "unit_cost");
   const sellingPrice = optionalNumber(formData, "selling_price");
 
-  if (options?.includeQuantity && quantity < 0) {
-    throw new Error("Current quantity cannot be negative.");
-  }
-
-  if (minimumQuantity < 0) {
-    throw new Error("Minimum quantity cannot be negative.");
-  }
+  if (options?.includeQuantity) validateQuantity(quantity, unit, "Current quantity");
+  validateQuantity(minimumQuantity, unit, "Minimum quantity");
 
   if (unitCost !== null && unitCost < 0) {
     throw new Error("Unit cost cannot be negative.");
@@ -233,7 +242,7 @@ function inventoryPayload(formData: FormData, options?: { includeQuantity?: bool
     item_name: text(formData, "item_name"),
     category: text(formData, "category", "Fruit Vegetables"),
     ...(options?.includeQuantity ? { quantity } : {}),
-    unit: text(formData, "unit", "kg"),
+    unit,
     minimum_quantity: minimumQuantity,
     storage_location: text(formData, "storage_location", "Unassigned"),
     unit_cost: unitCost,
@@ -390,6 +399,16 @@ async function createMovement(
   const inventoryId = text(formData, "id");
   const previousStock = await stockSnapshot(inventoryId);
 
+  const { data: movementItem } = await supabase
+    .from("inventory")
+    .select("unit")
+    .eq("id", inventoryId)
+    .single<{ unit: string }>();
+  if (movementItem?.unit !== "kg") {
+    throw new Error("Inventory quantities must use kg as the unit. Update this item before stocking it.");
+  }
+  validateQuantity(quantity, movementItem?.unit ?? "kg", "Quantity", transactionType !== "ADJUSTMENT");
+
   if (!userId) {
     throw new Error("Sign in before changing inventory.");
   }
@@ -455,6 +474,16 @@ export async function recordInventorySaleAction(formData: FormData) {
   if (payload.p_quantity_sold <= 0) {
     throw new Error("Sale quantity must be greater than zero.");
   }
+
+  const { data: saleItem } = await supabase
+    .from("inventory")
+    .select("unit")
+    .eq("id", payload.p_inventory_id)
+    .single<{ unit: string }>();
+  if (saleItem?.unit !== "kg") {
+    throw new Error("Inventory quantities must use kg as the unit. Update this item before selling it.");
+  }
+  validateQuantity(payload.p_quantity_sold, saleItem?.unit ?? "kg", "Sale quantity", false);
 
   if (payload.p_unit_price < 0) {
     throw new Error("Sale unit price cannot be negative.");

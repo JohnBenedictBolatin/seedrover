@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -108,13 +109,53 @@ class CropDetailsScreen extends ConsumerWidget {
         ),
         const SizedBox(height: AppSpacing.lg),
         _SectionCard(
-          title: 'Maintenance History',
+          title: 'Care Plan',
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(crop.careStatus, style: AppTypography.body),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+                'Water and fertilizer quantities are calculated guidance. Verify soil, drainage, field area, and product labels before application.',
+                style: AppTypography.small
+                    .copyWith(color: AppColors.secondaryText)),
+          ]),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        _SectionCard(
+          title: 'Sensor & Weather',
+          child: CropSensorSnapshotGrid(snapshot: crop.sensorSnapshot),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        _SectionCard(
+          title: 'Activity History',
           onHistoryTap: () => _showMaintenanceHistoryDialog(context, crop),
           child: CropMaintenanceTimeline(records: crop.maintenanceHistory),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        _SectionCard(
+          title: 'Harvest',
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(
+              crop.name.toLowerCase().contains('calamansi') &&
+                      crop.harvestWindowStart == null
+                  ? 'Next nursery milestone: ${crop.expectedStage}. A first-bearing window is shown after transplanting.'
+                  : 'Expected window: ${_dateText(crop.harvestWindowStart ?? crop.estimatedHarvest)} to ${_dateText(crop.harvestWindowEnd ?? crop.estimatedHarvest)}.',
+              style: AppTypography.body,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+                'Forecast confidence: ${crop.forecastConfidence}. Confirm crop maturity in the field before harvesting.',
+                style: AppTypography.small
+                    .copyWith(color: AppColors.secondaryText)),
+          ]),
         ),
       ],
     );
   }
+
+  String _dateText(DateTime value) =>
+      '${value.month}/${value.day}/${value.year}';
 
   void _showEnvironmentalInfoDialog(BuildContext context, CropModel crop) {
     showDialog<void>(
@@ -184,6 +225,7 @@ class CropDetailsScreen extends ConsumerWidget {
     CropModel crop,
   ) {
     final amountController = TextEditingController();
+    final unitController = TextEditingController(text: 'liters');
     final notesController = TextEditingController(text: 'Watered crop.');
 
     _showFormDialog(
@@ -193,7 +235,17 @@ class CropDetailsScreen extends ConsumerWidget {
         _DialogDateLabel(date: DateTime.now()),
         TextField(
           controller: amountController,
-          decoration: const InputDecoration(labelText: 'Water Amount'),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))
+          ],
+          decoration: const InputDecoration(
+              labelText: 'Water quantity', hintText: 'e.g. 12'),
+        ),
+        TextField(
+          controller: unitController,
+          decoration:
+              const InputDecoration(labelText: 'Unit', hintText: 'e.g. liters'),
         ),
         TextField(
           controller: notesController,
@@ -203,7 +255,8 @@ class CropDetailsScreen extends ConsumerWidget {
       onConfirm: () async {
         return controller.waterCrop(
           cropId: crop.id,
-          amount: amountController.text,
+          quantity: double.tryParse(amountController.text) ?? 0,
+          unit: unitController.text,
           notes: notesController.text,
           date: DateTime.now(),
         );
@@ -218,6 +271,7 @@ class CropDetailsScreen extends ConsumerWidget {
   ) {
     final typeController = TextEditingController(text: 'Organic fertilizer');
     final quantityController = TextEditingController();
+    final unitController = TextEditingController(text: 'grams');
     final notesController = TextEditingController(text: 'Fertilizer applied.');
 
     _showFormDialog(
@@ -231,7 +285,17 @@ class CropDetailsScreen extends ConsumerWidget {
         ),
         TextField(
           controller: quantityController,
-          decoration: const InputDecoration(labelText: 'Quantity'),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))
+          ],
+          decoration:
+              const InputDecoration(labelText: 'Quantity', hintText: 'e.g. 50'),
+        ),
+        TextField(
+          controller: unitController,
+          decoration: const InputDecoration(
+              labelText: 'Unit', hintText: 'e.g. grams per tree'),
         ),
         TextField(
           controller: notesController,
@@ -242,7 +306,8 @@ class CropDetailsScreen extends ConsumerWidget {
         return controller.fertilizeCrop(
           cropId: crop.id,
           fertilizerType: typeController.text,
-          quantity: quantityController.text,
+          quantity: double.tryParse(quantityController.text) ?? 0,
+          unit: unitController.text,
           notes: notesController.text,
           date: DateTime.now(),
         );

@@ -6,6 +6,7 @@ type CountUpValueProps = {
   className?: string;
   currency?: boolean;
   durationMs?: number;
+  suffix?: string;
   value: number;
 };
 
@@ -13,6 +14,7 @@ export function CountUpValue({
   className,
   currency = false,
   durationMs = 900,
+  suffix = "",
   value,
 }: CountUpValueProps) {
   const [displayValue, setDisplayValue] = useState(0);
@@ -56,5 +58,5 @@ export function CountUpValue({
     }).format(displayValue);
   }, [currency, displayValue, value]);
 
-  return <strong className={className}>{formatted}</strong>;
+  return <strong className={className}>{formatted}{suffix}</strong>;
 }

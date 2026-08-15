@@ -94,6 +94,8 @@ export function UsersWorkspace({ users, roles, summary }: Props) {
 
   const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
+  const pageStart = Math.min(Math.max(currentPage - 1, 1), Math.max(totalPages - 2, 1));
+  const pageNumbers = Array.from({ length: Math.min(3, totalPages) }, (_, index) => pageStart + index);
   const visibleUsers = filteredUsers.slice(
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE,
@@ -293,7 +295,7 @@ export function UsersWorkspace({ users, roles, summary }: Props) {
                   <ChevronLeft size={17} />
                 </button>
                 <div className={styles.pageNumbers}>
-                  {Array.from({ length: totalPages }, (_, index) => index + 1).map((number) => (
+                  {pageNumbers.map((number) => (
                     <button
                       aria-current={number === currentPage ? "page" : undefined}
                       data-active={number === currentPage ? "true" : "false"}
@@ -448,7 +450,7 @@ function UserModal({
   }
 
   return (
-    <div className={styles.modalBackdrop}>
+    <div className={styles.modalBackdrop} data-ui-backdrop="true">
       <div className={styles.modal}>
         <div className={styles.modalHeader}>
           <div>
@@ -579,7 +581,7 @@ function CreateUserModal({
   }
 
   return (
-    <div className={styles.modalBackdrop}>
+    <div className={styles.modalBackdrop} data-ui-backdrop="true">
       <div className={styles.modal}>
         <div className={styles.modalHeader}>
           <div className={styles.modalTitle}>
@@ -670,7 +672,7 @@ function CreateUserModal({
           </label>
           <label>
             Access note
-            <input name="access_note" placeholder="Optional internal note" />
+            <input name="access_note" placeholder="e.g. Assigned to greenhouse operations" />
           </label>
 
           <div className={styles.formActions}>

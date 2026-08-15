@@ -2,6 +2,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app_environment.dart';
+import '../services/push_notification_service.dart';
 
 class AppBootstrap {
   const AppBootstrap._();
@@ -15,6 +16,7 @@ class AppBootstrap {
       url: environment.supabaseUrl,
       anonKey: environment.supabaseAnonKey,
     );
+    await PushNotificationService.instance.initialize(Supabase.instance.client);
 
     return environment;
   }

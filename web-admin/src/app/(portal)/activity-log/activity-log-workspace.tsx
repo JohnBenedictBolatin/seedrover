@@ -85,6 +85,8 @@ export function ActivityLogWorkspace({ logs, summary }: Props) {
 
   const totalPages = Math.max(1, Math.ceil(filteredLogs.length / ROWS_PER_PAGE));
   const currentPage = Math.min(page, totalPages);
+  const pageStart = Math.min(Math.max(currentPage - 1, 1), Math.max(totalPages - 2, 1));
+  const pageNumbers = Array.from({ length: Math.min(3, totalPages) }, (_, index) => pageStart + index);
   const visibleLogs = filteredLogs.slice(
     (currentPage - 1) * ROWS_PER_PAGE,
     currentPage * ROWS_PER_PAGE,
@@ -211,7 +213,7 @@ export function ActivityLogWorkspace({ logs, summary }: Props) {
                 <ChevronLeft size={17} />
               </button>
               <div className={styles.pageNumbers}>
-                {Array.from({ length: totalPages }, (_, index) => index + 1).map((number) => (
+                {pageNumbers.map((number) => (
                   <button
                     aria-current={number === currentPage ? "page" : undefined}
                     data-active={number === currentPage ? "true" : "false"}

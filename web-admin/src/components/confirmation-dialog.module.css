@@ -8,42 +8,31 @@
   background:
     radial-gradient(circle at center, rgba(92, 255, 41, 0.08), transparent 42%),
     rgba(2, 4, 2, 0.78);
-  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .modal {
   position: relative;
-  width: min(420px, 100%);
+  width: min(520px, 100%);
   overflow: hidden;
-  border: 1px solid rgba(92, 255, 41, 0.24);
-  border-radius: 24px;
-  padding: 34px 28px 26px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 28px;
   text-align: center;
-  color: #f4f8ef;
-  background:
-    linear-gradient(135deg, rgba(92, 255, 41, 0.08), transparent 42%),
-    linear-gradient(180deg, rgba(38, 38, 38, 0.98), rgba(25, 25, 25, 0.98));
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: var(--shadow);
   animation: confirmIn 180ms ease-out;
 }
 
 .modal::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(92, 255, 41, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(92, 255, 41, 0.04) 1px, transparent 1px);
-  background-size: 18px 18px;
-  opacity: 0.34;
+  content: none;
 }
 
 .modal[data-tone="danger"] {
-  border-color: rgba(255, 82, 82, 0.26);
-  background:
-    linear-gradient(135deg, rgba(255, 82, 82, 0.08), transparent 42%),
-    linear-gradient(180deg, rgba(38, 38, 38, 0.98), rgba(25, 25, 25, 0.98));
+  border-color: var(--border-soft);
+  background: var(--surface);
 }
 
 .closeButton,
@@ -64,9 +53,9 @@
   height: 34px;
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  color: #9ca89a;
-  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: transparent;
   cursor: pointer;
   transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
 }
@@ -84,7 +73,7 @@
   margin: 4px auto 18px;
   place-items: center;
   border: 1px solid rgba(92, 255, 41, 0.32);
-  border-radius: 20px;
+  border-radius: 8px;
   color: #5cff29;
   background: rgba(92, 255, 41, 0.1);
 }
@@ -98,15 +87,15 @@
 .modal h2 {
   margin: 0;
   font-family: var(--font-roboto-mono), "Roboto Mono", monospace;
-  font-size: 1.35rem;
+  font-size: 1.45rem;
   letter-spacing: -0.03em;
 }
 
 .modal p {
   max-width: 34ch;
   margin: 10px auto 0;
-  color: #aeb8aa;
-  font-size: 0.92rem;
+  color: var(--text-secondary);
+  font-size: 1rem;
   line-height: 1.55;
 }
 
@@ -119,30 +108,30 @@
 
 .actions button {
   min-height: 44px;
-  border-radius: 14px;
+  border-radius: 8px;
   font-weight: 900;
   cursor: pointer;
 }
 
 .cancelButton {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #e9eee5;
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-soft);
+  color: var(--text-secondary);
+  background: transparent;
 }
 
 .confirmButton,
 .dangerButton {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(92, 255, 41, 0.62);
-  color: #5cff29;
+  border: 1px solid var(--border-soft);
+  color: var(--text-secondary);
   background: transparent;
   transition: color 180ms ease, border-color 180ms ease;
 }
 
 .dangerButton {
-  border-color: rgba(255, 82, 82, 0.7);
-  color: #ff6a6a;
+  border-color: var(--border-soft);
+  color: var(--text-secondary);
 }
 
 .confirmButton span,
@@ -184,10 +173,12 @@
 }
 
 .confirmButton:hover {
+  border-color: rgba(92, 255, 41, 0.62);
   color: #101810;
 }
 
 .dangerButton:hover {
+  border-color: rgba(255, 82, 82, 0.7);
   color: #160808;
 }
 
@@ -216,16 +207,14 @@
 
 :global(html[data-theme="light"]) .backdrop {
   background: rgba(4, 12, 5, 0.54);
-  backdrop-filter: blur(12px) saturate(0.9);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 :global(html[data-theme="light"]) .modal {
   border-color: rgba(18, 60, 27, 0.22);
   color: #123c1b;
-  background:
-    linear-gradient(135deg, rgba(18, 60, 27, 0.06), transparent 46%),
-    #ffffff;
-  box-shadow: 0 24px 80px rgba(18, 60, 27, 0.22);
+  background: #ffffff;
 }
 
 :global(html[data-theme="light"]) .modal::before {
@@ -236,10 +225,8 @@
 }
 
 :global(html[data-theme="light"]) .modal[data-tone="danger"] {
-  border-color: rgba(184, 38, 31, 0.22);
-  background:
-    linear-gradient(135deg, rgba(184, 38, 31, 0.06), transparent 46%),
-    #ffffff;
+  border-color: rgba(18, 60, 27, 0.22);
+  background: #ffffff;
 }
 
 :global(html[data-theme="light"]) .modal h2 {
@@ -286,7 +273,7 @@
 }
 
 :global(html[data-theme="light"]) .confirmButton {
-  border: 2px solid rgba(18, 60, 27, 0.78);
+  border: 1px solid rgba(18, 60, 27, 0.24);
   color: #123c1b;
   background: #ffffff;
   box-shadow: none;
@@ -306,8 +293,8 @@
 }
 
 :global(html[data-theme="light"]) .dangerButton {
-  border: 2px solid rgba(184, 38, 31, 0.78);
-  color: #b8261f;
+  border: 1px solid rgba(18, 60, 27, 0.24);
+  color: #123c1b;
   background: #ffffff;
   box-shadow: none;
 }

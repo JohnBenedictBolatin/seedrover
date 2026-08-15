@@ -22,6 +22,8 @@ create table if not exists public.rover_control_leases (
 
 alter table public.rover_control_leases enable row level security;
 
+drop policy if exists rover_control_leases_select_allowed on public.rover_control_leases;
+
 create policy rover_control_leases_select_allowed
   on public.rover_control_leases for select to authenticated
   using (public.has_permission('rover.view') or public.has_permission('rover.control'));
@@ -73,5 +75,15 @@ revoke all on function public.release_rover_control_lease(text) from public;
 grant execute on function public.acquire_rover_control_lease(text, integer) to authenticated;
 grant execute on function public.release_rover_control_lease(text) to authenticated;
 
-alter publication supabase_realtime add table public.rover_control_leases;
-
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'rover_control_leases'
+  ) then
+    alter publication supabase_realtime add table public.rover_control_leases;
+  end if;
+end;
+$$;

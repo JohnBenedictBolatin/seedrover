@@ -23,6 +23,45 @@
   margin: 0;
 }
 
+.paymentPanel {
+  display: grid;
+  gap: 20px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: rgba(49, 49, 49, 0.82);
+  padding: 22px;
+}
+
+.paymentSubtitle { margin: 8px 0 0; color: var(--text-secondary); font-size: 0.88rem; }
+.paymentCount { color: var(--green-accent); font-size: 0.8rem; font-weight: 900; }
+.paymentForm { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: 12px; align-items: end; }
+.paymentField { display: grid; gap: 7px; color: var(--text-muted); font-size: 0.78rem; font-weight: 900; }
+.paymentField input { width: 100%; min-height: 44px; border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text); background: rgba(27, 27, 27, 0.55); padding: 0 12px; }
+.paymentField input:focus { border-color: var(--green-accent); outline: 2px solid rgba(141, 255, 42, 0.12); }
+.paymentPrimaryButton, .paymentMarkButton { min-height: 40px; border: 1px solid rgba(141, 255, 42, 0.35); border-radius: 8px; color: #132313; background: var(--green-accent); font-size: 0.72rem; font-weight: 900; cursor: pointer; padding: 0 14px; white-space: nowrap; }
+.paymentPrimaryButton:hover, .paymentMarkButton:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.paymentTable { display: grid; gap: 8px; }
+.paymentTableHeader, .paymentRow { display: grid; grid-template-columns: minmax(160px, 1.3fr) minmax(110px, 0.8fr) minmax(110px, 0.8fr) minmax(100px, 0.7fr) auto; gap: 14px; align-items: center; }
+.paymentTableHeader { color: var(--text-muted); font-size: 0.7rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; padding: 0 14px 4px; }
+.paymentRow { min-height: 58px; border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; background: rgba(34,34,34,0.78); color: var(--text-secondary); font-size: 0.84rem; padding: 9px 14px; }
+.paymentRow strong, .paymentAmount { color: var(--text); }
+.paymentAmount { font-family: var(--font-roboto-mono); font-weight: 900; }
+.paymentStatus { width: max-content; border-radius: 999px; padding: 5px 9px; font-size: 0.68rem; font-weight: 900; }
+.paymentStatus[data-status="pending"] { color: var(--warning); background: rgba(255,176,0,0.1); }
+.paymentStatus[data-status="overdue"] { color: #ff8585; background: rgba(255,87,87,0.1); }
+.paymentStatus[data-status="paid"] { color: var(--green-accent); background: rgba(83,209,30,0.1); }
+.paymentComplete { color: var(--green-accent); font-size: 0.72rem; font-weight: 900; text-align: right; }
+.paymentEmpty { border: 1px dashed var(--border-soft); border-radius: 8px; color: var(--text-secondary); padding: 24px; text-align: center; }
+
+:global(html[data-theme="light"]) .paymentPanel { background: rgba(255,255,255,0.86); }
+:global(html[data-theme="light"]) .paymentField input { border-color: rgba(18,60,27,0.22); color: #123c1b; background: #fff; }
+:global(html[data-theme="light"]) .paymentRow { border-color: rgba(18,60,27,0.12); color: rgba(18,60,27,0.72); background: #f9fcf7; }
+:global(html[data-theme="light"]) .paymentRow strong, :global(html[data-theme="light"]) .paymentAmount { color: #123c1b; }
+:global(html[data-theme="light"]) .paymentPrimaryButton, :global(html[data-theme="light"]) .paymentMarkButton { color: #ffffff; }
+
+@media (max-width: 1100px) { .paymentForm { grid-template-columns: repeat(2, minmax(0, 1fr)); } .paymentPrimaryButton { width: max-content; } }
+@media (max-width: 720px) { .paymentTableHeader { display: none; } .paymentRow { grid-template-columns: 1fr 1fr; gap: 8px; } .paymentRow form, .paymentComplete { justify-self: start; } }
+
 .header h1 {
   font-size: clamp(2rem, 4vw, 3.3rem);
   line-height: 1.04;
@@ -197,7 +236,7 @@
   display: flex;
   flex: 0 0 auto;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 10px;
 }
 
@@ -755,8 +794,8 @@
   display: grid;
   place-items: center;
   background: rgba(0, 0, 0, 0.78);
-  -webkit-backdrop-filter: blur(14px) saturate(0.72);
-  backdrop-filter: blur(14px) saturate(0.72);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
   padding: 24px;
 }
 

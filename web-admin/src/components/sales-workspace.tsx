@@ -210,7 +210,8 @@ export function SalesWorkspace({
     (safeCurrentPage - 1) * SALES_ROWS_PER_PAGE,
     safeCurrentPage * SALES_ROWS_PER_PAGE,
   );
-  const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1);
+  const pageStart = Math.min(Math.max(safeCurrentPage - 1, 1), Math.max(totalPages - 2, 1));
+  const pageNumbers = Array.from({ length: Math.min(3, totalPages) }, (_, index) => pageStart + index);
 
   const paymentOptions = ["All", ...new Set(orders.map((order) => order.paymentMethod))];
   const statusOptions = ["All", ...new Set(orders.map((order) => order.status))];
@@ -465,7 +466,7 @@ export function SalesWorkspace({
       </section>
 
       {voidTarget ? (
-        <div className={styles.modalBackdrop} role="presentation">
+        <div className={styles.modalBackdrop} data-ui-backdrop="true" role="presentation">
           <form className={styles.voidModal} onSubmit={handleVoidSubmit}>
             <input name="id" type="hidden" value={voidTarget.id} />
             <input name="source" type="hidden" value={voidTarget.source} />
@@ -503,7 +504,7 @@ export function SalesWorkspace({
       ) : null}
 
       {salesModalOpen ? (
-        <div className={styles.modalBackdrop} role="presentation">
+        <div className={styles.modalBackdrop} data-ui-backdrop="true" role="presentation">
           <section
             aria-label="Record sale"
             aria-modal="true"
@@ -571,7 +572,7 @@ function SalesRecordDetailModal({
       : (order.receiptItems ?? []);
 
   return (
-    <div className={styles.modalBackdrop} role="presentation">
+    <div className={styles.modalBackdrop} data-ui-backdrop="true" role="presentation">
       <section
         aria-label="Sales record details"
         aria-modal="true"

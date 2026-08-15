@@ -1,11 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import {
-  AlertTriangle,
   Package,
   ReceiptText,
   TrendingUp,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   Area,
@@ -62,6 +64,13 @@ type OperationsDashboardWorkspaceProps = {
 };
 
 export function OperationsDashboardWorkspace({ data }: OperationsDashboardWorkspaceProps) {
+  const [activityPage, setActivityPage] = useState(1);
+  const activityPageSize = 5;
+  const activityPageCount = Math.max(1, Math.ceil(data.recentActivity.length / activityPageSize));
+  const visibleActivity = data.recentActivity.slice(
+    (activityPage - 1) * activityPageSize,
+    activityPage * activityPageSize,
+  );
   const summaryCards = [
     {
       icon: <TrendingUp size={20} />,
@@ -81,9 +90,11 @@ export function OperationsDashboardWorkspace({ data }: OperationsDashboardWorksp
       currency: true,
     },
     {
-      icon: <AlertTriangle size={20} />,
-      label: "Low stock",
-      value: data.summary.lowStockItems,
+      icon: <TrendingUp size={20} />,
+      label: "ROI",
+      value: data.summary.roi,
+      suffix: "%",
+      secondary: `Investment: ${formatCurrency(data.summary.investmentInRange)}`,
     },
   ];
 
@@ -110,7 +121,6 @@ export function OperationsDashboardWorkspace({ data }: OperationsDashboardWorksp
     <>
       <section className={styles.rangePanel} aria-label="Dashboard range selector">
         <div>
-          <p className={styles.eyebrow}>Analysis range</p>
           <h2>Farm overview</h2>
           <span>Charts and insights update using the selected period.</span>
         </div>
@@ -135,7 +145,10 @@ export function OperationsDashboardWorkspace({ data }: OperationsDashboardWorksp
               <span className={styles.metricIcon}>{card.icon}</span>
               <p>{card.label}</p>
             </div>
-            <CountUpValue className="mono" currency={card.currency} value={card.value} />
+          <div className={styles.metricValue}>
+            <CountUpValue className="mono" currency={card.currency} value={card.value} suffix={card.suffix} />
+            {card.secondary ? <small className={styles.metricSecondary}>{card.secondary}</small> : null}
+          </div>
           </article>
         ))}
       </section>
@@ -225,7 +238,7 @@ export function OperationsDashboardWorkspace({ data }: OperationsDashboardWorksp
           </div>
           {data.recentActivity.length > 0 ? (
             <div className={styles.activityList}>
-              {data.recentActivity.map((activity) => (
+              {visibleActivity.map((activity) => (
                 <div className={styles.activityItem} data-type={activity.type} key={`${activity.type}-${activity.id}`}>
                   <span>{activity.type === "sale" ? <ReceiptText size={16} /> : <Package size={16} />}</span>
                   <div>
@@ -242,6 +255,27 @@ export function OperationsDashboardWorkspace({ data }: OperationsDashboardWorksp
                   </div>
                 </div>
               ))}
+              {activityPageCount > 1 ? (
+                <div className={styles.activityPagination}>
+                  <button
+                    aria-label="Previous activity page"
+                    disabled={activityPage === 1}
+                    type="button"
+                    onClick={() => setActivityPage((page) => Math.max(1, page - 1))}
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <span>Page {activityPage} of {activityPageCount}</span>
+                  <button
+                    aria-label="Next activity page"
+                    disabled={activityPage === activityPageCount}
+                    type="button"
+                    onClick={() => setActivityPage((page) => Math.min(activityPageCount, page + 1))}
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              ) : null}
             </div>
           ) : (
             <EmptyState text="No recent sales or stock movement in this range." />

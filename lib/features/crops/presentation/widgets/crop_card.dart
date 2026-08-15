@@ -30,7 +30,8 @@ class CropCard extends StatelessWidget {
       onTap: onTap,
       child: AppCard(
         backgroundColor: AppColors.secondaryBackground,
-        borderColor: selected ? AppColors.primaryGreen : AppColors.inactiveBorder,
+        borderColor:
+            selected ? AppColors.primaryGreen : AppColors.inactiveBorder,
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -50,23 +51,51 @@ class CropCard extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.xs),
             AnimatedTypingText(
-              crop.variety,
+              '${crop.plantingSource} · ${crop.fieldLabel}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTypography.small,
             ),
             const SizedBox(height: AppSpacing.md),
             _CropMetaRow(
-              icon: Icons.event_outlined,
-              label: 'Planted',
-              value: _formatDate(crop.plantingDate),
+              icon: Icons.straighten,
+              label: 'Coverage',
+              value: crop.fieldAreaM2 == null
+                  ? '${crop.completedDrops} completed drops'
+                  : '${crop.fieldAreaM2!.toStringAsFixed(2)} m² · ${crop.completedDrops} drops',
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _CropMetaRow(
+              icon: Icons.grain,
+              label: 'Est. seeds',
+              value: crop.estimatedSeedMin == null
+                  ? 'Not available'
+                  : '${crop.estimatedSeedMin}-${crop.estimatedSeedMax ?? crop.estimatedSeedMin}',
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _CropMetaRow(
+              icon: Icons.water_drop_outlined,
+              label: 'Latest soil',
+              value: crop.sensorSnapshot.recordedAt == null
+                  ? 'No linked reading'
+                  : '${crop.sensorSnapshot.soilMoisture.toStringAsFixed(0)}%',
             ),
             const SizedBox(height: AppSpacing.sm),
             _CropMetaRow(
               icon: Icons.content_cut,
-              label: 'Harvest',
-              value: _formatDate(crop.estimatedHarvest),
+              label: crop.name.toLowerCase().contains('calamansi') &&
+                      crop.harvestWindowStart == null
+                  ? 'Nursery'
+                  : 'Harvest',
+              value: crop.harvestWindowStart == null
+                  ? crop.expectedStage
+                  : '${_formatDate(crop.harvestWindowStart!)}-${_formatDate(crop.harvestWindowEnd ?? crop.harvestWindowStart!)} · ${crop.forecastConfidence}',
             ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(crop.careStatus,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.small),
             const SizedBox(height: AppSpacing.md),
             ClipRRect(
               borderRadius: BorderRadius.circular(AppRadius.sm),

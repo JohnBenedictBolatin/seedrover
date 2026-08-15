@@ -20,20 +20,54 @@ class CropRepository {
         .asyncMap((_) => getCrops());
   }
 
+  Future<CropWeatherSnapshot> getWeatherStatus() async {
+    final weatherRows = await _client
+        .from('weather_forecasts')
+        .select(
+          'provider, precipitation_probability, temperature_c, humidity_percent, condition, raw_payload, fetched_at',
+        )
+        .order('fetched_at', ascending: false)
+        .limit(2) as List<dynamic>;
+    Map<String, dynamic>? openMeteo;
+    for (final value in weatherRows) {
+      final row = value as Map<String, dynamic>;
+      if (row['provider'] == 'Open-Meteo') openMeteo ??= row;
+    }
+    final raw = openMeteo?['raw_payload'] as Map<String, dynamic>?;
+    final summary = raw?['summary'] as Map<String, dynamic>?;
+    return CropWeatherSnapshot(
+      currentCondition:
+          openMeteo?['condition'] as String? ?? 'Weather unavailable',
+      nextRainAt: _parseDateTime(summary?['nextRainAt']),
+      temperatureC: (openMeteo?['temperature_c'] as num?)?.toDouble(),
+      humidityPercent: (openMeteo?['humidity_percent'] as num?)?.toDouble(),
+      rainChancePercent:
+          (openMeteo?['precipitation_probability'] as num?)?.toDouble(),
+      fetchedAt: _parseDateTime(openMeteo?['fetched_at']),
+    );
+  }
+
   Future<List<CropModel>> getCrops() async {
     final rows = await _client
         .from(DatabaseTables.crops)
         .select(
           'id, crop_name, assigned_manager, planting_date, estimated_harvest, '
           'growth_stage, maintenance_notes, image_path, crop_status, created_at, '
-          'updated_at, profiles(full_name)',
+          'updated_at, planting_source, field_label, field_area_m2, completed_drop_cycles, '
+          'estimated_seed_count_min, estimated_seed_count_max, harvest_window_start, '
+          'harvest_window_end, forecast_confidence, expected_stage, current_care_status, '
+          'propagation_method, last_watered_at, profiles(full_name)',
         )
         .order('planting_date', ascending: false) as List<dynamic>;
-    final sensors = await _latestSensorSnapshot();
-
-    return rows
-        .map((row) => _cropFromRow(row as Map<String, dynamic>, sensors))
-        .toList(growable: false);
+    return Future.wait(
+      rows.map((row) async {
+        final cropRow = row as Map<String, dynamic>;
+        return _cropFromRow(
+          cropRow,
+          await _latestSensorSnapshot(cropId: cropRow['id'] as String),
+        );
+      }),
+    );
   }
 
   Future<CropModel> createCrop(CropModel crop) async {
@@ -46,7 +80,10 @@ class CropRepository {
         .select(
           'id, crop_name, assigned_manager, planting_date, estimated_harvest, '
           'growth_stage, maintenance_notes, image_path, crop_status, created_at, '
-          'updated_at, profiles(full_name)',
+          'updated_at, planting_source, field_label, field_area_m2, completed_drop_cycles, '
+          'estimated_seed_count_min, estimated_seed_count_max, harvest_window_start, '
+          'harvest_window_end, forecast_confidence, expected_stage, current_care_status, '
+          'propagation_method, last_watered_at, profiles(full_name)',
         )
         .single();
 
@@ -58,6 +95,60 @@ class CropRepository {
     return _cropFromRow(row, await _latestSensorSnapshot());
   }
 
+  Future<CropModel> createManualCrop({
+    required String profileKey,
+    required String fieldLabel,
+    required double fieldAreaM2,
+    required DateTime plantingDate,
+    required String reason,
+  }) async {
+    final names = {
+      'calamansi': 'Calamansi',
+      'sitaw': 'Sitaw',
+      'peanut': 'Peanut'
+    };
+    final harvestDays = {'sitaw': 60, 'peanut': 95};
+    final name = names[profileKey] ?? profileKey;
+    final harvest = harvestDays[profileKey] == null
+        ? null
+        : plantingDate.add(Duration(days: harvestDays[profileKey]!));
+    final row = await _client
+        .from(DatabaseTables.crops)
+        .insert({
+          'crop_name': name,
+          'assigned_manager': _client.auth.currentUser?.id,
+          'planting_date': _dateOnly(plantingDate),
+          'estimated_harvest': harvest == null ? null : _dateOnly(harvest),
+          'growth_stage': 'Seeded',
+          'crop_status': 'Active',
+          'planting_source': 'Manual',
+          'manual_creation_reason': reason.trim(),
+          'crop_profile_key': profileKey,
+          'profile_version': 1,
+          'field_label': fieldLabel.trim(),
+          'field_area_m2': fieldAreaM2,
+          'propagation_method': profileKey == 'calamansi'
+              ? 'Direct seed to nursery'
+              : 'Direct seed',
+          'harvest_window_start': harvest == null ? null : _dateOnly(harvest),
+          'harvest_window_end': harvest == null
+              ? null
+              : _dateOnly(
+                  harvest.add(Duration(days: profileKey == 'sitaw' ? 10 : 5))),
+          'forecast_confidence': 'Low',
+          'expected_stage': profileKey == 'calamansi'
+              ? 'Germination and nursery review'
+              : 'Germination',
+          'current_care_status': 'Manual planting - verify field conditions',
+        })
+        .select(
+          'id, crop_name, assigned_manager, planting_date, estimated_harvest, growth_stage, maintenance_notes, image_path, crop_status, created_at, updated_at, planting_source, field_label, field_area_m2, completed_drop_cycles, estimated_seed_count_min, estimated_seed_count_max, harvest_window_start, harvest_window_end, forecast_confidence, expected_stage, current_care_status, propagation_method, last_watered_at, profiles(full_name)',
+        )
+        .single();
+    return _cropFromRow(
+        row, await _latestSensorSnapshot(cropId: row['id'] as String));
+  }
+
   Future<CropModel> updateCrop(CropModel crop) async {
     final row = await _client
         .from(DatabaseTables.crops)
@@ -66,7 +157,10 @@ class CropRepository {
         .select(
           'id, crop_name, assigned_manager, planting_date, estimated_harvest, '
           'growth_stage, maintenance_notes, image_path, crop_status, created_at, '
-          'updated_at, profiles(full_name)',
+          'updated_at, planting_source, field_label, field_area_m2, completed_drop_cycles, '
+          'estimated_seed_count_min, estimated_seed_count_max, harvest_window_start, '
+          'harvest_window_end, forecast_confidence, expected_stage, current_care_status, '
+          'propagation_method, last_watered_at, profiles(full_name)',
         )
         .single();
 
@@ -147,6 +241,10 @@ class CropRepository {
     double? progress,
     DateTime? harvestDate,
     DateTime? lastWateredAt,
+    double? quantity,
+    String? unit,
+    String? material,
+    String? observedStage,
   }) async {
     final nextCrop = crop.copyWith(
       status: status,
@@ -160,15 +258,44 @@ class CropRepository {
           performedAt: date,
           notes: notes,
           performedBy: 'Current User',
+          quantity: quantity,
+          unit: unit,
+          material: material,
         ),
         ...crop.maintenanceHistory,
       ],
     );
 
-    final updatedCrop = await updateCrop(nextCrop);
-    await _recordActivity(
-      activity: 'Crop activity recorded',
-      description: '${crop.name}: $notes',
+    final activityType = switch (activity) {
+      CropMaintenanceActivity.planted => 'Stage Observed',
+      CropMaintenanceActivity.watered => 'Watered',
+      CropMaintenanceActivity.fertilized => 'Fertilized',
+      CropMaintenanceActivity.inspected => 'Inspected',
+      CropMaintenanceActivity.harvested => 'Harvested',
+    };
+    await _client.rpc('record_crop_activity', params: {
+      'p_crop_id': crop.id,
+      'p_activity_type': activityType,
+      'p_performed_at': date.toUtc().toIso8601String(),
+      'p_quantity': quantity,
+      'p_unit': unit,
+      'p_material': material,
+      'p_notes': notes,
+      'p_observed_stage': observedStage,
+      'p_task_id': null,
+      'p_idempotency_key':
+          'mobile:${crop.id}:${date.microsecondsSinceEpoch}:$activityType',
+    });
+    final row = await _client
+        .from(DatabaseTables.crops)
+        .select(
+          'id, crop_name, assigned_manager, planting_date, estimated_harvest, growth_stage, maintenance_notes, image_path, crop_status, created_at, updated_at, planting_source, field_label, field_area_m2, completed_drop_cycles, estimated_seed_count_min, estimated_seed_count_max, harvest_window_start, harvest_window_end, forecast_confidence, expected_stage, current_care_status, propagation_method, last_watered_at, profiles(full_name)',
+        )
+        .eq('id', crop.id)
+        .single();
+    final updatedCrop = _cropFromRow(
+      row,
+      await _latestSensorSnapshot(cropId: crop.id),
     );
 
     return updatedCrop.copyWith(
@@ -195,9 +322,8 @@ class CropRepository {
   ) {
     final cropName = row['crop_name'] as String? ?? 'Crop';
     final plantingDate = _parseDate(row['planting_date']) ?? DateTime.now();
-    final estimatedHarvest =
-        _parseDate(row['estimated_harvest']) ??
-            plantingDate.add(const Duration(days: 75));
+    final estimatedHarvest = _parseDate(row['estimated_harvest']) ??
+        plantingDate.add(const Duration(days: 75));
     final status = _statusFromDb(row['crop_status'] as String?);
     final growthStage = _growthStageFromDb(row['growth_stage'] as String?);
     final notes = row['maintenance_notes'] as String?;
@@ -209,7 +335,7 @@ class CropRepository {
       id: row['id'] as String,
       name: cropName,
       variety: _varietyFor(cropName),
-      location: 'SeedRover field record',
+      location: row['field_label'] as String? ?? 'Field not labeled',
       plantingDate: plantingDate,
       estimatedHarvest: estimatedHarvest,
       growthStage: growthStage,
@@ -234,7 +360,20 @@ class CropRepository {
       imageUrl: _publicCropImageUrl(imagePath),
       seedCount: null,
       harvestDate: status == CropStatus.harvested ? updatedAt : null,
-      lastWateredAt: null,
+      lastWateredAt: _parseDateTime(row['last_watered_at']),
+      plantingSource: row['planting_source'] as String? ?? 'Legacy',
+      fieldLabel: row['field_label'] as String? ?? 'Field not labeled',
+      fieldAreaM2: (row['field_area_m2'] as num?)?.toDouble(),
+      completedDrops: (row['completed_drop_cycles'] as num?)?.toInt() ?? 0,
+      estimatedSeedMin: (row['estimated_seed_count_min'] as num?)?.toInt(),
+      estimatedSeedMax: (row['estimated_seed_count_max'] as num?)?.toInt(),
+      harvestWindowStart: _parseDate(row['harvest_window_start']),
+      harvestWindowEnd: _parseDate(row['harvest_window_end']),
+      forecastConfidence: row['forecast_confidence'] as String? ?? 'Low',
+      expectedStage: row['expected_stage'] as String? ?? growthStage.label,
+      careStatus:
+          row['current_care_status'] as String? ?? 'Review crop condition',
+      propagationMethod: row['propagation_method'] as String? ?? 'Unknown',
     );
   }
 
@@ -246,14 +385,13 @@ class CropRepository {
     return _client.storage.from(_cropImagesBucket).getPublicUrl(imagePath);
   }
 
-  Future<CropSensorSnapshot> _latestSensorSnapshot() async {
-    final rows = await _client
-        .from(DatabaseTables.sensorReadings)
-        .select(
-          'soil_moisture, soil_temperature, environmental_temperature, humidity',
-        )
-        .order('recorded_at', ascending: false)
-        .limit(1) as List<dynamic>;
+  Future<CropSensorSnapshot> _latestSensorSnapshot({String? cropId}) async {
+    var query = _client.from(DatabaseTables.sensorReadings).select(
+          'soil_moisture, soil_temperature, environmental_temperature, humidity, calibrated_value, recorded_at',
+        );
+    if (cropId != null) query = query.eq('crop_id', cropId);
+    final rows = await query.order('recorded_at', ascending: false).limit(1)
+        as List<dynamic>;
 
     if (rows.isEmpty) {
       return const CropSensorSnapshot(
@@ -267,10 +405,11 @@ class CropRepository {
     final row = rows.first as Map<String, dynamic>;
 
     return CropSensorSnapshot(
-      soilMoisture: _toDouble(row['soil_moisture']),
+      soilMoisture: _toDouble(row['calibrated_value'] ?? row['soil_moisture']),
       soilTemperature: _toDouble(row['soil_temperature']),
       environmentTemperature: _toDouble(row['environmental_temperature']),
       humidity: _toDouble(row['humidity']),
+      recordedAt: _parseDateTime(row['recorded_at']),
     );
   }
 

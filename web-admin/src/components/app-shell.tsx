@@ -25,6 +25,7 @@ import {
   ShoppingCart,
   Sprout,
   Users,
+  TrendingUp,
   X,
 } from "lucide-react";
 import { BrandMark } from "./brand-mark";
@@ -51,6 +52,7 @@ function navGroupsFor(roleName: AdminProfile["roleName"]) {
             { label: "Inventory", href: "/inventory" },
             { label: "Sales", href: "/sales" },
             { label: "Customers", href: "/customers" },
+            { label: "Investments", href: "/investments" },
           ],
         }
       : null,
@@ -94,6 +96,8 @@ function iconFor(label: string) {
       return <Bell size={18} />;
     case "Activity Log":
       return <ClipboardList size={18} />;
+    case "Investments":
+      return <TrendingUp size={18} />;
     default:
       return <Shield size={18} />;
   }
@@ -430,7 +434,7 @@ export function AppShell({
       ) : null}
 
       {confirmSignOut ? (
-        <div className={styles.modalBackdrop} role="presentation">
+        <div className={styles.modalBackdrop} data-ui-backdrop="true" role="presentation">
           <section
             className={styles.modal}
             role="dialog"

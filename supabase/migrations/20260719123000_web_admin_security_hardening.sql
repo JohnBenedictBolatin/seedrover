@@ -52,6 +52,7 @@ end;
 $$;
 
 drop policy if exists profiles_update_own_or_admin on public.profiles;
+drop policy if exists profiles_update_own_safe_or_admin on public.profiles;
 
 create policy profiles_update_own_safe_or_admin
   on public.profiles

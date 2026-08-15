@@ -1,11 +1,16 @@
 import '../data/models/rover_command_model.dart';
 import '../data/models/rover_control_model.dart';
+import '../data/models/planting_session_model.dart';
 
 enum PlantingStatus {
   idle,
   checking,
+  loweringRake,
   ready,
   active,
+  paused,
+  completed,
+  failed,
   emergencyStopped,
 }
 
@@ -14,8 +19,12 @@ extension PlantingStatusLabel on PlantingStatus {
     return switch (this) {
       PlantingStatus.idle => 'Idle',
       PlantingStatus.checking => 'Checking Soil',
-      PlantingStatus.ready => 'Ready to Plant',
+      PlantingStatus.loweringRake => 'Lowering Rake',
+      PlantingStatus.ready => 'Ready - Hold Forward',
       PlantingStatus.active => 'Planting',
+      PlantingStatus.paused => 'Paused Safely',
+      PlantingStatus.completed => 'Row Completed',
+      PlantingStatus.failed => 'Planting Failed',
       PlantingStatus.emergencyStopped => 'Emergency Stopped',
     };
   }
@@ -38,6 +47,10 @@ class RoverControlState {
     this.isPinging = false,
     this.localWifiConnected = false,
     this.localWifiConnecting = false,
+    this.plantingOperation,
+    this.activePlantingConfig,
+    this.pendingReceiptCount = 0,
+    this.syncingReceipts = false,
   });
 
   const RoverControlState.loading()
@@ -55,7 +68,11 @@ class RoverControlState {
         pingRoundTripMs = null,
         isPinging = false,
         localWifiConnected = false,
-        localWifiConnecting = false;
+        localWifiConnecting = false,
+        plantingOperation = null,
+        activePlantingConfig = null,
+        pendingReceiptCount = 0,
+        syncingReceipts = false;
 
   final bool isLoading;
   final RoverControlModel? telemetry;
@@ -72,6 +89,10 @@ class RoverControlState {
   final bool isPinging;
   final bool localWifiConnected;
   final bool localWifiConnecting;
+  final PlantingOperationStatus? plantingOperation;
+  final PlantingRowConfig? activePlantingConfig;
+  final int pendingReceiptCount;
+  final bool syncingReceipts;
 
   bool get isConnected {
     return localWifiConnected ||
@@ -80,18 +101,25 @@ class RoverControlState {
   }
 
   bool get isPlantingLocked {
-    return plantingStatus == PlantingStatus.active;
+    return const {
+      PlantingStatus.checking,
+      PlantingStatus.loweringRake,
+      PlantingStatus.ready,
+      PlantingStatus.active,
+      PlantingStatus.paused,
+    }.contains(plantingStatus);
   }
 
+  bool get canDrivePlantingForward =>
+      plantingStatus == PlantingStatus.ready ||
+      plantingStatus == PlantingStatus.active;
+
   bool get canCheckSoil {
-    return plantingStatus != PlantingStatus.active &&
-        plantingStatus != PlantingStatus.checking;
+    return !isPlantingLocked;
   }
 
   bool get canStartPlanting {
-    return soilCheckPassed &&
-        plantingStatus != PlantingStatus.active &&
-        plantingStatus != PlantingStatus.checking;
+    return !isPlantingLocked;
   }
 
   RoverControlState copyWith({
@@ -113,6 +141,12 @@ class RoverControlState {
     bool? isPinging,
     bool? localWifiConnected,
     bool? localWifiConnecting,
+    PlantingOperationStatus? plantingOperation,
+    bool clearPlantingOperation = false,
+    PlantingRowConfig? activePlantingConfig,
+    bool clearActivePlantingConfig = false,
+    int? pendingReceiptCount,
+    bool? syncingReceipts,
   }) {
     return RoverControlState(
       isLoading: isLoading ?? this.isLoading,
@@ -133,6 +167,14 @@ class RoverControlState {
       isPinging: isPinging ?? this.isPinging,
       localWifiConnected: localWifiConnected ?? this.localWifiConnected,
       localWifiConnecting: localWifiConnecting ?? this.localWifiConnecting,
+      plantingOperation: clearPlantingOperation
+          ? null
+          : plantingOperation ?? this.plantingOperation,
+      activePlantingConfig: clearActivePlantingConfig
+          ? null
+          : activePlantingConfig ?? this.activePlantingConfig,
+      pendingReceiptCount: pendingReceiptCount ?? this.pendingReceiptCount,
+      syncingReceipts: syncingReceipts ?? this.syncingReceipts,
     );
   }
 }

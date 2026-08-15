@@ -233,6 +233,23 @@
   text-align: right;
 }
 
+.metricValue {
+  display: grid;
+  justify-items: end;
+  gap: 7px;
+  min-width: 0;
+}
+
+.metricSecondary {
+  color: var(--text-secondary);
+  font-family: var(--font-roboto-mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .analysisPanel {
   position: relative;
   display: grid;
@@ -468,6 +485,61 @@
 
 .activityItem > div:last-child strong {
   font-family: var(--font-roboto-mono);
+}
+
+.activityPagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.activityPagination span {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.activityPagination button {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  place-items: center;
+  border: 1px solid rgba(141, 255, 42, 0.22);
+  border-radius: 8px;
+  color: var(--green-accent);
+  background: rgba(24, 24, 24, 0.62);
+  cursor: pointer;
+  transition: background 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.activityPagination button:hover:not(:disabled) {
+  border-color: rgba(141, 255, 42, 0.42);
+  background: rgba(83, 209, 30, 0.16);
+  transform: translateY(-1px);
+}
+
+:global(html[data-theme="light"]) .activityPagination span {
+  color: rgba(18, 60, 27, 0.62);
+}
+
+:global(html[data-theme="light"]) .activityPagination button {
+  border-color: rgba(18, 60, 27, 0.22);
+  color: #16451f;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+:global(html[data-theme="light"]) .activityPagination button:hover:not(:disabled) {
+  border-color: rgba(18, 60, 27, 0.38);
+  background: rgba(18, 60, 27, 0.08);
+}
+
+.activityPagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
 }
 
 .emptyState {

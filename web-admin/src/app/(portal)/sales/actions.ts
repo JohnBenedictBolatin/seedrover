@@ -16,7 +16,7 @@ type SubmittedItem = {
   unit_price: number;
 };
 
-const paymentMethods = new Set(["Cash", "GCash", "Bank Transfer", "Card", "Other"]);
+const paymentMethods = new Set(["Cash", "GCash", "Bank Transfer", "Card", "Installment", "Other"]);
 
 function parseNumber(value: FormDataEntryValue | null) {
   const parsed = Number(String(value ?? "").trim());
@@ -112,6 +112,18 @@ export async function recordSalesOrderAction(
     }
   }
 
+  const { data: inventoryUnits } = await supabase
+    .from("inventory")
+    .select("id, unit")
+    .in("id", items.map((item) => item.inventory_id));
+  const unitsById = new Map((inventoryUnits ?? []).map((item) => [item.id, item.unit]));
+  for (const item of items) {
+    const unit = unitsById.get(item.inventory_id) ?? "kg";
+    if (unit !== "kg") {
+      return { message: "Inventory quantities must use kg as the unit." };
+    }
+  }
+
   if (discountCode && !/^[A-Z0-9_-]{3,32}$/.test(discountCode)) {
     return { message: "Discount code format is invalid." };
   }
@@ -121,15 +133,25 @@ export async function recordSalesOrderAction(
   }
 
   if (paymentMethod !== "Cash" && !transactionReference) {
+    if (paymentMethod === "Installment") {
+      // Installment plans do not require a payment transaction reference.
+    } else {
     return { message: "Transaction ID is required for non-cash sales." };
+    }
+  }
+
+  const installmentTerms = text(formData, "installment_terms");
+  const installmentDueDate = text(formData, "installment_due_date");
+  if (paymentMethod === "Installment" && (!installmentTerms || !installmentDueDate)) {
+    return { message: "Installment terms and the next payment due date are required." };
   }
 
   const payload = {
     p_customer_name: String(formData.get("customer_name") ?? ""),
     p_customer_contact: String(formData.get("customer_contact") ?? ""),
-    p_payment_method: paymentMethod,
+    p_payment_method: paymentMethod === "Installment" ? "Other" : paymentMethod,
     p_transaction_reference: transactionReference,
-    p_other_payment_method: otherPaymentMethod,
+    p_other_payment_method: paymentMethod === "Installment" ? "Installment" : otherPaymentMethod,
     p_discount_type: "None",
     p_discount_value: 0,
     p_discount_code: discountCode,
@@ -190,6 +212,25 @@ export async function recordSalesOrderAction(
   revalidatePath("/inventory");
   revalidatePath("/customers");
   revalidatePath("/dashboard");
+
+  if (paymentMethod === "Installment") {
+    const { data: order } = await supabase
+      .from("sales_orders")
+      .select("total_amount")
+      .eq("id", data.id)
+      .single<{ total_amount: number | string }>();
+    const balance = Number(order?.total_amount ?? 0) - (payload.p_amount_paid ?? 0);
+    if (balance > 0) {
+      await supabase.from("customer_payments").insert({
+        customer_key: payload.p_customer_name.trim().toLowerCase(),
+        customer_name: payload.p_customer_name.trim() || "Walk-in customer",
+        sale_reference: data.receipt_number,
+        amount: balance,
+        due_date: installmentDueDate,
+        notes: installmentTerms,
+      });
+    }
+  }
 
   return {
     message: `Receipt ${data.receipt_number} recorded.`,

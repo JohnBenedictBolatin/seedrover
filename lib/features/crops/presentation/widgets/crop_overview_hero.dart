@@ -8,19 +8,23 @@ import '../../../../core/theme/app_typography.dart';
 class CropOverviewHero extends StatelessWidget {
   const CropOverviewHero({
     required this.activeCrops,
-    required this.harvestReadyCrops,
+    required this.wateringDue,
+    required this.careTasksDue,
+    required this.upcomingHarvests,
     super.key,
     this.imageAsset = 'assets/images/crop_hero.png',
   });
 
   final int activeCrops;
-  final int harvestReadyCrops;
+  final int wateringDue;
+  final int careTasksDue;
+  final int upcomingHarvests;
   final String? imageAsset;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 138,
+      height: 174,
       width: double.infinity,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
@@ -58,23 +62,22 @@ class CropOverviewHero extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: AppSpacing.sm),
-                      Text(
-                        '$activeCrops active',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.displayHeading.copyWith(
-                          color: Colors.white,
-                          fontSize: 24,
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        '$harvestReadyCrops ready for harvest',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.monoCaption.copyWith(
-                          color: AppColors.heroMutedText,
-                          fontSize: 10,
+                      Expanded(
+                        child: GridView.count(
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisCount: 2,
+                          childAspectRatio: 3.2,
+                          crossAxisSpacing: AppSpacing.sm,
+                          mainAxisSpacing: AppSpacing.sm,
+                          children: [
+                            _Metric(
+                                label: 'ACTIVE BATCHES', value: activeCrops),
+                            _Metric(label: 'WATERING DUE', value: wateringDue),
+                            _Metric(label: 'CARE TASKS', value: careTasksDue),
+                            _Metric(
+                                label: 'UPCOMING HARVESTS',
+                                value: upcomingHarvests),
+                          ],
                         ),
                       ),
                     ],
@@ -87,6 +90,28 @@ class CropOverviewHero extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _Metric extends StatelessWidget {
+  const _Metric({required this.label, required this.value});
+  final String label;
+  final int value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text('$value',
+            style: AppTypography.cardTitle.copyWith(color: Colors.white)),
+        const SizedBox(width: AppSpacing.xs),
+        Expanded(
+            child: Text(label,
+                maxLines: 2,
+                style: AppTypography.monoCaption
+                    .copyWith(color: AppColors.heroMutedText, fontSize: 9))),
+      ],
     );
   }
 }

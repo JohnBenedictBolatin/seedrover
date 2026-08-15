@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { getCustomersDashboard } from "@/lib/customers";
+import { getCustomerPayments } from "@/lib/customer-payments";
 import { CustomersWorkspace } from "@/components/customers-workspace";
+import { CustomerPaymentsPanel } from "@/components/customer-payments-panel";
 import { LiveDateTime } from "@/components/live-date-time";
 import styles from "./page.module.css";
 
@@ -16,7 +18,10 @@ export default async function CustomersPage() {
     redirect("/dashboard");
   }
 
-  const { customers, discounts, stats, error, profileError } = await getCustomersDashboard();
+  const [{ customers, discounts, stats, error, profileError }, paymentData] = await Promise.all([
+    getCustomersDashboard(),
+    getCustomerPayments(),
+  ]);
 
   return (
     <div className={styles.page}>
@@ -46,6 +51,8 @@ export default async function CustomersPage() {
       ) : null}
 
       <CustomersWorkspace customers={customers} discounts={discounts} stats={stats} />
+      {paymentData.error ? <section className={styles.notice}><strong>Installment tracking is unavailable.</strong><span>{paymentData.error}</span></section> : null}
+      <CustomerPaymentsPanel payments={paymentData.payments} />
     </div>
   );
 }

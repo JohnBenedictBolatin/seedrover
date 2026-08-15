@@ -508,7 +508,7 @@
 .paginationBar {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: center;
   align-items: center;
   gap: 8px;
   padding-top: 6px;
@@ -564,8 +564,8 @@
   display: grid;
   place-items: center;
   background: rgba(0, 0, 0, 0.78);
-  -webkit-backdrop-filter: blur(14px) saturate(0.72);
-  backdrop-filter: blur(14px) saturate(0.72);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
   padding: 24px;
 }
 
@@ -1259,7 +1259,8 @@
 
 :global(html[data-theme="light"]) .modalBackdrop {
   background: rgba(4, 12, 5, 0.54);
-  backdrop-filter: blur(12px) saturate(0.9);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 :global(html[data-theme="light"]) .modalTitleIcon,

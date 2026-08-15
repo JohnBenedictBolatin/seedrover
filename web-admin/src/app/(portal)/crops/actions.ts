@@ -53,6 +53,20 @@ async function logCropActivity(
   }
 }
 
+async function ensureCropOutcome({ cropId, cropName, outcome, quantity, reason, recordedBy }: { cropId: string; cropName: string; outcome: "Failed" | "Harvested"; quantity?: number | null; reason: string; recordedBy: string }) {
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data: existing, error: readError } = await supabase.from("crop_outcomes").select("id").eq("crop_id", cropId).limit(1).maybeSingle<{ id: string }>();
+  if (readError) throw new Error(readError.message);
+  if (existing) {
+    const { error } = await supabase.from("crop_outcomes").update({ crop_name: cropName, outcome, quantity: quantity ?? null, reason, recorded_by: recordedBy }).eq("id", existing.id);
+    if (error) throw new Error(error.message);
+    return;
+  }
+  const { error } = await supabase.from("crop_outcomes").insert({ crop_id: cropId, crop_name: cropName, outcome, quantity: quantity ?? null, reason, recorded_by: recordedBy });
+  if (error) throw new Error(error.message);
+}
+
 async function uploadCropImage(cropId: string, file: FormDataEntryValue | null) {
   if (!(file instanceof File) || file.size === 0) {
     return null;
@@ -93,12 +107,14 @@ async function uploadCropImage(cropId: string, file: FormDataEntryValue | null) 
 }
 
 export async function createCropAction(formData: FormData) {
-  const profile = await requireAdminRole(["System Administrator", "Farm Planting Manager"]);
+  const profile = await requireAdminRole(["Farm Planting Manager"]);
 
   const supabase = await createSupabaseServerClient();
   if (!supabase) throw new Error("Supabase is not configured.");
   const name = text(formData, "crop_name");
   if (!name) throw new Error("Crop name is required.");
+  const manualReason = text(formData, "manual_creation_reason");
+  if (!manualReason) throw new Error("Explain why this crop was added without a rover planting receipt.");
   const plantingDate = text(formData, "planting_date", localDateInputValue());
   const estimatedHarvest = text(formData, "estimated_harvest");
 
@@ -117,6 +133,12 @@ export async function createCropAction(formData: FormData) {
     estimated_harvest: estimatedHarvest || null,
     growth_stage: text(formData, "growth_stage", "Seeded"),
     crop_status: "Active",
+    planting_source: "Manual",
+    manual_creation_reason: manualReason,
+    field_label: text(formData, "field_label") || null,
+    field_area_m2: numberValue(formData, "field_area_m2") || null,
+    propagation_method: text(formData, "propagation_method", "Direct seed"),
+    crop_profile_key: text(formData, "crop_profile_key") || null,
     maintenance_notes: text(formData, "maintenance_notes") || null,
     ...(imagePath ? { image_path: imagePath } : {}),
   }).select("id").single();
@@ -148,17 +170,22 @@ export async function updateCropAction(formData: FormData) {
   }
 
   const imagePath = await uploadCropImage(id, formData.get("image"));
+  const submittedStatus = text(formData, "crop_status", "Active");
+  const cropStatus = submittedStatus === "Not Harvested" ? "Cancelled" : submittedStatus;
   const { error } = await supabase.from("crops").update({
     crop_name: cropName,
     planting_date: plantingDate,
     estimated_harvest: estimatedHarvest || null,
     growth_stage: text(formData, "growth_stage"),
-    crop_status: text(formData, "crop_status", "Active"),
+    crop_status: cropStatus,
     maintenance_notes: text(formData, "maintenance_notes") || null,
     ...(imagePath ? { image_path: imagePath } : {}),
     updated_at: new Date().toISOString(),
   }).eq("id", id);
   if (error) throw new Error(error.message);
+  if (cropStatus === "Cancelled") {
+    await ensureCropOutcome({ cropId: id, cropName, outcome: "Failed", reason: text(formData, "maintenance_notes") || "Marked as not harvested.", recordedBy: profile.id });
+  }
   await logCropActivity(
     profile.id,
     "Crop record updated",
@@ -168,32 +195,76 @@ export async function updateCropAction(formData: FormData) {
 }
 
 export async function cropMaintenanceAction(formData: FormData) {
-  const profile = await requireAdminRole(["System Administrator", "Farm Planting Manager"]);
+  await requireAdminRole(["System Administrator", "Farm Planting Manager"]);
 
   const supabase = await createSupabaseServerClient();
   if (!supabase) throw new Error("Supabase is not configured.");
   const id = text(formData, "id");
   const activity = text(formData, "activity");
+  const supportedActivities = new Set(["Watered", "Fertilized", "Inspected", "Transplanted"]);
+  if (!supportedActivities.has(activity)) {
+    throw new Error("Choose a valid crop activity.");
+  }
   const note = text(formData, "notes", `${activity} recorded.`);
-  const { data: crop, error: readError } = await supabase.from("crops").select("maintenance_notes").eq("id", id).single();
-  if (readError) throw new Error(readError.message);
-  const nextStatus = activity === "Harvested" ? "Completed" : activity === "Watered" || activity === "Fertilized" ? "Active" : undefined;
-  const { error } = await supabase.from("crops").update({
-    maintenance_notes: [crop.maintenance_notes, `${activity}: ${note}`].filter(Boolean).join("\n"),
-    ...(nextStatus ? { crop_status: nextStatus } : {}),
-    updated_at: new Date().toISOString(),
-  }).eq("id", id);
+  const quantity = numberValue(formData, "quantity", 0);
+  if (quantity < 0) throw new Error("Activity quantity cannot be negative.");
+  const { error } = await supabase.rpc("record_crop_activity", {
+    p_crop_id: id,
+    p_activity_type: activity,
+    p_performed_at: new Date().toISOString(),
+    p_quantity: quantity || null,
+    p_unit: text(formData, "unit") || null,
+    p_material: text(formData, "material") || null,
+    p_notes: note,
+    p_observed_stage: text(formData, "observed_stage") || null,
+    p_task_id: text(formData, "task_id") || null,
+    p_idempotency_key: `web:${randomUUID()}`,
+  });
   if (error) throw new Error(error.message);
-  await logCropActivity(
-    profile.id,
-    "Crop activity recorded",
-    `${profile.fullName} recorded ${activity} for a crop. Note: ${note}`,
-  );
   revalidatePath("/crops");
 }
 
-export async function harvestCropToInventoryAction(formData: FormData) {
+export async function refreshCropWeatherAction() {
   await requireAdminRole(["System Administrator", "Farm Planting Manager"]);
+
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) throw new Error("Supabase is not configured.");
+
+  const { error } = await supabase.functions.invoke("crop-monitor", { body: {} });
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/crops");
+}
+
+export async function markCropNotHarvestedAction(formData: FormData) {
+  const profile = await requireAdminRole(["System Administrator", "Farm Planting Manager"]);
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) throw new Error("Supabase is not configured.");
+
+  const cropId = text(formData, "id");
+  const reason = text(formData, "reason", "Marked as not harvested.");
+  if (!cropId) throw new Error("Crop record is required.");
+
+  const { data: crop, error: readError } = await supabase.from("crops").select("crop_name, maintenance_notes, crop_status").eq("id", cropId).single<{ crop_name: string; maintenance_notes: string | null; crop_status: string }>();
+  if (readError) throw new Error(readError.message);
+  if (crop.crop_status === "Completed") throw new Error("A harvested crop cannot be marked as not harvested.");
+
+  const { error } = await supabase.from("crops").update({
+    crop_status: "Cancelled",
+    growth_stage: "Completed",
+    maintenance_notes: [crop.maintenance_notes, `Not harvested: ${reason}`].filter(Boolean).join("\n"),
+    updated_at: new Date().toISOString(),
+  }).eq("id", cropId);
+  if (error) throw new Error(error.message);
+
+  await ensureCropOutcome({ cropId, cropName: crop.crop_name, outcome: "Failed", reason, recordedBy: profile.id });
+  await logCropActivity(profile.id, "Crop marked not harvested", `${profile.fullName} marked ${crop.crop_name} as not harvested. Reason: ${reason}`);
+  revalidatePath("/crops");
+  revalidatePath("/dashboard");
+}
+
+export async function harvestCropToInventoryAction(formData: FormData) {
+  const profile = await requireAdminRole(["System Administrator", "Farm Planting Manager"]);
 
   const supabase = await createSupabaseServerClient();
   if (!supabase) throw new Error("Supabase is not configured.");
@@ -235,6 +306,10 @@ export async function harvestCropToInventoryAction(formData: FormData) {
 
     throw new Error(error.message);
   }
+
+  const { data: harvestedCrop, error: cropReadError } = await supabase.from("crops").select("crop_name").eq("id", cropId).single<{ crop_name: string }>();
+  if (cropReadError) throw new Error(cropReadError.message);
+  await ensureCropOutcome({ cropId, cropName: harvestedCrop.crop_name, outcome: "Harvested", quantity, reason: remarks, recordedBy: profile.id });
 
   revalidatePath("/crops");
   revalidatePath("/inventory");

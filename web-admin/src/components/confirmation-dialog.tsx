@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AlertTriangle, CheckCircle2, X } from "lucide-react";
 import styles from "./confirmation-dialog.module.css";
 
@@ -44,14 +45,14 @@ export function useConfirmationDialog() {
     });
   }, []);
 
-  const dialog = pending ? (
+  const dialog = pending && typeof document !== "undefined" ? createPortal((
     <ConfirmationDialog
       key={pending.id}
       options={pending}
       onCancel={() => close(false)}
       onConfirm={() => close(true)}
     />
-  ) : null;
+  ), document.body) : null;
 
   return { confirm, confirmationDialog: dialog };
 }
@@ -68,7 +69,7 @@ function ConfirmationDialog({
   const isDanger = options.tone === "danger";
 
   return (
-    <div className={styles.backdrop} role="presentation">
+    <div className={styles.backdrop} data-ui-backdrop="true" data-ui-confirmation-backdrop="true" role="presentation">
       <section
         aria-label={options.title}
         aria-modal="true"

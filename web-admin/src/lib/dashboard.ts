@@ -41,6 +41,8 @@ export type OperationsDashboardData = {
     averageSale: number;
     inventoryValue: number;
     estimatedSalesValue: number;
+    investmentInRange: number;
+    roi: number;
     lowStockItems: number;
     outOfStockItems: number;
     totalCustomers: number;
@@ -135,6 +137,8 @@ type CropRow = {
   crop_status: string;
   growth_stage: string;
 };
+
+type ExpenseRow = { amount: number | string; expense_date: string };
 
 function toNumber(value: number | string | null | undefined) {
   if (typeof value === "number") {
@@ -257,6 +261,8 @@ function emptyData(range: DashboardRange, error: string | null): OperationsDashb
       averageSale: 0,
       inventoryValue: 0,
       estimatedSalesValue: 0,
+      investmentInRange: 0,
+      roi: 0,
       lowStockItems: 0,
       outOfStockItems: 0,
       totalCustomers: 0,
@@ -304,6 +310,7 @@ export async function getOperationsDashboard(range: DashboardRange) {
     ordersResult,
     marketResultWithPayment,
     cropsResult,
+    expensesResult,
     roverResult,
   ] = await Promise.all([
     supabase
@@ -338,6 +345,11 @@ export async function getOperationsDashboard(range: DashboardRange) {
       .from("crops")
       .select("crop_status, growth_stage")
       .returns<CropRow[]>(),
+    supabase
+      .from("farm_expenses")
+      .select("amount, expense_date")
+      .gte("expense_date", start.toISOString().slice(0, 10))
+      .returns<ExpenseRow[]>(),
     getRoverMonitor(),
   ]);
 
@@ -360,6 +372,9 @@ export async function getOperationsDashboard(range: DashboardRange) {
   const marketRows = marketResult.error ? [] : marketResult.data ?? [];
   const transactionRows = transactionsResult.error ? [] : transactionsResult.data ?? [];
   const cropRows = cropsResult.error ? [] : cropsResult.data ?? [];
+  const investmentInRange = expensesResult.error
+    ? 0
+    : (expensesResult.data ?? []).reduce((total, row) => total + toNumber(row.amount), 0);
 
   const stockValueByCategory = new Map<string, number>();
   const lowStock: DashboardRiskItem[] = [];
@@ -517,7 +532,7 @@ export async function getOperationsDashboard(range: DashboardRange) {
 
   const sortedRecentActivity = recentActivity
     .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
-    .slice(0, 8);
+    .slice(0, 24);
   const topItemPoints = rankedPoints(topItems, 6);
   const salesByCategoryPoints = rankedPoints(salesByCategory, 6);
   const paymentPoints = rankedPoints(paymentMethods, 5);
@@ -533,6 +548,8 @@ export async function getOperationsDashboard(range: DashboardRange) {
       averageSale: transactionsInRange > 0 ? salesInRange / transactionsInRange : 0,
       inventoryValue,
       estimatedSalesValue,
+      investmentInRange,
+      roi: investmentInRange > 0 ? ((salesInRange - investmentInRange) / investmentInRange) * 100 : 0,
       lowStockItems: lowStock.length,
       outOfStockItems,
       totalCustomers: customers.size,

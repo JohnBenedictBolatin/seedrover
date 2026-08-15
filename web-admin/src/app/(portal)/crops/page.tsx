@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { CheckCircle2, Leaf, Sprout, TriangleAlert } from "lucide-react";
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { getCropsDashboard, getHarvestInventoryOptions } from "@/lib/crops";
+import { getCropOutcomes } from "@/lib/crop-outcomes";
 import { CountUpValue } from "@/components/count-up-value";
 import { LiveDateTime } from "@/components/live-date-time";
 import { CropsWorkspace } from "@/components/crops-workspace";
@@ -18,9 +19,10 @@ export default async function CropsPage() {
     redirect("/dashboard");
   }
 
-  const [{ crops, summary, error }, harvestInventoryOptions] = await Promise.all([
+  const [{ crops, summary, weather, error }, harvestInventoryOptions, { outcomes, error: outcomesError }] = await Promise.all([
     getCropsDashboard(),
     getHarvestInventoryOptions(),
+    getCropOutcomes(),
   ]);
 
   return (
@@ -30,7 +32,7 @@ export default async function CropsPage() {
           <p className={styles.eyebrow}>Operations</p>
           <h1>Crops</h1>
           <p>
-            Monitor planting progress, field care, harvest timing, and crop health.
+            Review planted rows, field conditions, care work, and harvest windows.
           </p>
         </div>
         <div className={styles.liveDateTime}><LiveDateTime /></div>
@@ -47,34 +49,41 @@ export default async function CropsPage() {
         <article className={styles.metric}>
           <div className={styles.metricMeta}>
             <span className={styles.metricIcon}><Sprout size={20} /></span>
-            <p>Total crops</p>
-          </div>
-          <CountUpValue className="mono" value={summary?.totalCrops ?? 0} />
-        </article>
-        <article className={styles.metric}>
-          <div className={styles.metricMeta}>
-            <span className={styles.metricIcon}><Leaf size={20} /></span>
-            <p>Active</p>
+            <p>Active batches</p>
           </div>
           <CountUpValue className="mono" value={summary?.activeCrops ?? 0} />
         </article>
         <article className={styles.metric}>
           <div className={styles.metricMeta}>
-            <span className={styles.metricIcon}><TriangleAlert size={20} /></span>
-            <p>Needs attention</p>
+            <span className={styles.metricIcon}><Leaf size={20} /></span>
+            <p>Watering due</p>
           </div>
-          <CountUpValue className="mono" value={summary?.needsAttention ?? 0} />
+          <CountUpValue className="mono" value={summary?.wateringDue ?? 0} />
+        </article>
+        <article className={styles.metric}>
+          <div className={styles.metricMeta}>
+            <span className={styles.metricIcon}><TriangleAlert size={20} /></span>
+            <p>Care tasks due</p>
+          </div>
+          <CountUpValue className="mono" value={summary?.careTasksDue ?? 0} />
         </article>
         <article className={styles.metric}>
           <div className={styles.metricMeta}>
             <span className={styles.metricIcon}><CheckCircle2 size={20} /></span>
-            <p>Harvest ready</p>
+            <p>Upcoming harvests</p>
           </div>
-          <CountUpValue className="mono" value={summary?.harvestReady ?? 0} />
+          <CountUpValue className="mono" value={summary?.upcomingHarvests ?? 0} />
         </article>
       </section>
 
-      <CropsWorkspace crops={crops} harvestInventoryOptions={harvestInventoryOptions} />
+      <CropsWorkspace
+        crops={crops}
+        weather={weather}
+        canAddManualCrop={profile.roleName === "Farm Planting Manager"}
+        harvestInventoryOptions={harvestInventoryOptions}
+        outcomes={outcomes}
+        outcomesError={outcomesError}
+      />
     </div>
   );
 }

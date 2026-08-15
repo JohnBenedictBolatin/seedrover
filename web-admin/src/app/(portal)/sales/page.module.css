@@ -628,7 +628,7 @@
 .paginationBar {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 10px;
   min-width: 1440px;
   padding: 6px 2px 0;
@@ -751,8 +751,8 @@
   display: grid;
   place-items: center;
   background: rgba(0, 0, 0, 0.78);
-  -webkit-backdrop-filter: blur(14px) saturate(0.72);
-  backdrop-filter: blur(14px) saturate(0.72);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
   padding: 24px;
 }
 
@@ -1079,6 +1079,29 @@
 
 .confirmButton:active {
   transform: translateY(0);
+}
+
+:global(html[data-theme="light"]) .voidModal {
+  border-color: rgba(184, 38, 31, 0.2);
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(18, 60, 27, 0.16);
+}
+
+:global(html[data-theme="light"]) .voidModal p,
+:global(html[data-theme="light"]) .voidModal label {
+  color: rgba(18, 60, 27, 0.72);
+}
+
+:global(html[data-theme="light"]) .voidModal textarea {
+  border-color: rgba(18, 60, 27, 0.22);
+  color: #123c1b;
+  background: #ffffff;
+}
+
+:global(html[data-theme="light"]) .cancelButton {
+  border-color: rgba(18, 60, 27, 0.22);
+  color: #123c1b;
+  background: #f4f9f2;
 }
 
 .receiptList {

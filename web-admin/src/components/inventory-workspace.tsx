@@ -60,7 +60,8 @@ const categoryInputOptions = [
   "Others",
 ];
 const categories = ["All", ...categoryInputOptions];
-const units = ["kg", "g", "pcs", "bundle", "crate", "tray", "sack"];
+const units = ["kg"];
+const wholeNumberUnits = new Set<string>();
 const statusOptions = ["All", "In Stock", "Low Stock", "Critical Stock", "Out of Stock"];
 const sortOptions = ["Name", "Quantity", "Updated", "Value"];
 const stockInLocations = [
@@ -633,7 +634,7 @@ function InventoryDialog({
   const title = modalMeta.title;
 
   return (
-    <div className={styles.modalBackdrop} role="presentation">
+    <div className={styles.modalBackdrop} data-ui-backdrop="true" role="presentation">
       <section className={styles.modal} role="dialog" aria-modal="true" aria-label={title}>
         <header className={styles.modalHeader}>
           <h3 className={styles.modalTitle}>
@@ -847,7 +848,7 @@ function InventoryForm({
     <>
     <form className={styles.formGrid} onSubmit={handleSubmit}>
       {item ? <input name="id" type="hidden" value={item.id} /> : null}
-      <Field label="Item name" name="item_name" required defaultValue={item?.itemName} />
+      <Field label="Item name" name="item_name" placeholder="e.g. Tomato seeds" required defaultValue={item?.itemName} />
       <ThemedSelect
         label="Category"
         name="category"
@@ -870,12 +871,12 @@ function InventoryForm({
           defaultValue={item?.unit ?? "kg"}
         />
       </div>
-      <Field label="Minimum stock level" name="minimum_quantity" type="number" step="0.01" min="0" defaultValue={item?.minimumQuantity ?? 0} />
+      <Field label="Minimum stock level" name="minimum_quantity" placeholder="e.g. 25" type="number" step="0.01" min="0" defaultValue={item?.minimumQuantity ?? 0} />
       <div className={styles.twoColumn}>
-        <Field label="Unit cost" name="unit_cost" type="number" step="0.01" min="0" defaultValue={item?.unitCost ?? ""} />
-        <Field label="Selling price" name="selling_price" type="number" step="0.01" min="0" defaultValue={item?.sellingPrice ?? ""} />
+        <Field label="Unit cost" name="unit_cost" placeholder="e.g. 120.00" type="number" step="0.01" min="0" defaultValue={item?.unitCost ?? ""} />
+        <Field label="Selling price" name="selling_price" placeholder="e.g. 180.00" type="number" step="0.01" min="0" defaultValue={item?.sellingPrice ?? ""} />
       </div>
-      <Field label="Storage location" name="storage_location" defaultValue={item?.storageLocation ?? "Harvest Bay"} />
+      <Field label="Storage location" name="storage_location" placeholder="e.g. Greenhouse storage" defaultValue={item?.storageLocation ?? "Harvest Bay"} />
       <label>
         <span>Stock image</span>
         <input accept="image/jpeg,image/png,image/webp" name="image" type="file" />
@@ -979,7 +980,7 @@ function MovementForm({
         name="quantity"
         required
         type="number"
-        step="0.01"
+        step={wholeNumberUnits.has(item.unit) ? "1" : "0.01"}
         min="0.01"
       />
       <ThemedSelect
@@ -1030,7 +1031,7 @@ function MovementForm({
               label={`${paymentMethod} transaction ID`}
               name="transaction_reference"
               required
-              placeholder="Enter transaction/reference number"
+              placeholder="e.g. TXN-2026-0012"
             />
           ) : null}
           <Field label="Customer name" name="customer_name" />
@@ -1224,7 +1225,7 @@ function HistoryModal({
   const isTransactions = kind === "transactions";
 
   return (
-    <div className={styles.modalBackdrop} role="presentation">
+    <div className={styles.modalBackdrop} data-ui-backdrop="true" role="presentation">
       <section
         className={`${styles.modal} ${styles.historyModal} ${isTransactions ? styles.transactionHistoryModal : styles.salesHistoryModal}`}
         role="dialog"

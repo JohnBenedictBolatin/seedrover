@@ -5,6 +5,7 @@ import '../../../core/config/app_environment.dart';
 import '../controllers/rover_control_controller.dart';
 import '../controllers/rover_control_state.dart';
 import '../data/repositories/rover_repository.dart';
+import '../data/repositories/planting_receipt_repository.dart';
 import '../data/services/simulated_rover_communication_service.dart';
 import '../data/services/local_wifi_rover_service.dart';
 
@@ -32,10 +33,15 @@ final roverRepositoryProvider = Provider<RoverRepository>(
   ),
 );
 
+final plantingReceiptRepositoryProvider = Provider<PlantingReceiptRepository>(
+  (ref) => PlantingReceiptRepository(ref.watch(supabaseClientProvider)),
+);
+
 final roverControlControllerProvider =
     StateNotifierProvider<RoverControlController, RoverControlState>(
   (ref) => RoverControlController(
     ref.watch(roverRepositoryProvider),
     ref.watch(localWifiRoverServiceProvider),
+    ref.watch(plantingReceiptRepositoryProvider),
   ),
 );

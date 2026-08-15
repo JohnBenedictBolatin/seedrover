@@ -58,6 +58,16 @@ class AppTheme {
         backgroundColor: AppColors.secondaryBackground,
         surfaceTintColor: Colors.transparent,
       ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: AppColors.secondaryBackground,
+        surfaceTintColor: Colors.transparent,
+        titleTextStyle: AppTypography.sectionHeading.copyWith(color: AppColors.primaryText),
+        contentTextStyle: AppTypography.body.copyWith(color: AppColors.secondaryText),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          side: BorderSide(color: AppColors.primaryBorder),
+        ),
+      ),
       dividerTheme: DividerThemeData(
         color: AppColors.inactiveBorder,
         thickness: 1,

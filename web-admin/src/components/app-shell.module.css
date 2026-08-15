@@ -524,12 +524,16 @@
 
 .active {
   border-color: rgba(83, 209, 30, 0.28);
-  color: var(--text);
+  color: var(--green-accent);
   background: rgba(83, 209, 30, 0.1);
-  box-shadow: inset 3px 0 0 var(--green-accent);
+  box-shadow: none;
 }
 
 .active .navIcon {
+  color: var(--green-accent);
+}
+
+.active:hover {
   color: var(--green-accent);
 }
 
@@ -1185,8 +1189,8 @@
   display: grid;
   place-items: center;
   background: rgba(0, 0, 0, 0.78);
-  -webkit-backdrop-filter: blur(14px) saturate(0.72);
-  backdrop-filter: blur(14px) saturate(0.72);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
   padding: 24px;
 }
 

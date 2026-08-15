@@ -192,6 +192,8 @@ export function SalesOrderForm({
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [otherPaymentMethod, setOtherPaymentMethod] = useState("");
   const [transactionReference, setTransactionReference] = useState("");
+  const [installmentTerms, setInstallmentTerms] = useState("");
+  const [installmentDueDate, setInstallmentDueDate] = useState("");
   const [showConfirm, setShowConfirm] = useState(false);
 
   const itemById = useMemo(
@@ -286,8 +288,16 @@ export function SalesOrderForm({
       }
     }
 
-    if (amountPaid.trim() && paid < total) {
+    if (paymentMethod !== "Installment" && amountPaid.trim() && paid < total) {
       return "Amount paid cannot be lower than the total.";
+    }
+
+    if (paymentMethod === "Installment" && !installmentTerms.trim()) {
+      return "Enter the installment terms.";
+    }
+
+    if (paymentMethod === "Installment" && !installmentDueDate) {
+      return "Enter the installment due date.";
     }
 
     if (paymentMethod === "Other" && !otherPaymentMethod.trim()) {
@@ -340,7 +350,7 @@ export function SalesOrderForm({
             <h2>Multi-item transaction</h2>
           </div>
           <button className={`${styles.actionButton} ${styles.addItemButton}`} type="button" onClick={addLineItem}>
-            <span className={styles.actionButtonText}>Add item</span>
+            <span className={styles.actionButtonText}>ADD ITEM</span>
             <span className={styles.actionButtonIcon} aria-hidden="true">
               <Plus size={18} />
             </span>
@@ -431,16 +441,16 @@ export function SalesOrderForm({
             </label>
             <label>
               Customer contact
-              <input name="customer_contact" placeholder="Optional" type="text" />
+              <input name="customer_contact" placeholder="e.g. 0917 123 4567" type="text" />
             </label>
             <ThemedSelect
               label="Payment method"
               name="payment_method"
-              options={["Cash", "GCash", "Bank Transfer", "Card", "Other"]}
+              options={["Cash", "GCash", "Bank Transfer", "Card", "Installment", "Other"]}
               value={paymentMethod}
               onChange={(value) => {
                 setPaymentMethod(value);
-                if (value === "Cash") {
+                if (value === "Cash" || value === "Installment") {
                   setTransactionReference("");
                 }
                 if (value !== "Other") {
@@ -462,21 +472,35 @@ export function SalesOrderForm({
               </label>
             ) : null}
             {paymentMethod !== "Cash" ? (
+              paymentMethod !== "Installment" ? (
               <label>
                 Transaction ID
                 <input
                   name="transaction_reference"
-                  placeholder="Enter transaction/reference number"
+                  placeholder="e.g. TXN-2026-0012"
                   required
                   type="text"
                   value={transactionReference}
                   onChange={(event) => setTransactionReference(event.target.value)}
                 />
               </label>
+              ) : null
+            ) : null}
+            {paymentMethod === "Installment" ? (
+              <>
+                <label>
+                  Installment terms
+                  <input name="installment_terms" placeholder="e.g. 3 monthly payments of PHP 2,500" required type="text" value={installmentTerms} onChange={(event) => setInstallmentTerms(event.target.value)} />
+                </label>
+                <label>
+                  Next payment due
+                  <input name="installment_due_date" required type="date" value={installmentDueDate} onChange={(event) => setInstallmentDueDate(event.target.value)} />
+                </label>
+              </>
             ) : null}
             <label>
               Remarks
-              <textarea name="remarks" placeholder="Optional note" rows={4} />
+              <textarea name="remarks" placeholder="e.g. Customer requested delivery on Friday" rows={4} />
             </label>
           </div>
         </div>
@@ -494,7 +518,7 @@ export function SalesOrderForm({
               Discount code
               <input
                 name="discount_code"
-                placeholder="Enter released code"
+                placeholder="e.g. SAVE10"
                 type="text"
                 value={discountCode}
                 onChange={(event) => setDiscountCode(event.target.value.toUpperCase())}
@@ -549,7 +573,7 @@ export function SalesOrderForm({
       </section>
 
       {showConfirm ? (
-        <div className={styles.confirmBackdrop} role="presentation">
+        <div className={styles.confirmBackdrop} data-ui-backdrop="true" role="presentation">
           <div className={styles.confirmModal} role="dialog" aria-modal="true">
             <button
               aria-label="Close confirmation"

@@ -15,6 +15,11 @@ set
   file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;
 
+drop policy if exists crop_images_select_authenticated on storage.objects;
+drop policy if exists crop_images_insert_allowed on storage.objects;
+drop policy if exists crop_images_update_allowed on storage.objects;
+drop policy if exists crop_images_delete_allowed on storage.objects;
+
 create policy crop_images_select_authenticated
   on storage.objects
   for select

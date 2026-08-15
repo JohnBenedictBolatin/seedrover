@@ -1,5 +1,6 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import { Info } from "lucide-react";
 import styles from "./action-alert-stack.module.css";
 
@@ -22,7 +23,7 @@ export function ActionAlertStack({
     return null;
   }
 
-  return (
+  const stack = (
     <div className={styles.alertStack}>
       {alerts.map((alert) => (
         <button
@@ -39,4 +40,6 @@ export function ActionAlertStack({
       ))}
     </div>
   );
+
+  return typeof document !== "undefined" ? createPortal(stack, document.body) : null;
 }

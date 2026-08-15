@@ -17,6 +17,8 @@ import '../../../../shared/widgets/seedrover_mascot.dart';
 import '../../controllers/rover_control_state.dart';
 import '../../data/models/rover_command_model.dart';
 import '../../data/models/rover_control_model.dart';
+import '../../data/models/planting_session_model.dart';
+import '../../controllers/rover_control_controller.dart';
 import '../../providers/rover_providers.dart';
 import '../widgets/camera_preview_panel.dart';
 import '../widgets/movement_control_panel.dart';
@@ -110,9 +112,10 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen> {
                         Expanded(
                           flex: 3,
                           child: MovementControlPanel(
-                            enabled:
-                                (canControl || state.localWifiConnected) &&
-                                    !state.isPlantingLocked,
+                            enabled: state.isPlantingLocked
+                                ? canControlPlanting
+                                : canControl,
+                            plantingMode: state.isPlantingLocked,
                             activeCommand: state.activeMovement,
                             onCommand: controller.sendMovement,
                           ),
@@ -154,23 +157,32 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen> {
                                 PlantingControlPanel(
                                   status: state.plantingStatus,
                                   soilCheckMessage: state.soilCheckMessage,
-                                  canCheckSoil: state.canCheckSoil &&
-                                      (canControlPlanting ||
-                                          state.localWifiConnected),
+                                  canCheckSoil:
+                                      state.canCheckSoil && canControlPlanting,
                                   canStartPlanting: state.canStartPlanting &&
-                                      (canControlPlanting ||
-                                          state.localWifiConnected),
+                                      canControlPlanting,
                                   isPlantingActive: state.plantingStatus ==
-                                      PlantingStatus.active,
+                                          PlantingStatus.active ||
+                                      (state.isPlantingLocked &&
+                                          state.plantingStatus !=
+                                              PlantingStatus.paused),
+                                  completedDrops:
+                                      state.plantingOperation?.completedDrops ??
+                                          0,
+                                  targetDrops:
+                                      state.plantingOperation?.targetDrops ?? 0,
+                                  pendingReceipts: state.pendingReceiptCount,
                                   onCheckSoil: controller.checkSoilState,
-                                  onStartPlanting: () => _confirmRoverAction(
+                                  onStartPlanting: () =>
+                                      _showPlantingConfiguration(
                                     context,
-                                    title: 'Start Planting',
-                                    message:
-                                        'Start planting ${state.selectedSeed.label} with the current soil state?',
-                                    confirmLabel: 'Start',
-                                    onConfirm: controller.startPlanting,
+                                    controller,
+                                    state.selectedSeed,
                                   ),
+                                  onCalibration: () =>
+                                      _showCalibration(context, controller),
+                                  onResume: controller.resumePlanting,
+                                  onCancel: controller.cancelPlanting,
                                   onEmergencyStop: () => _confirmRoverAction(
                                     context,
                                     title: 'Emergency Stop',
@@ -205,6 +217,33 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen> {
     );
   }
 
+  Future<void> _showPlantingConfiguration(
+    BuildContext context,
+    RoverControlController controller,
+    PlantingSeedType selectedSeed,
+  ) async {
+    final configuration = await showDialog<PlantingRowConfig>(
+      context: context,
+      builder: (_) => _PlantingRowDialog(initialSeed: selectedSeed),
+    );
+    if (configuration != null) await controller.startPlanting(configuration);
+  }
+
+  Future<void> _showCalibration(
+    BuildContext context,
+    RoverControlController controller,
+  ) async {
+    try {
+      final current = await controller.loadCalibration();
+      if (!context.mounted) return;
+      final calibration = await showDialog<RoverCalibrationModel>(
+        context: context,
+        builder: (_) => _CalibrationDialog(initial: current),
+      );
+      if (calibration != null) await controller.saveCalibration(calibration);
+    } catch (_) {}
+  }
+
   void _confirmRoverAction(
     BuildContext context, {
     required String title,
@@ -230,6 +269,298 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen> {
     );
   }
 }
+
+class _PlantingRowDialog extends StatefulWidget {
+  const _PlantingRowDialog({required this.initialSeed});
+
+  final PlantingSeedType initialSeed;
+
+  @override
+  State<_PlantingRowDialog> createState() => _PlantingRowDialogState();
+}
+
+class _PlantingRowDialogState extends State<_PlantingRowDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late PlantingSeedType _seed;
+  late TextEditingController _field;
+  late TextEditingController _drops;
+  late TextEditingController _spacing;
+  late TextEditingController _rowSpacing;
+  late TextEditingController _gateMs;
+  late TextEditingController _rakeOffset;
+  late TextEditingController _seedMin;
+  late TextEditingController _seedMax;
+
+  @override
+  void initState() {
+    super.initState();
+    _seed = widget.initialSeed;
+    _setDefaults(resetField: true);
+  }
+
+  void _setDefaults({bool resetField = false}) {
+    final defaults = PlantingRowConfig.defaults(_seed);
+    if (resetField) _field = TextEditingController();
+    _drops = TextEditingController(text: defaults.targetDrops.toString());
+    _spacing =
+        TextEditingController(text: defaults.spacingCm.toStringAsFixed(0));
+    _rowSpacing =
+        TextEditingController(text: defaults.rowSpacingCm.toStringAsFixed(0));
+    _gateMs = TextEditingController(text: defaults.gateOpenMs.toString());
+    _rakeOffset =
+        TextEditingController(text: defaults.rakeOffsetCm.toStringAsFixed(0));
+    _seedMin = TextEditingController(
+        text: defaults.estimatedSeedsPerDropMin.toString());
+    _seedMax = TextEditingController(
+        text: defaults.estimatedSeedsPerDropMax.toString());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720, maxHeight: 560),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('CONFIGURE PLANTING ROW', style: AppTypography.cardTitle),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                    'The rover counts gate pulses as completed drops. Seed totals remain estimates.',
+                    style: AppTypography.body
+                        .copyWith(color: AppColors.secondaryText)),
+                const SizedBox(height: AppSpacing.md),
+                DropdownButtonFormField<PlantingSeedType>(
+                  value: _seed,
+                  decoration: _fieldDecoration('CROP PROFILE'),
+                  items: PlantingSeedType.values
+                      .map((seed) => DropdownMenuItem(
+                          value: seed, child: Text(seed.label)))
+                      .toList(),
+                  onChanged: (seed) {
+                    if (seed == null) return;
+                    setState(() {
+                      _seed = seed;
+                      _setDefaults();
+                    });
+                  },
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                TextFormField(
+                  controller: _field,
+                  decoration: _fieldDecoration('FIELD OR BED',
+                      hint: 'e.g. North Field - Row 3'),
+                  validator: _requiredText,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  children: [
+                    _numberField(_drops, 'TARGET DROPS', whole: true),
+                    _numberField(_spacing, 'DROP SPACING (CM)'),
+                    _numberField(_rowSpacing, 'ROW SPACING (CM)'),
+                    _numberField(_gateMs, 'GATE OPEN (MS)', whole: true),
+                    _numberField(_rakeOffset, 'RAKE TO GATE (CM)',
+                        allowZero: true),
+                    _numberField(_seedMin, 'EST. SEEDS / PULSE MIN',
+                        whole: true),
+                    _numberField(_seedMax, 'EST. SEEDS / PULSE MAX',
+                        whole: true),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('CANCEL')),
+                    const SizedBox(width: AppSpacing.sm),
+                    FilledButton(
+                        onPressed: _submit, child: const Text('START ROW')),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  SizedBox _numberField(TextEditingController controller, String label,
+      {bool whole = false, bool allowZero = false}) {
+    return SizedBox(
+      width: 210,
+      child: TextFormField(
+        controller: controller,
+        keyboardType: TextInputType.numberWithOptions(decimal: !whole),
+        inputFormatters: [
+          FilteringTextInputFormatter.allow(
+              whole ? RegExp(r'[0-9]') : RegExp(r'[0-9.]')),
+        ],
+        decoration: _fieldDecoration(label),
+        validator: (value) {
+          final number = double.tryParse(value ?? '');
+          if (number == null || (allowZero ? number < 0 : number <= 0)) {
+            return 'Enter a valid non-negative value';
+          }
+          if (whole && number != number.roundToDouble()) {
+            return 'Use a whole number';
+          }
+          return null;
+        },
+      ),
+    );
+  }
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) return;
+    final minSeeds = int.parse(_seedMin.text);
+    final maxSeeds = int.parse(_seedMax.text);
+    if (maxSeeds < minSeeds) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content:
+              Text('Maximum estimated seeds must be at least the minimum.')));
+      return;
+    }
+    final defaults = PlantingRowConfig.defaults(_seed);
+    Navigator.pop(
+      context,
+      PlantingRowConfig(
+        sessionId: defaults.sessionId,
+        seed: _seed,
+        fieldLabel: _field.text.trim(),
+        targetDrops: int.parse(_drops.text),
+        spacingCm: double.parse(_spacing.text),
+        rowSpacingCm: double.parse(_rowSpacing.text),
+        gateOpenMs: int.parse(_gateMs.text),
+        rakeOffsetCm: double.parse(_rakeOffset.text),
+        estimatedSeedsPerDropMin: minSeeds,
+        estimatedSeedsPerDropMax: maxSeeds,
+      ),
+    );
+  }
+}
+
+class _CalibrationDialog extends StatefulWidget {
+  const _CalibrationDialog({required this.initial});
+  final RoverCalibrationModel initial;
+
+  @override
+  State<_CalibrationDialog> createState() => _CalibrationDialogState();
+}
+
+class _CalibrationDialogState extends State<_CalibrationDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final List<TextEditingController> _values = [
+    TextEditingController(
+        text: widget.initial.leftTicksPerMeter.toStringAsFixed(0)),
+    TextEditingController(
+        text: widget.initial.rightTicksPerMeter.toStringAsFixed(0)),
+    TextEditingController(text: widget.initial.soilDryRaw.toString()),
+    TextEditingController(text: widget.initial.soilWetRaw.toString()),
+    TextEditingController(text: widget.initial.rakeToGateCm.toStringAsFixed(1)),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    const labels = [
+      'LEFT TICKS OVER 1 METER',
+      'RIGHT TICKS OVER 1 METER',
+      'DRY SOIL RAW READING',
+      'WET SOIL RAW READING',
+      'RAKE TO SEED GATE (CM)'
+    ];
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 640),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('ROVER CALIBRATION', style: AppTypography.cardTitle),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                    'Roll each wheel exactly one meter, then enter the measured encoder ticks. Record the soil probe in known dry and wet soil.',
+                    style: AppTypography.body
+                        .copyWith(color: AppColors.secondaryText)),
+                const SizedBox(height: AppSpacing.md),
+                for (var index = 0; index < _values.length; index++) ...[
+                  TextFormField(
+                    controller: _values[index],
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))
+                    ],
+                    decoration: _fieldDecoration(labels[index]),
+                    validator: (value) => double.tryParse(value ?? '') == null
+                        ? 'Enter a valid non-negative number'
+                        : null,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                ],
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('CANCEL')),
+                    const SizedBox(width: AppSpacing.sm),
+                    FilledButton(
+                        onPressed: _save,
+                        child: const Text('SAVE CALIBRATION')),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _save() {
+    if (!_formKey.currentState!.validate()) return;
+    final dry = int.parse(_values[2].text);
+    final wet = int.parse(_values[3].text);
+    if (dry == wet) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Dry and wet readings must differ.')));
+      return;
+    }
+    Navigator.pop(
+        context,
+        RoverCalibrationModel(
+          leftTicksPerMeter: double.parse(_values[0].text),
+          rightTicksPerMeter: double.parse(_values[1].text),
+          soilDryRaw: dry,
+          soilWetRaw: wet,
+          rakeToGateCm: double.parse(_values[4].text),
+        ));
+  }
+}
+
+InputDecoration _fieldDecoration(String label, {String? hint}) =>
+    InputDecoration(
+      labelText: label,
+      hintText: hint,
+      border: const OutlineInputBorder(),
+      isDense: true,
+    );
+
+String? _requiredText(String? value) =>
+    value == null || value.trim().isEmpty ? 'This field is required' : null;
 
 class _RoverConfirmationDialog extends StatelessWidget {
   const _RoverConfirmationDialog({

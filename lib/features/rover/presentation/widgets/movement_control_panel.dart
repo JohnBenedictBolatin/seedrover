@@ -11,12 +11,14 @@ class MovementControlPanel extends StatelessWidget {
     required this.enabled,
     required this.activeCommand,
     required this.onCommand,
+    this.plantingMode = false,
     super.key,
   });
 
   final bool enabled;
   final RoverMovementCommand? activeCommand;
   final ValueChanged<RoverMovementCommand> onCommand;
+  final bool plantingMode;
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +29,7 @@ class MovementControlPanel extends StatelessWidget {
           enabled: enabled,
           activeCommand: activeCommand,
           onCommand: onCommand,
+          plantingMode: plantingMode,
         ),
       ),
     );
@@ -38,11 +41,13 @@ class _DirectionalPad extends StatelessWidget {
     required this.enabled,
     required this.activeCommand,
     required this.onCommand,
+    required this.plantingMode,
   });
 
   final bool enabled;
   final RoverMovementCommand? activeCommand;
   final ValueChanged<RoverMovementCommand> onCommand;
+  final bool plantingMode;
 
   @override
   Widget build(BuildContext context) {
@@ -63,6 +68,7 @@ class _DirectionalPad extends StatelessWidget {
                   icon: CupertinoIcons.arrow_up,
                   command: RoverMovementCommand.forward,
                   enabled: enabled,
+                  holdToRun: plantingMode,
                   selected: activeCommand == RoverMovementCommand.forward,
                   onCommand: onCommand,
                 ),
@@ -75,7 +81,7 @@ class _DirectionalPad extends StatelessWidget {
                       child: _ArrowButton(
                         icon: CupertinoIcons.arrow_left,
                         command: RoverMovementCommand.rotateLeft,
-                        enabled: enabled,
+                        enabled: enabled && !plantingMode,
                         selected:
                             activeCommand == RoverMovementCommand.rotateLeft,
                         onCommand: onCommand,
@@ -97,7 +103,7 @@ class _DirectionalPad extends StatelessWidget {
                       child: _ArrowButton(
                         icon: CupertinoIcons.arrow_right,
                         command: RoverMovementCommand.rotateRight,
-                        enabled: enabled,
+                        enabled: enabled && !plantingMode,
                         selected:
                             activeCommand == RoverMovementCommand.rotateRight,
                         onCommand: onCommand,
@@ -112,7 +118,7 @@ class _DirectionalPad extends StatelessWidget {
                 child: _ArrowButton(
                   icon: CupertinoIcons.arrow_down,
                   command: RoverMovementCommand.backward,
-                  enabled: enabled,
+                  enabled: enabled && !plantingMode,
                   selected: activeCommand == RoverMovementCommand.backward,
                   onCommand: onCommand,
                 ),
@@ -140,6 +146,7 @@ class _ArrowButton extends StatelessWidget {
     required this.selected,
     required this.onCommand,
     this.danger = false,
+    this.holdToRun = false,
   });
 
   final IconData icon;
@@ -147,6 +154,7 @@ class _ArrowButton extends StatelessWidget {
   final bool enabled;
   final bool selected;
   final bool danger;
+  final bool holdToRun;
   final ValueChanged<RoverMovementCommand> onCommand;
 
   @override
@@ -159,7 +167,8 @@ class _ArrowButton extends StatelessWidget {
         duration: const Duration(milliseconds: 250),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppRadius.sm),
-          border: Border.all(color: selected ? color : AppColors.inactiveBorder),
+          border:
+              Border.all(color: selected ? color : AppColors.inactiveBorder),
         ),
         child: Center(
           child: LayoutBuilder(
@@ -168,13 +177,23 @@ class _ArrowButton extends StatelessWidget {
               final iconSize =
                   (shortestSide * 0.40).clamp(20.0, 30.0).toDouble();
 
-              return IconButton(
-                onPressed: enabled ? () => onCommand(command) : null,
-                icon: Icon(
-                  icon,
-                  color: selected ? color : null,
-                  size: iconSize,
-                ),
+              final button = IconButton(
+                onPressed:
+                    enabled && !holdToRun ? () => onCommand(command) : null,
+                icon:
+                    Icon(icon, color: selected ? color : null, size: iconSize),
+              );
+              if (!holdToRun) return button;
+              return Listener(
+                behavior: HitTestBehavior.opaque,
+                onPointerDown: enabled ? (_) => onCommand(command) : null,
+                onPointerUp: enabled
+                    ? (_) => onCommand(RoverMovementCommand.stop)
+                    : null,
+                onPointerCancel: enabled
+                    ? (_) => onCommand(RoverMovementCommand.stop)
+                    : null,
+                child: IgnorePointer(child: button),
               );
             },
           ),

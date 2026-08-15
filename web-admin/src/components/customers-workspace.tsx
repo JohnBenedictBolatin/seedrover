@@ -277,7 +277,8 @@ export function CustomersWorkspace({ customers, discounts, stats }: CustomersWor
     (safeCurrentPage - 1) * CUSTOMER_ROWS_PER_PAGE,
     safeCurrentPage * CUSTOMER_ROWS_PER_PAGE,
   );
-  const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1);
+  const pageStart = Math.min(Math.max(safeCurrentPage - 1, 1), Math.max(totalPages - 2, 1));
+  const pageNumbers = Array.from({ length: Math.min(3, totalPages) }, (_, index) => pageStart + index);
 
   return (
     <>
@@ -543,7 +544,7 @@ function DiscountListModal({
   onClose: () => void;
 }) {
   return (
-    <div className={styles.modalBackdrop} role="presentation">
+    <div className={styles.modalBackdrop} data-ui-backdrop="true" role="presentation">
       <section className={styles.discountListModal} role="dialog" aria-modal="true" aria-label="Discount list">
         <header className={styles.modalHeader}>
           <h3>
@@ -683,7 +684,7 @@ function CreateDiscountModal({
   }
 
   return (
-    <div className={styles.modalBackdrop} role="presentation">
+    <div className={styles.modalBackdrop} data-ui-backdrop="true" role="presentation">
       {!coupon ? (
         <section className={styles.discountModal} role="dialog" aria-modal="true" aria-label="Create discount">
           <header className={styles.modalHeader}>
@@ -911,7 +912,7 @@ function CustomerDetailModal({
   }
 
   return (
-    <div className={styles.modalBackdrop} role="presentation">
+    <div className={styles.modalBackdrop} data-ui-backdrop="true" role="presentation">
       <section className={styles.modal} role="dialog" aria-modal="true" aria-label="Customer details">
         <header className={styles.modalHeader}>
           <h3>
@@ -964,7 +965,7 @@ function CustomerDetailModal({
               </label>
               <label>
                 Alternate contact
-                <input name="alternate_contact" defaultValue={customer.alternateContact} placeholder="Optional" />
+                <input name="alternate_contact" defaultValue={customer.alternateContact} placeholder="e.g. 0917 123 4567" />
               </label>
               <label>
                 Tags

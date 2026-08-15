@@ -7,6 +7,7 @@ import '../theme/app_typography.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_mode_controller.dart';
 import 'app_router.dart';
+import '../services/push_notification_service.dart';
 
 class SeedRoverApp extends ConsumerWidget {
   const SeedRoverApp({super.key});
@@ -18,6 +19,11 @@ class SeedRoverApp extends ConsumerWidget {
     final lightTheme = AppTheme.light;
     final darkTheme = AppTheme.dark;
     AppColors.useLightPalette(themeMode == ThemeMode.light);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final deepLink =
+          await PushNotificationService.instance.consumePendingDeepLink();
+      if (deepLink != null) router.go(deepLink);
+    });
 
     return MaterialApp.router(
       title: 'SeedRover',

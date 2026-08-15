@@ -99,21 +99,51 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
     }
   }
 
+  Future<bool> createManualCrop({
+    required String profileKey,
+    required String fieldLabel,
+    required double fieldAreaM2,
+    required DateTime plantingDate,
+    required String reason,
+  }) async {
+    try {
+      final crop = await _repository.createManualCrop(
+        profileKey: profileKey,
+        fieldLabel: fieldLabel,
+        fieldAreaM2: fieldAreaM2,
+        plantingDate: plantingDate,
+        reason: reason,
+      );
+      _setCrops([crop, ...state.crops],
+          successMessage: 'Manual crop added.', isLoading: false);
+      return true;
+    } catch (error) {
+      state = state.copyWith(
+          errorMessage:
+              _friendlyError(error, fallback: 'Unable to add manual crop.'));
+      return false;
+    }
+  }
+
   Future<bool> waterCrop({
     required String cropId,
     required String notes,
     required DateTime date,
-    String? amount,
+    required double quantity,
+    required String unit,
   }) async {
-    final amountText = amount == null || amount.trim().isEmpty
-        ? ''
-        : ' Amount: ${amount.trim()}.';
-
+    if (quantity <= 0 || unit.trim().isEmpty) {
+      state = state.copyWith(
+          errorMessage: 'Enter a quantity greater than zero and its unit.');
+      return false;
+    }
     return _addMaintenance(
       cropId: cropId,
       activity: CropMaintenanceActivity.watered,
       date: date,
-      notes: '$notes$amountText'.trim(),
+      notes: notes.trim(),
+      quantity: quantity,
+      unit: unit,
       successMessage: 'Watering activity recorded.',
       status: CropStatus.healthy,
       lastWateredAt: date,
@@ -125,17 +155,23 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
     required String fertilizerType,
     required String notes,
     required DateTime date,
-    String? quantity,
+    required double quantity,
+    required String unit,
   }) async {
-    final quantityText = quantity == null || quantity.trim().isEmpty
-        ? ''
-        : ' Quantity: ${quantity.trim()}.';
-
+    if (quantity <= 0 || unit.trim().isEmpty || fertilizerType.trim().isEmpty) {
+      state = state.copyWith(
+          errorMessage:
+              'Enter the fertilizer, a quantity greater than zero, and its unit.');
+      return false;
+    }
     return _addMaintenance(
       cropId: cropId,
       activity: CropMaintenanceActivity.fertilized,
       date: date,
-      notes: '$fertilizerType applied.$quantityText $notes'.trim(),
+      notes: notes.trim(),
+      quantity: quantity,
+      unit: unit,
+      material: fertilizerType,
       successMessage: 'Fertilizer activity recorded.',
       status: CropStatus.healthy,
     );
@@ -374,6 +410,9 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
     double? progress,
     DateTime? harvestDate,
     DateTime? lastWateredAt,
+    double? quantity,
+    String? unit,
+    String? material,
   }) async {
     final crop = cropById(cropId);
 
@@ -392,6 +431,9 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
         progress: progress,
         harvestDate: harvestDate,
         lastWateredAt: lastWateredAt,
+        quantity: quantity,
+        unit: unit,
+        material: material,
       );
 
       _replaceCrop(updatedCrop, successMessage: successMessage);
