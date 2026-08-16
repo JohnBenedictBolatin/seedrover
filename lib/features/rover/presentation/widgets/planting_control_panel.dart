@@ -12,10 +12,14 @@ class PlantingControlPanel extends StatelessWidget {
   const PlantingControlPanel({
     required this.status,
     required this.soilCheckMessage,
-    required this.canCheckSoil,
+    required this.manualControlsEnabled,
+    required this.calibrationEnabled,
     required this.canStartPlanting,
     required this.isPlantingActive,
-    required this.onCheckSoil,
+    required this.onSoilDown,
+    required this.onSoilUp,
+    required this.onRakeDown,
+    required this.onRakeUp,
     required this.onStartPlanting,
     required this.onEmergencyStop,
     required this.onCalibration,
@@ -29,10 +33,14 @@ class PlantingControlPanel extends StatelessWidget {
 
   final PlantingStatus status;
   final String soilCheckMessage;
-  final bool canCheckSoil;
+  final bool manualControlsEnabled;
+  final bool calibrationEnabled;
   final bool canStartPlanting;
   final bool isPlantingActive;
-  final VoidCallback onCheckSoil;
+  final VoidCallback onSoilDown;
+  final VoidCallback onSoilUp;
+  final VoidCallback onRakeDown;
+  final VoidCallback onRakeUp;
   final VoidCallback onStartPlanting;
   final VoidCallback onEmergencyStop;
   final VoidCallback onCalibration;
@@ -80,9 +88,53 @@ class PlantingControlPanel extends StatelessWidget {
               children: [
                 Expanded(
                   child: _ActionButton(
+                    label: 'Soil Down',
+                    icon: CupertinoIcons.arrow_down_circle,
+                    enabled: manualControlsEnabled,
+                    onPressed: onSoilDown,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: _ActionButton(
+                    label: 'Soil Up',
+                    icon: CupertinoIcons.arrow_up_circle,
+                    enabled: manualControlsEnabled,
+                    onPressed: onSoilUp,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Row(
+              children: [
+                Expanded(
+                  child: _ActionButton(
+                    label: 'Rake Down',
+                    icon: CupertinoIcons.arrow_down,
+                    enabled: manualControlsEnabled,
+                    onPressed: onRakeDown,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: _ActionButton(
+                    label: 'Rake Up',
+                    icon: CupertinoIcons.arrow_up,
+                    enabled: manualControlsEnabled,
+                    onPressed: onRakeUp,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Row(
+              children: [
+                Expanded(
+                  child: _ActionButton(
                     label: 'Calibration',
                     icon: CupertinoIcons.settings,
-                    enabled: canCheckSoil,
+                    enabled: calibrationEnabled,
                     onPressed: onCalibration,
                   ),
                 ),
@@ -91,10 +143,9 @@ class PlantingControlPanel extends StatelessWidget {
                   child: _ActionButton(
                     label: status == PlantingStatus.paused
                         ? 'Resume'
-                        : 'Configure Row',
+                        : 'Start Planting',
                     icon: CupertinoIcons.play_fill,
-                    enabled:
-                        status == PlantingStatus.paused || canStartPlanting,
+                    enabled: canStartPlanting,
                     onPressed: status == PlantingStatus.paused
                         ? onResume
                         : onStartPlanting,

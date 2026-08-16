@@ -74,7 +74,7 @@ export function OperationsDashboardWorkspace({ data }: OperationsDashboardWorksp
   const summaryCards = [
     {
       icon: <TrendingUp size={20} />,
-      label: "Sales in range",
+      label: "Sales total",
       value: data.summary.salesInRange,
       currency: true,
     },
@@ -122,7 +122,6 @@ export function OperationsDashboardWorkspace({ data }: OperationsDashboardWorksp
       <section className={styles.rangePanel} aria-label="Dashboard range selector">
         <div>
           <h2>Farm overview</h2>
-          <span>Charts and insights update using the selected period.</span>
         </div>
         <div className={styles.rangeTabs} aria-label="Select dashboard date range">
           {ranges.map((range) => (
@@ -155,8 +154,8 @@ export function OperationsDashboardWorkspace({ data }: OperationsDashboardWorksp
 
       <section className={styles.analysisPanel} aria-label="Operations insights">
         <div>
-          <p className={styles.eyebrow}>Clear analysis</p>
-          <h2>What matters right now</h2>
+          <p className={styles.eyebrow}>Highlights</p>
+          <h2>Current operations</h2>
         </div>
         <div className={styles.analysisList}>
           {insights.map((insight) => (
@@ -170,29 +169,29 @@ export function OperationsDashboardWorkspace({ data }: OperationsDashboardWorksp
 
       <section className={styles.chartGrid} aria-label="Operations charts">
         <ChartPanel
-          description="Completed receipt and Market Distribution sales."
+          description="Completed sales only."
           title="Sales trend"
         >
           <AreaValueChart data={data.charts.salesTrend} />
         </ChartPanel>
 
-        <ChartPanel description="Revenue grouped by vegetable/category." title="Sales by category">
+        <ChartPanel title="Sales by category">
           <PieValueChart data={data.charts.salesByCategory} />
         </ChartPanel>
 
-        <ChartPanel description="Current estimated stock cost by category." title="Stock value">
+        <ChartPanel description="Current quantity × unit cost." title="Stock value">
           <BarValueChart currency data={data.charts.stockValueByCategory} />
         </ChartPanel>
 
-        <ChartPanel description="Stock in, out, and adjustment activity." title="Stock movement">
+        <ChartPanel title="Stock movement">
           <StockMovementLineChart data={data.charts.stockMovement} />
         </ChartPanel>
 
-        <ChartPanel description="Payment methods used in completed sales." title="Payment breakdown">
+        <ChartPanel title="Payment breakdown">
           <PieValueChart data={data.charts.paymentMethods} />
         </ChartPanel>
 
-        <ChartPanel description="Quantity sold by crop/item." title="Top-selling items">
+        <ChartPanel title="Top-selling items">
           <BarValueChart data={data.charts.topItems} />
         </ChartPanel>
 
@@ -202,7 +201,7 @@ export function OperationsDashboardWorkspace({ data }: OperationsDashboardWorksp
         <article className={styles.listPanel}>
           <div className={styles.sectionHeader}>
             <div>
-              <p className={styles.eyebrow}>Risk watch</p>
+              <p className={styles.eyebrow}>Inventory</p>
               <h2>Low stock items</h2>
             </div>
             <span className={styles.panelPill}>{data.insights.stockWarning}</span>
@@ -224,14 +223,14 @@ export function OperationsDashboardWorkspace({ data }: OperationsDashboardWorksp
               ))}
             </div>
           ) : (
-            <EmptyState text="No low stock records for now." />
+            <EmptyState text="No low-stock items." />
           )}
         </article>
 
         <article className={styles.listPanel}>
           <div className={styles.sectionHeader}>
             <div>
-              <p className={styles.eyebrow}>Live operations</p>
+              <p className={styles.eyebrow}>Activity</p>
               <h2>Recent activity</h2>
             </div>
             <span className={styles.panelPill}>{data.summary.roverStatus}</span>
@@ -292,7 +291,7 @@ function ChartPanel({
   title,
 }: {
   children: React.ReactNode;
-  description: string;
+  description?: string;
   title: string;
 }) {
   return (
@@ -300,7 +299,7 @@ function ChartPanel({
       <div className={styles.chartHeader}>
         <div>
           <h2>{title}</h2>
-          <p>{description}</p>
+          {description ? <p>{description}</p> : null}
         </div>
       </div>
       <div className={styles.chartBox}>{children}</div>

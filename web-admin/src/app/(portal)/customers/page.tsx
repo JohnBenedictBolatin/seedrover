@@ -29,7 +29,7 @@ export default async function CustomersPage() {
         <div>
           <p className={styles.eyebrow}>Operations</p>
           <h1>Customers</h1>
-          <p>Track farm buyers, repeat purchases, payment habits, and customer notes.</p>
+          <p>Buyer profiles, purchase history, discounts, and payments.</p>
         </div>
         <div className={styles.liveDateTime}>
           <LiveDateTime />

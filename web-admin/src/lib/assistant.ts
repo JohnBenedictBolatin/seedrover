@@ -109,7 +109,7 @@ export async function buildWebAssistantContext(profile: AdminProfile): Promise<A
       growthStage: crop.growthStage,
       plantingDate: crop.plantingDate,
       estimatedHarvest: crop.estimatedHarvest,
-      progress: crop.progress,
+      nextCare: crop.careStatus,
       notes: crop.maintenanceNotes,
     })),
     stocks: (inventory?.items ?? []).slice(0, 12).map((item) => ({
@@ -231,7 +231,7 @@ function fallbackRovieAnswer(question: string, context: AssistantContext) {
     | null
     | undefined;
   const cropSummary = analytics.cropSummary as
-    | { activeCrops?: number; needsAttention?: number; harvestReady?: number }
+    | { activeCrops?: number; needsAttention?: number; upcomingHarvests?: number }
     | null
     | undefined;
   const rover = context.rover;
@@ -260,8 +260,8 @@ function fallbackRovieAnswer(question: string, context: AssistantContext) {
     return `Based on the current web data, there are ${
       cropSummary?.activeCrops ?? 0
     } active crop record(s), ${cropSummary?.needsAttention ?? 0} needing attention, and ${
-      cropSummary?.harvestReady ?? 0
-    } harvest-ready.`;
+      cropSummary?.upcomingHarvests ?? 0
+    } approaching harvest.`;
   }
 
   if (normalized.includes("rover") || normalized.includes("battery")) {

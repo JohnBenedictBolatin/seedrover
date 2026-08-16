@@ -24,7 +24,7 @@ export default async function UsersPage() {
         <div>
           <p className={styles.eyebrow}>System</p>
           <h1>User Management</h1>
-          <p>Supervise staff accounts, access roles, and account status.</p>
+          <p>Staff accounts, roles, permissions, and account status.</p>
         </div>
         <div className={styles.liveDateTime}>
           <LiveDateTime />

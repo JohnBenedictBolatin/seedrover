@@ -23,6 +23,7 @@
   color: var(--text);
   background: var(--surface);
   box-shadow: var(--shadow);
+  font-family: var(--font-inter), Inter, "Segoe UI", Arial, sans-serif;
   animation: confirmIn 180ms ease-out;
 }
 
@@ -86,9 +87,9 @@
 
 .modal h2 {
   margin: 0;
-  font-family: var(--font-roboto-mono), "Roboto Mono", monospace;
+  font-family: inherit;
   font-size: 1.45rem;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.015em;
 }
 
 .modal p {
@@ -109,6 +110,7 @@
 .actions button {
   min-height: 44px;
   border-radius: 8px;
+  font-family: inherit;
   font-weight: 900;
   cursor: pointer;
 }

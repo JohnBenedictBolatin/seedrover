@@ -35,6 +35,7 @@ import { ReportPrintButton } from "@/components/report-print-button";
 import { formatCurrency, formatDateTime, formatQuantity } from "@/lib/format";
 import type { CustomerDiscount, CustomerStats, CustomerSummary } from "@/lib/customers";
 import { CountUpValue } from "@/components/count-up-value";
+import { CalendarField } from "@/components/calendar-field";
 import styles from "@/app/(portal)/customers/page.module.css";
 
 type CustomersWorkspaceProps = {
@@ -325,7 +326,7 @@ export function CustomersWorkspace({ customers, discounts, stats }: CustomersWor
         <div>
           <p className={styles.eyebrow}>Quick action</p>
           <h2>Create a customer discount</h2>
-          <span>Open the discount form only when you need to prepare a buyer offer.</span>
+          <span>Create buyer discounts and review released discount codes.</span>
         </div>
         <div className={styles.quickActionButtons}>
           <button
@@ -382,22 +383,8 @@ export function CustomersWorkspace({ customers, discounts, stats }: CustomersWor
               onChange={(event) => setQuery(event.target.value)}
             />
           </label>
-          <label className={styles.dateField}>
-            From
-            <input
-              type="date"
-              value={startDate}
-              onChange={(event) => setStartDate(event.target.value)}
-            />
-          </label>
-          <label className={styles.dateField}>
-            To
-            <input
-              type="date"
-              value={endDate}
-              onChange={(event) => setEndDate(event.target.value)}
-            />
-          </label>
+          <CalendarField className={styles.dateField} label="From" value={startDate} onChange={setStartDate} />
+          <CalendarField className={styles.dateField} label="To" value={endDate} onChange={setEndDate} />
           <FilterSelect
             icon={<Filter size={17} />}
             label="Type"
@@ -575,13 +562,15 @@ function DiscountListModal({
 
               return (
                 <article className={styles.discountListRow} key={discount.id}>
-                  <strong>{discount.code}</strong>
-                  <span>{discount.customerName}</span>
-                  <span>{formatDiscountAmount(discount)}</span>
-                  <span>{discount.usedAt ? formatDateTime(discount.usedAt) : "Not redeemed"}</span>
-                  <small data-status={redeemed ? "redeemed" : "available"}>
-                    {redeemed ? "Redeemed" : "Not redeemed"}
-                  </small>
+                  <strong data-label="Code">{discount.code}</strong>
+                  <span data-label="Name">{discount.customerName}</span>
+                  <span data-label="Amount">{formatDiscountAmount(discount)}</span>
+                  <span data-label="Date redeemed">{discount.usedAt ? formatDateTime(discount.usedAt) : "Not redeemed"}</span>
+                  <div className={styles.discountStatusCell} data-label="Status">
+                    <small data-status={redeemed ? "redeemed" : "available"}>
+                      {redeemed ? "Redeemed" : "Not redeemed"}
+                    </small>
+                  </div>
                 </article>
               );
             })}
@@ -726,15 +715,12 @@ function CreateDiscountModal({
               />
             </label>
 
-            <label>
-              Valid until
-              <input
-                name="valid_until"
-                type="date"
-                value={validUntil}
-                onChange={(event) => setValidUntil(event.target.value)}
-              />
-            </label>
+            <CalendarField
+              label="Valid until"
+              name="valid_until"
+              value={validUntil}
+              onChange={setValidUntil}
+            />
 
             <label className={styles.discountNotes}>
               Notes
@@ -885,6 +871,7 @@ function CustomerDetailModal({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
 
     const confirmed = await confirm({
       message: `Are you sure you want to save the profile for ${customer.name}?`,
@@ -895,7 +882,7 @@ function CustomerDetailModal({
       return;
     }
 
-    const formData = new FormData(event.currentTarget);
+    const formData = new FormData(form);
 
     startTransition(async () => {
       try {

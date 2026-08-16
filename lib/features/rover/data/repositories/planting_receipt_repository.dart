@@ -113,8 +113,7 @@ class PlantingReceiptRepository {
     try {
       await _client.from('rover_calibrations').upsert({
         'rover_id': 'SeedRover-01',
-        'left_encoder_ticks_per_meter': calibration.leftTicksPerMeter,
-        'right_encoder_ticks_per_meter': calibration.rightTicksPerMeter,
+        'seconds_per_meter': calibration.secondsPerMeter,
         'soil_dry_raw': calibration.soilDryRaw,
         'soil_wet_raw': calibration.soilWetRaw,
         'rake_to_gate_offset_cm': calibration.rakeToGateCm,

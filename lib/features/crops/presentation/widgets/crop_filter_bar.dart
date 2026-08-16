@@ -5,34 +5,26 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
-import '../../data/models/crop_model.dart';
+import '../../controllers/crop_monitoring_state.dart';
 
 class CropFilterBar extends StatelessWidget {
   const CropFilterBar({
     required this.searchQuery,
-    required this.selectedCropName,
-    required this.selectedPlantingDate,
-    required this.selectedGrowthStage,
-    required this.cropNames,
-    required this.plantingDates,
+    required this.selectedFilter,
+    required this.selectedSort,
     required this.onSearchChanged,
-    required this.onCropNameChanged,
-    required this.onPlantingDateChanged,
-    required this.onGrowthStageChanged,
+    required this.onFilterChanged,
+    required this.onSortChanged,
     required this.onClear,
     super.key,
   });
 
   final String searchQuery;
-  final String? selectedCropName;
-  final DateTime? selectedPlantingDate;
-  final CropGrowthStage? selectedGrowthStage;
-  final List<String> cropNames;
-  final List<DateTime> plantingDates;
+  final CropFilterType selectedFilter;
+  final CropSortType selectedSort;
   final ValueChanged<String> onSearchChanged;
-  final ValueChanged<String?> onCropNameChanged;
-  final ValueChanged<DateTime?> onPlantingDateChanged;
-  final ValueChanged<CropGrowthStage?> onGrowthStageChanged;
+  final ValueChanged<CropFilterType> onFilterChanged;
+  final ValueChanged<CropSortType> onSortChanged;
   final VoidCallback onClear;
 
   @override
@@ -52,17 +44,13 @@ class CropFilterBar extends StatelessWidget {
             children: [
               _FilterSlot(
                 child: _CompactFilterButton(
-                  icon: Icons.spa_outlined,
-                  label: selectedCropName ?? 'Plant',
+                  icon: Icons.filter_list,
+                  label: selectedFilter.label,
                   items: [
-                    _CompactFilterItem(
-                      label: 'All Plants',
-                      onSelected: () => onCropNameChanged(null),
-                    ),
-                    for (final cropName in cropNames)
+                    for (final filter in CropFilterType.values)
                       _CompactFilterItem(
-                        label: cropName,
-                        onSelected: () => onCropNameChanged(cropName),
+                        label: filter.label,
+                        onSelected: () => onFilterChanged(filter),
                       ),
                   ],
                 ),
@@ -70,37 +58,13 @@ class CropFilterBar extends StatelessWidget {
               const SizedBox(width: AppSpacing.xs),
               _FilterSlot(
                 child: _CompactFilterButton(
-                  icon: CupertinoIcons.calendar,
-                  label: selectedPlantingDate == null
-                      ? 'Date'
-                      : _formatShortDate(selectedPlantingDate!),
+                  icon: CupertinoIcons.sort_down,
+                  label: selectedSort.label,
                   items: [
-                    _CompactFilterItem(
-                      label: 'All Dates',
-                      onSelected: () => onPlantingDateChanged(null),
-                    ),
-                    for (final date in plantingDates)
+                    for (final sort in CropSortType.values)
                       _CompactFilterItem(
-                        label: _formatDate(date),
-                        onSelected: () => onPlantingDateChanged(date),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppSpacing.xs),
-              _FilterSlot(
-                child: _CompactFilterButton(
-                  icon: CupertinoIcons.chart_bar_alt_fill,
-                  label: selectedGrowthStage?.label ?? 'Stages',
-                  items: [
-                    _CompactFilterItem(
-                      label: 'All Stages',
-                      onSelected: () => onGrowthStageChanged(null),
-                    ),
-                    for (final stage in CropGrowthStage.values)
-                      _CompactFilterItem(
-                        label: stage.label,
-                        onSelected: () => onGrowthStageChanged(stage),
+                        label: sort.label,
+                        onSelected: () => onSortChanged(sort),
                       ),
                   ],
                 ),
@@ -110,29 +74,6 @@ class CropFilterBar extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  String _formatDate(DateTime date) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-
-    return '${months[date.month - 1]} ${date.day}, ${date.year}';
-  }
-
-  String _formatShortDate(DateTime date) {
-    return '${date.month}/${date.day}/${date.year.toString().substring(2)}';
   }
 }
 

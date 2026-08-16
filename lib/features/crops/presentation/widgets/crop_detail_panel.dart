@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/animated_content.dart';
@@ -9,20 +8,17 @@ import '../../../../shared/widgets/app_card.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../data/models/crop_model.dart';
 import 'crop_detail_metric.dart';
-import 'crop_maintenance_note.dart';
 import 'crop_plant_image.dart';
 
 class CropDetailPanel extends StatelessWidget {
   const CropDetailPanel({
     required this.crop,
     this.actions,
-    this.onViewGrowthTimeline,
     super.key,
   });
 
   final CropModel crop;
   final Widget? actions;
-  final VoidCallback? onViewGrowthTimeline;
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +43,10 @@ class CropDetailPanel extends StatelessWidget {
                       style: AppTypography.sectionHeading,
                     ),
                     const SizedBox(height: AppSpacing.xs),
-                    AnimatedTypingText(crop.variety, style: AppTypography.small),
+                    AnimatedTypingText(
+                      crop.growthStage.label,
+                      style: AppTypography.small,
+                    ),
                   ],
                 ),
               ),
@@ -59,30 +58,19 @@ class CropDetailPanel extends StatelessWidget {
             child: CropPlantImage(crop: crop, size: 160),
           ),
           const SizedBox(height: AppSpacing.lg),
-          _ProgressHeader(
-            crop: crop,
-            color: statusColor,
-            onViewGrowthTimeline: onViewGrowthTimeline,
-          ),
+          _CropProgress(crop: crop, color: statusColor),
           const SizedBox(height: AppSpacing.lg),
-          _PlantingDetailsGrid(crop: crop, formatDate: _formatDate),
+          _OwnerDetailsGrid(crop: crop, formatDate: _formatDate),
           const SizedBox(height: AppSpacing.lg),
           if (actions != null) ...[
             actions!,
             const SizedBox(height: AppSpacing.lg),
           ],
-          AnimatedTypingText('Notes', style: AppTypography.cardTitle),
-          const SizedBox(height: AppSpacing.sm),
-          AnimatedTypingText(crop.notes, style: AppTypography.small),
-          const SizedBox(height: AppSpacing.lg),
-          AnimatedTypingText(
-            'Maintenance Notes',
-            style: AppTypography.cardTitle,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          for (final note in crop.maintenanceNotes) ...[
-            CropMaintenanceNote(note: note),
+          if (crop.notes.trim().isNotEmpty &&
+              !crop.notes.contains('loaded from Supabase')) ...[
+            AnimatedTypingText('Farm notes', style: AppTypography.cardTitle),
             const SizedBox(height: AppSpacing.sm),
+            AnimatedTypingText(crop.notes, style: AppTypography.small),
           ],
         ],
       ),
@@ -108,69 +96,60 @@ class CropDetailPanel extends StatelessWidget {
   }
 }
 
-class _ProgressHeader extends StatelessWidget {
-  const _ProgressHeader({
-    required this.crop,
-    required this.color,
-    required this.onViewGrowthTimeline,
-  });
+class _CropProgress extends StatelessWidget {
+  const _CropProgress({required this.crop, required this.color});
 
   final CropModel crop;
   final Color color;
-  final VoidCallback? onViewGrowthTimeline;
 
   @override
   Widget build(BuildContext context) {
-    final progress = (crop.progress * 100).round();
+    final progress = crop.progress.clamp(0.0, 1.0).toDouble();
+    final percent = (progress * 100).round();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            AnimatedTypingText('Crop Progress', style: AppTypography.small),
-            if (onViewGrowthTimeline != null) ...[
-              const SizedBox(width: AppSpacing.xs),
-              IconButton(
-                tooltip: 'View growth timeline',
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(
-                  minWidth: 28,
-                  minHeight: 28,
-                ),
-                onPressed: onViewGrowthTimeline,
-                icon: Icon(
-                  Icons.info_outline,
-                  color: AppColors.primaryText,
-                  size: 17,
-                ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('GROWTH PROGRESS', style: AppTypography.monoCaption),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(crop.growthStage.label, style: AppTypography.small),
+                ],
               ),
-            ],
-            const Spacer(),
+            ),
             AnimatedMetricText(
-              '$progress%',
-              style: AppTypography.sensorValue.copyWith(color: color),
+              '$percent%',
+              style: AppTypography.cardTitle.copyWith(color: color),
             ),
           ],
         ),
         const SizedBox(height: AppSpacing.sm),
         ClipRRect(
-          borderRadius: BorderRadius.circular(AppRadius.sm),
+          borderRadius: BorderRadius.circular(999),
           child: AnimatedProgressBar(
-            value: crop.progress,
-            minHeight: 8,
+            value: progress,
+            minHeight: 9,
             color: color,
             backgroundColor: AppColors.inactiveBorder,
           ),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'Updates when the crop advances to a new growth stage.',
+          style: AppTypography.caption.copyWith(color: AppColors.secondaryText),
         ),
       ],
     );
   }
 }
 
-class _PlantingDetailsGrid extends StatelessWidget {
-  const _PlantingDetailsGrid({
+class _OwnerDetailsGrid extends StatelessWidget {
+  const _OwnerDetailsGrid({
     required this.crop,
     required this.formatDate,
   });
@@ -182,7 +161,7 @@ class _PlantingDetailsGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        const columns = 3;
+        const columns = 2;
         final spacing = AppSpacing.xs * (columns - 1);
         final tileWidth = (constraints.maxWidth - spacing) / columns;
 
@@ -192,19 +171,25 @@ class _PlantingDetailsGrid extends StatelessWidget {
           children: [
             CropDetailMetric(
               width: tileWidth,
-              label: 'Crop ID',
-              value: crop.id,
+              label: 'Batch ID',
+              value: crop.trackingCode,
               icon: Icons.tag_outlined,
             ),
             CropDetailMetric(
               width: tileWidth,
-              label: 'Quantity',
-              value: '${crop.safeSeedCount}',
-              icon: Icons.spa_outlined,
+              label: 'Field',
+              value: crop.fieldLabel,
+              icon: Icons.location_on_outlined,
             ),
             CropDetailMetric(
               width: tileWidth,
-              label: 'Plant Date',
+              label: 'Manager',
+              value: crop.managerName,
+              icon: Icons.person_outline,
+            ),
+            CropDetailMetric(
+              width: tileWidth,
+              label: 'Planted',
               value: formatDate(crop.plantingDate),
               icon: Icons.event_outlined,
             ),
@@ -216,15 +201,22 @@ class _PlantingDetailsGrid extends StatelessWidget {
             ),
             CropDetailMetric(
               width: tileWidth,
-              label: 'Est. Harv',
-              value: formatDate(crop.estimatedHarvest),
-              icon: Icons.content_cut,
+              label: 'Latest Soil',
+              value: crop.sensorSnapshot.recordedAt == null
+                  ? 'No recent reading'
+                  : '${crop.sensorSnapshot.soilMoisture.toStringAsFixed(0)}%',
+              icon: Icons.water_drop_outlined,
             ),
             CropDetailMetric(
               width: tileWidth,
-              label: 'Staff',
-              value: crop.managerName,
-              icon: Icons.person_outline,
+              label: crop.name.toLowerCase().contains('calamansi') &&
+                      crop.harvestWindowStart == null
+                  ? 'Next Milestone'
+                  : 'Harvest',
+              value: crop.harvestWindowStart == null
+                  ? crop.expectedStage
+                  : formatDate(crop.harvestWindowStart!),
+              icon: Icons.content_cut,
             ),
           ],
         );

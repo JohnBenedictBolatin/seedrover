@@ -180,7 +180,7 @@ export function ActivityLogWorkspace({ logs, summary }: Props) {
         {visibleLogs.length === 0 ? (
           <div className={styles.emptyState}>
             <strong>No activity records found.</strong>
-            <span>Try adjusting the filters or wait for system actions to be recorded.</span>
+            <span>Change the filters to broaden the results.</span>
           </div>
         ) : (
           <div className={styles.logTable}>

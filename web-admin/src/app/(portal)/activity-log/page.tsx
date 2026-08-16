@@ -24,7 +24,7 @@ export default async function ActivityLogPage() {
         <div>
           <p className={styles.eyebrow}>System</p>
           <h1>Activity Log</h1>
-          <p>Audit recent web and mobile activities recorded across SeedRover.</p>
+          <p>Sign-ins and recorded actions from the web and mobile app.</p>
         </div>
         <div className={styles.liveDateTime}>
           <LiveDateTime />

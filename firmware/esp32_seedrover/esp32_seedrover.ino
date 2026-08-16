@@ -21,13 +21,11 @@
 #define IN2 19
 #define IN3 21
 #define IN4 22
-#define LEFT_ENCODER_PIN 32
-#define RIGHT_ENCODER_PIN 33
 
-const char *FIRMWARE_VERSION = "2.0.0-planting";
+const char *FIRMWARE_VERSION = "2.2.0-automatic-timed-planting";
 const unsigned long SOFTAP_RESTART_DELAY_MS = 5000;
 const unsigned long SOFTAP_WATCHDOG_INTERVAL_MS = 2000;
-const unsigned long FORWARD_HEARTBEAT_TIMEOUT_MS = 1800;
+const unsigned long APP_HEARTBEAT_TIMEOUT_MS = 1800;
 const unsigned long SOIL_SETTLE_MS = 1000;
 const unsigned long RAKE_SETTLE_MS = 700;
 
@@ -41,8 +39,7 @@ const int soilMechDOWN = 130;
 enum class PlantingState { Idle, CheckingSoil, LoweringRake, Ready, Planting, Paused, Completed, Cancelled, Emergency, Failed };
 
 struct RoverCalibration {
-  float leftTicksPerMeter = 0;
-  float rightTicksPerMeter = 0;
+  float secondsPerMeter = 0;
   int soilDryRaw = 3200;
   int soilWetRaw = 1300;
   float rakeToGateCm = 0;
@@ -69,8 +66,9 @@ struct PlantingSession {
   float temperatureC = 0;
   long seedLoadRaw = 0;
   String failureCode;
-  float lastProgressCm = 0;
-  unsigned long lastProgressAtMs = 0;
+  float estimatedDistanceCm = 0;
+  unsigned long lastDistanceUpdateAtMs = 0;
+  bool motorsMoving = false;
 };
 
 WebServer server(80);
@@ -85,15 +83,10 @@ RoverCalibration calibration;
 PlantingSession planting;
 PlantingState plantingState = PlantingState::Idle;
 
-volatile uint32_t leftEncoderTicks = 0;
-volatile uint32_t rightEncoderTicks = 0;
 unsigned long lastHealthLog = 0;
 unsigned long clientDisconnectedAt = 0;
 unsigned long lastSoftApWatchdogCheck = 0;
 bool hadConnectedClient = false;
-
-void IRAM_ATTR onLeftEncoderTick() { leftEncoderTicks++; }
-void IRAM_ATTR onRightEncoderTick() { rightEncoderTicks++; }
 
 const char *stateName(PlantingState state) {
   switch (state) {
@@ -124,24 +117,37 @@ const char *signalQuality(int rssi) {
   return "weak";
 }
 
-void stopMotors() { digitalWrite(IN1, LOW); digitalWrite(IN2, LOW); digitalWrite(IN3, LOW); digitalWrite(IN4, LOW); }
-void moveForward() { digitalWrite(IN1, HIGH); digitalWrite(IN2, LOW); digitalWrite(IN3, HIGH); digitalWrite(IN4, LOW); }
-void moveBackward() { digitalWrite(IN1, LOW); digitalWrite(IN2, HIGH); digitalWrite(IN3, LOW); digitalWrite(IN4, HIGH); }
-void turnLeft() { digitalWrite(IN1, LOW); digitalWrite(IN2, HIGH); digitalWrite(IN3, HIGH); digitalWrite(IN4, LOW); }
-void turnRight() { digitalWrite(IN1, HIGH); digitalWrite(IN2, LOW); digitalWrite(IN3, LOW); digitalWrite(IN4, HIGH); }
+void stopMotors() { digitalWrite(IN1, LOW); digitalWrite(IN2, LOW); digitalWrite(IN3, LOW); digitalWrite(IN4, LOW); planting.motorsMoving = false; }
+void moveForward() { digitalWrite(IN1, HIGH); digitalWrite(IN2, LOW); digitalWrite(IN3, HIGH); digitalWrite(IN4, LOW); planting.motorsMoving = true; }
+void moveBackward() { digitalWrite(IN1, LOW); digitalWrite(IN2, HIGH); digitalWrite(IN3, LOW); digitalWrite(IN4, HIGH); planting.motorsMoving = false; }
+void turnLeft() { digitalWrite(IN1, LOW); digitalWrite(IN2, HIGH); digitalWrite(IN3, HIGH); digitalWrite(IN4, LOW); planting.motorsMoving = false; }
+void turnRight() { digitalWrite(IN1, HIGH); digitalWrite(IN2, LOW); digitalWrite(IN3, LOW); digitalWrite(IN4, HIGH); planting.motorsMoving = false; }
 
 void closeSeedGate() { seedServo.write(seedCLOSED); planting.gateOpen = false; }
 void raiseMechanisms() { closeSeedGate(); soilSensorServo.write(soilSensorUP); soilMechanismServo.write(soilMechUP); }
 void safeState() { stopMotors(); raiseMechanisms(); }
 void setState(PlantingState state) { plantingState = state; planting.stateChangedAtMs = millis(); }
 
+void updateEstimatedDistance(unsigned long now) {
+  if (plantingState != PlantingState::Planting || !planting.motorsMoving || calibration.secondsPerMeter <= 0) return;
+  if (planting.lastDistanceUpdateAtMs == 0) {
+    planting.lastDistanceUpdateAtMs = now;
+    return;
+  }
+  const unsigned long elapsedMs = now - planting.lastDistanceUpdateAtMs;
+  planting.estimatedDistanceCm += (elapsedMs / 1000.0f) * (100.0f / calibration.secondsPerMeter);
+  planting.lastDistanceUpdateAtMs = now;
+}
+
 void pausePlanting(const char *failureCode = nullptr) {
+  updateEstimatedDistance(millis());
   safeState();
   if (failureCode != nullptr) planting.failureCode = failureCode;
   setState(PlantingState::Paused);
 }
 
 void finishPlanting(PlantingState terminalState, const char *failureCode = nullptr) {
+  updateEstimatedDistance(millis());
   safeState();
   if (failureCode != nullptr) planting.failureCode = failureCode;
   setState(terminalState);
@@ -151,24 +157,6 @@ float calibratedSoilPercent(int raw) {
   if (calibration.soilDryRaw == calibration.soilWetRaw) return 0;
   const float value = 100.0f * (calibration.soilDryRaw - raw) / (calibration.soilDryRaw - calibration.soilWetRaw);
   return constrain(value, 0.0f, 100.0f);
-}
-
-float measuredDistanceCm() {
-  noInterrupts();
-  const uint32_t left = leftEncoderTicks;
-  const uint32_t right = rightEncoderTicks;
-  interrupts();
-  if (calibration.leftTicksPerMeter <= 0 || calibration.rightTicksPerMeter <= 0) return 0;
-  const float leftCm = (left / calibration.leftTicksPerMeter) * 100.0f;
-  const float rightCm = (right / calibration.rightTicksPerMeter) * 100.0f;
-  return (leftCm + rightCm) / 2.0f;
-}
-
-void resetEncoderTicks() {
-  noInterrupts();
-  leftEncoderTicks = 0;
-  rightEncoderTicks = 0;
-  interrupts();
 }
 
 void readSensorSnapshot() {
@@ -182,8 +170,7 @@ void readSensorSnapshot() {
 
 void loadCalibration() {
   preferences.begin("rover-cal", true);
-  calibration.leftTicksPerMeter = preferences.getFloat("left-tpm", 0);
-  calibration.rightTicksPerMeter = preferences.getFloat("right-tpm", 0);
+  calibration.secondsPerMeter = preferences.getFloat("sec-per-meter", 0);
   calibration.soilDryRaw = preferences.getInt("soil-dry", 3200);
   calibration.soilWetRaw = preferences.getInt("soil-wet", 1300);
   calibration.rakeToGateCm = preferences.getFloat("rake-offset", 0);
@@ -192,8 +179,7 @@ void loadCalibration() {
 
 void saveCalibration() {
   preferences.begin("rover-cal", false);
-  preferences.putFloat("left-tpm", calibration.leftTicksPerMeter);
-  preferences.putFloat("right-tpm", calibration.rightTicksPerMeter);
+  preferences.putFloat("sec-per-meter", calibration.secondsPerMeter);
   preferences.putInt("soil-dry", calibration.soilDryRaw);
   preferences.putInt("soil-wet", calibration.soilWetRaw);
   preferences.putFloat("rake-offset", calibration.rakeToGateCm);
@@ -214,7 +200,10 @@ void sendJson(int statusCode, JsonDocument &document) {
 }
 
 bool authorizeRequest() {
-  if (server.header("X-Rover-Token") == ROVER_TOKEN) return true;
+  if (server.header("X-Rover-Token") == ROVER_TOKEN) {
+    if (hasActivePlantingSession()) planting.lastHeartbeatAtMs = millis();
+    return true;
+  }
   JsonDocument response;
   response["status"] = "failed";
   response["message"] = "Unauthorized";
@@ -223,28 +212,26 @@ bool authorizeRequest() {
 }
 
 void addCalibrationJson(JsonObject data) {
-  data["left_ticks_per_meter"] = calibration.leftTicksPerMeter;
-  data["right_ticks_per_meter"] = calibration.rightTicksPerMeter;
+  data["seconds_per_meter"] = calibration.secondsPerMeter;
   data["soil_dry_raw"] = calibration.soilDryRaw;
   data["soil_wet_raw"] = calibration.soilWetRaw;
   data["rake_to_gate_cm"] = calibration.rakeToGateCm;
-  data["encoder_ready"] = calibration.leftTicksPerMeter > 0 && calibration.rightTicksPerMeter > 0;
+  data["timed_movement_ready"] = calibration.secondsPerMeter > 0;
+  data["movement_tracking"] = "timed_estimate";
 }
 
 void addPlantingStatusJson(JsonObject data) {
-  noInterrupts();
-  const uint32_t left = leftEncoderTicks;
-  const uint32_t right = rightEncoderTicks;
-  interrupts();
+  updateEstimatedDistance(millis());
   data["state"] = stateName(plantingState);
   data["session_id"] = planting.sessionId;
   data["crop_profile"] = planting.cropProfile;
   data["field_label"] = planting.fieldLabel;
   data["target_drops"] = planting.targetDrops;
   data["completed_drops"] = planting.completedDrops;
-  data["encoder_distance_cm"] = measuredDistanceCm();
-  data["left_encoder_ticks"] = left;
-  data["right_encoder_ticks"] = right;
+  data["distance_cm"] = planting.estimatedDistanceCm;
+  data["estimated_distance_cm"] = planting.estimatedDistanceCm;
+  data["distance_is_estimated"] = true;
+  data["movement_tracking"] = "timed_estimate";
   data["soil_raw"] = planting.soilRaw;
   data["soil_moisture_percent"] = planting.soilPercent;
   data["temperature_c"] = planting.temperatureC;
@@ -305,14 +292,15 @@ void startPlantingRow(JsonVariantConst payload, JsonDocument &response) {
   const int targetDrops = payload["target_drops"] | 0;
   const float spacingCm = payload["spacing_cm"] | 0;
   const unsigned long gateOpenMs = payload["gate_open_ms"] | 0;
-  if (sessionId.isEmpty() || profile.isEmpty() || targetDrops <= 0 || spacingCm <= 0 || gateOpenMs < 50) {
+  if (sessionId.isEmpty() || profile.isEmpty() || targetDrops <= 0 || targetDrops > 20 ||
+      spacingCm <= 0 || spacingCm > 200 || gateOpenMs < 50) {
     response["status"] = "invalid_configuration";
-    response["message"] = "session_id, crop_profile, target_drops, spacing_cm, and gate_open_ms are required";
+    response["message"] = "Use 1-20 drops, spacing up to 200 cm, and a gate time of at least 50 ms";
     return;
   }
-  if (calibration.leftTicksPerMeter <= 0 || calibration.rightTicksPerMeter <= 0) {
+  if (calibration.secondsPerMeter <= 0) {
     response["status"] = "calibration_required";
-    response["message"] = "Calibrate both wheel encoders over one meter before planting";
+    response["message"] = "Time one forward run over a measured meter before planting";
     return;
   }
 
@@ -325,10 +313,10 @@ void startPlantingRow(JsonVariantConst payload, JsonDocument &response) {
   planting.rowSpacingCm = payload["row_spacing_cm"] | 0;
   planting.gateOpenMs = constrain(gateOpenMs, 50UL, 3000UL);
   planting.rakeOffsetCm = payload["rake_offset_cm"] | calibration.rakeToGateCm;
+  if (planting.rakeOffsetCm <= 0) planting.rakeOffsetCm = calibration.rakeToGateCm;
   planting.nextDropAtCm = max(planting.rakeOffsetCm, 0.0f);
   planting.startedAtMs = millis();
   planting.lastHeartbeatAtMs = millis();
-  resetEncoderTicks();
   safeState();
   soilSensorServo.write(soilSensorDOWN);
   setState(PlantingState::CheckingSoil);
@@ -338,17 +326,39 @@ void startPlantingRow(JsonVariantConst payload, JsonDocument &response) {
 }
 
 void setCalibration(JsonVariantConst payload, JsonDocument &response) {
-  float value;
-  if (parsePositive(payload["left_ticks_per_meter"], value)) calibration.leftTicksPerMeter = value;
-  if (parsePositive(payload["right_ticks_per_meter"], value)) calibration.rightTicksPerMeter = value;
-  if (!payload["soil_dry_raw"].isNull()) calibration.soilDryRaw = payload["soil_dry_raw"].as<int>();
-  if (!payload["soil_wet_raw"].isNull()) calibration.soilWetRaw = payload["soil_wet_raw"].as<int>();
-  if (!payload["rake_to_gate_cm"].isNull()) calibration.rakeToGateCm = max(payload["rake_to_gate_cm"].as<float>(), 0.0f);
-  if (calibration.soilDryRaw == calibration.soilWetRaw) {
+  float secondsPerMeter = calibration.secondsPerMeter;
+  int soilDryRaw = calibration.soilDryRaw;
+  int soilWetRaw = calibration.soilWetRaw;
+  float rakeToGateCm = calibration.rakeToGateCm;
+
+  if (!payload["seconds_per_meter"].isNull() &&
+      (!parsePositive(payload["seconds_per_meter"], secondsPerMeter) || secondsPerMeter > 120.0f)) {
+    response["status"] = "invalid_configuration";
+    response["message"] = "seconds_per_meter must be greater than 0 and no more than 120";
+    return;
+  }
+  if (!payload["soil_dry_raw"].isNull()) soilDryRaw = payload["soil_dry_raw"].as<int>();
+  if (!payload["soil_wet_raw"].isNull()) soilWetRaw = payload["soil_wet_raw"].as<int>();
+  if (!payload["rake_to_gate_cm"].isNull()) rakeToGateCm = payload["rake_to_gate_cm"].as<float>();
+  if (soilDryRaw < 0 || soilDryRaw > 4095 || soilWetRaw < 0 || soilWetRaw > 4095) {
+    response["status"] = "invalid_configuration";
+    response["message"] = "Soil calibration readings must be between 0 and 4095";
+    return;
+  }
+  if (rakeToGateCm < 0 || rakeToGateCm > 200) {
+    response["status"] = "invalid_configuration";
+    response["message"] = "rake_to_gate_cm must be between 0 and 200";
+    return;
+  }
+  if (soilDryRaw == soilWetRaw) {
     response["status"] = "invalid_configuration";
     response["message"] = "Dry and wet soil calibration readings must differ";
     return;
   }
+  calibration.secondsPerMeter = secondsPerMeter;
+  calibration.soilDryRaw = soilDryRaw;
+  calibration.soilWetRaw = soilWetRaw;
+  calibration.rakeToGateCm = rakeToGateCm;
   saveCalibration();
   response["status"] = "success";
   addCalibrationJson(response["data"].to<JsonObject>());
@@ -386,22 +396,16 @@ void handleCommand() {
   } else if (command == "START_PLANTING_ROW") {
     startPlantingRow(payload, response);
   } else if (command == "MOVE_FORWARD") {
-    if (plantingState == PlantingState::Ready || plantingState == PlantingState::Planting) {
-      planting.lastHeartbeatAtMs = millis();
-      if (plantingState == PlantingState::Ready) planting.lastProgressAtMs = millis();
-      moveForward();
-      setState(PlantingState::Planting);
-      response["status"] = "success";
-    } else if (!hasActivePlantingSession()) {
+    if (!hasActivePlantingSession()) {
       moveForward();
       response["status"] = "success";
     } else {
-      response["status"] = "not_ready";
-      response["message"] = "Wait until the rake is ready or resume the paused row";
+      response["status"] = "movement_locked";
+      response["message"] = "Automatic planting controls forward movement; use Stop to interrupt it";
       statusCode = 409;
     }
   } else if (command == "STOP") {
-    if (hasActivePlantingSession()) pausePlanting(); else safeState();
+    if (hasActivePlantingSession()) pausePlanting(); else stopMotors();
     response["status"] = "success";
   } else if (command == "PAUSE_PLANTING") {
     if (hasActivePlantingSession()) pausePlanting();
@@ -425,7 +429,7 @@ void handleCommand() {
     response["status"] = "success";
   } else if (command == "MOVE_BACKWARD" || command == "TURN_LEFT" || command == "TURN_RIGHT") {
     if (hasActivePlantingSession()) {
-      safeState();
+      pausePlanting("MOVEMENT_LOCKED");
       response["status"] = "movement_locked";
       response["message"] = "Reverse and turning are disabled during a planting row";
       statusCode = 409;
@@ -436,8 +440,27 @@ void handleCommand() {
       response["status"] = "success";
     }
   } else if (command == "CHECK_SOIL") {
-    soilSensorServo.write(soilSensorDOWN);
-    response["status"] = "success";
+    if (hasActivePlantingSession()) {
+      response["status"] = "mechanism_locked";
+      response["message"] = "Manual soil checks are disabled during automatic planting";
+      statusCode = 409;
+    } else {
+      soilSensorServo.write(soilSensorDOWN);
+      response["status"] = "success";
+    }
+  } else if (command == "SOIL_SENSOR_DOWN" || command == "SOIL_SENSOR_UP" ||
+             command == "RAKE_DOWN" || command == "RAKE_UP") {
+    if (hasActivePlantingSession()) {
+      response["status"] = "mechanism_locked";
+      response["message"] = "Manual mechanism controls are disabled during automatic planting";
+      statusCode = 409;
+    } else {
+      if (command == "SOIL_SENSOR_DOWN") soilSensorServo.write(soilSensorDOWN);
+      if (command == "SOIL_SENSOR_UP") soilSensorServo.write(soilSensorUP);
+      if (command == "RAKE_DOWN") soilMechanismServo.write(soilMechDOWN);
+      if (command == "RAKE_UP") soilMechanismServo.write(soilMechUP);
+      response["status"] = "success";
+    }
   } else {
     response["status"] = "invalid_command";
     response["message"] = "Unsupported command";
@@ -460,22 +483,19 @@ void updatePlantingStateMachine() {
     return;
   }
   if (plantingState == PlantingState::LoweringRake && now - planting.stateChangedAtMs >= RAKE_SETTLE_MS) {
-    setState(PlantingState::Ready);
+    moveForward();
+    setState(PlantingState::Planting);
+    planting.lastDistanceUpdateAtMs = now;
+    planting.lastHeartbeatAtMs = now;
     return;
   }
   if (plantingState != PlantingState::Planting) return;
-  if (now - planting.lastHeartbeatAtMs > FORWARD_HEARTBEAT_TIMEOUT_MS) {
+  if (now - planting.lastHeartbeatAtMs > APP_HEARTBEAT_TIMEOUT_MS) {
     pausePlanting("HEARTBEAT_LOSS");
     return;
   }
-  const float distanceCm = measuredDistanceCm();
-  if (distanceCm >= planting.lastProgressCm + 0.5f) {
-    planting.lastProgressCm = distanceCm;
-    planting.lastProgressAtMs = now;
-  } else if (!planting.gateOpen && now - planting.lastProgressAtMs > 3000) {
-    finishPlanting(PlantingState::Failed, "MOTOR_STALL");
-    return;
-  }
+  updateEstimatedDistance(now);
+  const float distanceCm = planting.estimatedDistanceCm;
   if (planting.gateOpen) {
     if (now - planting.gateOpenedAtMs >= planting.gateOpenMs) {
       closeSeedGate();
@@ -484,11 +504,15 @@ void updatePlantingStateMachine() {
       if (planting.completedDrops >= planting.targetDrops) {
         finishPlanting(PlantingState::Completed);
         readSensorSnapshot();
+      } else {
+        moveForward();
+        planting.lastDistanceUpdateAtMs = now;
       }
     }
     return;
   }
   if (distanceCm >= planting.nextDropAtCm && planting.completedDrops < planting.targetDrops) {
+    stopMotors();
     seedServo.write(seedOPEN);
     planting.gateOpen = true;
     planting.gateOpenedAtMs = now;
@@ -566,9 +590,6 @@ void setup() {
 
   pinMode(SOIL_SENSOR_PIN, INPUT);
   pinMode(IN1, OUTPUT); pinMode(IN2, OUTPUT); pinMode(IN3, OUTPUT); pinMode(IN4, OUTPUT);
-  pinMode(LEFT_ENCODER_PIN, INPUT_PULLUP); pinMode(RIGHT_ENCODER_PIN, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(LEFT_ENCODER_PIN), onLeftEncoderTick, RISING);
-  attachInterrupt(digitalPinToInterrupt(RIGHT_ENCODER_PIN), onRightEncoderTick, RISING);
   temperatureSensor.begin();
   scale.begin(HX711_DT, HX711_SCK);
   soilSensorServo.setPeriodHertz(50); seedServo.setPeriodHertz(50); soilMechanismServo.setPeriodHertz(50);

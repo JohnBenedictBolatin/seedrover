@@ -13,14 +13,11 @@ import '../../../../shared/widgets/app_card.dart';
 import '../../../../shared/widgets/loading_indicator.dart';
 import '../../../../shared/widgets/seedrover_mascot.dart';
 import '../../../authentication/providers/auth_providers.dart';
-import '../../../inventory/data/models/stock_model.dart';
-import '../../../inventory/providers/stock_providers.dart';
 import '../../controllers/crop_monitoring_controller.dart';
 import '../../data/models/crop_model.dart';
 import '../../providers/crop_providers.dart';
 import '../widgets/crop_action_buttons.dart';
 import '../widgets/crop_detail_panel.dart';
-import '../widgets/crop_growth_timeline.dart';
 import '../widgets/crop_maintenance_timeline.dart';
 import '../widgets/crop_sensor_snapshot_grid.dart';
 
@@ -36,7 +33,6 @@ class CropDetailsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(cropMonitoringControllerProvider);
     final controller = ref.read(cropMonitoringControllerProvider.notifier);
-    final stockState = ref.watch(stockInventoryControllerProvider);
     final profile = ref.watch(authControllerProvider).profile;
     final crop = controller.cropById(cropId);
 
@@ -65,8 +61,6 @@ class CropDetailsScreen extends ConsumerWidget {
 
     final canManage =
         profile?.hasPermission(PermissionKeys.cropsManage) ?? false;
-    final canDelete = profile?.isAdministrator ?? false;
-
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       children: [
@@ -86,44 +80,33 @@ class CropDetailsScreen extends ConsumerWidget {
         const SizedBox(height: AppSpacing.md),
         CropDetailPanel(
           crop: crop,
-          onViewGrowthTimeline: () => _showGrowthTimelineDialog(context, crop),
           actions: canManage
               ? CropActionButtons(
                   onWater: () => _showWaterDialog(context, controller, crop),
                   onFertilize: () =>
                       _showFertilizeDialog(context, controller, crop),
-                  onHarvest: () => _showHarvestDialog(
-                    context,
-                    controller,
-                    crop,
-                    stockState.stocks,
-                  ),
+                  onHarvest: crop.isHarvested
+                      ? null
+                      : () => _confirmHarvest(context, controller, crop),
                   onEdit: () => _showEditDialog(
                     context,
                     controller,
                     crop,
-                    canDelete: canDelete,
                   ),
                 )
               : null,
         ),
         const SizedBox(height: AppSpacing.lg),
         _SectionCard(
-          title: 'Care Plan',
+          title: 'What Needs Attention',
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(crop.careStatus, style: AppTypography.body),
             const SizedBox(height: AppSpacing.sm),
-            Text(
-                'Water and fertilizer quantities are calculated guidance. Verify soil, drainage, field area, and product labels before application.',
+            Text('Check the crop and soil in the field before recording care.',
                 style: AppTypography.small
                     .copyWith(color: AppColors.secondaryText)),
           ]),
-        ),
-        const SizedBox(height: AppSpacing.lg),
-        _SectionCard(
-          title: 'Sensor & Weather',
-          child: CropSensorSnapshotGrid(snapshot: crop.sensorSnapshot),
         ),
         const SizedBox(height: AppSpacing.lg),
         _SectionCard(
@@ -131,31 +114,9 @@ class CropDetailsScreen extends ConsumerWidget {
           onHistoryTap: () => _showMaintenanceHistoryDialog(context, crop),
           child: CropMaintenanceTimeline(records: crop.maintenanceHistory),
         ),
-        const SizedBox(height: AppSpacing.lg),
-        _SectionCard(
-          title: 'Harvest',
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(
-              crop.name.toLowerCase().contains('calamansi') &&
-                      crop.harvestWindowStart == null
-                  ? 'Next nursery milestone: ${crop.expectedStage}. A first-bearing window is shown after transplanting.'
-                  : 'Expected window: ${_dateText(crop.harvestWindowStart ?? crop.estimatedHarvest)} to ${_dateText(crop.harvestWindowEnd ?? crop.estimatedHarvest)}.',
-              style: AppTypography.body,
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-                'Forecast confidence: ${crop.forecastConfidence}. Confirm crop maturity in the field before harvesting.',
-                style: AppTypography.small
-                    .copyWith(color: AppColors.secondaryText)),
-          ]),
-        ),
       ],
     );
   }
-
-  String _dateText(DateTime value) =>
-      '${value.month}/${value.day}/${value.year}';
 
   void _showEnvironmentalInfoDialog(BuildContext context, CropModel crop) {
     showDialog<void>(
@@ -169,48 +130,12 @@ class CropDetailsScreen extends ConsumerWidget {
     );
   }
 
-  void _showGrowthTimelineDialog(BuildContext context, CropModel crop) {
-    showDialog<void>(
-      context: context,
-      builder: (context) {
-        return _CropStyledDialog(
-          title: 'Growth Timeline',
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: _TimelineMetricChip(
-                      label: 'Age',
-                      value: '${crop.cropAgeDays}d',
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: _TimelineMetricChip(
-                      label: 'Remaining',
-                      value: '${crop.remainingHarvestDays}d',
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.md),
-              CropGrowthTimeline(currentStage: crop.growthStage),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   void _showMaintenanceHistoryDialog(BuildContext context, CropModel crop) {
     showDialog<void>(
       context: context,
       builder: (context) {
         return _CropStyledDialog(
-          title: 'Full Maintenance History',
+          title: 'Crop Activity History',
           child: SingleChildScrollView(
             child: CropMaintenanceTimeline(records: crop.maintenanceHistory),
           ),
@@ -318,9 +243,8 @@ class CropDetailsScreen extends ConsumerWidget {
   void _showEditDialog(
     BuildContext context,
     CropMonitoringController controller,
-    CropModel crop, {
-    required bool canDelete,
-  }) {
+    CropModel crop,
+  ) {
     final nameController = TextEditingController(text: crop.name);
     final varietyController = TextEditingController(text: crop.variety);
     final quantityController =
@@ -406,16 +330,6 @@ class CropDetailsScreen extends ConsumerWidget {
                 ),
               ),
               actions: [
-                if (canDelete)
-                  _dialogActionButton(
-                    label: 'Delete',
-                    icon: Icons.delete_outline,
-                    color: AppColors.danger,
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      _confirmDelete(context, controller, crop);
-                    },
-                  ),
                 _dialogActionButton(
                   label: 'Cancel',
                   color: AppColors.secondaryText,
@@ -463,161 +377,19 @@ class CropDetailsScreen extends ConsumerWidget {
     );
   }
 
-  void _showHarvestDialog(
-    BuildContext context,
-    CropMonitoringController controller,
-    CropModel crop,
-    List<StockModel> stocks,
-  ) {
-    final quantityController = TextEditingController();
-    final notesController = TextEditingController(text: 'Harvest recorded.');
-    var selectedStock = stocks.isEmpty ? null : stocks.first;
-    var harvestDate = DateTime.now();
-    String? errorMessage;
-
-    showDialog<void>(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return _CropStyledDialog(
-              title: 'Harvest Crop',
-              child: SingleChildScrollView(
-                child: _dialogFieldColumn([
-                  _DialogDateLabel(date: harvestDate),
-                  if (stocks.isEmpty)
-                    const SeedRoverMascotMessage(
-                      message:
-                          'Create an inventory item first before recording crop harvest output.',
-                      expression: SeedRoverMascotExpression.thinking,
-                    )
-                  else
-                    DropdownButtonFormField<StockModel>(
-                      value: selectedStock,
-                      decoration:
-                          const InputDecoration(labelText: 'Inventory Item'),
-                      items: [
-                        for (final item in stocks)
-                          DropdownMenuItem(
-                            value: item,
-                            child: Text('${item.name} · ${item.unit}'),
-                          ),
-                      ],
-                      onChanged: (value) {
-                        setDialogState(() {
-                          selectedStock = value;
-                          errorMessage = null;
-                        });
-                      },
-                    ),
-                  TextField(
-                    controller: quantityController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: InputDecoration(
-                      labelText:
-                          'Harvested Quantity (${selectedStock?.unit ?? 'unit'})',
-                    ),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () async {
-                      final pickedDate = await showDatePicker(
-                        context: context,
-                        initialDate: harvestDate,
-                        firstDate: crop.plantingDate,
-                        lastDate: DateTime.now(),
-                      );
-
-                      if (pickedDate != null) {
-                        setDialogState(() {
-                          harvestDate = pickedDate;
-                          errorMessage = null;
-                        });
-                      }
-                    },
-                    icon: const Icon(Icons.calendar_today_outlined, size: 16),
-                    label: Text(
-                      'Harvest Date: ${_formatDateInput(harvestDate)}',
-                    ),
-                  ),
-                  TextField(
-                    controller: notesController,
-                    decoration: const InputDecoration(labelText: 'Remarks'),
-                  ),
-                  if (errorMessage != null)
-                    _DialogErrorMessage(message: errorMessage!),
-                ]),
-              ),
-              actions: [
-                _dialogActionButton(
-                  label: 'Cancel',
-                  color: AppColors.secondaryText,
-                  borderColor: AppColors.inactiveBorder,
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-                _dialogActionButton(
-                  label: 'Confirm',
-                  icon: Icons.check,
-                  onPressed: () async {
-                    final stock = selectedStock;
-                    final quantity =
-                        double.tryParse(quantityController.text.trim()) ?? 0;
-
-                    if (stock == null) {
-                      setDialogState(() {
-                        errorMessage = 'Choose an inventory item first.';
-                      });
-                      return;
-                    }
-
-                    if (quantity <= 0) {
-                      setDialogState(() {
-                        errorMessage =
-                            'Harvest quantity must be greater than zero.';
-                      });
-                      return;
-                    }
-
-                    final result = await controller.harvestCropToInventory(
-                      cropId: crop.id,
-                      inventoryId: stock.id,
-                      inventoryName: stock.name,
-                      unit: stock.unit,
-                      quantity: quantity,
-                      harvestDate: harvestDate,
-                      notes: notesController.text,
-                    );
-
-                    if (result != null) {
-                      setDialogState(() => errorMessage = result);
-                      return;
-                    }
-
-                    Navigator.of(context).pop();
-                  },
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _confirmDelete(
+  void _confirmHarvest(
     BuildContext context,
     CropMonitoringController controller,
     CropModel crop,
   ) {
     _showConfirmationDialog(
       context: context,
-      title: 'Delete Crop',
-      message: 'Delete ${crop.name} ${crop.id}?',
+      title: 'Mark Harvested',
+      message: crop.name.toLowerCase().contains('sitaw')
+          ? 'Record this sitaw harvest? The crop stays active for the next picking cycle.'
+          : 'Mark ${crop.name} as harvested and complete this crop cycle?',
       onConfirm: () async {
-        final deleted = await controller.deleteCrop(crop.id);
-        if (deleted && context.mounted) context.go(AppRoutes.crops);
-        return deleted;
+        return controller.harvestCrop(crop.id);
       },
     );
   }
@@ -797,7 +569,7 @@ class _CropDetailsHeader extends StatelessWidget {
                   Expanded(
                     child: _GreenGradient(
                       child: AnimatedTypingText(
-                        'Details/${crop.id.replaceAll('-', '').toLowerCase()}',
+                        'Details/${crop.trackingCode}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTypography.sectionHeading.copyWith(
@@ -955,42 +727,6 @@ class _CropStyledDialog extends StatelessWidget {
   }
 }
 
-class _TimelineMetricChip extends StatelessWidget {
-  const _TimelineMetricChip({
-    required this.label,
-    required this.value,
-  });
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.sm),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: AppTypography.caption),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              value,
-              style: AppTypography.sensorValue.copyWith(
-                color: AppColors.primaryGreen,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _DialogDateLabel extends StatelessWidget {
   const _DialogDateLabel({required this.date});
 
@@ -1007,38 +743,6 @@ class _DialogDateLabel extends StatelessWidget {
           style: AppTypography.monoSmall.copyWith(
             color: AppColors.primaryGreen,
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DialogErrorMessage extends StatelessWidget {
-  const _DialogErrorMessage({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppColors.danger.withValues(alpha: 0.1),
-        border: Border.all(color: AppColors.danger.withValues(alpha: 0.35)),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.sm),
-        child: Row(
-          children: [
-            Icon(Icons.error_outline, color: AppColors.danger, size: 18),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Text(
-                message,
-                style: AppTypography.small.copyWith(color: AppColors.danger),
-              ),
-            ),
-          ],
         ),
       ),
     );

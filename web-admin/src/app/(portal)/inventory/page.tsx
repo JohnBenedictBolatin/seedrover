@@ -26,9 +26,7 @@ export default async function InventoryPage() {
         <div>
           <p className={styles.eyebrow}>Operations</p>
           <h1>Inventory</h1>
-          <p>
-            Track stock levels, item pricing, locations, and sales readiness for the farm.
-          </p>
+          <p>Stock quantities, prices, locations, and movement history.</p>
         </div>
         <div className={styles.liveDateTime}>
           <LiveDateTime />

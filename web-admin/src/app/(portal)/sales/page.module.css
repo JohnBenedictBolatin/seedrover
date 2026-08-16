@@ -136,7 +136,7 @@
   display: block;
   margin-top: 8px;
   color: var(--text-secondary);
-  font-weight: 800;
+  font-weight: 400;
   white-space: nowrap;
 }
 
@@ -330,20 +330,8 @@
   border: 1px solid var(--border-soft);
   border-radius: 8px;
   color: var(--text);
-  color-scheme: dark;
   background: rgba(27, 27, 27, 0.42);
   padding: 0 12px;
-}
-
-.filters input[type="date"]::-webkit-calendar-picker-indicator {
-  opacity: 0.9;
-  filter: invert(82%) sepia(63%) saturate(602%) hue-rotate(34deg) brightness(108%) contrast(105%);
-  cursor: pointer;
-}
-
-.filters input[type="date"]::-webkit-datetime-edit,
-.filters input[type="date"]::-webkit-datetime-edit-fields-wrapper {
-  color: var(--text);
 }
 
 .searchBox {
@@ -470,19 +458,19 @@
 .salesTableRow {
   display: grid;
   grid-template-columns:
-    minmax(150px, 0.95fr)
-    minmax(180px, 1.08fr)
-    minmax(160px, 1fr)
-    minmax(150px, 0.9fr)
-    minmax(80px, 0.45fr)
-    minmax(140px, 0.86fr)
-    minmax(110px, 0.64fr)
-    minmax(120px, 0.68fr)
-    minmax(120px, 0.7fr)
-    minmax(126px, 0.72fr);
-  column-gap: 18px;
+    minmax(135px, .9fr)
+    minmax(185px, 1.1fr)
+    minmax(145px, 1fr)
+    minmax(145px, .9fr)
+    64px
+    minmax(120px, .8fr)
+    100px
+    110px
+    100px
+    80px;
+  column-gap: 16px;
   align-items: center;
-  min-width: 1440px;
+  min-width: 1350px;
 }
 
 .salesTableHead {
@@ -495,16 +483,16 @@
 
 .salesTableRow {
   min-height: 62px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--history-border);
   border-radius: 8px;
   color: var(--text-secondary);
-  background: var(--surface);
+  background: var(--history-row-surface);
   padding: 12px 14px;
 }
 
 .salesTableRow:hover {
-  border-color: rgba(141, 255, 42, 0.14);
-  background: rgba(255, 255, 255, 0.035);
+  border-color: var(--history-border);
+  background: var(--history-row-hover);
 }
 
 .salesTableRow strong {
@@ -554,9 +542,9 @@
 
 .discountCell,
 .totalCell {
-  justify-self: start;
+  justify-self: end;
   font-family: var(--font-roboto-mono);
-  text-align: left;
+  text-align: right;
 }
 
 .salesTableHead span:nth-child(5),
@@ -567,7 +555,7 @@
 
 .salesTableHead span:nth-child(7),
 .salesTableHead span:nth-child(8) {
-  text-align: left;
+  text-align: right;
 }
 
 .statusPill {
@@ -630,7 +618,7 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  min-width: 1440px;
+  min-width: 1350px;
   padding: 6px 2px 0;
 }
 
@@ -898,11 +886,13 @@
 .marketItemsPanel {
   display: grid;
   gap: 8px;
+  overflow-x: auto;
 }
 
 .marketItemsHead,
 .marketItemsRow {
   display: grid;
+  min-width: 590px;
   grid-template-columns: minmax(180px, 1fr) 110px 130px 130px;
   gap: 12px;
   align-items: center;
@@ -928,6 +918,13 @@
 .marketItemsRow span,
 .marketItemsRow strong:last-child {
   font-family: var(--font-roboto-mono);
+}
+
+.marketItemsHead > span:nth-child(n + 2),
+.marketItemsRow > span,
+.marketItemsRow > strong:last-child {
+  justify-self: end;
+  text-align: right;
 }
 
 .marketRemarks {
@@ -1236,22 +1233,12 @@
   -webkit-appearance: none;
   border-color: rgba(18, 60, 27, 0.22);
   color: #123c1b;
-  color-scheme: light;
   background: #ffffff;
   background-color: #ffffff;
 }
 
-:global(html[data-theme="light"]) .filters input[type="date"] {
-  color-scheme: light only;
-  accent-color: #123c1b;
-}
-
 :global(html[data-theme="light"]) .filters input::placeholder {
   color: rgba(18, 60, 27, 0.52);
-}
-
-:global(html[data-theme="light"]) .filters input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(19%) sepia(21%) saturate(1676%) hue-rotate(82deg) brightness(88%) contrast(89%);
 }
 
 :global(html[data-theme="light"]) .searchBox svg {
@@ -1267,15 +1254,15 @@
 }
 
 :global(html[data-theme="light"]) .salesTableRow {
-  border-color: rgba(18, 60, 27, 0.16);
+  border-color: var(--history-border);
   color: #243c2a;
-  background: #ffffff;
-  box-shadow: 0 8px 18px rgba(18, 60, 27, 0.06);
+  background: var(--history-row-surface);
+  box-shadow: none;
 }
 
 :global(html[data-theme="light"]) .salesTableRow:hover {
-  border-color: rgba(18, 60, 27, 0.32);
-  background: #f9fcf7;
+  border-color: rgba(18, 60, 27, 0.28);
+  background: var(--history-row-hover);
 }
 
 :global(html[data-theme="light"]) .salesTableRow strong,

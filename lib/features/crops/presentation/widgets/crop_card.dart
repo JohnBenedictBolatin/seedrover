@@ -51,34 +51,24 @@ class CropCard extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.xs),
             AnimatedTypingText(
-              '${crop.plantingSource} · ${crop.fieldLabel}',
+              '${crop.trackingCode} · ${crop.fieldLabel}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTypography.small,
             ),
             const SizedBox(height: AppSpacing.md),
             _CropMetaRow(
-              icon: Icons.straighten,
-              label: 'Coverage',
-              value: crop.fieldAreaM2 == null
-                  ? '${crop.completedDrops} completed drops'
-                  : '${crop.fieldAreaM2!.toStringAsFixed(2)} m² · ${crop.completedDrops} drops',
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            _CropMetaRow(
-              icon: Icons.grain,
-              label: 'Est. seeds',
-              value: crop.estimatedSeedMin == null
-                  ? 'Not available'
-                  : '${crop.estimatedSeedMin}-${crop.estimatedSeedMax ?? crop.estimatedSeedMin}',
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            _CropMetaRow(
               icon: Icons.water_drop_outlined,
               label: 'Latest soil',
               value: crop.sensorSnapshot.recordedAt == null
-                  ? 'No linked reading'
+                  ? 'No recent reading'
                   : '${crop.sensorSnapshot.soilMoisture.toStringAsFixed(0)}%',
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _CropMetaRow(
+              icon: Icons.checklist_outlined,
+              label: 'What is next',
+              value: crop.careStatus,
             ),
             const SizedBox(height: AppSpacing.sm),
             _CropMetaRow(
@@ -89,22 +79,7 @@ class CropCard extends StatelessWidget {
                   : 'Harvest',
               value: crop.harvestWindowStart == null
                   ? crop.expectedStage
-                  : '${_formatDate(crop.harvestWindowStart!)}-${_formatDate(crop.harvestWindowEnd ?? crop.harvestWindowStart!)} · ${crop.forecastConfidence}',
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(crop.careStatus,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.small),
-            const SizedBox(height: AppSpacing.md),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(AppRadius.sm),
-              child: AnimatedProgressBar(
-                value: crop.progress,
-                minHeight: 6,
-                color: statusColor,
-                backgroundColor: AppColors.inactiveBorder,
-              ),
+                  : '${_formatDate(crop.harvestWindowStart!)}-${_formatDate(crop.harvestWindowEnd ?? crop.harvestWindowStart!)}',
             ),
             const SizedBox(height: AppSpacing.sm),
             AnimatedTypingText(

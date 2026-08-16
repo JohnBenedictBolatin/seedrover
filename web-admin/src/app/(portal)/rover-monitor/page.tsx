@@ -41,9 +41,9 @@ export default async function RoverMonitorPage() {
       <RoverLiveRefresh />
       <header className={styles.header}>
         <div>
-          <p className={styles.eyebrow}>Farm supervision</p>
+          <p className={styles.eyebrow}>Farm</p>
           <h1>Rover Monitor</h1>
-          <p>Monitor rover status, sensor readings, planting activity, and command history.</p>
+          <p>Connection status, sensors, planting sessions, and commands.</p>
         </div>
         <div className={styles.liveDateTime}>
           <LiveDateTime />
@@ -81,12 +81,12 @@ export default async function RoverMonitorPage() {
 
         <article className={styles.panel}>
           <PanelTitle eyebrow="Current state" title="Device health" icon={<Activity size={18} />} />
-          {status ? <DeviceHealth status={status} /> : <EmptyState title="No active rover status row found." text="The monitor will populate once rover status data is available." />}
+          {status ? <DeviceHealth status={status} /> : <EmptyState title="No rover status yet." text="Waiting for the rover to report its status." />}
         </article>
 
         <article className={styles.panel}>
           <PanelTitle eyebrow="Sensors" title="Soil and environment" icon={<Droplets size={18} />} />
-          {sensors ? <SensorGrid sensors={sensors} /> : <EmptyState title="No sensor readings found." text="Recent rover sensor readings will appear here." />}
+          {sensors ? <SensorGrid sensors={sensors} /> : <EmptyState title="No sensor readings yet." />}
         </article>
       </section>
 
@@ -105,7 +105,7 @@ export default async function RoverMonitorPage() {
         <div className={styles.commandLayout}>
           <div className={styles.historyWrap}>
             {commands.length === 0 ? (
-              <EmptyState title="No rover commands found." text="Recent mobile rover activity will appear here." />
+              <EmptyState title="No rover commands yet." />
             ) : (
               <div className={styles.commandList}>
                 {commands.map((command) => (
@@ -246,11 +246,11 @@ function StatusPill({
   );
 }
 
-function EmptyState({ text, title }: { text: string; title: string }) {
+function EmptyState({ text, title }: { text?: string; title: string }) {
   return (
     <div className={styles.emptyState}>
       <strong>{title}</strong>
-      <span>{text}</span>
+      {text ? <span>{text}</span> : null}
     </div>
   );
 }

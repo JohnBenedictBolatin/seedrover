@@ -157,10 +157,14 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen> {
                                 PlantingControlPanel(
                                   status: state.plantingStatus,
                                   soilCheckMessage: state.soilCheckMessage,
-                                  canCheckSoil:
-                                      state.canCheckSoil && canControlPlanting,
-                                  canStartPlanting: state.canStartPlanting &&
+                                  manualControlsEnabled:
+                                      !state.isPlantingLocked && canControl,
+                                  calibrationEnabled: !state.isPlantingLocked &&
                                       canControlPlanting,
+                                  canStartPlanting: canControlPlanting &&
+                                      (state.canStartPlanting ||
+                                          state.plantingStatus ==
+                                              PlantingStatus.paused),
                                   isPlantingActive: state.plantingStatus ==
                                           PlantingStatus.active ||
                                       (state.isPlantingLocked &&
@@ -172,7 +176,22 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen> {
                                   targetDrops:
                                       state.plantingOperation?.targetDrops ?? 0,
                                   pendingReceipts: state.pendingReceiptCount,
-                                  onCheckSoil: controller.checkSoilState,
+                                  onSoilDown: () => controller.controlMechanism(
+                                    'SOIL_SENSOR_DOWN',
+                                    'Soil sensor down',
+                                  ),
+                                  onSoilUp: () => controller.controlMechanism(
+                                    'SOIL_SENSOR_UP',
+                                    'Soil sensor up',
+                                  ),
+                                  onRakeDown: () => controller.controlMechanism(
+                                    'RAKE_DOWN',
+                                    'Rake down',
+                                  ),
+                                  onRakeUp: () => controller.controlMechanism(
+                                    'RAKE_UP',
+                                    'Rake up',
+                                  ),
                                   onStartPlanting: () =>
                                       _showPlantingConfiguration(
                                     context,
@@ -328,10 +347,11 @@ class _PlantingRowDialogState extends State<_PlantingRowDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('CONFIGURE PLANTING ROW', style: AppTypography.cardTitle),
+                Text('START AUTOMATIC PLANTING',
+                    style: AppTypography.cardTitle),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                    'The rover counts gate pulses as completed drops. Seed totals remain estimates.',
+                    'The rover will check the soil, lower the rake, move forward, make five seed drops by default at the selected crop spacing, then stop and raise its mechanisms. Keep the path clear and watch the rover throughout the cycle. Travel distance and spacing remain estimates because no movement or obstacle sensor is installed.',
                     style: AppTypography.body
                         .copyWith(color: AppColors.secondaryText)),
                 const SizedBox(height: AppSpacing.md),
@@ -362,12 +382,16 @@ class _PlantingRowDialogState extends State<_PlantingRowDialog> {
                   spacing: AppSpacing.sm,
                   runSpacing: AppSpacing.sm,
                   children: [
-                    _numberField(_drops, 'TARGET DROPS', whole: true),
-                    _numberField(_spacing, 'DROP SPACING (CM)'),
-                    _numberField(_rowSpacing, 'ROW SPACING (CM)'),
-                    _numberField(_gateMs, 'GATE OPEN (MS)', whole: true),
+                    _numberField(_drops, 'DROP CYCLES (DEFAULT 5)',
+                        whole: true, maxValue: 20),
+                    _numberField(_spacing, 'GUIDE DROP SPACING (CM)',
+                        maxValue: 200),
+                    _numberField(_rowSpacing, 'ROW SPACING (CM)',
+                        maxValue: 500),
+                    _numberField(_gateMs, 'GATE OPEN (MS)',
+                        whole: true, maxValue: 3000),
                     _numberField(_rakeOffset, 'RAKE TO GATE (CM)',
-                        allowZero: true),
+                        allowZero: true, maxValue: 200),
                     _numberField(_seedMin, 'EST. SEEDS / PULSE MIN',
                         whole: true),
                     _numberField(_seedMax, 'EST. SEEDS / PULSE MAX',
@@ -383,7 +407,8 @@ class _PlantingRowDialogState extends State<_PlantingRowDialog> {
                         child: const Text('CANCEL')),
                     const SizedBox(width: AppSpacing.sm),
                     FilledButton(
-                        onPressed: _submit, child: const Text('START ROW')),
+                        onPressed: _submit,
+                        child: const Text('START PLANTING')),
                   ],
                 ),
               ],
@@ -395,7 +420,7 @@ class _PlantingRowDialogState extends State<_PlantingRowDialog> {
   }
 
   SizedBox _numberField(TextEditingController controller, String label,
-      {bool whole = false, bool allowZero = false}) {
+      {bool whole = false, bool allowZero = false, double? maxValue}) {
     return SizedBox(
       width: 210,
       child: TextFormField(
@@ -409,10 +434,15 @@ class _PlantingRowDialogState extends State<_PlantingRowDialog> {
         validator: (value) {
           final number = double.tryParse(value ?? '');
           if (number == null || (allowZero ? number < 0 : number <= 0)) {
-            return 'Enter a valid non-negative value';
+            return allowZero
+                ? 'Enter a valid non-negative value'
+                : 'Enter a value greater than zero';
           }
           if (whole && number != number.roundToDouble()) {
             return 'Use a whole number';
+          }
+          if (maxValue != null && number > maxValue) {
+            return 'Use $maxValue or less';
           }
           return null;
         },
@@ -461,9 +491,9 @@ class _CalibrationDialogState extends State<_CalibrationDialog> {
   final _formKey = GlobalKey<FormState>();
   late final List<TextEditingController> _values = [
     TextEditingController(
-        text: widget.initial.leftTicksPerMeter.toStringAsFixed(0)),
-    TextEditingController(
-        text: widget.initial.rightTicksPerMeter.toStringAsFixed(0)),
+        text: widget.initial.secondsPerMeter > 0
+            ? widget.initial.secondsPerMeter.toStringAsFixed(1)
+            : '1.9'),
     TextEditingController(text: widget.initial.soilDryRaw.toString()),
     TextEditingController(text: widget.initial.soilWetRaw.toString()),
     TextEditingController(text: widget.initial.rakeToGateCm.toStringAsFixed(1)),
@@ -472,8 +502,7 @@ class _CalibrationDialogState extends State<_CalibrationDialog> {
   @override
   Widget build(BuildContext context) {
     const labels = [
-      'LEFT TICKS OVER 1 METER',
-      'RIGHT TICKS OVER 1 METER',
+      'SECONDS TO TRAVEL 1 METER',
       'DRY SOIL RAW READING',
       'WET SOIL RAW READING',
       'RAKE TO SEED GATE (CM)'
@@ -492,7 +521,7 @@ class _CalibrationDialogState extends State<_CalibrationDialog> {
                 Text('ROVER CALIBRATION', style: AppTypography.cardTitle),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                    'Roll each wheel exactly one meter, then enter the measured encoder ticks. Record the soil probe in known dry and wet soil.',
+                    'Mark one meter on level ground, time a forward run with a stopwatch, then enter the seconds. Planting distance will be estimated, so recalibrate when the load, soil, wheels, or battery behavior changes.',
                     style: AppTypography.body
                         .copyWith(color: AppColors.secondaryText)),
                 const SizedBox(height: AppSpacing.md),
@@ -501,12 +530,32 @@ class _CalibrationDialogState extends State<_CalibrationDialog> {
                     controller: _values[index],
                     keyboardType: TextInputType.number,
                     inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))
+                      FilteringTextInputFormatter.allow(
+                        index == 1 || index == 2
+                            ? RegExp(r'[0-9]')
+                            : RegExp(r'[0-9.]'),
+                      )
                     ],
                     decoration: _fieldDecoration(labels[index]),
-                    validator: (value) => double.tryParse(value ?? '') == null
-                        ? 'Enter a valid non-negative number'
-                        : null,
+                    validator: (value) {
+                      final parsed = double.tryParse(value ?? '');
+                      if (parsed == null || parsed < 0) {
+                        return 'Enter a valid non-negative number';
+                      }
+                      if (index == 0 && parsed == 0) {
+                        return 'Enter a time greater than zero';
+                      }
+                      if (index == 0 && parsed > 120) {
+                        return 'Enter 120 seconds or less';
+                      }
+                      if ((index == 1 || index == 2) && parsed > 4095) {
+                        return 'ESP32 readings must be 0 to 4095';
+                      }
+                      if (index == 3 && parsed > 200) {
+                        return 'Enter 200 cm or less';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: AppSpacing.sm),
                 ],
@@ -532,8 +581,14 @@ class _CalibrationDialogState extends State<_CalibrationDialog> {
 
   void _save() {
     if (!_formKey.currentState!.validate()) return;
-    final dry = int.parse(_values[2].text);
-    final wet = int.parse(_values[3].text);
+    final secondsPerMeter = double.parse(_values[0].text);
+    final dry = int.parse(_values[1].text);
+    final wet = int.parse(_values[2].text);
+    if (secondsPerMeter <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Seconds per meter must be greater than zero.')));
+      return;
+    }
     if (dry == wet) {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Dry and wet readings must differ.')));
@@ -542,11 +597,10 @@ class _CalibrationDialogState extends State<_CalibrationDialog> {
     Navigator.pop(
         context,
         RoverCalibrationModel(
-          leftTicksPerMeter: double.parse(_values[0].text),
-          rightTicksPerMeter: double.parse(_values[1].text),
+          secondsPerMeter: secondsPerMeter,
           soilDryRaw: dry,
           soilWetRaw: wet,
-          rakeToGateCm: double.parse(_values[4].text),
+          rakeToGateCm: double.parse(_values[3].text),
         ));
   }
 }

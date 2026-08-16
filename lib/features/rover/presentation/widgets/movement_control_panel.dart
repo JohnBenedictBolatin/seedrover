@@ -67,8 +67,7 @@ class _DirectionalPad extends StatelessWidget {
                 child: _ArrowButton(
                   icon: CupertinoIcons.arrow_up,
                   command: RoverMovementCommand.forward,
-                  enabled: enabled,
-                  holdToRun: plantingMode,
+                  enabled: enabled && !plantingMode,
                   selected: activeCommand == RoverMovementCommand.forward,
                   onCommand: onCommand,
                 ),
@@ -146,7 +145,6 @@ class _ArrowButton extends StatelessWidget {
     required this.selected,
     required this.onCommand,
     this.danger = false,
-    this.holdToRun = false,
   });
 
   final IconData icon;
@@ -154,7 +152,6 @@ class _ArrowButton extends StatelessWidget {
   final bool enabled;
   final bool selected;
   final bool danger;
-  final bool holdToRun;
   final ValueChanged<RoverMovementCommand> onCommand;
 
   @override
@@ -177,23 +174,10 @@ class _ArrowButton extends StatelessWidget {
               final iconSize =
                   (shortestSide * 0.40).clamp(20.0, 30.0).toDouble();
 
-              final button = IconButton(
-                onPressed:
-                    enabled && !holdToRun ? () => onCommand(command) : null,
+              return IconButton(
+                onPressed: enabled ? () => onCommand(command) : null,
                 icon:
                     Icon(icon, color: selected ? color : null, size: iconSize),
-              );
-              if (!holdToRun) return button;
-              return Listener(
-                behavior: HitTestBehavior.opaque,
-                onPointerDown: enabled ? (_) => onCommand(command) : null,
-                onPointerUp: enabled
-                    ? (_) => onCommand(RoverMovementCommand.stop)
-                    : null,
-                onPointerCancel: enabled
-                    ? (_) => onCommand(RoverMovementCommand.stop)
-                    : null,
-                child: IgnorePointer(child: button),
               );
             },
           ),

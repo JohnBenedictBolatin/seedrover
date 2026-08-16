@@ -28,7 +28,7 @@ export default async function NotificationsPage() {
         <div>
           <p className={styles.eyebrow}>System</p>
           <h1>Notifications</h1>
-          <p>Review farm and system notifications across SeedRover staff accounts.</p>
+          <p>Farm alerts, reminders, and system notices.</p>
         </div>
       </header>
 
@@ -69,7 +69,6 @@ export default async function NotificationsPage() {
         {notifications.length === 0 ? (
           <div className={styles.emptyState}>
             <strong>No notifications found.</strong>
-            <span>System alerts will appear here as they are generated.</span>
           </div>
         ) : (
           <div className={styles.notificationList}>

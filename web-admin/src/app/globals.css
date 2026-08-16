@@ -8,6 +8,10 @@
   --surface-soft: #2a2a2a;
   --surface-glass: rgba(255, 255, 255, 0.035);
   --surface-overlay: rgba(37, 37, 37, 0.98);
+  --history-panel-surface: #202020;
+  --history-row-surface: #252525;
+  --history-row-hover: #2b3428;
+  --history-border: rgba(141, 255, 42, 0.13);
   --border: #505050;
   --border-soft: rgba(255, 255, 255, 0.08);
   --text: #ffffff;
@@ -46,6 +50,10 @@ html[data-theme="light"] {
   --surface-soft: #eaf4e3;
   --surface-glass: rgba(24, 88, 28, 0.045);
   --surface-overlay: rgba(255, 255, 255, 0.96);
+  --history-panel-surface: #ffffff;
+  --history-row-surface: #ffffff;
+  --history-row-hover: #f5fbf2;
+  --history-border: rgba(18, 60, 27, 0.17);
   --border: #b9c8b0;
   --border-soft: rgba(31, 83, 28, 0.14);
   --text: #172014;
@@ -216,7 +224,6 @@ html[data-theme="light"] [class*="quickAction"],
 html[data-theme="light"] [class*="recordsPanel"],
 html[data-theme="light"] [class*="directoryPanel"],
 html[data-theme="light"] [class*="detailsPanel"],
-html[data-theme="light"] [class*="historyPanel"],
 html[data-theme="light"] [class*="salesBand"] {
   --background: #1b1b1b;
   --surface: #252525;
@@ -278,11 +285,20 @@ html[data-theme="light"] [class*="listPanel"] strong {
   color: inherit;
 }
 
-html[data-theme="light"] [class*="riskItem"],
-html[data-theme="light"] [class*="activityItem"] {
+html[data-theme="light"] [class*="riskItem"] {
   border-color: rgba(18, 60, 27, 0.14) !important;
   color: #123c1b !important;
   background: #f9fcf7 !important;
+}
+
+html[data-theme="light"] [class*="activityItem"] {
+  border-color: var(--history-border) !important;
+  color: #123c1b !important;
+  background: var(--history-row-surface) !important;
+}
+
+html[data-theme="light"] [class*="activityItem"]:hover {
+  background: var(--history-row-hover) !important;
 }
 
 html[data-theme="light"] [class*="activityItem"] > span {
@@ -461,10 +477,12 @@ html[data-theme="light"] select option {
 :root {
   --dialog-backdrop-color: rgba(0, 0, 0, 0.76);
   --dialog-backdrop-filter: none;
+  --dialog-layer: 2147483000;
+  --dialog-popover-layer: 2147483500;
 }
 
 :where([data-ui-backdrop="true"], [class*="modalBackdrop"], [class*="confirmBackdrop"]) {
-  z-index: 2147483000 !important;
+  z-index: var(--dialog-layer) !important;
   background: var(--dialog-backdrop-color) !important;
   backdrop-filter: var(--dialog-backdrop-filter) !important;
   -webkit-backdrop-filter: var(--dialog-backdrop-filter) !important;
@@ -541,6 +559,76 @@ select,
   font-weight: 700 !important;
   box-shadow: none !important;
   transition: border-color 180ms ease, background-color 180ms ease, color 180ms ease !important;
+  text-transform: none !important;
+}
+
+/* Form values use natural capitalization. Labels and action buttons keep their
+   own typography, but entered text and dropdown choices must never inherit a
+   modal's uppercase button styling. */
+input:not([type="button"]):not([type="submit"]):not([type="reset"]),
+textarea,
+select,
+option,
+[class*="themedSelectValue"],
+[class*="themedSelectOption"] {
+  text-transform: none !important;
+  letter-spacing: normal !important;
+}
+
+/* One typography treatment for labels that sit above form controls. Control
+   values remain naturally capitalized through the rule above. */
+:where(
+  label:not(:has(input[type="checkbox"])):not(:has(input[type="radio"])),
+  [class*="fieldLabel"],
+  [class*="themedSelectLabel"],
+  [class*="formSelectLabel"]
+) {
+  font-weight: 700 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+}
+
+:where(
+  label:not(:has(input[type="checkbox"])):not(:has(input[type="radio"]))
+) :where(input, textarea, select, option, button, i, small) {
+  letter-spacing: normal !important;
+  text-transform: none !important;
+}
+
+/* Required native controls receive the same inline red marker everywhere.
+   CalendarField renders the equivalent marker through its required prop. */
+:where(
+  label:has(input:required),
+  label:has(textarea:required),
+  label:has(select:required)
+) {
+  display: grid !important;
+  grid-template-columns: max-content minmax(0, 1fr) !important;
+  column-gap: 4px !important;
+}
+
+:where(
+  label:has(input:required),
+  label:has(textarea:required),
+  label:has(select:required)
+) > :where(input, textarea, select, div) {
+  grid-column: 1 / -1;
+}
+
+:where(
+  label:has(input:required),
+  label:has(textarea:required),
+  label:has(select:required)
+)::after {
+  content: "*";
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+  justify-self: start;
+  color: var(--danger, #ff3b30);
+  font-size: 0.82em;
+  font-weight: 700;
+  line-height: 1;
 }
 
 select:hover,
@@ -612,25 +700,26 @@ html[data-theme="light"] [class*="themedSelectOption"][data-selected="true"] {
 /* Uniform numerical spinner controls. */
 input[type="number"] {
   color-scheme: dark;
-  accent-color: var(--green-accent);
+  accent-color: auto;
 }
 
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
   margin: 0;
-  opacity: 1;
+  opacity: 0.72;
   cursor: pointer;
-  filter: invert(82%) sepia(63%) saturate(602%) hue-rotate(34deg) brightness(108%) contrast(105%) !important;
+  filter: none !important;
 }
 
 html[data-theme="light"] input[type="number"] {
   color-scheme: light;
-  accent-color: #16451f;
+  accent-color: auto;
 }
 
 html[data-theme="light"] input[type="number"]::-webkit-outer-spin-button,
 html[data-theme="light"] input[type="number"]::-webkit-inner-spin-button {
-  filter: invert(19%) sepia(21%) saturate(1676%) hue-rotate(82deg) brightness(68%) contrast(105%) !important;
+  opacity: 0.65;
+  filter: none !important;
 }
 
 /* Uniform modal close controls. */

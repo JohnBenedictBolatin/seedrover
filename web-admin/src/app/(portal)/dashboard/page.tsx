@@ -24,11 +24,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     <div className={styles.page}>
       <header className={styles.header}>
         <div>
-          <p className={styles.eyebrow}>SeedRover Overview</p>
+          <p className={styles.eyebrow}>Overview</p>
           <h1>Operations Dashboard</h1>
-          <p>
-            Full farm overview for stock, sales, crops, customers, and rover activity.
-          </p>
+          <p>Sales, inventory, crops, customers, and rover status.</p>
         </div>
         <div className={styles.liveDateTime}>
           <LiveDateTime />

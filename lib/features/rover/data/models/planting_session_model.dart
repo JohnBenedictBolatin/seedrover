@@ -21,7 +21,7 @@ class PlantingRowConfig {
       sessionId: _uuidV4(),
       seed: seed,
       fieldLabel: '',
-      targetDrops: 20,
+      targetDrops: 5,
       spacingCm: switch (seed) {
         PlantingSeedType.sitaw => 50,
         PlantingSeedType.peanut => 10,
@@ -64,8 +64,7 @@ class PlantingRowConfig {
 
 class RoverCalibrationModel {
   const RoverCalibrationModel({
-    required this.leftTicksPerMeter,
-    required this.rightTicksPerMeter,
+    required this.secondsPerMeter,
     required this.soilDryRaw,
     required this.soilWetRaw,
     required this.rakeToGateCm,
@@ -73,27 +72,22 @@ class RoverCalibrationModel {
 
   factory RoverCalibrationModel.fromJson(Map<String, dynamic> json) {
     return RoverCalibrationModel(
-      leftTicksPerMeter:
-          (json['left_ticks_per_meter'] as num?)?.toDouble() ?? 0,
-      rightTicksPerMeter:
-          (json['right_ticks_per_meter'] as num?)?.toDouble() ?? 0,
+      secondsPerMeter: (json['seconds_per_meter'] as num?)?.toDouble() ?? 0,
       soilDryRaw: (json['soil_dry_raw'] as num?)?.toInt() ?? 0,
       soilWetRaw: (json['soil_wet_raw'] as num?)?.toInt() ?? 0,
       rakeToGateCm: (json['rake_to_gate_cm'] as num?)?.toDouble() ?? 0,
     );
   }
 
-  final double leftTicksPerMeter;
-  final double rightTicksPerMeter;
+  final double secondsPerMeter;
   final int soilDryRaw;
   final int soilWetRaw;
   final double rakeToGateCm;
 
-  bool get encoderReady => leftTicksPerMeter > 0 && rightTicksPerMeter > 0;
+  bool get timedMovementReady => secondsPerMeter > 0;
 
   Map<String, Object?> toJson() => {
-        'left_ticks_per_meter': leftTicksPerMeter,
-        'right_ticks_per_meter': rightTicksPerMeter,
+        'seconds_per_meter': secondsPerMeter,
         'soil_dry_raw': soilDryRaw,
         'soil_wet_raw': soilWetRaw,
         'rake_to_gate_cm': rakeToGateCm,
@@ -114,6 +108,8 @@ class PlantingOperationStatus {
     required this.temperatureC,
     required this.seedLoadRaw,
     required this.firmwareVersion,
+    required this.distanceIsEstimated,
+    required this.movementTracking,
     this.failureCode,
   });
 
@@ -125,12 +121,18 @@ class PlantingOperationStatus {
       fieldLabel: json['field_label']?.toString() ?? '',
       targetDrops: (json['target_drops'] as num?)?.toInt() ?? 0,
       completedDrops: (json['completed_drops'] as num?)?.toInt() ?? 0,
-      distanceCm: (json['encoder_distance_cm'] as num?)?.toDouble() ?? 0,
+      distanceCm: (json['distance_cm'] as num?)?.toDouble() ??
+          (json['estimated_distance_cm'] as num?)?.toDouble() ??
+          (json['encoder_distance_cm'] as num?)?.toDouble() ??
+          0,
       soilRaw: (json['soil_raw'] as num?)?.toInt() ?? 0,
       soilPercent: (json['soil_moisture_percent'] as num?)?.toDouble() ?? 0,
       temperatureC: (json['temperature_c'] as num?)?.toDouble() ?? 0,
       seedLoadRaw: (json['seed_load_raw'] as num?)?.toInt() ?? 0,
       firmwareVersion: json['firmware_version']?.toString() ?? '',
+      distanceIsEstimated: json['distance_is_estimated'] as bool? ?? false,
+      movementTracking: json['movement_tracking']?.toString() ??
+          (json.containsKey('encoder_distance_cm') ? 'encoder' : 'unknown'),
       failureCode: _nullableText(json['failure_code']),
     );
   }
@@ -147,6 +149,8 @@ class PlantingOperationStatus {
   final double temperatureC;
   final int seedLoadRaw;
   final String firmwareVersion;
+  final bool distanceIsEstimated;
+  final String movementTracking;
   final String? failureCode;
 
   bool get isTerminal => const {
@@ -217,7 +221,11 @@ class PendingPlantingReceipt {
           'field_label': status.fieldLabel,
           'target_drops': status.targetDrops,
           'completed_drops': status.completedDrops,
-          'encoder_distance_cm': status.distanceCm,
+          'distance_cm': status.distanceCm,
+          'estimated_distance_cm':
+              status.distanceIsEstimated ? status.distanceCm : null,
+          'distance_is_estimated': status.distanceIsEstimated,
+          'movement_tracking': status.movementTracking,
           'soil_raw': status.soilRaw,
           'soil_moisture_percent': status.soilPercent,
           'temperature_c': status.temperatureC,

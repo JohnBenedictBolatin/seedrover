@@ -416,47 +416,28 @@
   padding: 0 12px;
 }
 
-.form input[type="number"],
-.form input[type="date"],
-.form input[type="time"] {
+.form input[type="number"] {
   color-scheme: dark;
 }
 
 .form input[type="number"] {
   padding-right: 10px;
   color-scheme: dark only;
-  accent-color: var(--green-accent);
+  accent-color: auto;
 }
 
 .form input[type="number"]::-webkit-outer-spin-button,
 .form input[type="number"]::-webkit-inner-spin-button {
-  opacity: 1;
+  opacity: 0.72;
   margin: 0;
-  filter: invert(82%) sepia(63%) saturate(602%) hue-rotate(34deg) brightness(108%) contrast(105%);
+  filter: none;
   cursor: pointer;
 }
 
 :global(html[data-theme="dark"]) .form input[type="number"]::-webkit-outer-spin-button,
 :global(html[data-theme="dark"]) .form input[type="number"]::-webkit-inner-spin-button {
-  opacity: 1;
-  filter: invert(82%) sepia(63%) saturate(602%) hue-rotate(34deg) brightness(108%) contrast(105%);
-}
-
-.form input[type="date"]::-webkit-calendar-picker-indicator,
-.form input[type="time"]::-webkit-calendar-picker-indicator {
-  opacity: 0.9;
-  filter: invert(82%) sepia(63%) saturate(602%) hue-rotate(34deg) brightness(108%) contrast(105%);
-  cursor: pointer;
-}
-
-.form input[type="date"]::-webkit-datetime-edit,
-.form input[type="time"]::-webkit-datetime-edit {
-  color: var(--text);
-}
-
-.form input[type="date"]::-webkit-datetime-edit-fields-wrapper,
-.form input[type="time"]::-webkit-datetime-edit-fields-wrapper {
-  color: var(--text);
+  opacity: 0.72;
+  filter: none;
 }
 
 .form textarea {
@@ -850,18 +831,15 @@
   outline: 2px solid rgba(18, 60, 27, 0.08);
 }
 
-:global(html[data-theme="light"]) .form input[type="number"],
-:global(html[data-theme="light"]) .form input[type="date"],
-:global(html[data-theme="light"]) .form input[type="time"] {
+:global(html[data-theme="light"]) .form input[type="number"] {
   color-scheme: light only;
-  accent-color: #123c1b;
+  accent-color: auto;
 }
 
 :global(html[data-theme="light"]) .form input[type="number"]::-webkit-outer-spin-button,
-:global(html[data-theme="light"]) .form input[type="number"]::-webkit-inner-spin-button,
-:global(html[data-theme="light"]) .form input[type="date"]::-webkit-calendar-picker-indicator,
-:global(html[data-theme="light"]) .form input[type="time"]::-webkit-calendar-picker-indicator {
-  filter: invert(19%) sepia(21%) saturate(1676%) hue-rotate(82deg) brightness(68%) contrast(105%);
+:global(html[data-theme="light"]) .form input[type="number"]::-webkit-inner-spin-button {
+  opacity: 0.65;
+  filter: none;
 }
 
 :global(html[data-theme="light"]) .itemPicker svg,

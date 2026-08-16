@@ -26,7 +26,6 @@
 .filters label { display: grid; gap: 7px; color: var(--text-secondary); font-size: .8rem; font-weight: 900; }
 .filters input { width: 100%; min-height: 44px; border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text); color-scheme: dark; background: rgba(27,27,27,.42); outline: 0; padding: 0 12px; transition: border-color 180ms ease,background 180ms ease; }
 .filters input:hover, .filters input:focus { border-color: rgba(141,255,42,.44); background: rgba(83,209,30,.07); }
-.filters input[type="date"]::-webkit-calendar-picker-indicator { opacity: .9; filter: invert(82%) sepia(63%) saturate(602%) hue-rotate(34deg) brightness(108%) contrast(105%); cursor: pointer; }
 .searchBox { position: relative; }
 .searchBox svg { position: absolute; left: 12px; bottom: 13px; color: var(--text-muted); pointer-events: none; }
 .searchBox input { padding-left: 40px; }
@@ -40,12 +39,17 @@
 .themedSelectOption { display: grid; min-height: 38px; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 10px; border: 0; border-radius: 6px; color: var(--text-secondary); background: transparent; cursor: pointer; font: inherit; font-size: .9rem; padding: 0 10px; text-align: left; }
 .themedSelectOption:hover, .themedSelectOption[data-selected="true"] { color: var(--text); background: rgba(255,255,255,.08); }
 .themedSelectOption[data-selected="true"] svg { color: rgba(141,255,42,.72); }
-.history { display: grid; gap: 8px; }
-.historyHeader, .historyRow { display: grid; grid-template-columns: minmax(170px,1.4fr) .8fr 1fr .9fr .8fr auto; gap: 14px; align-items: center; }
+.history { display: grid; gap: 8px; overflow-x: auto; }
+.historyHeader, .historyRow { display: grid; min-width: 900px; grid-template-columns: minmax(200px,1.4fr) minmax(125px,.75fr) minmax(155px,1fr) minmax(120px,.68fr) minmax(120px,.72fr) 82px; gap: 14px; align-items: center; }
 .historyHeader { padding: 0 14px 4px; color: var(--text-muted); font-size: .7rem; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
-.historyRow { min-height: 58px; border: 1px solid rgba(255,255,255,.07); border-radius: 8px; color: var(--text-secondary); background: rgba(34,34,34,.78); font-size: .84rem; padding: 9px 14px; }
+.historyHeader > span:last-child { text-align: right; }
+.historyHeader > span:nth-child(4) { text-align: right; }
+.historyRow { min-height: 58px; border: 1px solid var(--history-border); border-radius: 8px; color: var(--text-secondary); background: var(--history-row-surface); font-size: .84rem; padding: 9px 14px; }
+.historyRow:hover { background: var(--history-row-hover); }
 .historyRow strong { color: var(--text); }
-.amount { color: var(--text); font-family: var(--font-roboto-mono); font-weight: 900; }
+.historyRow > strong, .historyRow > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amount { justify-self: end; color: var(--text); font-family: var(--font-roboto-mono); font-weight: 900; text-align: right; }
+.historyDate { font-family: var(--font-roboto-mono); font-variant-numeric: tabular-nums; }
 .rowActions { display: flex; justify-content: flex-end; gap: 8px; }
 .rowActions button { display: inline-grid; width: 36px; height: 36px; min-height: 36px; place-items: center; border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text-secondary); background: transparent; cursor: pointer; }
 .rowActions button:hover { border-color: rgba(141,255,42,.4); color: var(--green-accent); background: rgba(83,209,30,.08); }
@@ -87,20 +91,12 @@
 .modalForm label { display: grid; gap: 7px; color: var(--text-muted); font-size: .78rem; font-weight: 900; }
 .modalForm input, .modalForm select { min-height: 44px; border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text); background: rgba(27,27,27,.55); padding: 0 12px; }
 .modalForm textarea { border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text); background: rgba(27,27,27,.55); resize: vertical; padding: 12px; }
-.filePicker { position: relative; }
-.filePicker input { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0 !important; opacity: 0; cursor: pointer; padding: 0 !important; }
-.filePicker i { display: flex; min-height: 46px; align-items: center; gap: 10px; border: 1px dashed rgba(141,255,42,.26); border-radius: 8px; color: var(--text-secondary); background: rgba(27,27,27,.42); font-style: normal; font-weight: 800; padding: 0 12px; transition: border-color 180ms ease,background 180ms ease,color 180ms ease; }
-.filePicker i svg { color: var(--green-accent); }
-.filePicker:hover i, .filePicker:focus-within i { border-color: rgba(141,255,42,.44); color: var(--text); background: rgba(83,209,30,.07); }
 .modalActions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
 .modalCancel { min-height: 44px; border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text-secondary); background: transparent; font-weight: 900; cursor: pointer; }
 :global(html[data-theme="light"]) .modal { --surface: #fff; }
 :global(html[data-theme="light"]) .modalTitle, :global(html[data-theme="light"]) .modalForm label { color: #123c1b !important; }
 :global(html[data-theme="light"]) .modalForm input, :global(html[data-theme="light"]) .modalForm select { border-color: rgba(18,60,27,.22) !important; color: #123c1b !important; background: #fff !important; color-scheme: light; }
 :global(html[data-theme="light"]) .modalForm textarea { border-color: rgba(18,60,27,.22) !important; color: #123c1b !important; background: #fff !important; }
-:global(html[data-theme="light"]) .filePicker i { border-color: rgba(18,60,27,.24); color: #243c2a; background: #fff; }
-:global(html[data-theme="light"]) .filePicker i svg { color: #16451f; }
-:global(html[data-theme="light"]) .filePicker:hover i, :global(html[data-theme="light"]) .filePicker:focus-within i { border-color: rgba(18,60,27,.42); color: #123c1b; background: rgba(18,60,27,.06); }
 :global(html[data-theme="light"]) .modalForm input::placeholder { color: rgba(18,60,27,.52) !important; }
 :global(html[data-theme="light"]) .modalCancel { border-color: rgba(18,60,27,.22); color: #123c1b; background: #f4f9f2; }
 .primaryAction { position: relative; isolation: isolate; display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 8px; overflow: hidden; border: 1px solid rgba(141,255,42,.34); border-radius: 8px; color: #eff8e7; background: linear-gradient(135deg,rgba(83,209,30,.18),rgba(108,235,49,.12)); font-weight: 900; cursor: pointer; padding: 0 14px; transition: color 180ms ease,border-color 220ms ease,background 180ms ease,transform 180ms ease,box-shadow 220ms ease; }
@@ -120,7 +116,6 @@
 :global(html[data-theme="light"]) .formGrid input, :global(html[data-theme="light"]) .formGrid select { border-color: rgba(18,60,27,.22); color: #123c1b; background: #fff; }
 :global(html[data-theme="light"]) .filters input { border-color: rgba(18,60,27,.22); color: #123c1b; color-scheme: light; background: #fff; }
 :global(html[data-theme="light"]) .filters input:hover, :global(html[data-theme="light"]) .filters input:focus { border-color: rgba(18,60,27,.42); background: rgba(18,60,27,.06); }
-:global(html[data-theme="light"]) .filters input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(19%) sepia(21%) saturate(1676%) hue-rotate(82deg) brightness(88%) contrast(89%); }
 :global(html[data-theme="light"]) .searchBox svg { color: rgba(18,60,27,.62); }
 :global(html[data-theme="light"]) .themedSelectButton { border-color: rgba(18,60,27,.24) !important; color: #123c1b !important; background: #fff !important; }
 :global(html[data-theme="light"]) .themedSelectButton:hover, :global(html[data-theme="light"]) .themedSelectButton[aria-expanded="true"] { border-color: rgba(18,60,27,.42) !important; background: rgba(18,60,27,.06) !important; }
@@ -128,7 +123,8 @@
 :global(html[data-theme="light"]) .themedSelectValue, :global(html[data-theme="light"]) .themedSelectOption { color: #123c1b !important; }
 :global(html[data-theme="light"]) .themedSelectMenu { border-color: rgba(18,60,27,.2) !important; background: #fff !important; }
 :global(html[data-theme="light"]) .themedSelectOption:hover, :global(html[data-theme="light"]) .themedSelectOption[data-selected="true"] { background: rgba(18,60,27,.09) !important; }
-:global(html[data-theme="light"]) .historyRow { border-color: rgba(18,60,27,.12); color: rgba(18,60,27,.72); background: #f9fcf7; }
+:global(html[data-theme="light"]) .historyRow { border-color: var(--history-border); color: rgba(18,60,27,.72); background: var(--history-row-surface); }
+:global(html[data-theme="light"]) .historyRow:hover { background: var(--history-row-hover); }
 :global(html[data-theme="light"]) .historyRow strong, :global(html[data-theme="light"]) .amount { color: #123c1b; }
 :global(html[data-theme="light"]) .paginationBar button { border-color: rgba(18,60,27,.18); color: rgba(18,60,27,.72); background: #fff; }
 :global(html[data-theme="light"]) .paginationBar button:hover:not(:disabled), :global(html[data-theme="light"]) .pageNumbers button[data-active="true"] { border-color: rgba(18,60,27,.42); color: #123c1b; background: rgba(18,60,27,.07); }
@@ -142,4 +138,18 @@
 @media (max-width: 1100px) { .formGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .formGrid button { width: max-content; } }
 @media (max-width: 1280px) { .filters { grid-template-columns: repeat(3,minmax(0,1fr)); } }
 @media (max-width: 1100px) { .metricGrid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
-@media (max-width: 720px) { .header { display: grid; } .liveDateTime { text-align: left; } .metricGrid, .filters { grid-template-columns: 1fr; } .investmentButton { width: 100% !important; } .modalColumns, .detailGrid { grid-template-columns: 1fr; } .detailNotes, .detailReceipt { grid-column: auto; } .historyHeader { display: none; } .historyRow { grid-template-columns: 1fr 1fr; gap: 8px; } }
+@media (max-width: 720px) {
+  .header { display: grid; }
+  .liveDateTime { text-align: left; }
+  .metricGrid, .filters { grid-template-columns: 1fr; }
+  .investmentButton { width: 100% !important; }
+  .modalColumns, .detailGrid { grid-template-columns: 1fr; }
+  .detailNotes, .detailReceipt { grid-column: auto; }
+  .history { overflow: visible; }
+  .historyHeader { display: none; }
+  .historyRow { min-width: 0; grid-template-columns: 1fr 1fr; align-items: start; gap: 12px 16px; padding: 14px; }
+  .historyRow > strong, .historyRow > span { display: grid; gap: 4px; overflow: visible; text-overflow: clip; white-space: normal; }
+  .historyRow > .amount { justify-self: stretch; text-align: left; }
+  .historyRow > strong::before, .historyRow > span::before, .rowActions::before { content: attr(data-label); color: var(--text-muted); font-family: inherit; font-size: .66rem; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }
+  .rowActions { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr auto auto; align-items: center; justify-content: stretch; border-top: 1px solid var(--border-soft); padding-top: 10px; }
+}

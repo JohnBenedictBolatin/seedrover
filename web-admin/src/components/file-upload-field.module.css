@@ -1,0 +1,166 @@
+.field {
+  min-width: 0;
+}
+
+.uploadArea {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 58px;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  overflow: hidden;
+  border: 1px dashed rgba(141, 255, 42, 0.3);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: rgba(27, 27, 27, 0.42);
+  padding: 8px 10px;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+.input {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0 !important;
+  opacity: 0;
+  cursor: pointer;
+  padding: 0 !important;
+}
+
+.input:disabled {
+  cursor: not-allowed;
+}
+
+.icon {
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(141, 255, 42, 0.2);
+  border-radius: 8px;
+  color: var(--green-accent);
+  background: rgba(83, 209, 30, 0.08);
+}
+
+.copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.fileName {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.copy small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.browse {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(141, 255, 42, 0.28);
+  border-radius: 8px;
+  color: var(--green-accent);
+  background: rgba(83, 209, 30, 0.08);
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1;
+  padding: 0 12px;
+}
+
+.uploadArea:hover,
+.uploadArea:focus-within {
+  border-color: rgba(141, 255, 42, 0.5);
+  color: var(--text);
+  background: rgba(83, 209, 30, 0.07);
+}
+
+.uploadArea:focus-within {
+  outline: 2px solid rgba(141, 255, 42, 0.1);
+  outline-offset: 1px;
+}
+
+.uploadArea[data-selected="true"] {
+  border-style: solid;
+  border-color: rgba(141, 255, 42, 0.4);
+  background: rgba(83, 209, 30, 0.08);
+}
+
+.uploadArea:has(.input:disabled) {
+  opacity: 0.55;
+}
+
+:global(html[data-theme="light"]) .uploadArea {
+  border-color: rgba(18, 60, 27, 0.28);
+  color: #35533a;
+  background: #ffffff;
+}
+
+:global(html[data-theme="light"]) .icon {
+  border-color: rgba(18, 60, 27, 0.18);
+  color: #16451f;
+  background: rgba(18, 60, 27, 0.06);
+}
+
+:global(html[data-theme="light"]) .fileName {
+  color: #123c1b;
+}
+
+:global(html[data-theme="light"]) .copy small {
+  color: rgba(18, 60, 27, 0.66);
+}
+
+:global(html[data-theme="light"]) .browse {
+  border-color: rgba(18, 60, 27, 0.28);
+  color: #16451f;
+  background: rgba(18, 60, 27, 0.06);
+}
+
+:global(html[data-theme="light"]) .uploadArea:hover,
+:global(html[data-theme="light"]) .uploadArea:focus-within {
+  border-color: rgba(18, 60, 27, 0.48);
+  background: rgba(18, 60, 27, 0.05);
+}
+
+:global(html[data-theme="light"]) .uploadArea:focus-within {
+  outline-color: rgba(18, 60, 27, 0.1);
+}
+
+:global(html[data-theme="light"]) .uploadArea[data-selected="true"] {
+  border-color: rgba(18, 60, 27, 0.42);
+  background: rgba(18, 60, 27, 0.06);
+}
+
+@media (max-width: 520px) {
+  .uploadArea {
+    grid-template-columns: 38px minmax(0, 1fr);
+  }
+
+  .browse {
+    display: none;
+  }
+}

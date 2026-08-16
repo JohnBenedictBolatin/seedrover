@@ -462,6 +462,12 @@
 .activityItem {
   grid-template-columns: 40px minmax(0, 1fr) auto;
   gap: 12px;
+  border-color: var(--history-border);
+  background: var(--history-row-surface);
+}
+
+.activityItem:hover {
+  background: var(--history-row-hover);
 }
 
 .activityItem > span {

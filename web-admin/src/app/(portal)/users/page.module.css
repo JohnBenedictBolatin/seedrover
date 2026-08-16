@@ -183,7 +183,7 @@
   display: block;
   margin-top: 8px;
   color: var(--text-secondary);
-  font-weight: 800;
+  font-weight: 400;
   white-space: nowrap;
 }
 
@@ -388,7 +388,7 @@
 
 .userTable {
   display: grid;
-  min-width: 1120px;
+  min-width: 0;
   gap: 8px;
   overflow-x: auto;
 }
@@ -396,7 +396,8 @@
 .tableHead,
 .tableRow {
   display: grid;
-  grid-template-columns: 1.1fr 1.15fr 1.35fr 1.25fr 0.72fr 1.05fr 54px;
+  min-width: 1220px;
+  grid-template-columns: minmax(155px,.9fr) minmax(180px,1fr) minmax(230px,1.25fr) minmax(210px,1.1fr) minmax(110px,.65fr) minmax(190px,1fr) 54px;
   align-items: center;
   gap: 16px;
 }
@@ -429,6 +430,25 @@
   color: var(--text-muted);
   font-size: 0.82rem;
   font-weight: 800;
+}
+
+.tableRow > strong,
+.tableRow > .muted {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tableBadgeCell,
+.tableActionCell {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.tableActionCell {
+  justify-content: center;
 }
 
 .badge,
@@ -1393,5 +1413,58 @@
 
   .actionButton {
     width: 100%;
+  }
+
+  .userTable {
+    overflow: visible;
+  }
+
+  .tableHead {
+    display: none;
+  }
+
+  .tableRow {
+    min-width: 0;
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+    gap: 12px 16px;
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    padding: 14px;
+  }
+
+  .tableRow > strong,
+  .tableRow > .muted,
+  .userIdentity,
+  .tableBadgeCell,
+  .tableActionCell {
+    display: grid;
+    justify-content: stretch;
+    gap: 4px;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .tableRow > strong::before,
+  .tableRow > .muted::before,
+  .userIdentity::before,
+  .tableBadgeCell::before,
+  .tableActionCell::before {
+    content: attr(data-label);
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: .66rem;
+    font-weight: 900;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+
+  .tableActionCell {
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    border-top: 1px solid var(--border-soft);
+    padding-top: 10px;
   }
 }

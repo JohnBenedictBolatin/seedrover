@@ -326,9 +326,15 @@
 
 .tableRow {
   min-height: 74px;
+  border: 1px solid var(--history-border);
+  border-radius: 8px;
   color: var(--text-secondary);
-  background: var(--surface);
+  background: var(--history-row-surface);
   padding: 13px 14px;
+}
+
+.tableRow:hover {
+  background: var(--history-row-hover);
 }
 
 .activityCell {
@@ -539,15 +545,15 @@
 }
 
 :global(html[data-theme="light"]) .tableRow {
-  border-color: rgba(18, 60, 27, 0.14);
+  border-color: var(--history-border);
   color: #243c2a;
-  background: #ffffff;
-  box-shadow: 0 8px 18px rgba(18, 60, 27, 0.06);
+  background: var(--history-row-surface);
+  box-shadow: none;
 }
 
 :global(html[data-theme="light"]) .tableRow:hover {
   border-color: rgba(18, 60, 27, 0.28);
-  background: #f9fcf7;
+  background: var(--history-row-hover);
 }
 
 :global(html[data-theme="light"]) .moduleBadge {

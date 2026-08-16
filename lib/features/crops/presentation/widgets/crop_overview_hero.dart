@@ -8,16 +8,14 @@ import '../../../../core/theme/app_typography.dart';
 class CropOverviewHero extends StatelessWidget {
   const CropOverviewHero({
     required this.activeCrops,
-    required this.wateringDue,
-    required this.careTasksDue,
+    required this.needsAttention,
     required this.upcomingHarvests,
     super.key,
     this.imageAsset = 'assets/images/crop_hero.png',
   });
 
   final int activeCrops;
-  final int wateringDue;
-  final int careTasksDue;
+  final int needsAttention;
   final int upcomingHarvests;
   final String? imageAsset;
 
@@ -34,10 +32,11 @@ class CropOverviewHero extends StatelessWidget {
           radius: 1.25,
           colors: AppColors.heroGradientColors,
         ),
-        border: Border.all(color: AppColors.primaryGreen.withOpacity(.34)),
+        border:
+            Border.all(color: AppColors.primaryGreen.withValues(alpha: .34)),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primaryGreen.withOpacity(.06),
+            color: AppColors.primaryGreen.withValues(alpha: .06),
             blurRadius: 24,
             offset: const Offset(0, 10),
           ),
@@ -63,19 +62,15 @@ class CropOverviewHero extends StatelessWidget {
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       Expanded(
-                        child: GridView.count(
-                          physics: const NeverScrollableScrollPhysics(),
-                          crossAxisCount: 2,
-                          childAspectRatio: 3.2,
-                          crossAxisSpacing: AppSpacing.sm,
-                          mainAxisSpacing: AppSpacing.sm,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
                             _Metric(
                                 label: 'ACTIVE BATCHES', value: activeCrops),
-                            _Metric(label: 'WATERING DUE', value: wateringDue),
-                            _Metric(label: 'CARE TASKS', value: careTasksDue),
                             _Metric(
-                                label: 'UPCOMING HARVESTS',
+                                label: 'NEED ATTENTION', value: needsAttention),
+                            _Metric(
+                                label: 'HARVESTING SOON',
                                 value: upcomingHarvests),
                           ],
                         ),
@@ -146,7 +141,7 @@ class _CropHeroImageFallback extends StatelessWidget {
   Widget build(BuildContext context) {
     return Icon(
       Icons.eco_rounded,
-      color: AppColors.heroIconGreen.withOpacity(.82),
+      color: AppColors.heroIconGreen.withValues(alpha: .82),
       size: 56,
     );
   }
@@ -170,7 +165,7 @@ class _CropStarFieldPainter extends CustomPainter {
       Offset(.49, .68),
       Offset(.77, .74),
     ];
-    final paint = Paint()..color = AppColors.accentGreen.withOpacity(.42);
+    final paint = Paint()..color = AppColors.accentGreen.withValues(alpha: .42);
     for (var index = 0; index < stars.length; index++) {
       final star = stars[index];
       canvas.drawCircle(

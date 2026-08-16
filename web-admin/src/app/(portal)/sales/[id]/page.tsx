@@ -44,7 +44,6 @@ export default async function SalesReceiptPage({
           <div>
             <p className={styles.brand}>SeedRover</p>
             <h1>Sales Receipt</h1>
-            <span>Internal farm tracking</span>
           </div>
           <div className={styles.receiptMeta}>
             <strong>{receipt.receiptNumber}</strong>

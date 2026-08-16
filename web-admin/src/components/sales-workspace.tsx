@@ -39,6 +39,7 @@ import {
 } from "@/components/action-alert-stack";
 import { ReportPrintButton } from "@/components/report-print-button";
 import { SalesOrderForm } from "@/components/sales-order-form";
+import { CalendarField } from "@/components/calendar-field";
 import styles from "@/app/(portal)/sales/page.module.css";
 
 type SalesWorkspaceProps = {
@@ -289,7 +290,7 @@ export function SalesWorkspace({
         <div>
           <p className={styles.eyebrow}>Quick action</p>
           <h2>Record a new sale</h2>
-          <span>Open the sales form only when you need to create a receipt.</span>
+          <span>Create a receipt and deduct the sold quantities from inventory.</span>
         </div>
         <button
           className={styles.recordSaleButton}
@@ -334,22 +335,8 @@ export function SalesWorkspace({
               onChange={(event) => setQuery(event.target.value)}
             />
           </label>
-          <label>
-            From
-            <input
-              type="date"
-              value={startDate}
-              onChange={(event) => setStartDate(event.target.value)}
-            />
-          </label>
-          <label>
-            To
-            <input
-              type="date"
-              value={endDate}
-              onChange={(event) => setEndDate(event.target.value)}
-            />
-          </label>
+          <CalendarField label="From" value={startDate} onChange={setStartDate} />
+          <CalendarField label="To" value={endDate} onChange={setEndDate} />
           <FilterSelect
             icon={<Filter size={17} />}
             label="Payment"

@@ -177,10 +177,10 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
     );
   }
 
-  Future<void> harvestCrop(String cropId) async {
+  Future<bool> harvestCrop(String cropId) async {
     final now = DateTime.now();
 
-    await _addMaintenance(
+    return _addMaintenance(
       cropId: cropId,
       activity: CropMaintenanceActivity.harvested,
       date: now,
@@ -191,50 +191,6 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
       progress: 1,
       harvestDate: now,
     );
-  }
-
-  Future<String?> harvestCropToInventory({
-    required String cropId,
-    required String inventoryId,
-    required String inventoryName,
-    required String unit,
-    required double quantity,
-    required DateTime harvestDate,
-    required String notes,
-  }) async {
-    if (quantity <= 0) {
-      return 'Harvest quantity must be greater than zero.';
-    }
-
-    final crop = cropById(cropId);
-
-    if (crop == null) {
-      return 'Crop record was not found.';
-    }
-
-    if (harvestDate.isAfter(DateTime.now())) {
-      return 'Harvest date cannot be in the future.';
-    }
-
-    try {
-      final updatedCrop = await _repository.harvestCropToInventory(
-        crop: crop,
-        inventoryId: inventoryId,
-        inventoryName: inventoryName,
-        unit: unit,
-        quantity: quantity,
-        harvestDate: harvestDate,
-        notes: notes,
-      );
-      _replaceCrop(updatedCrop, successMessage: 'Harvest added to inventory.');
-    } catch (error) {
-      return _friendlyError(
-        error,
-        fallback: 'Unable to record harvest into inventory.',
-      );
-    }
-
-    return null;
   }
 
   Future<bool> updateCrop(CropModel crop) async {
@@ -358,6 +314,7 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
           crop.name.toLowerCase().contains(normalizedQuery) ||
           crop.variety.toLowerCase().contains(normalizedQuery) ||
           crop.location.toLowerCase().contains(normalizedQuery) ||
+          crop.trackingCode.toLowerCase().contains(normalizedQuery) ||
           crop.id.toLowerCase().contains(normalizedQuery);
       final matchesCropName =
           selectedCropName == null || crop.name == selectedCropName;
@@ -507,7 +464,6 @@ String _friendlyError(Object error, {required String fallback}) {
     final message = error.message;
 
     if (message.contains('schema cache') ||
-        message.contains('harvest_crop_to_inventory') ||
         message.contains('Could not find the function')) {
       return 'Crop database is not fully upgraded yet. Apply the latest Supabase migration and try again.';
     }

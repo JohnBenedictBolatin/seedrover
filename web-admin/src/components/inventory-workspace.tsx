@@ -8,11 +8,11 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   Boxes,
-  CalendarDays,
   Carrot,
   Check,
   ChevronLeft,
   ClipboardList,
+  Clock3,
   X,
   ChevronRight,
   Edit3,
@@ -29,7 +29,6 @@ import {
   Trash2,
   WalletCards,
 } from "lucide-react";
-import { DayPicker } from "react-day-picker";
 import {
   adjustStockAction,
   createInventoryItemAction,
@@ -45,6 +44,8 @@ import {
   type AlertTone,
 } from "@/components/action-alert-stack";
 import { useConfirmationDialog } from "@/components/confirmation-dialog";
+import { CalendarField } from "@/components/calendar-field";
+import { FileUploadField } from "@/components/file-upload-field";
 import { formatCurrency, formatDateTime, formatQuantity } from "@/lib/format";
 import type { InventoryItem } from "@/lib/inventory";
 import styles from "@/app/(portal)/inventory/page.module.css";
@@ -877,10 +878,13 @@ function InventoryForm({
         <Field label="Selling price" name="selling_price" placeholder="e.g. 180.00" type="number" step="0.01" min="0" defaultValue={item?.sellingPrice ?? ""} />
       </div>
       <Field label="Storage location" name="storage_location" placeholder="e.g. Greenhouse storage" defaultValue={item?.storageLocation ?? "Harvest Bay"} />
-      <label>
-        <span>Stock image</span>
-        <input accept="image/jpeg,image/png,image/webp" name="image" type="file" />
-      </label>
+      <FileUploadField
+        accept="image/jpeg,image/png,image/webp"
+        helperText="JPG, PNG or WEBP"
+        label="Stock image"
+        name="image"
+        prompt={item?.imagePath ? "Choose replacement image" : "Choose stock image"}
+      />
       <button className={styles.primaryAction} disabled={pending} type="submit">
         <PackagePlus size={17} />
         <span>{pending ? "Saving..." : "Save Item"}</span>
@@ -1002,7 +1006,14 @@ function MovementForm({
               min="0"
               defaultValue={item.sellingPrice ?? 0}
             />
-            <SaleDateField value={saleDate} onChange={setSaleDate} />
+            <CalendarField
+              includeTime
+              label="Sale date"
+              name="sale_date"
+              required
+              value={saleDate}
+              onChange={setSaleDate}
+            />
           </div>
           <ThemedSelect
             label="Payment method"
@@ -1149,7 +1160,7 @@ function HistoryList({ item }: { item: InventoryItem }) {
                 type="button"
                 onClick={() => setHistoryModal("transactions")}
               >
-                <ChevronRight size={16} />
+                <Clock3 size={19} />
               </button>
             ) : null}
           </div>
@@ -1176,7 +1187,7 @@ function HistoryList({ item }: { item: InventoryItem }) {
                 type="button"
                 onClick={() => setHistoryModal("sales")}
               >
-                <ChevronRight size={16} />
+                <Clock3 size={19} />
               </button>
             ) : null}
           </div>
@@ -1274,123 +1285,6 @@ function HistoryModal({
       </section>
     </div>
   );
-}
-
-function SaleDateField({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const parsedDate = new Date(value);
-  const selectedDate = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
-  const timeValue = `${String(selectedDate.getHours()).padStart(2, "0")}:${String(
-    selectedDate.getMinutes(),
-  ).padStart(2, "0")}`;
-
-  function handleDateSelect(nextDate: Date | undefined) {
-    if (!nextDate) {
-      return;
-    }
-
-    const updated = new Date(selectedDate);
-    updated.setFullYear(nextDate.getFullYear(), nextDate.getMonth(), nextDate.getDate());
-    onChange(toLocalDateTimeValue(updated));
-  }
-
-  function handleTimeChange(nextTime: string) {
-    const [hours, minutes] = nextTime.split(":").map(Number);
-    const updated = new Date(selectedDate);
-    updated.setHours(hours || 0, minutes || 0, 0, 0);
-    onChange(toLocalDateTimeValue(updated));
-  }
-
-  const displayLabel = new Intl.DateTimeFormat("en-PH", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(selectedDate);
-
-  return (
-    <label className={styles.calendarField}>
-      <span>Sale date</span>
-      <input name="sale_date" type="hidden" value={value} />
-      <button
-        className={styles.calendarTrigger}
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-      >
-        <CalendarDays size={17} />
-        <span>{displayLabel}</span>
-      </button>
-      {open ? (
-        <div className={styles.calendarPopover}>
-          <div className={styles.calendarShell}>
-            <DayPicker
-              mode="single"
-              selected={selectedDate}
-              onSelect={handleDateSelect}
-              showOutsideDays
-              className={styles.calendarRoot}
-              classNames={{
-                months: styles.calendarMonths,
-                month: styles.calendarMonth,
-                nav: styles.calendarNav,
-                button_previous: styles.calendarNavButton,
-                button_next: styles.calendarNavButton,
-                month_caption: styles.calendarCaption,
-                caption_label: styles.calendarCaptionLabel,
-                weekdays: styles.calendarWeekdays,
-                weekday: styles.calendarWeekday,
-                week: styles.calendarWeek,
-                day: styles.calendarDay,
-                today: styles.calendarToday,
-                selected: styles.calendarSelected,
-                outside: styles.calendarOutside,
-                chevron: styles.calendarChevron,
-              }}
-              components={{
-                Chevron: ({ orientation, className, ...props }) =>
-                  orientation === "left" ? (
-                    <ChevronLeft className={className} size={16} {...props} />
-                  ) : (
-                    <ChevronRight className={className} size={16} {...props} />
-                  ),
-              }}
-            />
-            <div className={styles.calendarTimeRow}>
-              <span>Time</span>
-              <input
-                className={styles.calendarTimeInput}
-                type="time"
-                value={timeValue}
-                onChange={(event) => handleTimeChange(event.target.value)}
-              />
-            </div>
-            <div className={styles.calendarActions}>
-              <button
-                className={styles.calendarActionButton}
-                type="button"
-                onClick={() => setOpen(false)}
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </label>
-  );
-}
-
-function toLocalDateTimeValue(date: Date) {
-  const local = new Date(date);
-  local.setMinutes(local.getMinutes() - local.getTimezoneOffset());
-  return local.toISOString().slice(0, 16);
 }
 
 function Field({

@@ -38,16 +38,14 @@ export default async function LoginPage() {
             width={278}
           />
           <p>Welcome back!</p>
-          <h1 id="login-title">
-            Your planting tools are set, and the fields are waiting.
-          </h1>
+          <h1 id="login-title">Manage farm operations from one dashboard.</h1>
         </div>
 
         <div className={styles.panel}>
           <div className={styles.panelHeader}>
             <div>
               <p className={styles.eyebrow}>SeedRover web console</p>
-              <h2>Sign in to supervise farm operations</h2>
+              <h2>Sign in</h2>
             </div>
           </div>
 

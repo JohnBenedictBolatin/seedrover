@@ -18,7 +18,6 @@ import '../widgets/crop_filter_bar.dart';
 import '../widgets/crop_overview_hero.dart';
 import '../widgets/crop_screen_header.dart';
 import '../widgets/planted_crop_group.dart';
-import '../widgets/planted_today_card.dart';
 
 class CropMonitoringScreen extends ConsumerWidget {
   const CropMonitoringScreen({super.key});
@@ -30,11 +29,6 @@ class CropMonitoringScreen extends ConsumerWidget {
     final profile = ref.watch(authControllerProvider).profile;
     final weather = ref.watch(cropWeatherProvider);
     final today = DateTime.now();
-    final plantedToday = state.crops.where((crop) {
-      return crop.plantingDate.year == today.year &&
-          crop.plantingDate.month == today.month &&
-          crop.plantingDate.day == today.day;
-    }).toList();
 
     if (state.isLoading) {
       return const _CropLoadingSkeleton();
@@ -64,10 +58,7 @@ class CropMonitoringScreen extends ConsumerWidget {
           const SizedBox(height: AppSpacing.lg),
           CropOverviewHero(
             activeCrops: state.activeCrops,
-            wateringDue: state.crops
-                .where((crop) => crop.status == CropStatus.needsWater)
-                .length,
-            careTasksDue: state.crops
+            needsAttention: state.crops
                 .where((crop) =>
                     crop.status == CropStatus.needsWater ||
                     crop.status == CropStatus.needsFertilizer)
@@ -82,35 +73,14 @@ class CropMonitoringScreen extends ConsumerWidget {
           const SizedBox(height: AppSpacing.xl),
           CropFilterBar(
             searchQuery: state.searchQuery,
-            selectedCropName: state.selectedCropName,
-            selectedPlantingDate: state.selectedPlantingDate,
-            selectedGrowthStage: state.selectedGrowthStage,
-            cropNames: state.cropNames,
-            plantingDates: state.plantingDates,
+            selectedFilter: state.selectedFilter,
+            selectedSort: state.selectedSort,
             onSearchChanged: controller.updateSearch,
-            onCropNameChanged: controller.updateCropName,
-            onPlantingDateChanged: controller.updatePlantingDate,
-            onGrowthStageChanged: controller.updateGrowthStage,
+            onFilterChanged: controller.updateFilter,
+            onSortChanged: controller.updateSort,
             onClear: controller.clearFilters,
           ),
           const SizedBox(height: AppSpacing.xl),
-          if (plantedToday.isNotEmpty) ...[
-            Text(
-              'Planted Today, ${_formatDate(today)}',
-              style: AppTypography.cardTitle,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            for (final crop in plantedToday) ...[
-              PlantedTodayCard(
-                crop: crop,
-                onView: () {
-                  context.push(AppRoutes.cropDetailsPath(crop.id));
-                },
-              ),
-              const SizedBox(height: AppSpacing.sm),
-            ],
-            const SizedBox(height: AppSpacing.md),
-          ],
           if (state.filteredCrops.isEmpty)
             const CropEmptyState()
           else
@@ -123,25 +93,6 @@ class CropMonitoringScreen extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  String _formatDate(DateTime date) {
-    const months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-
-    return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
   Future<void> _showManualCropDialog(
@@ -172,11 +123,17 @@ class _WeatherStrip extends StatelessWidget {
           spacing: AppSpacing.lg,
           runSpacing: AppSpacing.sm,
           children: [
-            _WeatherValue('CURRENT WEATHER', weather.currentCondition),
-            _WeatherValue('TEMPERATURE',
-                weather.temperatureC == null ? '--' : '${weather.temperatureC!.toStringAsFixed(1)}°C'),
-            _WeatherValue('RAIN CHANCE',
-                weather.rainChancePercent == null ? '--' : '${weather.rainChancePercent!.round()}% in 24 hours'),
+            _WeatherValue(
+              'WEATHER NOW',
+              weather.temperatureC == null
+                  ? weather.currentCondition
+                  : '${weather.currentCondition} · ${weather.temperatureC!.toStringAsFixed(1)}°C',
+            ),
+            _WeatherValue(
+                'RAIN CHANCE',
+                weather.rainChancePercent == null
+                    ? '--'
+                    : '${weather.rainChancePercent!.round()}% in 24 hours'),
             _WeatherValue(
                 'NEXT RAIN',
                 weather.nextRainAt == null

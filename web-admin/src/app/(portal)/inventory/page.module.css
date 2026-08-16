@@ -1216,10 +1216,7 @@
   padding: 0 12px;
 }
 
-.formGrid input[type="number"],
-.formGrid input[type="datetime-local"],
-.formGrid input[type="date"],
-.formGrid input[type="time"] {
+.formGrid input[type="number"] {
   color-scheme: dark;
 }
 
@@ -1229,30 +1226,10 @@
 
 .formGrid input[type="number"]::-webkit-outer-spin-button,
 .formGrid input[type="number"]::-webkit-inner-spin-button {
-  opacity: 1;
+  opacity: 0.72;
   margin: 0;
-  filter: invert(82%) sepia(63%) saturate(602%) hue-rotate(34deg) brightness(108%) contrast(105%);
+  filter: none;
   cursor: pointer;
-}
-
-.formGrid input[type="datetime-local"]::-webkit-calendar-picker-indicator,
-.formGrid input[type="date"]::-webkit-calendar-picker-indicator,
-.formGrid input[type="time"]::-webkit-calendar-picker-indicator {
-  opacity: 0.9;
-  filter: invert(82%) sepia(63%) saturate(602%) hue-rotate(34deg) brightness(108%) contrast(105%);
-  cursor: pointer;
-}
-
-.formGrid input[type="datetime-local"]::-webkit-datetime-edit,
-.formGrid input[type="date"]::-webkit-datetime-edit,
-.formGrid input[type="time"]::-webkit-datetime-edit {
-  color: var(--text);
-}
-
-.formGrid input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper,
-.formGrid input[type="date"]::-webkit-datetime-edit-fields-wrapper,
-.formGrid input[type="time"]::-webkit-datetime-edit-fields-wrapper {
-  color: var(--text);
 }
 
 .formGrid select {
@@ -1269,37 +1246,6 @@
   background-size: 6px 6px, 6px 6px;
   background-repeat: no-repeat;
   padding-right: 34px;
-}
-
-.formGrid input[type="file"] {
-  padding: 8px;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-.formGrid input[type="file"]::file-selector-button {
-  min-height: 34px;
-  border: 1px solid rgba(141, 255, 42, 0.28);
-  border-radius: 8px;
-  margin-right: 12px;
-  color: var(--green-accent);
-  background: rgba(83, 209, 30, 0.08);
-  font: inherit;
-  font-weight: 800;
-  cursor: pointer;
-  padding: 0 12px;
-  transition:
-    border-color 180ms ease,
-    color 180ms ease,
-    background 180ms ease,
-    transform 180ms ease;
-}
-
-.formGrid input[type="file"]::file-selector-button:hover {
-  border-color: rgba(141, 255, 42, 0.42);
-  color: var(--text);
-  background: rgba(83, 209, 30, 0.14);
-  transform: translateY(-1px);
 }
 
 .twoColumn {
@@ -1375,7 +1321,7 @@
   gap: 10px;
   border: 1px solid var(--border-soft);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--history-panel-surface);
   align-content: start;
   padding: 14px;
 }
@@ -1409,13 +1355,13 @@
   align-items: center;
   gap: 8px;
   flex: 0 0 auto;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   justify-content: center;
-  border: 1px solid rgba(141, 255, 42, 0.26);
-  border-radius: 10px;
+  border: 0;
+  border-radius: 0;
   color: var(--green-accent);
-  background: rgba(83, 209, 30, 0.12);
+  background: transparent;
   cursor: pointer;
   padding: 0;
   transition:
@@ -1426,10 +1372,9 @@
 }
 
 .historyAction:hover {
-  border-color: rgba(141, 255, 42, 0.4);
-  color: var(--text);
-  background: rgba(83, 209, 30, 0.18);
-  transform: translateY(-1px);
+  color: var(--green-accent);
+  background: transparent;
+  transform: scale(1.08);
 }
 
 .historyGrid {
@@ -1470,9 +1415,7 @@
 .salesHistoryItem {
   grid-template-columns: minmax(120px, auto) minmax(90px, auto);
   gap: 6px 12px;
-  background:
-    radial-gradient(circle at top left, rgba(141, 255, 42, 0.08), transparent 55%),
-    rgba(0, 0, 0, 0.12);
+  background: var(--history-row-surface);
 }
 
 .salesHistoryItem strong {
@@ -1484,10 +1427,14 @@
   display: grid;
   grid-template-columns: minmax(90px, 1fr) minmax(70px, auto);
   gap: 4px 10px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--history-border);
   border-radius: 8px;
-  background: rgba(0, 0, 0, 0.12);
+  background: var(--history-row-surface);
   padding: 10px;
+}
+
+.historyItem:hover {
+  background: var(--history-row-hover);
 }
 
 .historyItem small,
@@ -1805,21 +1752,19 @@
 }
 
 :global(html[data-theme="light"]) .historyAction {
-  border-color: rgba(18, 60, 27, 0.5);
-  color: #ffffff;
-  background: linear-gradient(135deg, #1e5f2b 0%, #123c1b 100%);
+  color: #16451f;
+  background: transparent;
   box-shadow: none;
 }
 
 :global(html[data-theme="light"]) .historyAction svg {
-  color: #ffffff;
-  stroke: #ffffff;
+  color: #16451f;
+  stroke: #16451f;
 }
 
 :global(html[data-theme="light"]) .historyAction:hover {
-  border-color: rgba(18, 60, 27, 0.78);
-  color: #ffffff;
-  background: linear-gradient(135deg, #267536 0%, #16451f 100%);
+  color: #123c1b;
+  background: transparent;
 }
 
 @media (max-width: 1100px) {

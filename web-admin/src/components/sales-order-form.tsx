@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { recordSalesOrderAction, type SalesFormState } from "@/app/(portal)/sales/actions";
 import type { AlertTone } from "@/components/action-alert-stack";
+import { CalendarField } from "@/components/calendar-field";
 import { formatCurrency, formatQuantity } from "@/lib/format";
 import type { ReleasedDiscount, SellableItem } from "@/lib/sales";
 import styles from "./sales-order-form.module.css";
@@ -492,10 +493,13 @@ export function SalesOrderForm({
                   Installment terms
                   <input name="installment_terms" placeholder="e.g. 3 monthly payments of PHP 2,500" required type="text" value={installmentTerms} onChange={(event) => setInstallmentTerms(event.target.value)} />
                 </label>
-                <label>
-                  Next payment due
-                  <input name="installment_due_date" required type="date" value={installmentDueDate} onChange={(event) => setInstallmentDueDate(event.target.value)} />
-                </label>
+                <CalendarField
+                  label="Next payment due"
+                  name="installment_due_date"
+                  required
+                  value={installmentDueDate}
+                  onChange={setInstallmentDueDate}
+                />
               </>
             ) : null}
             <label>
@@ -518,10 +522,10 @@ export function SalesOrderForm({
               Discount code
               <input
                 name="discount_code"
-                placeholder="e.g. SAVE10"
+                placeholder="e.g. Save10"
                 type="text"
                 value={discountCode}
-                onChange={(event) => setDiscountCode(event.target.value.toUpperCase())}
+                onChange={(event) => setDiscountCode(event.target.value)}
               />
             </label>
             {normalizedDiscountCode ? (

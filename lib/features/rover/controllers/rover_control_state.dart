@@ -20,7 +20,7 @@ extension PlantingStatusLabel on PlantingStatus {
       PlantingStatus.idle => 'Idle',
       PlantingStatus.checking => 'Checking Soil',
       PlantingStatus.loweringRake => 'Lowering Rake',
-      PlantingStatus.ready => 'Ready - Hold Forward',
+      PlantingStatus.ready => 'Ready to Plant',
       PlantingStatus.active => 'Planting',
       PlantingStatus.paused => 'Paused Safely',
       PlantingStatus.completed => 'Row Completed',
@@ -60,7 +60,7 @@ class RoverControlState {
         plantingStatus = PlantingStatus.idle,
         selectedSeed = PlantingSeedType.sitaw,
         soilCheckPassed = false,
-        soilCheckMessage = 'Check the soil before planting.',
+        soilCheckMessage = 'Ready for manual control or automatic planting.',
         cameraFullscreen = false,
         activeMovement = null,
         lastCommand = null,
@@ -109,10 +109,6 @@ class RoverControlState {
       PlantingStatus.paused,
     }.contains(plantingStatus);
   }
-
-  bool get canDrivePlantingForward =>
-      plantingStatus == PlantingStatus.ready ||
-      plantingStatus == PlantingStatus.active;
 
   bool get canCheckSoil {
     return !isPlantingLocked;

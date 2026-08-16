@@ -53,7 +53,6 @@ class RoverControlController extends StateNotifier<RoverControlState> {
   StreamSubscription<bool>? _localWifiSubscription;
   Timer? _localWifiDetectionTimer;
   Timer? _plantingStatusTimer;
-  Timer? _forwardHeartbeatTimer;
   DateTime? _plantingStartedAt;
   final Set<String> _storedTerminalSessions = {};
 
@@ -217,12 +216,10 @@ class RoverControlController extends StateNotifier<RoverControlState> {
   }
 
   Future<void> sendMovement(RoverMovementCommand command) async {
-    if (state.isPlantingLocked &&
-        command != RoverMovementCommand.forward &&
-        command != RoverMovementCommand.stop) {
+    if (state.isPlantingLocked && command != RoverMovementCommand.stop) {
       state = state.copyWith(
         errorMessage:
-            'Only Forward and Stop are available while the rake is lowered.',
+            'Automatic planting controls movement. Use Stop to interrupt it.',
       );
       return;
     }
@@ -239,10 +236,7 @@ class RoverControlController extends StateNotifier<RoverControlState> {
               '${command.label} accepted in ${result.roundTrip.inMilliseconds} ms',
           clearErrorMessage: true,
         );
-        if (command == RoverMovementCommand.forward && state.isPlantingLocked) {
-          _startForwardHeartbeat();
-        } else if (command == RoverMovementCommand.stop) {
-          _forwardHeartbeatTimer?.cancel();
+        if (command == RoverMovementCommand.stop) {
           await _refreshPlantingStatus();
         }
       } catch (error) {
@@ -279,28 +273,30 @@ class RoverControlController extends StateNotifier<RoverControlState> {
     );
   }
 
-  void _startForwardHeartbeat() {
-    _forwardHeartbeatTimer?.cancel();
-    _forwardHeartbeatTimer = Timer.periodic(
-      const Duration(milliseconds: 650),
-      (_) => unawaited(_sendForwardHeartbeat()),
-    );
-  }
-
-  Future<void> _sendForwardHeartbeat() async {
-    if (!state.localWifiConnected ||
-        state.activeMovement != RoverMovementCommand.forward ||
-        !state.canDrivePlantingForward) {
-      _forwardHeartbeatTimer?.cancel();
+  Future<void> controlMechanism(String command, String label) async {
+    if (!state.localWifiConnected) {
+      state = state.copyWith(
+        errorMessage: 'Connect directly to SeedRover-01 first.',
+      );
+      return;
+    }
+    if (state.isPlantingLocked) {
+      state = state.copyWith(
+        errorMessage:
+            'Manual mechanism controls are locked during automatic planting.',
+      );
       return;
     }
     try {
-      await _localWifiService.sendCommand(
-        'MOVE_FORWARD',
-        payload: {'speed': state.speed},
+      final result = await _localWifiService.sendCommand(command);
+      state = state.copyWith(
+        lastCommand: '$label accepted in ${result.roundTrip.inMilliseconds} ms',
+        clearErrorMessage: true,
       );
-    } catch (_) {
-      _forwardHeartbeatTimer?.cancel();
+    } catch (error) {
+      state = state.copyWith(
+        errorMessage: error.toString().replaceFirst('Bad state: ', ''),
+      );
     }
   }
 
@@ -371,7 +367,7 @@ class RoverControlController extends StateNotifier<RoverControlState> {
     if (!state.localWifiConnected) {
       state = state.copyWith(
         errorMessage:
-            'Connect directly to SeedRover-01 before starting a measured row.',
+            'Connect directly to SeedRover-01 before starting a planting row.',
       );
       return;
     }
@@ -382,7 +378,9 @@ class RoverControlController extends StateNotifier<RoverControlState> {
         selectedSeed: configuration.seed,
         plantingStatus: PlantingStatus.checking,
         activePlantingConfig: configuration,
-        soilCheckMessage: 'Checking soil, then lowering the rake.',
+        clearActiveMovement: true,
+        soilCheckMessage:
+            'Automatic cycle: checking soil, lowering the rake, then planting.',
         lastCommand: 'Row ${configuration.sessionId.substring(0, 8)} accepted',
         clearErrorMessage: true,
       );
@@ -425,7 +423,6 @@ class RoverControlController extends StateNotifier<RoverControlState> {
   }
 
   Future<void> cancelPlanting() async {
-    _forwardHeartbeatTimer?.cancel();
     try {
       await _localWifiService.sendCommand('CANCEL_PLANTING');
       await _refreshPlantingStatus();
@@ -461,12 +458,13 @@ class RoverControlController extends StateNotifier<RoverControlState> {
         plantingOperation: operation,
         soilCheckPassed: operation.state != 'CHECKING_SOIL',
         soilCheckMessage:
-            '${operation.completedDrops}/${operation.targetDrops} completed drops · estimated $estimatedMin-$estimatedMax seeds',
+            '${operation.completedDrops}/${operation.targetDrops} completed drops · estimated $estimatedMin-$estimatedMax seeds · travel timing estimated',
+        activeMovement:
+            operation.state == 'PLANTING' ? RoverMovementCommand.forward : null,
         clearActiveMovement: operation.state != 'PLANTING',
         clearErrorMessage: true,
       );
       if (operation.isTerminal) {
-        _forwardHeartbeatTimer?.cancel();
         await _storeTerminalReceipt(operation);
       }
     } catch (_) {
@@ -573,7 +571,6 @@ class RoverControlController extends StateNotifier<RoverControlState> {
   void dispose() {
     _localWifiDetectionTimer?.cancel();
     _plantingStatusTimer?.cancel();
-    _forwardHeartbeatTimer?.cancel();
     _subscription?.cancel();
     _simulationSubscription?.cancel();
     _localWifiSubscription?.cancel();

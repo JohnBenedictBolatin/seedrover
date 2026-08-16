@@ -360,7 +360,6 @@ export function AppShell({
                     ) : recentNotifications.length === 0 ? (
                       <div className={styles.notificationEmpty}>
                         <strong>No notifications yet.</strong>
-                        <span>System alerts will appear here.</span>
                       </div>
                     ) : (
                       <div className={styles.notificationList}>

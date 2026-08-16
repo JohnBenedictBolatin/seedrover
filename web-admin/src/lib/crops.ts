@@ -2,11 +2,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type CropItem = {
   id: string;
+  batchCode: string;
   cropName: string;
   managerName: string;
-  variety: string;
-  location: string;
-  progress: number;
   plantingDate: string;
   estimatedHarvest: string | null;
   growthStage: string;
@@ -14,53 +12,56 @@ export type CropItem = {
   maintenanceNotes: string;
   imagePath: string | null;
   imageUrl: string | null;
-  updatedAt: string;
-  plantingSource: string;
   fieldLabel: string;
-  fieldAreaM2: number | null;
-  completedDrops: number;
-  estimatedSeedMin: number | null;
-  estimatedSeedMax: number | null;
   harvestWindowStart: string | null;
   harvestWindowEnd: string | null;
-  forecastConfidence: string;
   expectedStage: string;
   careStatus: string;
-  propagationMethod: string;
   latestSoilPercent: number | null;
   latestSoilAt: string | null;
 };
 
 export type CropSummary = {
-  totalCrops: number;
   activeCrops: number;
   needsAttention: number;
-  harvestReady: number;
-  completedCrops: number;
-  wateringDue: number;
-  careTasksDue: number;
   upcomingHarvests: number;
 };
 
 export type CropWeatherStatus = {
   currentCondition: string;
   temperatureC: number | null;
-  humidityPercent: number | null;
   rainChancePercent: number | null;
   nextRainWindow: string | null;
   fetchedAt: string | null;
   needsRefresh: boolean;
 };
 
-export type HarvestInventoryOption = {
+export type CropSensorReading = {
   id: string;
-  itemName: string;
-  category: string;
-  unit: string;
+  soilMoisture: number;
+  soilTemperature: number;
+  environmentalTemperature: number;
+  humidity: number;
+  source: string;
+  recordedAt: string;
+};
+
+export type CropActivityRecord = {
+  id: string;
+  activityType: string;
+  performedAt: string;
+  performedBy: string;
+  quantity: number | null;
+  unit: string | null;
+  material: string | null;
+  notes: string | null;
+  observedStage: string | null;
+  source: string;
 };
 
 type CropRow = {
   id: string;
+  batch_code?: string | null;
   crop_name: string;
   planting_date: string;
   estimated_harvest: string | null;
@@ -68,41 +69,25 @@ type CropRow = {
   maintenance_notes: string | null;
   image_path: string | null;
   crop_status: string;
-  updated_at: string;
   profiles: { full_name: string } | { full_name: string }[] | null;
-  planting_source?: string | null;
   field_label?: string | null;
-  field_area_m2?: number | null;
-  completed_drop_cycles?: number | null;
-  estimated_seed_count_min?: number | null;
-  estimated_seed_count_max?: number | null;
   harvest_window_start?: string | null;
   harvest_window_end?: string | null;
-  forecast_confidence?: string | null;
   expected_stage?: string | null;
   current_care_status?: string | null;
-  propagation_method?: string | null;
 };
 
 type SensorRow = { crop_id: string; calibrated_value: number | null; soil_moisture: number; recorded_at: string };
-type TaskRow = { crop_id: string; task_type: string; due_at: string; status: string };
-type WeatherRow = { provider: string; precipitation_probability: number | null; temperature_c: number | null; humidity_percent: number | null; condition: string | null; raw_payload: Record<string, unknown> | null; fetched_at: string };
-
-type HarvestInventoryRow = {
-  id: string;
-  item_name: string;
-  category: string;
-  unit: string;
-};
+type TaskRow = { crop_id: string; status: string };
+type WeatherRow = { provider: string; precipitation_probability: number | null; temperature_c: number | null; condition: string | null; raw_payload: Record<string, unknown> | null; fetched_at: string };
 
 function managerName(row: CropRow) {
   const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
   return profile?.full_name ?? "Unassigned";
 }
 
-function progressFor(stage: string, status: string) {
-  if (status === "Completed") return 1;
-  return ({ Seeded: 0.12, Germinating: 0.24, Vegetative: 0.46, Flowering: 0.66, "Harvest Ready": 0.94 } as Record<string, number>)[stage] ?? 0.12;
+function fallbackBatchCode(id: string) {
+  return `CRP-LEGACY-${id.replaceAll("-", "").slice(0, 8).toUpperCase()}`;
 }
 
 function isMissingCropMonitoringSchema(error: { code?: string; message?: string }) {
@@ -129,7 +114,7 @@ export async function getCropsDashboard() {
   let { data, error } = await supabase
     .from("crops")
     .select(
-      "id, crop_name, planting_date, estimated_harvest, growth_stage, maintenance_notes, image_path, crop_status, updated_at, planting_source, field_label, field_area_m2, completed_drop_cycles, estimated_seed_count_min, estimated_seed_count_max, harvest_window_start, harvest_window_end, forecast_confidence, expected_stage, current_care_status, propagation_method, profiles(full_name)",
+      "id, batch_code, crop_name, planting_date, estimated_harvest, growth_stage, maintenance_notes, image_path, crop_status, field_label, harvest_window_start, harvest_window_end, expected_stage, current_care_status, profiles(full_name)",
     )
     .order("planting_date", { ascending: false })
     .returns<CropRow[]>();
@@ -140,7 +125,7 @@ export async function getCropsDashboard() {
     const legacyResult = await supabase
       .from("crops")
       .select(
-        "id, crop_name, planting_date, estimated_harvest, growth_stage, maintenance_notes, image_path, crop_status, updated_at, profiles(full_name)",
+        "id, crop_name, planting_date, estimated_harvest, growth_stage, maintenance_notes, image_path, crop_status, profiles(full_name)",
       )
       .order("planting_date", { ascending: false })
       .returns<CropRow[]>();
@@ -164,48 +149,39 @@ export async function getCropsDashboard() {
       : supabase.from("sensor_readings").select("crop_id, calibrated_value, soil_moisture, recorded_at").in("crop_id", cropIds).order("recorded_at", { ascending: false }).returns<SensorRow[]>(),
     cropIds.length === 0
       ? Promise.resolve({ data: [] as TaskRow[] })
-      : supabase.from("crop_tasks").select("crop_id, task_type, due_at, status").in("crop_id", cropIds).in("status", ["Upcoming", "Due", "Overdue", "Postponed"]).returns<TaskRow[]>(),
-    supabase.from("weather_forecasts").select("provider, precipitation_probability, temperature_c, humidity_percent, condition, raw_payload, fetched_at").order("fetched_at", { ascending: false }).limit(2).returns<WeatherRow[]>(),
+      : supabase.from("crop_tasks").select("crop_id, status").in("crop_id", cropIds).in("status", ["Upcoming", "Due", "Overdue", "Postponed"]).returns<TaskRow[]>(),
+    supabase.from("weather_forecasts").select("provider, precipitation_probability, temperature_c, condition, raw_payload, fetched_at").order("fetched_at", { ascending: false }).limit(2).returns<WeatherRow[]>(),
   ]);
   const latestSensor = new Map<string, SensorRow>();
   for (const sensor of sensorData ?? []) if (!latestSensor.has(sensor.crop_id)) latestSensor.set(sensor.crop_id, sensor);
 
   const crops: CropItem[] = (data ?? []).map((row) => {
     const sensor = latestSensor.get(row.id);
-    return ({
-    id: row.id,
-    cropName: row.crop_name,
-    managerName: managerName(row),
-    variety: "Farm Crop",
-    location: "SeedRover field record",
-    progress: progressFor(row.growth_stage, row.crop_status),
-    plantingDate: row.planting_date,
-    estimatedHarvest: row.estimated_harvest,
-    growthStage: row.growth_stage,
-    cropStatus: row.crop_status,
-    maintenanceNotes: row.maintenance_notes ?? "No notes recorded.",
-    imagePath: row.image_path,
-    imageUrl:
-      row.image_path === null
-        ? null
-        : supabase.storage.from("crop-images").getPublicUrl(row.image_path).data
-            .publicUrl,
-    updatedAt: row.updated_at,
-    plantingSource: row.planting_source ?? "Legacy",
-    fieldLabel: row.field_label ?? "Field not labeled",
-    fieldAreaM2: row.field_area_m2 ?? null,
-    completedDrops: row.completed_drop_cycles ?? 0,
-    estimatedSeedMin: row.estimated_seed_count_min ?? null,
-    estimatedSeedMax: row.estimated_seed_count_max ?? null,
-    harvestWindowStart: row.harvest_window_start ?? null,
-    harvestWindowEnd: row.harvest_window_end ?? null,
-    forecastConfidence: row.forecast_confidence ?? "Low",
-    expectedStage: row.expected_stage ?? row.growth_stage,
-    careStatus: row.current_care_status ?? "Review crop condition",
-    propagationMethod: row.propagation_method ?? "Unknown",
-    latestSoilPercent: sensor?.calibrated_value ?? sensor?.soil_moisture ?? null,
-    latestSoilAt: sensor?.recorded_at ?? null,
-  }); });
+    return {
+      id: row.id,
+      batchCode: row.batch_code?.trim() || fallbackBatchCode(row.id),
+      cropName: row.crop_name,
+      managerName: managerName(row),
+      plantingDate: row.planting_date,
+      estimatedHarvest: row.estimated_harvest,
+      growthStage: row.growth_stage,
+      cropStatus: row.crop_status,
+      maintenanceNotes: row.maintenance_notes ?? "No notes recorded.",
+      imagePath: row.image_path,
+      imageUrl:
+        row.image_path === null
+          ? null
+          : supabase.storage.from("crop-images").getPublicUrl(row.image_path).data
+              .publicUrl,
+      fieldLabel: row.field_label ?? "Field not labeled",
+      harvestWindowStart: row.harvest_window_start ?? null,
+      harvestWindowEnd: row.harvest_window_end ?? null,
+      expectedStage: row.expected_stage ?? row.growth_stage,
+      careStatus: row.current_care_status ?? "Review crop condition",
+      latestSoilPercent: sensor?.calibrated_value ?? sensor?.soil_moisture ?? null,
+      latestSoilAt: sensor?.recorded_at ?? null,
+    };
+  });
 
   const pendingTasks = taskData ?? [];
   const now = new Date();
@@ -216,24 +192,43 @@ export async function getCropsDashboard() {
   const weather: CropWeatherStatus = {
     currentCondition: openMeteo?.condition ?? "Weather unavailable",
     temperatureC: openMeteo?.temperature_c ?? null,
-    humidityPercent: openMeteo?.humidity_percent ?? null,
     rainChancePercent: openMeteo?.precipitation_probability ?? null,
     nextRainWindow: nextRainAt,
     fetchedAt: openMeteo?.fetched_at ?? null,
     needsRefresh: typeof rawSummary?.currentCondition !== "string",
   };
 
+  const activeCropIds = new Set(
+    crops
+      .filter((crop) => crop.cropStatus !== "Completed" && crop.cropStatus !== "Cancelled")
+      .map((crop) => crop.id),
+  );
+  const attentionCropIds = new Set(
+    pendingTasks
+      .filter(
+        (task) =>
+          activeCropIds.has(task.crop_id) &&
+          (task.status === "Due" || task.status === "Overdue"),
+      )
+      .map((task) => task.crop_id),
+  );
+  for (const crop of crops) {
+    if (activeCropIds.has(crop.id) && crop.cropStatus === "Needs Attention") {
+      attentionCropIds.add(crop.id);
+    }
+  }
+
   const summary: CropSummary = {
-    totalCrops: crops.length,
-    activeCrops: crops.filter((crop) => crop.cropStatus === "Active").length,
-    needsAttention: crops.filter((crop) => crop.cropStatus === "Needs Attention")
-      .length,
-    harvestReady: crops.filter((crop) => crop.cropStatus === "Harvest Ready")
-      .length,
-    completedCrops: crops.filter((crop) => crop.cropStatus === "Completed").length,
-    wateringDue: pendingTasks.filter((task) => task.task_type === "Water").length,
-    careTasksDue: pendingTasks.length,
-    upcomingHarvests: crops.filter((crop) => crop.harvestWindowStart && new Date(crop.harvestWindowStart) <= soon && crop.cropStatus === "Active").length,
+    activeCrops: activeCropIds.size,
+    needsAttention: attentionCropIds.size,
+    upcomingHarvests: crops.filter(
+      (crop) =>
+        crop.cropStatus === "Harvest Ready" ||
+        (crop.harvestWindowStart !== null &&
+          new Date(crop.harvestWindowStart) <= soon &&
+          crop.cropStatus !== "Completed" &&
+          crop.cropStatus !== "Cancelled"),
+    ).length,
   };
 
   return {
@@ -242,25 +237,4 @@ export async function getCropsDashboard() {
     weather,
     error: null,
   };
-}
-
-export async function getHarvestInventoryOptions() {
-  const supabase = await createSupabaseServerClient();
-
-  if (!supabase) {
-    return [];
-  }
-
-  const { data } = await supabase
-    .from("inventory")
-    .select("id, item_name, category, unit")
-    .order("item_name", { ascending: true })
-    .returns<HarvestInventoryRow[]>();
-
-  return (data ?? []).map<HarvestInventoryOption>((row) => ({
-    id: row.id,
-    itemName: row.item_name,
-    category: row.category,
-    unit: row.unit,
-  }));
 }

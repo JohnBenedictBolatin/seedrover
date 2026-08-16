@@ -43,7 +43,11 @@ enum CropMaintenanceActivity {
   watered,
   fertilized,
   inspected,
-  harvested;
+  stageObserved,
+  transplanted,
+  harvested,
+  notHarvested,
+  plantingFailed;
 
   String get label {
     return switch (this) {
@@ -51,7 +55,11 @@ enum CropMaintenanceActivity {
       CropMaintenanceActivity.watered => 'Watered',
       CropMaintenanceActivity.fertilized => 'Fertilized',
       CropMaintenanceActivity.inspected => 'Inspected',
+      CropMaintenanceActivity.stageObserved => 'Stage Observed',
+      CropMaintenanceActivity.transplanted => 'Transplanted',
       CropMaintenanceActivity.harvested => 'Harvested',
+      CropMaintenanceActivity.notHarvested => 'Not Harvested',
+      CropMaintenanceActivity.plantingFailed => 'Planting Failed',
     };
   }
 }
@@ -99,6 +107,8 @@ class CropMaintenanceRecord {
     this.quantity,
     this.unit,
     this.material,
+    this.observedStage,
+    this.source = 'User',
   });
 
   final CropMaintenanceActivity activity;
@@ -108,6 +118,8 @@ class CropMaintenanceRecord {
   final double? quantity;
   final String? unit;
   final String? material;
+  final String? observedStage;
+  final String source;
 }
 
 class CropModel {
@@ -127,6 +139,7 @@ class CropModel {
     required this.maintenanceHistory,
     required this.reminders,
     required this.notes,
+    this.batchCode = '',
     this.imagePath,
     this.imageUrl,
     this.seedCount,
@@ -147,6 +160,7 @@ class CropModel {
   });
 
   final String id;
+  final String batchCode;
   final String name;
   final String variety;
   final String location;
@@ -194,8 +208,17 @@ class CropModel {
   bool get isHarvested => status == CropStatus.harvested;
   bool get isHarvestReady => status == CropStatus.readyForHarvest;
 
+  String get trackingCode {
+    if (batchCode.trim().isNotEmpty) return batchCode.trim();
+    final compactId = id.replaceAll('-', '');
+    final suffixLength = compactId.length < 8 ? compactId.length : 8;
+    final suffix = compactId.substring(0, suffixLength);
+    return 'CRP-LEGACY-${suffix.toUpperCase()}';
+  }
+
   CropModel copyWith({
     String? id,
+    String? batchCode,
     String? name,
     String? variety,
     String? location,
@@ -230,6 +253,7 @@ class CropModel {
   }) {
     return CropModel(
       id: id ?? this.id,
+      batchCode: batchCode ?? this.batchCode,
       name: name ?? this.name,
       variety: variety ?? this.variety,
       location: location ?? this.location,

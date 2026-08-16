@@ -51,7 +51,7 @@ export default async function InvestmentsPage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <div><p className={styles.eyebrow}>Operations</p><h1>Investments</h1><p>Record, organize, and review farm investments and operating expenses.</p></div>
+        <div><p className={styles.eyebrow}>Operations</p><h1>Investments</h1><p>Farm costs, recurring expenses, receipts, and due dates.</p></div>
         <div className={styles.liveDateTime}><LiveDateTime /></div>
       </header>
 

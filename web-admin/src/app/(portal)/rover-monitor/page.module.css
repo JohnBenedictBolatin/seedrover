@@ -404,13 +404,23 @@
 
 .commandItem {
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) 120px minmax(90px, 0.6fr) minmax(150px, 0.8fr);
+  grid-template-columns: minmax(190px, 1.2fr) 115px minmax(130px, .72fr) minmax(190px, .9fr);
   align-items: center;
   gap: 12px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--history-border);
   border-radius: 8px;
-  background: var(--surface);
+  background: var(--history-row-surface);
   padding: 12px;
+}
+
+.commandItem:hover {
+  background: var(--history-row-hover);
+}
+
+.commandItem time {
+  font-family: var(--font-roboto-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .commandItem div {
@@ -575,15 +585,15 @@
 }
 
 :global(html[data-theme="light"]) .commandItem {
-  border-color: rgba(18, 60, 27, 0.14);
+  border-color: var(--history-border);
   color: #243c2a;
-  background: #ffffff;
-  box-shadow: 0 8px 18px rgba(18, 60, 27, 0.06);
+  background: var(--history-row-surface);
+  box-shadow: none;
 }
 
 :global(html[data-theme="light"]) .commandItem:hover {
   border-color: rgba(18, 60, 27, 0.28);
-  background: #f9fcf7;
+  background: var(--history-row-hover);
 }
 
 @media (max-width: 1180px) {

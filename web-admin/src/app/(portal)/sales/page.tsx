@@ -28,7 +28,7 @@ export default async function SalesPage() {
         <div>
           <p className={styles.eyebrow}>Operations</p>
           <h1>Sales</h1>
-          <p>Record and track farm sales, receipts, and payment activity.</p>
+          <p>Receipts, payments, installments, and voided sales.</p>
         </div>
         <div className={styles.liveDateTime}>
           <LiveDateTime />

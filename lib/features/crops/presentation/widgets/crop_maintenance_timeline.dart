@@ -84,6 +84,32 @@ class _MaintenanceRecordTile extends StatelessWidget {
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(record.notes, style: AppTypography.small),
+                  if (record.quantity != null ||
+                      record.material?.trim().isNotEmpty == true ||
+                      record.observedStage?.trim().isNotEmpty == true) ...[
+                    const SizedBox(height: AppSpacing.xs),
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.xs,
+                      children: [
+                        if (record.quantity != null)
+                          Text(
+                            'Quantity: ${_formatQuantity(record)}',
+                            style: AppTypography.caption,
+                          ),
+                        if (record.material?.trim().isNotEmpty == true)
+                          Text(
+                            'Material: ${record.material}',
+                            style: AppTypography.caption,
+                          ),
+                        if (record.observedStage?.trim().isNotEmpty == true)
+                          Text(
+                            'Stage: ${record.observedStage}',
+                            style: AppTypography.caption,
+                          ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     _formatTime(record.performedAt),
@@ -91,7 +117,7 @@ class _MaintenanceRecordTile extends StatelessWidget {
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
-                    'By ${record.performedBy}',
+                    'By ${record.performedBy} | ${record.source}',
                     style: AppTypography.caption.copyWith(
                       color: AppColors.secondaryText,
                     ),
@@ -111,7 +137,11 @@ class _MaintenanceRecordTile extends StatelessWidget {
       CropMaintenanceActivity.watered => AppColors.information,
       CropMaintenanceActivity.fertilized => AppColors.warning,
       CropMaintenanceActivity.inspected => AppColors.primaryText,
+      CropMaintenanceActivity.stageObserved => AppColors.primaryGreen,
+      CropMaintenanceActivity.transplanted => AppColors.primaryGreen,
       CropMaintenanceActivity.harvested => AppColors.danger,
+      CropMaintenanceActivity.notHarvested => AppColors.danger,
+      CropMaintenanceActivity.plantingFailed => AppColors.danger,
     };
   }
 
@@ -121,12 +151,23 @@ class _MaintenanceRecordTile extends StatelessWidget {
       CropMaintenanceActivity.watered => Icons.water_drop_outlined,
       CropMaintenanceActivity.fertilized => Icons.science_outlined,
       CropMaintenanceActivity.inspected => Icons.visibility_outlined,
+      CropMaintenanceActivity.stageObserved => Icons.timeline,
+      CropMaintenanceActivity.transplanted => Icons.eco_outlined,
       CropMaintenanceActivity.harvested => Icons.agriculture_outlined,
+      CropMaintenanceActivity.notHarvested => Icons.cancel_outlined,
+      CropMaintenanceActivity.plantingFailed => Icons.error_outline,
     };
   }
 
   String _formatDate(DateTime date) {
     return '${date.month}/${date.day}/${date.year.toString().substring(2)}';
+  }
+
+  String _formatQuantity(CropMaintenanceRecord record) {
+    final quantity = record.quantity!;
+    final value = quantity.toStringAsFixed(quantity % 1 == 0 ? 0 : 2);
+    final unit = record.unit?.trim();
+    return unit == null || unit.isEmpty ? value : '$value $unit';
   }
 
   String _formatTime(DateTime date) {

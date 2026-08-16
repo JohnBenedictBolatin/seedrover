@@ -8,6 +8,7 @@ import { Check, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Eye, FileT
 import { deleteExpenseAction } from "@/app/(portal)/investments/actions";
 import { ActionAlertStack, type ActionAlert, type AlertTone } from "@/components/action-alert-stack";
 import { useConfirmationDialog } from "@/components/confirmation-dialog";
+import { CalendarField } from "@/components/calendar-field";
 import styles from "@/app/(portal)/investments/page.module.css";
 
 export type InvestmentRecord = {
@@ -143,8 +144,8 @@ export function InvestmentHistory({ records }: { records: InvestmentRecord[] }) 
           <Search size={18} />
           <input aria-label="Search investments" placeholder="Search description, vendor, reference, crop..." type="search" value={query} onChange={(event) => { setQuery(event.target.value); setCurrentPage(1); }} />
         </label>
-        <label className={styles.dateField}>From<input type="date" value={startDate} onChange={(event) => { setStartDate(event.target.value); setCurrentPage(1); }} /></label>
-        <label className={styles.dateField}>To<input type="date" value={endDate} onChange={(event) => { setEndDate(event.target.value); setCurrentPage(1); }} /></label>
+        <CalendarField className={styles.dateField} label="From" value={startDate} onChange={(nextValue) => { setStartDate(nextValue); setCurrentPage(1); }} />
+        <CalendarField className={styles.dateField} label="To" value={endDate} onChange={(nextValue) => { setEndDate(nextValue); setCurrentPage(1); }} />
         <FilterSelect icon={<Filter size={17} />} label="Category" options={categories} value={category} onChange={(value) => { setCategory(value); setCurrentPage(1); }} />
         <FilterSelect icon={<ReceiptText size={17} />} label="Type" options={expenseTypes} value={expenseType} onChange={(value) => { setExpenseType(value); setCurrentPage(1); }} />
         <FilterSelect icon={<WalletCards size={17} />} label="Payment" options={paymentMethods} value={paymentMethod} onChange={(value) => { setPaymentMethod(value); setCurrentPage(1); }} />
@@ -154,7 +155,7 @@ export function InvestmentHistory({ records }: { records: InvestmentRecord[] }) 
       {filteredRecords.length === 0 ? (
         <div className={styles.empty}>
           <strong>{records.length === 0 ? "No investments recorded yet." : "No investments match the current filters."}</strong>
-          <span>{records.length === 0 ? "Use Record Investment to add the first farm cost." : "Try changing the search, dates, or filter selections."}</span>
+          {records.length > 0 ? <span>Change the search, dates, or filters.</span> : null}
         </div>
       ) : (
         <div className={styles.history}>
@@ -164,12 +165,12 @@ export function InvestmentHistory({ records }: { records: InvestmentRecord[] }) 
           </div>
           {visibleRecords.map((record) => (
             <div className={styles.historyRow} key={record.id}>
-              <strong>{record.description}</strong>
-              <span>{record.category}</span>
-              <span>{record.vendor ?? "Not recorded"}</span>
-              <span className={styles.amount}>{money(record.amount)}</span>
-              <span>{record.expenseDate}</span>
-              <div className={styles.rowActions}>
+              <strong data-label="Description">{record.description}</strong>
+              <span data-label="Category">{record.category}</span>
+              <span data-label="Vendor">{record.vendor ?? "Not recorded"}</span>
+              <span className={styles.amount} data-label="Amount">{money(record.amount)}</span>
+              <span className={styles.historyDate} data-label="Date">{record.expenseDate}</span>
+              <div className={styles.rowActions} data-label="Actions">
                 <button aria-label="View investment details" type="button" onClick={() => setSelected(record)}><Eye size={17} /></button>
                 <button aria-label="Remove investment" className={styles.removeAction} disabled={pending} type="button" onClick={() => removeRecord(record)}><Trash2 size={17} /></button>
               </div>

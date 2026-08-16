@@ -170,7 +170,7 @@ export function UsersWorkspace({ users, roles, summary }: Props) {
         <div>
           <p className={styles.eyebrow}>Quick action</p>
           <h2>Create a user account</h2>
-          <span>Prepare staff access and manage existing profile permissions.</span>
+          <span>Create staff accounts and manage their roles, permissions, and status.</span>
         </div>
         <button
           className={styles.actionButton}
@@ -257,31 +257,31 @@ export function UsersWorkspace({ users, roles, summary }: Props) {
               </div>
               {visibleUsers.map((user) => (
                 <article className={styles.tableRow} key={user.id}>
-                  <div className={styles.userIdentity}>
+                  <div className={styles.userIdentity} data-label="User">
                     <strong>{user.employeeId}</strong>
                     <span>@{user.username}</span>
                   </div>
-                  <strong>{user.fullName}</strong>
-                  <span className={styles.muted}>{user.email}</span>
-                  <span className={`${styles.badge} ${roleTone(user.roleName)}`}>
-                    {user.roleName}
-                  </span>
-                  <span
-                    className={`${styles.statusBadge} ${
-                      user.isActive ? styles.activeBadge : styles.inactiveBadge
-                    }`}
-                  >
-                    {user.isActive ? "Active" : "Inactive"}
-                  </span>
-                  <span className={styles.muted}>{formatDateTime(user.createdAt)}</span>
-                  <button
-                    className={styles.iconButton}
-                    type="button"
-                    aria-label={`Manage ${user.fullName}`}
-                    onClick={() => setSelectedUser(user)}
-                  >
-                    <Eye size={18} />
-                  </button>
+                  <strong data-label="Full name">{user.fullName}</strong>
+                  <span className={styles.muted} data-label="Email">{user.email}</span>
+                  <div className={styles.tableBadgeCell} data-label="Role">
+                    <span className={`${styles.badge} ${roleTone(user.roleName)}`}>{user.roleName}</span>
+                  </div>
+                  <div className={styles.tableBadgeCell} data-label="Status">
+                    <span className={`${styles.statusBadge} ${user.isActive ? styles.activeBadge : styles.inactiveBadge}`}>
+                      {user.isActive ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+                  <span className={styles.muted} data-label="Joined">{formatDateTime(user.createdAt)}</span>
+                  <div className={styles.tableActionCell} data-label="Actions">
+                    <button
+                      className={styles.iconButton}
+                      type="button"
+                      aria-label={`Manage ${user.fullName}`}
+                      onClick={() => setSelectedUser(user)}
+                    >
+                      <Eye size={18} />
+                    </button>
+                  </div>
                 </article>
               ))}
 
@@ -426,6 +426,7 @@ function UserModal({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
 
     const confirmed = await confirm({
       message: `Are you sure you want to save changes for ${user.fullName}?`,
@@ -436,7 +437,7 @@ function UserModal({
       return;
     }
 
-    const formData = new FormData(event.currentTarget);
+    const formData = new FormData(form);
 
     startTransition(async () => {
       try {
@@ -636,7 +637,7 @@ function CreateUserModal({
             Contact number
             <span className={styles.inputWithIcon}>
               <Phone size={16} />
-              <input name="contact_number" placeholder="09XX XXX XXXX" />
+              <input name="contact_number" placeholder="e.g. 0912 345 6789" />
             </span>
           </label>
           <label>

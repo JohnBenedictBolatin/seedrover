@@ -51,7 +51,7 @@ class CropRepository {
     final rows = await _client
         .from(DatabaseTables.crops)
         .select(
-          'id, crop_name, assigned_manager, planting_date, estimated_harvest, '
+          'id, batch_code, crop_name, assigned_manager, planting_date, estimated_harvest, '
           'growth_stage, maintenance_notes, image_path, crop_status, created_at, '
           'updated_at, planting_source, field_label, field_area_m2, completed_drop_cycles, '
           'estimated_seed_count_min, estimated_seed_count_max, harvest_window_start, '
@@ -62,9 +62,11 @@ class CropRepository {
     return Future.wait(
       rows.map((row) async {
         final cropRow = row as Map<String, dynamic>;
+        final cropId = cropRow['id'] as String;
         return _cropFromRow(
           cropRow,
-          await _latestSensorSnapshot(cropId: cropRow['id'] as String),
+          await _latestSensorSnapshot(cropId: cropId),
+          maintenanceHistory: await _activityHistory(cropId),
         );
       }),
     );
@@ -78,7 +80,7 @@ class CropRepository {
           'assigned_manager': _client.auth.currentUser?.id,
         })
         .select(
-          'id, crop_name, assigned_manager, planting_date, estimated_harvest, '
+          'id, batch_code, crop_name, assigned_manager, planting_date, estimated_harvest, '
           'growth_stage, maintenance_notes, image_path, crop_status, created_at, '
           'updated_at, planting_source, field_label, field_area_m2, completed_drop_cycles, '
           'estimated_seed_count_min, estimated_seed_count_max, harvest_window_start, '
@@ -92,7 +94,12 @@ class CropRepository {
       description: '${crop.name} crop record created.',
     );
 
-    return _cropFromRow(row, await _latestSensorSnapshot());
+    final cropId = row['id'] as String;
+    return _cropFromRow(
+      row,
+      await _latestSensorSnapshot(cropId: cropId),
+      maintenanceHistory: await _activityHistory(cropId),
+    );
   }
 
   Future<CropModel> createManualCrop({
@@ -142,11 +149,15 @@ class CropRepository {
           'current_care_status': 'Manual planting - verify field conditions',
         })
         .select(
-          'id, crop_name, assigned_manager, planting_date, estimated_harvest, growth_stage, maintenance_notes, image_path, crop_status, created_at, updated_at, planting_source, field_label, field_area_m2, completed_drop_cycles, estimated_seed_count_min, estimated_seed_count_max, harvest_window_start, harvest_window_end, forecast_confidence, expected_stage, current_care_status, propagation_method, last_watered_at, profiles(full_name)',
+          'id, batch_code, crop_name, assigned_manager, planting_date, estimated_harvest, growth_stage, maintenance_notes, image_path, crop_status, created_at, updated_at, planting_source, field_label, field_area_m2, completed_drop_cycles, estimated_seed_count_min, estimated_seed_count_max, harvest_window_start, harvest_window_end, forecast_confidence, expected_stage, current_care_status, propagation_method, last_watered_at, profiles(full_name)',
         )
         .single();
+    final cropId = row['id'] as String;
     return _cropFromRow(
-        row, await _latestSensorSnapshot(cropId: row['id'] as String));
+      row,
+      await _latestSensorSnapshot(cropId: cropId),
+      maintenanceHistory: await _activityHistory(cropId),
+    );
   }
 
   Future<CropModel> updateCrop(CropModel crop) async {
@@ -155,7 +166,7 @@ class CropRepository {
         .update(_cropPayload(crop))
         .eq('id', crop.id)
         .select(
-          'id, crop_name, assigned_manager, planting_date, estimated_harvest, '
+          'id, batch_code, crop_name, assigned_manager, planting_date, estimated_harvest, '
           'growth_stage, maintenance_notes, image_path, crop_status, created_at, '
           'updated_at, planting_source, field_label, field_area_m2, completed_drop_cycles, '
           'estimated_seed_count_min, estimated_seed_count_max, harvest_window_start, '
@@ -169,7 +180,11 @@ class CropRepository {
       description: '${crop.name} crop record updated.',
     );
 
-    return _cropFromRow(row, await _latestSensorSnapshot());
+    return _cropFromRow(
+      row,
+      await _latestSensorSnapshot(cropId: crop.id),
+      maintenanceHistory: await _activityHistory(crop.id),
+    );
   }
 
   Future<void> deleteCrop(String cropId) async {
@@ -177,57 +192,6 @@ class CropRepository {
     await _recordActivity(
       activity: 'Crop record deleted',
       description: 'Crop record deleted.',
-    );
-  }
-
-  Future<CropModel> harvestCropToInventory({
-    required CropModel crop,
-    required String inventoryId,
-    required String inventoryName,
-    required String unit,
-    required double quantity,
-    required DateTime harvestDate,
-    required String notes,
-  }) async {
-    final userId = _client.auth.currentUser?.id;
-
-    if (userId == null) {
-      throw StateError('Sign in before recording harvest.');
-    }
-
-    final remarks = notes.trim().isEmpty ? 'Harvest recorded.' : notes.trim();
-
-    final response = await _client.rpc<Object?>(
-      'harvest_crop_to_inventory',
-      params: {
-        'p_crop_id': crop.id,
-        'p_inventory_id': inventoryId,
-        'p_quantity': quantity,
-        'p_harvest_date': _dateOnly(harvestDate),
-        'p_remarks': remarks,
-      },
-    );
-
-    if (response is! Map<String, dynamic>) {
-      throw StateError('Crop harvest database response was unreadable.');
-    }
-
-    final updatedCrop = _cropFromRow(response, await _latestSensorSnapshot());
-
-    return updatedCrop.copyWith(
-      maintenanceHistory: [
-        CropMaintenanceRecord(
-          activity: CropMaintenanceActivity.harvested,
-          performedAt: harvestDate,
-          notes:
-              'Harvested $quantity $unit into $inventoryName inventory. $remarks',
-          performedBy: 'Current User',
-        ),
-        ...crop.maintenanceHistory,
-      ],
-      harvestDate: harvestDate,
-      imagePath: crop.imagePath,
-      imageUrl: crop.imageUrl,
     );
   }
 
@@ -246,32 +210,16 @@ class CropRepository {
     String? material,
     String? observedStage,
   }) async {
-    final nextCrop = crop.copyWith(
-      status: status,
-      growthStage: growthStage,
-      progress: progress,
-      harvestDate: harvestDate,
-      lastWateredAt: lastWateredAt,
-      maintenanceHistory: [
-        CropMaintenanceRecord(
-          activity: activity,
-          performedAt: date,
-          notes: notes,
-          performedBy: 'Current User',
-          quantity: quantity,
-          unit: unit,
-          material: material,
-        ),
-        ...crop.maintenanceHistory,
-      ],
-    );
-
     final activityType = switch (activity) {
       CropMaintenanceActivity.planted => 'Stage Observed',
       CropMaintenanceActivity.watered => 'Watered',
       CropMaintenanceActivity.fertilized => 'Fertilized',
       CropMaintenanceActivity.inspected => 'Inspected',
+      CropMaintenanceActivity.stageObserved => 'Stage Observed',
+      CropMaintenanceActivity.transplanted => 'Transplanted',
       CropMaintenanceActivity.harvested => 'Harvested',
+      CropMaintenanceActivity.notHarvested => 'Not Harvested',
+      CropMaintenanceActivity.plantingFailed => 'Planting Failed',
     };
     await _client.rpc('record_crop_activity', params: {
       'p_crop_id': crop.id,
@@ -289,17 +237,20 @@ class CropRepository {
     final row = await _client
         .from(DatabaseTables.crops)
         .select(
-          'id, crop_name, assigned_manager, planting_date, estimated_harvest, growth_stage, maintenance_notes, image_path, crop_status, created_at, updated_at, planting_source, field_label, field_area_m2, completed_drop_cycles, estimated_seed_count_min, estimated_seed_count_max, harvest_window_start, harvest_window_end, forecast_confidence, expected_stage, current_care_status, propagation_method, last_watered_at, profiles(full_name)',
+          'id, batch_code, crop_name, assigned_manager, planting_date, estimated_harvest, growth_stage, maintenance_notes, image_path, crop_status, created_at, updated_at, planting_source, field_label, field_area_m2, completed_drop_cycles, estimated_seed_count_min, estimated_seed_count_max, harvest_window_start, harvest_window_end, forecast_confidence, expected_stage, current_care_status, propagation_method, last_watered_at, profiles(full_name)',
         )
         .eq('id', crop.id)
         .single();
     final updatedCrop = _cropFromRow(
       row,
       await _latestSensorSnapshot(cropId: crop.id),
+      maintenanceHistory: await _activityHistory(crop.id),
     );
 
     return updatedCrop.copyWith(
-      maintenanceHistory: nextCrop.maintenanceHistory,
+      status: status,
+      growthStage: growthStage,
+      progress: progress,
       lastWateredAt: lastWateredAt ?? updatedCrop.lastWateredAt,
       harvestDate: harvestDate ?? updatedCrop.harvestDate,
     );
@@ -318,8 +269,9 @@ class CropRepository {
 
   CropModel _cropFromRow(
     Map<String, dynamic> row,
-    CropSensorSnapshot sensors,
-  ) {
+    CropSensorSnapshot sensors, {
+    List<CropMaintenanceRecord>? maintenanceHistory,
+  }) {
     final cropName = row['crop_name'] as String? ?? 'Crop';
     final plantingDate = _parseDate(row['planting_date']) ?? DateTime.now();
     final estimatedHarvest = _parseDate(row['estimated_harvest']) ??
@@ -333,6 +285,7 @@ class CropRepository {
 
     return CropModel(
       id: row['id'] as String,
+      batchCode: row['batch_code'] as String? ?? '',
       name: cropName,
       variety: _varietyFor(cropName),
       location: row['field_label'] as String? ?? 'Field not labeled',
@@ -344,7 +297,7 @@ class CropRepository {
       managerName: manager?['full_name'] as String? ?? 'Unassigned',
       progress: _progressFor(growthStage, status),
       sensorSnapshot: sensors,
-      maintenanceHistory: [
+      maintenanceHistory: maintenanceHistory ?? [
         CropMaintenanceRecord(
           activity: CropMaintenanceActivity.planted,
           performedAt: plantingDate,
@@ -383,6 +336,57 @@ class CropRepository {
     }
 
     return _client.storage.from(_cropImagesBucket).getPublicUrl(imagePath);
+  }
+
+  Future<List<CropMaintenanceRecord>> _activityHistory(String cropId) async {
+    final rows = await _client
+        .from('crop_activities')
+        .select(
+          'activity_type, performed_at, quantity, unit, material, notes, observed_stage, source, performer:profiles!crop_activities_performed_by_fkey(full_name)',
+        )
+        .eq('crop_id', cropId)
+        .order('performed_at', ascending: false) as List<dynamic>;
+
+    return rows.map((value) {
+      final row = value as Map<String, dynamic>;
+      final performerValue = row['performer'];
+      Map<String, dynamic>? performer;
+      if (performerValue is Map<String, dynamic>) {
+        performer = performerValue;
+      } else if (performerValue is List && performerValue.isNotEmpty) {
+        performer = performerValue.first as Map<String, dynamic>?;
+      }
+      final source = row['source'] as String? ?? 'User';
+
+      return CropMaintenanceRecord(
+        activity: _maintenanceActivityFromDb(row['activity_type'] as String?),
+        performedAt: _parseDateTime(row['performed_at']) ?? DateTime.now(),
+        notes: (row['notes'] as String?)?.trim().isNotEmpty == true
+            ? (row['notes'] as String).trim()
+            : 'No notes were added.',
+        performedBy: performer?['full_name'] as String? ??
+            (source == 'Rover' ? 'SeedRover' : 'Unknown user'),
+        quantity: (row['quantity'] as num?)?.toDouble(),
+        unit: row['unit'] as String?,
+        material: row['material'] as String?,
+        observedStage: row['observed_stage'] as String?,
+        source: source,
+      );
+    }).toList();
+  }
+
+  CropMaintenanceActivity _maintenanceActivityFromDb(String? value) {
+    return switch (value) {
+      'Planted' => CropMaintenanceActivity.planted,
+      'Watered' => CropMaintenanceActivity.watered,
+      'Fertilized' => CropMaintenanceActivity.fertilized,
+      'Stage Observed' => CropMaintenanceActivity.stageObserved,
+      'Transplanted' => CropMaintenanceActivity.transplanted,
+      'Harvested' => CropMaintenanceActivity.harvested,
+      'Not Harvested' => CropMaintenanceActivity.notHarvested,
+      'Planting Failed' => CropMaintenanceActivity.plantingFailed,
+      _ => CropMaintenanceActivity.inspected,
+    };
   }
 
   Future<CropSensorSnapshot> _latestSensorSnapshot({String? cropId}) async {
