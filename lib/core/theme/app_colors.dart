@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class AppColors {
   const AppColors._();
 
-  static bool _useLightPalette = false;
+  static bool _useLightPalette = true;
 
   static void useLightPalette(bool value) {
     _useLightPalette = value;
@@ -18,7 +18,7 @@ class AppColors {
   static Color get cardBackground =>
       _useLightPalette ? const Color(0xFFF6FBF3) : const Color(0xFF313131);
   static Color get primaryBorder =>
-      _useLightPalette ? const Color(0x2E123C1B) : const Color(0xFF53D11E);
+      _useLightPalette ? const Color(0x2E123C1B) : const Color(0xFF4FB86A);
   static Color get inactiveBorder =>
       _useLightPalette ? const Color(0x1F123C1B) : const Color(0xFF505050);
   static Color get primaryText =>
@@ -28,17 +28,17 @@ class AppColors {
   static Color get mutedText =>
       _useLightPalette ? const Color(0x9E123C1B) : const Color(0xFF9A9A9A);
   static Color get primaryGreen =>
-      _useLightPalette ? const Color(0xFF1F7A2E) : const Color(0xFF53D11E);
+      _useLightPalette ? const Color(0xFF1F7A2E) : const Color(0xFF2B8A4A);
   static Color get secondaryGreen =>
-      _useLightPalette ? const Color(0xFF185F28) : const Color(0xFF2FAF3E);
+      _useLightPalette ? const Color(0xFF185F28) : const Color(0xFF226C3C);
   static Color get accentGreen =>
-      _useLightPalette ? const Color(0xFF246F1F) : const Color(0xFF8DFF2A);
+      _useLightPalette ? const Color(0xFF246F1F) : const Color(0xFF4FB86A);
   static Color get buttonGradientStart =>
-      _useLightPalette ? const Color(0xFF185F28) : const Color(0xFF188A11);
+      _useLightPalette ? const Color(0xFF185F28) : const Color(0xFF4FB86A);
   static Color get buttonGradientEnd =>
-      _useLightPalette ? const Color(0xFF1F7A2E) : const Color(0xFF7CFF28);
+      _useLightPalette ? const Color(0xFF1F7A2E) : const Color(0xFF2B8A4A);
   static Color get darkGradientStart =>
-      _useLightPalette ? const Color(0xFF123C1B) : const Color(0xFF0A4F08);
+      _useLightPalette ? const Color(0xFF123C1B) : const Color(0xFF226C3C);
   static Color get success =>
       _useLightPalette ? const Color(0xFF1F7A2E) : const Color(0xFF41D75B);
   static Color get warning =>
@@ -55,13 +55,13 @@ class AppColors {
           Color(0xFF134820),
         ]
       : const [
-          Color(0xFF213A25),
-          Color(0xFF171B18),
-          Color(0xFF111211),
+          Color(0xFF26482B),
+          Color(0xFF1F2620),
+          Color(0xFF191919),
         ];
 
   static Color get heroPrimaryText => const Color(0xFFFFFFFF);
   static Color get heroSecondaryText => const Color(0xFFEAF7E9);
   static Color get heroMutedText => const Color(0xBFEAF7E9);
-  static Color get heroIconGreen => const Color(0xFF9BEF8B);
+  static Color get heroIconGreen => const Color(0xFF9FDCAD);
 }

@@ -419,7 +419,7 @@ class StockRepository {
       name: row['item_name'] as String? ?? 'Inventory Item',
       category: _categoryFromDb(row['category'] as String?),
       currentQuantity: _toDouble(row['quantity']),
-      unit: row['unit'] as String? ?? 'unit',
+      unit: 'kg',
       storageLocation: row['storage_location'] as String? ?? 'Unassigned',
       minimumStockLevel: _toDouble(row['minimum_quantity']),
       supplier: _supplierFrom(transactions),
@@ -462,9 +462,11 @@ class StockRepository {
       final profile = data['profiles'] as Map<String, dynamic>?;
 
       return StockTransactionModel(
-        type: data['source'] == 'sale'
-            ? StockTransactionType.sale
-            : _transactionTypeFromDb(data['transaction_type'] as String?),
+        type: switch (data['source']) {
+          'sale' => StockTransactionType.sale,
+          'harvest' => StockTransactionType.harvest,
+          _ => _transactionTypeFromDb(data['transaction_type'] as String?),
+        },
         quantity: _toDouble(data['quantity']),
         performedAt: _parseDate(data['created_at']) ?? DateTime.now(),
         remarks: data['remarks'] as String? ?? 'No remarks.',
@@ -536,7 +538,7 @@ class StockRepository {
     return {
       'item_name': stock.name,
       'stock_code': stock.displayId == 'STK-000' ? null : stock.displayId,
-      'unit': stock.unit,
+      'unit': 'kg',
       'minimum_quantity': stock.minimumStockLevel,
       'unit_cost': stock.unitCost,
       'selling_price': stock.sellingPrice,
@@ -610,7 +612,8 @@ class StockRepository {
 
   String _supplierFrom(List<StockTransactionModel> transactions) {
     for (final transaction in transactions) {
-      if (transaction.type == StockTransactionType.stockIn) {
+      if (transaction.type == StockTransactionType.stockIn ||
+          transaction.type == StockTransactionType.harvest) {
         return transaction.performedBy;
       }
     }

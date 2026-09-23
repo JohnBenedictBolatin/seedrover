@@ -155,6 +155,7 @@
 }
 
 .weatherStrip > div {
+  position: relative;
   display: grid;
   min-height: 74px;
   grid-template-columns: auto 1fr;
@@ -164,15 +165,103 @@
   border-radius: 8px;
   background: var(--surface);
   padding: 12px 14px;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.weatherRainy > div {
+  border-color: rgba(112, 199, 255, 0.56);
+  background: linear-gradient(135deg, rgba(24, 91, 135, 0.98), rgba(24, 49, 82, 0.98));
+}
+
+.weatherSunny > div {
+  border-color: rgba(255, 195, 79, 0.62);
+  background: linear-gradient(135deg, rgba(125, 78, 27, 0.98), rgba(76, 46, 20, 0.98));
+}
+
+.weatherCloudy > div {
+  border-color: rgba(184, 200, 216, 0.46);
+  background: linear-gradient(135deg, rgba(58, 74, 88, 0.98), rgba(31, 43, 52, 0.98));
+}
+
+.weatherStrip > div::before,
+.weatherStrip > div::after {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+}
+
+.weatherRainy > div::before {
+  opacity: 0.38;
+  background-image: repeating-linear-gradient(
+    112deg,
+    transparent 0 17px,
+    rgba(196, 232, 255, 0.42) 18px 19px,
+    transparent 20px 37px
+  );
+  background-size: 44px 52px;
+  animation: weatherRainfall 900ms linear infinite;
+}
+
+.weatherRainy > div::after {
+  opacity: 0.28;
+  background: radial-gradient(ellipse at 22% 0%, rgba(190, 226, 255, 0.34), transparent 46%);
+}
+
+.weatherCloudy > div::before {
+  opacity: 0.34;
+  background:
+    radial-gradient(ellipse at 18% 44%, rgba(229, 238, 244, 0.2) 0 12%, transparent 13%),
+    radial-gradient(ellipse at 32% 34%, rgba(229, 238, 244, 0.16) 0 16%, transparent 17%),
+    radial-gradient(ellipse at 48% 48%, rgba(229, 238, 244, 0.14) 0 12%, transparent 13%);
+  background-size: 210px 92px;
+  animation: weatherCloudDrift 12s ease-in-out infinite alternate;
+}
+
+.weatherCloudy > div::after {
+  opacity: 0.24;
+  background: linear-gradient(105deg, transparent 18%, rgba(255, 255, 255, 0.18) 48%, transparent 72%);
+  transform: translateX(-110%);
+  animation: weatherCloudSheen 8s ease-in-out infinite;
+}
+
+.weatherSunny > div::before {
+  top: -60%;
+  left: 62%;
+  width: 130%;
+  height: 220%;
+  opacity: 0.28;
+  background: repeating-conic-gradient(
+    from 0deg,
+    rgba(255, 238, 172, 0.34) 0deg 7deg,
+    transparent 7deg 20deg
+  );
+  animation: weatherSunRays 18s linear infinite;
+}
+
+.weatherSunny > div::after {
+  inset: auto 10% -35% auto;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 231, 153, 0.5) 0 12%, rgba(255, 206, 96, 0.2) 36%, transparent 72%);
+  animation: weatherSunPulse 3.2s ease-in-out infinite alternate;
+}
+
+.weatherStrip > div > * {
+  position: relative;
+  z-index: 1;
 }
 
 .weatherStrip svg {
   grid-row: 1 / 3;
-  color: var(--green-accent);
+  color: #ffffff;
 }
 
 .weatherStrip span {
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.78);
   font-size: 0.72rem;
   font-weight: 800;
   text-transform: uppercase;
@@ -180,9 +269,41 @@
 
 .weatherStrip strong {
   overflow: hidden;
-  color: var(--text);
+  color: #ffffff;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@keyframes weatherRainfall {
+  from { background-position: 0 -52px; }
+  to { background-position: 44px 0; }
+}
+
+@keyframes weatherCloudDrift {
+  from { transform: translateX(-18px); }
+  to { transform: translateX(22px); }
+}
+
+@keyframes weatherCloudSheen {
+  0%, 30% { transform: translateX(-110%); }
+  72%, 100% { transform: translateX(110%); }
+}
+
+@keyframes weatherSunRays {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes weatherSunPulse {
+  from { opacity: 0.42; transform: scale(0.9); }
+  to { opacity: 0.82; transform: scale(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .weatherStrip > div::before,
+  .weatherStrip > div::after {
+    animation: none;
+  }
 }
 
 .searchField,
@@ -778,14 +899,14 @@
 
 .outcomeTable {
   --outcome-table-columns:
-    minmax(100px, 1fr)
     minmax(105px, .9fr)
-    minmax(125px, 1.3fr)
-    minmax(100px, .82fr)
-    minmax(115px, 1fr)
-    minmax(185px, 1.4fr);
+    minmax(105px, .85fr)
+    minmax(135px, 1.2fr)
+    minmax(105px, .75fr)
+    minmax(125px, .95fr)
+    minmax(180px, 1.25fr);
   display: grid;
-  min-width: 810px;
+  min-width: 825px;
   gap: 8px;
 }
 
@@ -798,7 +919,7 @@
   display: grid;
   grid-template-columns: var(--outcome-table-columns);
   align-items: center;
-  gap: 12px;
+  column-gap: 14px;
 }
 
 .outcomeTableHeader {
@@ -808,6 +929,11 @@
   letter-spacing: .06em;
   padding: 0 12px 3px;
   text-transform: uppercase;
+}
+
+.outcomeTableHeader > span,
+.outcomeRow > * {
+  min-width: 0;
 }
 
 .outcomeRow {
@@ -1488,7 +1614,7 @@
   display: grid;
   grid-template-columns: var(--sensor-history-columns);
   align-items: center;
-  gap: 10px;
+  column-gap: 14px;
 }
 
 .sensorHistoryHeader {
@@ -1497,6 +1623,11 @@
   font-weight: 900;
   padding: 0 10px 2px;
   text-transform: uppercase;
+}
+
+.sensorHistoryHeader > span,
+.sensorHistoryRow > * {
+  min-width: 0;
 }
 
 .sensorHistoryRow {
@@ -1867,6 +1998,26 @@
   color: #123c1b;
   background: #ffffff;
   box-shadow: 0 10px 24px rgba(18, 60, 27, 0.06);
+}
+
+:global(html[data-theme="light"]) .weatherRainy > div {
+  border-color: rgba(37, 123, 174, 0.52);
+  background: linear-gradient(135deg, #3a9bd1, #1c5f91);
+}
+
+:global(html[data-theme="light"]) .weatherSunny > div {
+  border-color: rgba(171, 111, 20, 0.56);
+  background: linear-gradient(135deg, #c88a2a, #8a5715);
+}
+
+:global(html[data-theme="light"]) .weatherCloudy > div {
+  border-color: rgba(91, 111, 126, 0.5);
+  background: linear-gradient(135deg, #718493, #465966);
+}
+
+:global(html[data-theme="light"]) .weatherStrip span,
+:global(html[data-theme="light"]) .weatherStrip strong {
+  color: #ffffff;
 }
 
 :global(html[data-theme="light"]) .stockCard:hover {

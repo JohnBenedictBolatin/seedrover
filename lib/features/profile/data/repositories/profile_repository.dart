@@ -137,6 +137,27 @@ class ProfileRepository {
     );
   }
 
+  Future<void> resetUserPassword({
+    required String userId,
+    required String temporaryPassword,
+  }) async {
+    await _client.functions.invoke(
+      'user-admin',
+      body: {
+        'action': 'reset_password',
+        'user_id': userId,
+        'temporary_password': temporaryPassword,
+      },
+    );
+  }
+
+  Future<void> deleteUser(String userId) async {
+    await _client.functions.invoke(
+      'user-admin',
+      body: {'action': 'delete', 'user_id': userId},
+    );
+  }
+
   Future<ProfileUserModel> updateProfileImage({
     required String profileId,
     required ProfileImageUpload upload,
@@ -228,7 +249,7 @@ class ProfileRepository {
       username: row['username'] as String? ?? 'operator',
       email: row['email'] as String? ?? '',
       contactNumber: row['contact_number'] as String? ?? '',
-      roleName: role?['role_name'] as String? ?? 'Farm Staff',
+      roleName: role?['role_name'] as String? ?? 'Unassigned',
       dateJoined: _parseDate(row['created_at']) ?? DateTime.now(),
       status: isActive
           ? ProfileAccountStatus.active

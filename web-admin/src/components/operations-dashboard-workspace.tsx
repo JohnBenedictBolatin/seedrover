@@ -3,8 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
+  ArrowUpRight,
   Package,
+  PackageMinus,
+  PackagePlus,
+  AlertTriangle,
+  PackageX,
   ReceiptText,
+  SlidersHorizontal,
   TrendingUp,
   ChevronLeft,
   ChevronRight,
@@ -32,7 +38,7 @@ import type {
   OperationsDashboardData,
   StockMovementPoint,
 } from "@/lib/dashboard";
-import { formatCurrency, formatDateTime } from "@/lib/format";
+import { formatCurrency, formatDateTime, formatQuantity } from "@/lib/format";
 import styles from "@/app/(portal)/dashboard/page.module.css";
 
 const ranges: Array<{ label: string; value: DashboardRange }> = [
@@ -60,10 +66,12 @@ const chartFillColors = [
 ];
 
 type OperationsDashboardWorkspaceProps = {
+  canViewInvestments: boolean;
+  isInventoryManager: boolean;
   data: OperationsDashboardData;
 };
 
-export function OperationsDashboardWorkspace({ data }: OperationsDashboardWorkspaceProps) {
+export function OperationsDashboardWorkspace({ canViewInvestments, isInventoryManager, data }: OperationsDashboardWorkspaceProps) {
   const [activityPage, setActivityPage] = useState(1);
   const activityPageSize = 5;
   const activityPageCount = Math.max(1, Math.ceil(data.recentActivity.length / activityPageSize));
@@ -71,6 +79,24 @@ export function OperationsDashboardWorkspace({ data }: OperationsDashboardWorksp
     (activityPage - 1) * activityPageSize,
     activityPage * activityPageSize,
   );
+  const recoveryStatus = data.summary.recoveryStatus === "recovered"
+    ? "Investment recovered"
+    : data.summary.recoveryStatus === "on-track"
+      ? "On track"
+      : data.summary.recoveryStatus === "behind"
+        ? "Below target"
+        : "No investment baseline";
+  const recoveryRangeLabel = data.range === "day"
+    ? "Daily"
+    : data.range === "week"
+      ? "Weekly"
+        : data.range === "month"
+          ? "Monthly"
+          : "Yearly";
+  const topSalesCategory = data.charts.salesByCategory[0];
+  const topSellingItem = data.charts.topItems[0];
+  const stockInTotal = data.charts.stockMovement.reduce((total, point) => total + point.in, 0);
+  const stockOutTotal = data.charts.stockMovement.reduce((total, point) => total + point.out, 0);
   const summaryCards = [
     {
       icon: <TrendingUp size={20} />,
@@ -83,7 +109,7 @@ export function OperationsDashboardWorkspace({ data }: OperationsDashboardWorksp
       label: "Transactions",
       value: data.summary.transactionsInRange,
     },
-    {
+    ...(canViewInvestments ? [{
       icon: <Package size={20} />,
       label: "Inventory value",
       value: data.summary.inventoryValue,
@@ -91,11 +117,27 @@ export function OperationsDashboardWorkspace({ data }: OperationsDashboardWorksp
     },
     {
       icon: <TrendingUp size={20} />,
-      label: "ROI",
-      value: data.summary.roi,
-      suffix: "%",
-      secondary: `Investment: ${formatCurrency(data.summary.investmentInRange)}`,
-    },
+      label: `${recoveryRangeLabel} ROI target`,
+      value: data.summary.requiredPeriodSales,
+      currency: true,
+      suffix: undefined,
+      secondary: recoveryStatus,
+      detailsHref: canViewInvestments ? `/investments?range=${data.range}` : undefined,
+    }] : []),
+    ...(isInventoryManager ? [
+      {
+        icon: <AlertTriangle size={20} />,
+        label: "Low-stock items",
+        value: data.summary.lowStockItems,
+        detailsHref: "/inventory",
+      },
+      {
+        icon: <PackageX size={20} />,
+        label: "Out-of-stock items",
+        value: data.summary.outOfStockItems,
+        detailsHref: "/inventory",
+      },
+    ] : []),
   ];
 
   const insights = [
@@ -147,6 +189,7 @@ export function OperationsDashboardWorkspace({ data }: OperationsDashboardWorksp
           <div className={styles.metricValue}>
             <CountUpValue className="mono" currency={card.currency} value={card.value} suffix={card.suffix} />
             {card.secondary ? <small className={styles.metricSecondary}>{card.secondary}</small> : null}
+            {card.detailsHref ? <Link className={styles.metricDetailLink} href={card.detailsHref}>VIEW DETAILS <ArrowUpRight size={13} /></Link> : null}
           </div>
           </article>
         ))}
@@ -170,28 +213,64 @@ export function OperationsDashboardWorkspace({ data }: OperationsDashboardWorksp
       <section className={styles.chartGrid} aria-label="Operations charts">
         <ChartPanel
           description="Completed sales only."
+          summary={[
+            { value: formatCurrency(data.summary.salesInRange), label: "Completed sales" },
+            { value: formatCurrency(data.summary.averageSale), label: "Average sale" },
+          ]}
           title="Sales trend"
         >
           <AreaValueChart data={data.charts.salesTrend} />
         </ChartPanel>
 
-        <ChartPanel title="Sales by category">
+        <ChartPanel
+          description="Completed sales grouped by inventory category."
+          summary={[
+            { value: formatCurrency(data.summary.salesInRange), label: "Total sales" },
+            { value: topSalesCategory?.label ?? "No category sales", label: "Top category" },
+          ]}
+          title="Sales by category"
+        >
           <PieValueChart data={data.charts.salesByCategory} />
         </ChartPanel>
 
-        <ChartPanel description="Current quantity × unit cost." title="Stock value">
+        <ChartPanel
+          description="Current quantity × unit cost."
+          summary={[
+            { value: formatCurrency(data.summary.inventoryValue), label: "Current value" },
+            { value: formatCurrency(data.summary.estimatedSalesValue), label: "Est. sales value" },
+          ]}
+          title="Stock value"
+        >
           <BarValueChart currency data={data.charts.stockValueByCategory} />
         </ChartPanel>
 
-        <ChartPanel title="Stock movement">
+        <ChartPanel
+          summary={[
+            { value: formatQuantity(stockInTotal, "kg"), label: "Stock in" },
+            { value: formatQuantity(stockOutTotal, "kg"), label: "Stock out" },
+          ]}
+          title="Stock movement"
+        >
           <StockMovementLineChart data={data.charts.stockMovement} />
         </ChartPanel>
 
-        <ChartPanel title="Payment breakdown">
+        <ChartPanel
+          summary={[
+            { value: formatCurrency(data.summary.salesInRange), label: "Completed sales" },
+            { value: data.insights.preferredPaymentMethod, label: "Top method" },
+          ]}
+          title="Payment breakdown"
+        >
           <PieValueChart data={data.charts.paymentMethods} />
         </ChartPanel>
 
-        <ChartPanel title="Top-selling items">
+        <ChartPanel
+          summary={[
+            { value: formatQuantity(topSellingItem?.value ?? 0, "kg"), label: "Top item sold" },
+            { value: topSellingItem?.label ?? "No sales yet", label: "Best seller" },
+          ]}
+          title="Top-selling items"
+        >
           <BarValueChart data={data.charts.topItems} />
         </ChartPanel>
 
@@ -239,12 +318,23 @@ export function OperationsDashboardWorkspace({ data }: OperationsDashboardWorksp
             <div className={styles.activityList}>
               {visibleActivity.map((activity) => (
                 <div className={styles.activityItem} data-type={activity.type} key={`${activity.type}-${activity.id}`}>
-                  <span>{activity.type === "sale" ? <ReceiptText size={16} /> : <Package size={16} />}</span>
-                  <div>
-                    <strong>{activity.label}</strong>
+                  <span className={styles.activityIcon}>
+                    {activity.type === "sale" ? <ReceiptText size={17} /> : null}
+                    {activity.type === "stock-in" ? <PackagePlus size={17} /> : null}
+                    {activity.type === "stock-out" ? <PackageMinus size={17} /> : null}
+                    {activity.type === "stock-adjustment" ? <SlidersHorizontal size={17} /> : null}
+                  </span>
+                  <div className={styles.activityContent}>
+                    <div className={styles.activityHeading}>
+                      <strong>{activity.action}</strong>
+                      <span>{activity.label}</span>
+                    </div>
                     <p>{activity.detail}</p>
+                    <div className={styles.activityMetadata}>
+                      {activity.metadata.map((item) => <span key={item}>{item}</span>)}
+                    </div>
                   </div>
-                  <div>
+                  <div className={styles.activityValue}>
                     <strong>
                       {activity.type === "sale"
                         ? formatCurrency(Number(activity.value))
@@ -288,19 +378,31 @@ export function OperationsDashboardWorkspace({ data }: OperationsDashboardWorksp
 function ChartPanel({
   children,
   description,
+  summary,
   title,
 }: {
   children: React.ReactNode;
   description?: string;
+  summary?: Array<{ value: string; label: string }>;
   title: string;
 }) {
   return (
     <article className={styles.chartPanel}>
       <div className={styles.chartHeader}>
-        <div>
+        <div className={styles.chartHeaderCopy}>
           <h2>{title}</h2>
           {description ? <p>{description}</p> : null}
         </div>
+        {summary?.length ? (
+          <div aria-label={`${title} summary`} className={styles.chartSummary}>
+            {summary.map((item) => (
+              <div className={styles.chartSummaryItem} key={item.label}>
+                <strong>{item.value}</strong>
+                <span>{item.label}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
       <div className={styles.chartBox}>{children}</div>
     </article>
@@ -363,22 +465,65 @@ function PieValueChart({ data }: { data: DashboardPoint[] }) {
     return <EmptyState text="No matching records yet." />;
   }
 
+  const total = data.reduce((sum, entry) => sum + Number(entry.value), 0);
+
   return (
-    <ResponsiveContainer height="100%" width="100%">
-      <PieChart>
-        <Tooltip content={<ChartTooltip currency />} />
-        <Pie cx="50%" cy="50%" data={data} dataKey="value" innerRadius={46} outerRadius={80} paddingAngle={4}>
-          {data.map((entry, index) => (
-            <Cell
-              fill={chartFillColors[index % chartFillColors.length]}
-              key={entry.label}
-              stroke={chartColors[index % chartColors.length]}
-              strokeWidth={1}
-            />
-          ))}
-        </Pie>
-      </PieChart>
-    </ResponsiveContainer>
+    <div className={styles.pieChartLayout}>
+      <div className={styles.pieChartGraphic}>
+        <ResponsiveContainer height="100%" width="100%">
+          <PieChart>
+            <Tooltip content={<ChartTooltip currency />} />
+            <Pie
+              cx="50%"
+              cy="50%"
+              data={data}
+              dataKey="value"
+              innerRadius={52}
+              nameKey="label"
+              outerRadius={82}
+              paddingAngle={data.length > 1 ? 3 : 0}
+            >
+              {data.map((entry, index) => (
+                <Cell
+                  fill={chartFillColors[index % chartFillColors.length]}
+                  key={entry.label}
+                  stroke={chartColors[index % chartColors.length]}
+                  strokeWidth={1}
+                />
+              ))}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+        <div className={styles.pieChartCenter}>
+          <span>Total</span>
+          <strong>{formatCurrency(total)}</strong>
+        </div>
+      </div>
+
+      <div aria-label="Chart breakdown" className={styles.pieLegend}>
+        {data.map((entry, index) => {
+          const percentage = total > 0 ? (Number(entry.value) / total) * 100 : 0;
+
+          return (
+            <div className={styles.pieLegendItem} key={entry.label}>
+              <span
+                aria-hidden="true"
+                className={styles.pieLegendSwatch}
+                style={{
+                  background: chartFillColors[index % chartFillColors.length],
+                  borderColor: chartColors[index % chartColors.length],
+                }}
+              />
+              <div className={styles.pieLegendLabel}>
+                <span>{entry.label}</span>
+                <small>{percentage.toLocaleString(undefined, { maximumFractionDigits: 1 })}%</small>
+              </div>
+              <strong>{formatCurrency(Number(entry.value))}</strong>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

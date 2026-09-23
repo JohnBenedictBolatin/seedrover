@@ -80,6 +80,23 @@
   gap: 14px;
 }
 
+.quickActionsLegacy {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin: 22px 0;
+  padding: 20px 22px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.quickActionsLegacy p, .quickActionsLegacy h2, .quickActionsLegacy span { margin: 0; }
+.inventoryQuickActions { position: relative; z-index: 1; display: flex; flex: 0 0 auto; align-items: center; gap: 10px; }
+.inventoryQuickActions button:first-child { width: 170px; }
+.inventoryQuickActions button:last-child { width: 290px; }
+
 .metric {
   display: flex;
   min-height: 104px;
@@ -91,6 +108,7 @@
 
 .metricMeta {
   display: grid;
+  min-width: 0;
   gap: 8px;
 }
 
@@ -122,6 +140,18 @@
   text-align: right;
 }
 
+.metric strong.metricTextValue {
+  min-width: 0;
+  width: 52%;
+  max-width: 52%;
+  margin-left: auto;
+  flex: 0 1 52%;
+  font-size: clamp(1.35rem, 1.8vw, 1.85rem);
+  line-height: 1.1;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
 .salesBand {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -132,21 +162,18 @@
   background: transparent;
 }
 
-.salesBand div {
-  position: relative;
+.salesBand > div {
   display: flex;
   min-height: 110px;
   flex-direction: column;
   justify-content: center;
   align-items: flex-start;
   gap: 12px;
-  overflow: hidden;
-  isolation: isolate;
-  border: 1px solid rgba(141, 255, 42, 0.18);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background:
-    radial-gradient(ellipse at bottom, rgba(38, 72, 43, 0.88) 0%, rgba(31, 38, 32, 0.94) 46%, rgba(25, 25, 25, 0.98) 100%),
-    linear-gradient(180deg, rgba(49, 49, 49, 0.98), rgba(37, 37, 37, 0.96));
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
   padding: 18px;
 }
 
@@ -159,48 +186,23 @@
   text-align: left;
 }
 
-.salesBand div::before,
-.salesBand div::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
+:global(html[data-theme="light"]) .salesBand > div {
+  background: #ffffff !important;
+  background-image: none !important;
+  border: 1px solid #b8c5ba;
+  color: #123018;
 }
-
-.salesBand div::before {
-  opacity: 0.58;
-  background-image:
-    radial-gradient(circle, rgba(214, 255, 177, 0.86) 0 1px, transparent 1.5px),
-    radial-gradient(circle, rgba(141, 255, 42, 0.58) 0 1.5px, transparent 2px),
-    radial-gradient(circle, rgba(255, 255, 255, 0.56) 0 1px, transparent 1.6px);
-  background-size: 58px 58px, 96px 96px, 148px 148px;
-  background-position: 0 0, 22px 18px, 46px 34px;
-  animation: salesBandStars 36s linear infinite;
+:global(html[data-theme="light"]) .salesBand p,
+:global(html[data-theme="light"]) .salesBand strong { color: #123018; }
+:global(html[data-theme="dark"]) .salesBand > div {
+  background: #1b1b1b !important;
+  background-image: none !important;
+  border: 1px solid #3d443f;
+  color: #f2f4f1;
 }
+:global(html[data-theme="dark"]) .salesBand p { color: #aeb7ad; }
+:global(html[data-theme="dark"]) .salesBand strong { color: #f2f4f1; }
 
-.salesBand div::after {
-  opacity: 0.46;
-  background:
-    radial-gradient(circle at 18% 78%, rgba(141, 255, 42, 0.22), transparent 28%),
-    radial-gradient(circle at 82% 18%, rgba(83, 209, 30, 0.16), transparent 26%),
-    linear-gradient(180deg, rgba(16, 16, 16, 0), rgba(16, 16, 16, 0.3));
-}
-
-.salesBand div > * {
-  position: relative;
-  z-index: 1;
-}
-
-@keyframes salesBandStars {
-  from {
-    background-position: 0 0, 22px 18px, 46px 34px;
-  }
-
-  to {
-    background-position: 0 -420px, 22px -620px, 46px -820px;
-  }
-}
 .tableSection {
   display: grid;
   gap: 18px;
@@ -1384,8 +1386,36 @@
 }
 
 .historyModal {
-  width: min(100%, 700px);
+  width: min(100%, 920px);
+  max-height: min(88vh, 760px);
+  overflow: hidden;
 }
+
+.inventoryHistoryList { display: grid; min-width: 0; overflow: auto; }
+.inventoryHistoryList .historyPanel { display: contents; }
+.inventoryHistoryList .historyHeader { display: none; }
+.inventoryHistoryList .historyItem { grid-template-columns: minmax(110px, 0.7fr) minmax(160px, 1.2fr) minmax(160px, 2fr) minmax(150px, auto); align-items: center; }
+.inventoryHistoryList .historyItem > div { display: contents; }
+.inventoryHistoryList .historyItem > p { grid-column: 3 / -1; }
+.inventoryHistoryLedger { display: grid; gap: 14px; min-width: 0; }
+.inventoryHistoryLedger .historyPanel { display: grid; gap: 14px; padding: 0; border: 0; background: transparent; }
+.inventoryHistoryLedger .historyHeader { padding: 0 2px 4px; }
+.inventoryHistoryLedger .historyHeader h4 { font-size: 1.1rem; }
+.inventoryHistoryLedger .historyHeader p { margin-top: 4px; font-size: .82rem; }
+.inventoryHistoryLedger .historyItem { min-height: 72px; grid-template-columns: minmax(105px, .8fr) minmax(170px, 1.3fr) minmax(180px, 2fr) minmax(145px, auto); align-items: center; border-radius: 10px; padding: 12px 14px; }
+.inventoryHistoryLedger .historyItem > div { display: contents; }
+.inventoryHistoryLedger .historyItem > div:first-child strong { color: var(--green-accent); font-size: .8rem; text-transform: uppercase; }
+.inventoryHistoryLedger .historyItem > div:first-child span { color: var(--text); font-weight: 700; }
+.inventoryHistoryLedger .historyItem > div:nth-child(2) { color: var(--text-muted); font-size: .78rem; }
+.inventoryHistoryLedger .historyItem > p { grid-column: 3 / 4; margin: 0; overflow-wrap: anywhere; }
+.historyPagination { display: flex; align-items: center; justify-content: center; gap: 14px; padding-top: 8px; }
+.historyPagination button { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 1px solid var(--history-border); border-radius: 7px; color: var(--green-accent); background: transparent; cursor: pointer; }
+.historyPagination button:disabled { opacity: .35; cursor: not-allowed; }
+.historyPagination span { color: var(--text-muted); font-size: .84rem; }
+.inventoryHistoryList .historyPanel { min-width: 0; }
+.inventoryHistoryList .historyItem { grid-template-columns: minmax(150px, 1fr) minmax(220px, auto); }
+.inventoryHistoryList .historyItem > div:first-child { min-width: 0; }
+.inventoryHistoryList .historyItem > div:first-child span { overflow-wrap: anywhere; }
 
 .historyModalList {
   display: grid;

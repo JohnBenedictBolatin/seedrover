@@ -26,10 +26,12 @@ type AssistantContext = {
 export async function buildWebAssistantContext(profile: AdminProfile): Promise<AssistantContext> {
   const canSeeInventory =
     profile.roleName === "System Administrator" ||
-    profile.roleName === "Farm Inventory Manager";
+    profile.roleName === "Farm Inventory Manager" ||
+    profile.roleName === "Inventory Staff";
   const canSeeCrops =
     profile.roleName === "System Administrator" ||
-    profile.roleName === "Farm Planting Manager";
+    profile.roleName === "Farm Planting Manager" ||
+    profile.roleName === "Planting Staff";
   const canSeeSystem = profile.roleName === "System Administrator";
 
   const [inventory, sales, crops, rover, activity] = await Promise.all([
@@ -90,11 +92,8 @@ export async function buildWebAssistantContext(profile: AdminProfile): Promise<A
     rover: rover?.status
       ? {
           status: rover.status.roverStatus,
-          batteryLevel: rover.status.batteryLevel,
-          seedLevel: rover.status.seedLevel,
           wifiConnected: rover.status.wifiConnected,
-          bluetoothConnected: rover.status.bluetoothConnected,
-          cameraConnected: rover.status.cameraConnected,
+          heartbeatFresh: rover.status.heartbeatFresh,
           currentActivity: rover.status.currentActivity,
           emergencyStop: rover.status.emergencyStop,
           lastUpdated: rover.status.lastUpdated,
@@ -267,7 +266,7 @@ function fallbackRovieAnswer(question: string, context: AssistantContext) {
   if (normalized.includes("rover") || normalized.includes("battery")) {
     return `Based on the current web data, rover status is ${String(
       rover.status ?? "not available",
-    )}. Battery: ${String(rover.batteryLevel ?? "unknown")}%. Current activity: ${String(
+    )}. Battery percentage is not measured by the production rover. Current activity: ${String(
       rover.currentActivity ?? "not available",
     )}.`;
   }

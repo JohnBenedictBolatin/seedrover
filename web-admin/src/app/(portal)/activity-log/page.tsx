@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { LiveDateTime } from "@/components/live-date-time";
+import { ModuleHeaderIntro } from "@/components/module-header-intro";
 import { getActivityDashboard } from "@/lib/activity";
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { ActivityLogWorkspace } from "./activity-log-workspace";
@@ -21,11 +22,11 @@ export default async function ActivityLogPage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <div>
-          <p className={styles.eyebrow}>System</p>
-          <h1>Activity Log</h1>
-          <p>Sign-ins and recorded actions from the web and mobile app.</p>
-        </div>
+          <ModuleHeaderIntro mascot="activity_log">
+            <p className={styles.eyebrow}>System</p>
+            <h1>Activity Log</h1>
+            <p>Sign-ins and recorded actions from the web and mobile app.</p>
+          </ModuleHeaderIntro>
         <div className={styles.liveDateTime}>
           <LiveDateTime />
         </div>

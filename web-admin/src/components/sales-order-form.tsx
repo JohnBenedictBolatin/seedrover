@@ -59,7 +59,12 @@ function ItemPicker({
   const [query, setQuery] = useState(selectedItem?.label ?? "");
 
   useEffect(() => {
-    setQuery(selectedItem?.label ?? "");
+    const updateQuery = window.setTimeout(
+      () => setQuery(selectedItem?.label ?? ""),
+      0,
+    );
+
+    return () => window.clearTimeout(updateQuery);
   }, [selectedItem?.label]);
 
   const filteredItems = items.filter((entry) =>
@@ -117,19 +122,29 @@ function ThemedSelect({
   name,
   onChange,
   options,
+  required = false,
   value,
 }: {
   label: string;
   name: string;
   onChange?: (value: string) => void;
   options: string[];
+  required?: boolean;
   value: string;
 }) {
   const [open, setOpen] = useState(false);
 
   return (
     <label className={styles.themedSelectLabel}>
-      {label}
+      <span className={styles.themedSelectText}>
+        {label}
+        {required ? (
+          <>
+            <span aria-hidden="true" className={styles.requiredMarker}>*</span>
+            <span className={styles.visuallyHidden}> (required)</span>
+          </>
+        ) : null}
+      </span>
       <input name={name} type="hidden" value={value} />
       <div
         className={styles.themedSelect}
@@ -193,7 +208,8 @@ export function SalesOrderForm({
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [otherPaymentMethod, setOtherPaymentMethod] = useState("");
   const [transactionReference, setTransactionReference] = useState("");
-  const [installmentTerms, setInstallmentTerms] = useState("");
+  const [installmentFrequency, setInstallmentFrequency] = useState("Monthly");
+  const [installmentAmount, setInstallmentAmount] = useState("");
   const [installmentDueDate, setInstallmentDueDate] = useState("");
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -218,6 +234,8 @@ export function SalesOrderForm({
   const total = Math.max(subtotal - discountAmount, 0);
   const paid = toNumber(amountPaid);
   const change = amountPaid.trim() ? Math.max(paid - total, 0) : 0;
+  const remainingBalance = Math.max(total - paid, 0);
+  const installmentPayment = toNumber(installmentAmount);
 
   useEffect(() => {
     confirmedRef.current = false;
@@ -293,8 +311,20 @@ export function SalesOrderForm({
       return "Amount paid cannot be lower than the total.";
     }
 
-    if (paymentMethod === "Installment" && !installmentTerms.trim()) {
-      return "Enter the installment terms.";
+    if (paymentMethod === "Installment" && !installmentAmount.trim()) {
+      return "Enter the amount for each installment payment.";
+    }
+
+    if (paymentMethod === "Installment" && installmentPayment <= 0) {
+      return "Installment amount must be greater than zero.";
+    }
+
+    if (paymentMethod === "Installment" && remainingBalance <= 0) {
+      return "An installment sale must have a remaining balance.";
+    }
+
+    if (paymentMethod === "Installment" && installmentPayment > remainingBalance) {
+      return "Installment amount cannot be greater than the remaining balance.";
     }
 
     if (paymentMethod === "Installment" && !installmentDueDate) {
@@ -305,7 +335,11 @@ export function SalesOrderForm({
       return "Enter the other payment method used.";
     }
 
-    if (paymentMethod !== "Cash" && !transactionReference.trim()) {
+    if (
+      paymentMethod !== "Cash" &&
+      paymentMethod !== "Installment" &&
+      !transactionReference.trim()
+    ) {
       return "Enter the transaction ID for non-cash payment.";
     }
 
@@ -436,18 +470,18 @@ export function SalesOrderForm({
           </div>
 
           <div className={styles.fields}>
-            <label>
-              Customer name
-              <input name="customer_name" placeholder="Walk-in customer" type="text" />
-            </label>
+            <label>First name<input name="customer_first_name" placeholder="e.g. Juan" required type="text" /></label>
+            <label>Middle initial<input name="customer_middle_initial" placeholder="e.g. D" maxLength={1} type="text" /></label>
+            <label>Last name<input name="customer_last_name" placeholder="e.g. Cruz" required type="text" /></label>
             <label>
               Customer contact
-              <input name="customer_contact" placeholder="e.g. 0917 123 4567" type="text" />
+              <input name="customer_contact" placeholder="e.g. 0917 123 4567" required type="text" />
             </label>
             <ThemedSelect
               label="Payment method"
               name="payment_method"
               options={["Cash", "GCash", "Bank Transfer", "Card", "Installment", "Other"]}
+              required
               value={paymentMethod}
               onChange={(value) => {
                 setPaymentMethod(value);
@@ -489,10 +523,30 @@ export function SalesOrderForm({
             ) : null}
             {paymentMethod === "Installment" ? (
               <>
-                <label>
-                  Installment terms
-                  <input name="installment_terms" placeholder="e.g. 3 monthly payments of PHP 2,500" required type="text" value={installmentTerms} onChange={(event) => setInstallmentTerms(event.target.value)} />
-                </label>
+                <div className={styles.installmentTermsGrid}>
+                  <ThemedSelect
+                    label="Payment frequency"
+                    name="installment_frequency"
+                    options={["Weekly", "Monthly", "Yearly"]}
+                    required
+                    value={installmentFrequency}
+                    onChange={setInstallmentFrequency}
+                  />
+                  <label>
+                    Amount per payment
+                    <input
+                      max={remainingBalance > 0 ? remainingBalance : undefined}
+                      min="0.01"
+                      name="installment_amount"
+                      placeholder="e.g. 2500.00"
+                      required
+                      step="0.01"
+                      type="number"
+                      value={installmentAmount}
+                      onChange={(event) => setInstallmentAmount(event.target.value)}
+                    />
+                  </label>
+                </div>
                 <CalendarField
                   label="Next payment due"
                   name="installment_due_date"

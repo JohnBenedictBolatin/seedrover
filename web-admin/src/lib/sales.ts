@@ -1,3 +1,4 @@
+import { INVENTORY_UNIT } from "@/lib/inventory";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type SellableItem = {
@@ -228,7 +229,7 @@ export async function getSellableInventory() {
       label: row.item_name,
       stockCode: row.stock_code ?? "Uncoded",
       quantity: toNumber(row.quantity),
-      unit: row.unit,
+      unit: INVENTORY_UNIT,
       sellingPrice: toNumber(row.selling_price),
     })),
     error: null,
@@ -504,7 +505,7 @@ export async function getSalesWorkspaceData() {
       receiptItems: items.map<SalesReceiptItem>((item) => ({
         id: item.id,
         itemName: item.item_name_snapshot,
-        unit: item.unit_snapshot ?? "unit",
+        unit: INVENTORY_UNIT,
         quantitySold: toNumber(item.quantity_sold),
         unitPrice:
           item.unit_price === null || item.unit_price === undefined
@@ -561,7 +562,7 @@ export async function getSalesWorkspaceData() {
       otherPaymentMethod: sale.other_payment_method ?? null,
       itemCount: 1,
       marketItemName: itemName,
-      marketItemUnit: inventory?.unit ?? "unit",
+      marketItemUnit: INVENTORY_UNIT,
       marketQuantitySold: toNumber(sale.quantity_sold),
       marketUnitPrice: toNumber(sale.unit_price),
       marketRemarks: sale.remarks ?? "",
@@ -682,7 +683,7 @@ export async function getSalesReceipt(id: string) {
       items: data.sales_order_items.map<SalesReceiptItem>((item) => ({
         id: item.id,
         itemName: item.item_name_snapshot,
-        unit: item.unit_snapshot,
+        unit: INVENTORY_UNIT,
         quantitySold: toNumber(item.quantity_sold),
         unitPrice: toNumber(item.unit_price),
         lineTotal: toNumber(item.line_total),

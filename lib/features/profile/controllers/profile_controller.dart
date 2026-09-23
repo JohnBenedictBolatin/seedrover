@@ -63,7 +63,7 @@ class ProfileController extends StateNotifier<ProfileState> {
         username: _authProfile?.username ?? 'operator',
         email: _authProfile?.email ?? 'operator@seedrover.local',
         contactNumber: '+63 917 000 0000',
-        roleName: _authProfile?.roleName ?? 'Farm Staff',
+        roleName: _authProfile?.roleName ?? 'Unassigned',
         dateJoined: DateTime(2026, 1, 1),
         status: ProfileAccountStatus.active,
         hasProfilePicture: !state.profilePictureRemoved,
@@ -112,7 +112,7 @@ class ProfileController extends StateNotifier<ProfileState> {
             iconKey: 'pending',
           ),
         ],
-      'Farm Planting Manager' => [
+      'Farm Planting Manager' || 'Planting Staff' => [
           ProfileStatModel(
             label: 'Crops Managed',
             value: '$recentActivities',
@@ -132,7 +132,7 @@ class ProfileController extends StateNotifier<ProfileState> {
             iconKey: 'tasks',
           ),
         ],
-      'Farm Inventory Manager' => [
+      'Farm Inventory Manager' || 'Inventory Staff' => [
           ProfileStatModel(
             label: 'Inventory Updates',
             value: '$recentActivities',
@@ -397,21 +397,34 @@ class ProfileController extends StateNotifier<ProfileState> {
     );
   }
 
-  void resetPassword(String userId) {
-    state = state.copyWith(
-      generatedPassword: null,
-      successMessage:
-          'Password reset requires the secure admin Edge Function before it can be sent.',
-    );
+  Future<void> resetPassword(String userId) async {
+    final temporaryPassword = _temporaryPassword();
+    try {
+      await _repository.resetUserPassword(
+        userId: userId,
+        temporaryPassword: temporaryPassword,
+      );
+      state = state.copyWith(
+        generatedPassword: temporaryPassword,
+        successMessage: 'Password reset. Temporary password:',
+      );
+    } catch (_) {
+      state = state.copyWith(errorMessage: 'Unable to reset password.');
+    }
   }
 
-  void deleteUser(String userId) {
-    final users = state.users.where((user) => user.id != userId).toList();
-    state = state.copyWith(
-      users: users,
-      filteredUsers: _filterUsers(users, state.searchQuery, state.userFilter),
-      successMessage: 'User deleted.',
-    );
+  Future<void> deleteUser(String userId) async {
+    try {
+      await _repository.deleteUser(userId);
+      final users = state.users.where((user) => user.id != userId).toList();
+      state = state.copyWith(
+        users: users,
+        filteredUsers: _filterUsers(users, state.searchQuery, state.userFilter),
+        successMessage: 'User deleted.',
+      );
+    } catch (_) {
+      state = state.copyWith(errorMessage: 'Unable to delete user.');
+    }
   }
 
   void clearMessages() {
@@ -486,7 +499,9 @@ class ProfileController extends StateNotifier<ProfileState> {
           user.roleName == 'Farm Planting Manager',
         ProfileUserFilter.inventoryManager =>
           user.roleName == 'Farm Inventory Manager',
-        ProfileUserFilter.farmStaff => user.roleName == 'Farm Staff',
+        ProfileUserFilter.farmStaff =>
+          user.roleName == 'Planting Staff' ||
+              user.roleName == 'Inventory Staff',
       };
 
       return matchesSearch && matchesFilter;

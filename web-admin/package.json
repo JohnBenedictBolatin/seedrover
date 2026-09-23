@@ -2,11 +2,16 @@
   "name": "web-admin",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "verify": "npm run lint && npm run build",
+    "check:tracked-secrets": "node scripts/check-tracked-secrets.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.1",

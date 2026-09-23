@@ -6,6 +6,7 @@ class AppEnvironment {
     required this.supabaseAnonKey,
     required this.roverToken,
     required this.roverBaseUrl,
+    required this.cameraBaseUrl,
   });
 
   factory AppEnvironment.fromDotEnv(Map<String, String> values) {
@@ -27,6 +28,7 @@ class AppEnvironment {
       supabaseAnonKey: supabaseAnonKey,
       roverToken: values['ROVER_TOKEN']?.trim() ?? '',
       roverBaseUrl: values['ROVER_BASE_URL']?.trim() ?? '',
+      cameraBaseUrl: values['CAMERA_BASE_URL']?.trim() ?? '',
     );
   }
 
@@ -34,6 +36,7 @@ class AppEnvironment {
   final String supabaseAnonKey;
   final String roverToken;
   final String roverBaseUrl;
+  final String cameraBaseUrl;
 }
 
 class AppEnvironmentException implements Exception {

@@ -84,47 +84,6 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
     return null;
   }
 
-  Future<void> createCrop(CropModel crop) async {
-    try {
-      final createdCrop = await _repository.createCrop(crop);
-      _setCrops(
-        [createdCrop, ...state.crops],
-        successMessage: 'Crop created.',
-        isLoading: false,
-      );
-    } catch (error) {
-      state = state.copyWith(
-        errorMessage: _friendlyError(error, fallback: 'Unable to create crop.'),
-      );
-    }
-  }
-
-  Future<bool> createManualCrop({
-    required String profileKey,
-    required String fieldLabel,
-    required double fieldAreaM2,
-    required DateTime plantingDate,
-    required String reason,
-  }) async {
-    try {
-      final crop = await _repository.createManualCrop(
-        profileKey: profileKey,
-        fieldLabel: fieldLabel,
-        fieldAreaM2: fieldAreaM2,
-        plantingDate: plantingDate,
-        reason: reason,
-      );
-      _setCrops([crop, ...state.crops],
-          successMessage: 'Manual crop added.', isLoading: false);
-      return true;
-    } catch (error) {
-      state = state.copyWith(
-          errorMessage:
-              _friendlyError(error, fallback: 'Unable to add manual crop.'));
-      return false;
-    }
-  }
-
   Future<bool> waterCrop({
     required String cropId,
     required String notes,
@@ -177,19 +136,54 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
     );
   }
 
-  Future<bool> harvestCrop(String cropId) async {
+  Future<bool> harvestCrop({
+    required String cropId,
+    required double quantity,
+    required String unit,
+    required String notes,
+  }) async {
+    if (quantity <= 0 || unit.trim().isEmpty) {
+      state = state.copyWith(
+        errorMessage: 'Enter a harvested quantity greater than zero.',
+      );
+      return false;
+    }
     final now = DateTime.now();
 
     return _addMaintenance(
       cropId: cropId,
       activity: CropMaintenanceActivity.harvested,
       date: now,
-      notes: 'Crop marked as harvested.',
-      successMessage: 'Crop marked as harvested.',
+      notes: notes.trim().isEmpty ? 'Crop marked as harvested.' : notes.trim(),
+      quantity: quantity,
+      unit: unit.trim(),
+      successMessage: 'Harvest added to inventory and crop history.',
       status: CropStatus.harvested,
       growthStage: CropGrowthStage.harvested,
       progress: 1,
       harvestDate: now,
+    );
+  }
+
+  Future<bool> markCropNotHarvested({
+    required String cropId,
+    required String reason,
+  }) async {
+    if (reason.trim().isEmpty) {
+      state = state.copyWith(
+        errorMessage: 'Add a reason the crop could not be harvested.',
+      );
+      return false;
+    }
+
+    return _addMaintenance(
+      cropId: cropId,
+      activity: CropMaintenanceActivity.notHarvested,
+      date: DateTime.now(),
+      notes: reason.trim(),
+      successMessage: 'Crop marked as not harvested.',
+      status: CropStatus.notHarvested,
+      progress: 1,
     );
   }
 
@@ -323,14 +317,14 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
       final matchesHarvestDate = selectedHarvestDate == null ||
           _sameDate(crop.estimatedHarvest, selectedHarvestDate);
       final matchesFilter = switch (selectedFilter) {
-        CropFilterType.all => true,
+        CropFilterType.all => !crop.isCompleted,
         CropFilterType.healthy => crop.status == CropStatus.healthy,
         CropFilterType.needsWater => crop.status == CropStatus.needsWater,
         CropFilterType.needsFertilizer =>
           crop.status == CropStatus.needsFertilizer,
         CropFilterType.readyForHarvest =>
           crop.status == CropStatus.readyForHarvest,
-        CropFilterType.harvested => crop.status == CropStatus.harvested,
+        CropFilterType.harvested => crop.isCompleted,
       };
       final matchesGrowthStage = selectedGrowthStage == null ||
           crop.growthStage == selectedGrowthStage;

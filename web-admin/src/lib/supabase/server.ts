@@ -14,7 +14,9 @@ function getSessionCookieOptions<T extends { maxAge?: unknown; expires?: unknown
     return options;
   }
 
-  const { maxAge: _maxAge, expires: _expires, ...sessionOptions } = options;
+  const sessionOptions = { ...options };
+  delete sessionOptions.maxAge;
+  delete sessionOptions.expires;
   return sessionOptions;
 }
 

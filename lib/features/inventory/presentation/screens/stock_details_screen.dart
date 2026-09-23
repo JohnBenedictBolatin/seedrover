@@ -496,7 +496,7 @@ class StockDetailsScreen extends ConsumerWidget {
     required bool canEditPricing,
   }) {
     final nameController = TextEditingController(text: stock.name);
-    final unitController = TextEditingController(text: stock.unit);
+    final unitController = TextEditingController(text: 'kg');
     final minimumController = TextEditingController(
       text: _formatQuantity(stock.minimumStockLevel),
     );
@@ -543,6 +543,7 @@ class StockDetailsScreen extends ConsumerWidget {
                   ),
                   TextField(
                     controller: unitController,
+                    readOnly: true,
                     decoration: const InputDecoration(labelText: 'Unit'),
                   ),
                   _quantityField(minimumController, 'Minimum Stock Level'),
@@ -644,7 +645,7 @@ class StockDetailsScreen extends ConsumerWidget {
                     final updatedStock = stock.copyWith(
                       name: nameController.text,
                       category: category,
-                      unit: unitController.text,
+                      unit: 'kg',
                       minimumStockLevel: minimum,
                       unitCost: canEditPricing ? unitCost : stock.unitCost,
                       sellingPrice:

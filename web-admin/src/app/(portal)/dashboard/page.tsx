@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { LiveDateTime } from "@/components/live-date-time";
+import { ModuleHeaderIntro } from "@/components/module-header-intro";
 import { OperationsDashboardWorkspace } from "@/components/operations-dashboard-workspace";
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { getOperationsDashboard, normalizeDashboardRange } from "@/lib/dashboard";
@@ -16,6 +17,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     redirect("/login");
   }
 
+  if (["Farm Planting Manager", "Planting Staff"].includes(profile.roleName)) {
+    redirect("/crops");
+  }
+
   const params = await searchParams;
   const range = normalizeDashboardRange(params?.range);
   const data = await getOperationsDashboard(range);
@@ -23,11 +28,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <div>
-          <p className={styles.eyebrow}>Overview</p>
-          <h1>Operations Dashboard</h1>
-          <p>Sales, inventory, crops, customers, and rover status.</p>
-        </div>
+          <ModuleHeaderIntro mascot="dashboard">
+            <p className={styles.eyebrow}>Overview</p>
+            <h1>Operations Dashboard</h1>
+            <p>Sales, inventory, crops, customers, and rover status.</p>
+          </ModuleHeaderIntro>
         <div className={styles.liveDateTime}>
           <LiveDateTime />
         </div>
@@ -40,7 +45,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         </section>
       ) : null}
 
-      <OperationsDashboardWorkspace data={data} />
+      <OperationsDashboardWorkspace
+        canViewInvestments={profile.roleName === "System Administrator"}
+        isInventoryManager={["Farm Inventory Manager", "Inventory Staff"].includes(profile.roleName)}
+        data={data}
+      />
     </div>
   );
 }

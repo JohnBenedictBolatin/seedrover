@@ -1,5 +1,13 @@
 import { getRoverMonitor } from "@/lib/rover";
+import { INVENTORY_UNIT } from "@/lib/inventory";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  calculateRecoveryProjection,
+  calculateRoiBreakdown,
+  getRecoveryTargetForPeriod,
+  isCapitalInvestmentType,
+  isOperatingExpenseType,
+} from "@/lib/finance";
 
 export type DashboardRange = "day" | "week" | "month" | "year";
 
@@ -17,11 +25,13 @@ export type StockMovementPoint = {
 
 export type DashboardActivity = {
   id: string;
+  action: string;
   label: string;
   detail: string;
+  metadata: string[];
   value: string;
   createdAt: string;
-  type: "sale" | "stock";
+  type: "sale" | "stock-in" | "stock-out" | "stock-adjustment";
 };
 
 export type DashboardRiskItem = {
@@ -42,6 +52,14 @@ export type OperationsDashboardData = {
     inventoryValue: number;
     estimatedSalesValue: number;
     investmentInRange: number;
+    capitalInvestmentInRange: number;
+    averageDailySales: number;
+    projectedAnnualSales: number;
+    recoveryRate: number;
+    recoveryStatus: "no-baseline" | "recovered" | "on-track" | "behind";
+    requiredDailySales: number;
+    requiredPeriodSales: number;
+    totalCapitalInvestment: number;
     roi: number;
     lowStockItems: number;
     outOfStockItems: number;
@@ -92,8 +110,10 @@ type SalesOrderRow = {
   payment_method: string;
   total_amount: number | string;
   status: string;
+  recorder?: { full_name: string | null } | { full_name: string | null }[] | null;
   sales_order_items?: Array<{
     item_name_snapshot: string;
+    unit_snapshot: string | null;
     quantity_sold: number | string;
     line_total: number | string;
     inventory?: { category: string | null } | { category: string | null }[] | null;
@@ -108,12 +128,15 @@ type MarketSaleRow = {
   quantity_sold: number | string;
   total_amount: number | string;
   status: string;
+  recorder?: { full_name: string | null } | { full_name: string | null }[] | null;
   inventory: {
     item_name: string;
     category: string | null;
+    unit: string;
   } | {
     item_name: string;
     category: string | null;
+    unit: string;
   }[] | null;
 };
 
@@ -124,6 +147,7 @@ type TransactionRow = {
   remarks: string | null;
   source: string | null;
   created_at: string;
+  performer?: { full_name: string | null } | { full_name: string | null }[] | null;
   inventory: {
     item_name: string;
     unit: string;
@@ -138,7 +162,11 @@ type CropRow = {
   growth_stage: string;
 };
 
-type ExpenseRow = { amount: number | string; expense_date: string };
+type ExpenseRow = {
+  amount: number | string;
+  expense_date: string;
+  expense_type?: string | null;
+};
 
 function toNumber(value: number | string | null | undefined) {
   if (typeof value === "number") {
@@ -156,6 +184,47 @@ function isMissingPaymentMethodColumn(error: { message?: string } | null | undef
   return error?.message?.includes("sales_transactions.payment_method") ?? false;
 }
 
+function isMissingExpenseTypeColumn(error: { message?: string } | null | undefined) {
+  return error?.message?.includes("farm_expenses.expense_type") ?? false;
+}
+
+function orderItemSummary(items: SalesOrderRow["sales_order_items"]) {
+  const saleItems = items ?? [];
+
+  if (saleItems.length === 0) {
+    return "Sale items not available";
+  }
+
+  const firstItem = saleItems[0];
+  const quantity = toNumber(firstItem.quantity_sold);
+  const unit = INVENTORY_UNIT;
+  const firstSummary = `${quantity}${unit ? ` ${unit}` : ""} ${firstItem.item_name_snapshot}`;
+
+  return saleItems.length === 1
+    ? firstSummary
+    : `${firstSummary} + ${saleItems.length - 1} more ${saleItems.length === 2 ? "item" : "items"}`;
+}
+
+function stockActivityDescription(transaction: TransactionRow) {
+  if (transaction.source === "void_sale") {
+    return "Stock restored after a sale was voided";
+  }
+
+  if (transaction.source === "harvest") {
+    return "Harvest quantity added to available stock";
+  }
+
+  if (transaction.transaction_type === "IN") {
+    return "Stock added manually";
+  }
+
+  if (transaction.transaction_type === "OUT") {
+    return "Stock removed manually";
+  }
+
+  return "Available quantity was corrected";
+}
+
 export function normalizeDashboardRange(value: string | string[] | undefined): DashboardRange {
   const range = Array.isArray(value) ? value[0] : value;
 
@@ -166,7 +235,7 @@ export function normalizeDashboardRange(value: string | string[] | undefined): D
   return "month";
 }
 
-function rangeStart(range: DashboardRange) {
+export function getDashboardRangeStart(range: DashboardRange) {
   const date = new Date();
 
   if (range === "day") {
@@ -262,6 +331,14 @@ function emptyData(range: DashboardRange, error: string | null): OperationsDashb
       inventoryValue: 0,
       estimatedSalesValue: 0,
       investmentInRange: 0,
+      capitalInvestmentInRange: 0,
+      averageDailySales: 0,
+      projectedAnnualSales: 0,
+      recoveryRate: 0,
+      recoveryStatus: "no-baseline",
+      requiredDailySales: 0,
+      requiredPeriodSales: 0,
+      totalCapitalInvestment: 0,
       roi: 0,
       lowStockItems: 0,
       outOfStockItems: 0,
@@ -301,8 +378,30 @@ export async function getOperationsDashboard(range: DashboardRange) {
     return emptyData(range, "Supabase is not configured.");
   }
 
-  const start = rangeStart(range);
+  const start = getDashboardRangeStart(range);
   const startIso = start.toISOString();
+  const startDate = startIso.slice(0, 10);
+  const expensesResultWithType = await supabase
+    .from("farm_expenses")
+    .select("amount, expense_date, expense_type")
+    .order("expense_date", { ascending: true })
+    .returns<ExpenseRow[]>();
+  const expensesResult = isMissingExpenseTypeColumn(expensesResultWithType.error)
+    ? await supabase
+        .from("farm_expenses")
+        .select("amount, expense_date")
+        .order("expense_date", { ascending: true })
+        .returns<ExpenseRow[]>()
+    : expensesResultWithType;
+  const expenseRows = expensesResult.error ? [] : expensesResult.data ?? [];
+  const capitalExpenseRows = expenseRows.filter((expense) => isCapitalInvestmentType(expense.expense_type));
+  const totalCapitalInvestment = capitalExpenseRows.reduce((total, row) => total + toNumber(row.amount), 0);
+  const investmentStartDate = capitalExpenseRows[0]?.expense_date ?? null;
+  const investmentStartIso = investmentStartDate ? `${investmentStartDate}T00:00:00.000Z` : startIso;
+  const salesStartIso = new Date(investmentStartIso).getTime() < start.getTime() ? investmentStartIso : startIso;
+  const investmentInRange = expenseRows
+    .filter((expense) => expense.expense_date >= startDate)
+    .reduce((total, row) => total + toNumber(row.amount), 0);
 
   const [
     inventoryResult,
@@ -310,7 +409,6 @@ export async function getOperationsDashboard(range: DashboardRange) {
     ordersResult,
     marketResultWithPayment,
     cropsResult,
-    expensesResult,
     roverResult,
   ] = await Promise.all([
     supabase
@@ -320,7 +418,7 @@ export async function getOperationsDashboard(range: DashboardRange) {
       .returns<InventoryRow[]>(),
     supabase
       .from("inventory_transactions")
-      .select("id, transaction_type, quantity, remarks, source, created_at, inventory(item_name, unit)")
+      .select("id, transaction_type, quantity, remarks, source, created_at, inventory(item_name, unit), performer:profiles!inventory_transactions_performed_by_fkey(full_name)")
       .gte("created_at", startIso)
       .order("created_at", { ascending: false })
       .limit(160)
@@ -328,38 +426,33 @@ export async function getOperationsDashboard(range: DashboardRange) {
     supabase
       .from("sales_orders")
       .select(
-        "id, receipt_number, sale_date, customer_name, payment_method, total_amount, status, sales_order_items(item_name_snapshot, quantity_sold, line_total, inventory(category))",
+        "id, receipt_number, sale_date, customer_name, payment_method, total_amount, status, recorder:profiles!sales_orders_recorded_by_fkey(full_name), sales_order_items(item_name_snapshot, unit_snapshot, quantity_sold, line_total, inventory(category))",
       )
-      .gte("sale_date", startIso)
+      .gte("sale_date", salesStartIso)
       .order("sale_date", { ascending: false })
-      .limit(180)
+      .limit(1000)
       .returns<SalesOrderRow[]>(),
     supabase
       .from("sales_transactions")
-      .select("id, sale_date, customer_name, payment_method, quantity_sold, total_amount, status, inventory(item_name, category)")
-      .gte("sale_date", startIso)
+      .select("id, sale_date, customer_name, payment_method, quantity_sold, total_amount, status, recorder:profiles!sales_transactions_recorded_by_fkey(full_name), inventory(item_name, category, unit)")
+      .gte("sale_date", salesStartIso)
       .order("sale_date", { ascending: false })
-      .limit(180)
+      .limit(1000)
       .returns<MarketSaleRow[]>(),
     supabase
       .from("crops")
       .select("crop_status, growth_stage")
       .returns<CropRow[]>(),
-    supabase
-      .from("farm_expenses")
-      .select("amount, expense_date")
-      .gte("expense_date", start.toISOString().slice(0, 10))
-      .returns<ExpenseRow[]>(),
     getRoverMonitor(),
   ]);
 
   const marketResult = isMissingPaymentMethodColumn(marketResultWithPayment.error)
     ? await supabase
         .from("sales_transactions")
-        .select("id, sale_date, customer_name, quantity_sold, total_amount, status, inventory(item_name, category)")
-        .gte("sale_date", startIso)
+        .select("id, sale_date, customer_name, quantity_sold, total_amount, status, recorder:profiles!sales_transactions_recorded_by_fkey(full_name), inventory(item_name, category, unit)")
+        .gte("sale_date", salesStartIso)
         .order("sale_date", { ascending: false })
-        .limit(180)
+        .limit(1000)
         .returns<MarketSaleRow[]>()
     : marketResultWithPayment;
 
@@ -372,9 +465,6 @@ export async function getOperationsDashboard(range: DashboardRange) {
   const marketRows = marketResult.error ? [] : marketResult.data ?? [];
   const transactionRows = transactionsResult.error ? [] : transactionsResult.data ?? [];
   const cropRows = cropsResult.error ? [] : cropsResult.data ?? [];
-  const investmentInRange = expensesResult.error
-    ? 0
-    : (expensesResult.data ?? []).reduce((total, row) => total + toNumber(row.amount), 0);
 
   const stockValueByCategory = new Map<string, number>();
   const lowStock: DashboardRiskItem[] = [];
@@ -399,7 +489,7 @@ export async function getOperationsDashboard(range: DashboardRange) {
         itemName: row.item_name,
         category,
         quantity,
-        unit: row.unit,
+        unit: INVENTORY_UNIT,
         status,
       });
     }
@@ -411,6 +501,7 @@ export async function getOperationsDashboard(range: DashboardRange) {
   const topItems = new Map<string, number>();
   const customers = new Set<string>();
   let salesInRange = 0;
+  let recoveredSales = 0;
   let transactionsInRange = 0;
 
   const recentActivity: DashboardActivity[] = [];
@@ -422,6 +513,14 @@ export async function getOperationsDashboard(range: DashboardRange) {
 
     const total = toNumber(order.total_amount);
     const items = order.sales_order_items ?? [];
+
+    if (investmentStartDate && new Date(order.sale_date).getTime() >= new Date(investmentStartIso).getTime()) {
+      recoveredSales += total;
+    }
+
+    if (new Date(order.sale_date).getTime() < start.getTime()) {
+      continue;
+    }
 
     salesInRange += total;
     transactionsInRange += 1;
@@ -435,15 +534,21 @@ export async function getOperationsDashboard(range: DashboardRange) {
 
     recentActivity.push({
       id: order.id,
+      action: "Sale completed",
       label: order.receipt_number,
-      detail: order.customer_name ?? "Walk-in customer",
+      detail: orderItemSummary(items),
+      metadata: [
+        order.customer_name ?? "Walk-in customer",
+        order.payment_method || "Payment not recorded",
+        `Recorded by ${firstRelation(order.recorder)?.full_name ?? "Unknown user"}`,
+      ],
       value: total.toString(),
       createdAt: order.sale_date,
       type: "sale",
     });
 
     for (const item of items) {
-      const category = firstRelation(item.inventory)?.category ?? "Uncategorized";
+      const category = firstRelation(item.inventory)?.category?.trim() || "Uncategorized";
       const lineTotal = toNumber(item.line_total);
       addToMap(salesByCategory, category, lineTotal);
       addToMap(topItems, item.item_name_snapshot, toNumber(item.quantity_sold));
@@ -458,8 +563,16 @@ export async function getOperationsDashboard(range: DashboardRange) {
     const total = toNumber(sale.total_amount);
     const inventory = firstRelation(sale.inventory);
     const itemName = inventory?.item_name ?? "Market distribution";
-    const category = inventory?.category ?? "Market Distribution";
+    const category = inventory?.category?.trim() || "Uncategorized";
     const paymentMethod = sale.payment_method ?? "Not recorded";
+
+    if (investmentStartDate && new Date(sale.sale_date).getTime() >= new Date(investmentStartIso).getTime()) {
+      recoveredSales += total;
+    }
+
+    if (new Date(sale.sale_date).getTime() < start.getTime()) {
+      continue;
+    }
 
     salesInRange += total;
     transactionsInRange += 1;
@@ -475,8 +588,14 @@ export async function getOperationsDashboard(range: DashboardRange) {
 
     recentActivity.push({
       id: sale.id,
+      action: "Sale completed",
       label: `SR-${sale.id.slice(0, 8).toUpperCase()}`,
-      detail: sale.customer_name ?? "Market distribution",
+      detail: `Sold ${toNumber(sale.quantity_sold)} ${INVENTORY_UNIT} of ${itemName}`,
+      metadata: [
+        sale.customer_name ?? "Walk-in customer",
+        paymentMethod,
+        `Recorded by ${firstRelation(sale.recorder)?.full_name ?? "Unknown user"}`,
+      ],
       value: total.toString(),
       createdAt: sale.sale_date,
       type: "sale",
@@ -505,14 +624,37 @@ export async function getOperationsDashboard(range: DashboardRange) {
 
     stockMovementMap.set(label, current);
 
+    if (transaction.source === "sale") {
+      continue;
+    }
+
     const item = firstRelation(transaction.inventory);
+    const performer = firstRelation(transaction.performer)?.full_name ?? "Unknown user";
+    const sourceLabel = transaction.source === "void_sale"
+      ? "Voided sale"
+      : transaction.source === "harvest"
+        ? "Crop harvest"
+        : "Manual entry";
+    const type = transaction.transaction_type === "IN"
+      ? "stock-in"
+      : transaction.transaction_type === "OUT"
+        ? "stock-out"
+        : "stock-adjustment";
+    const value = transaction.transaction_type === "IN"
+      ? `+${quantity} ${INVENTORY_UNIT}`
+      : transaction.transaction_type === "OUT"
+        ? `-${quantity} ${INVENTORY_UNIT}`
+        : `Set to ${quantity} ${INVENTORY_UNIT}`;
+
     recentActivity.push({
       id: transaction.id,
-      label: transaction.transaction_type,
-      detail: `${item?.item_name ?? "Inventory item"} · ${transaction.source ?? "manual"}`,
-      value: `${quantity} ${item?.unit ?? ""}`.trim(),
+      action: stockActivityDescription(transaction),
+      label: item?.item_name ?? "Inventory item",
+      detail: transaction.remarks?.trim() || "No additional notes",
+      metadata: [sourceLabel, `Recorded by ${performer}`],
+      value: value.trim(),
       createdAt: transaction.created_at,
-      type: "stock",
+      type,
     });
   }
 
@@ -527,7 +669,7 @@ export async function getOperationsDashboard(range: DashboardRange) {
         { label: "Soil temp", value: roverResult.sensors.soilTemperature },
         { label: "Humidity", value: roverResult.sensors.humidity },
         { label: "Environment", value: roverResult.sensors.environmentalTemperature },
-      ]
+      ].filter((point): point is DashboardPoint => point.value !== null)
     : [];
 
   const sortedRecentActivity = recentActivity
@@ -539,6 +681,29 @@ export async function getOperationsDashboard(range: DashboardRange) {
   const activeCrops = cropRows.filter((crop) => crop.crop_status === "Active").length;
   const cropsNeedingAttention = cropRows.filter((crop) => crop.crop_status === "Needs Attention").length;
   const outOfStockItems = lowStock.filter((item) => item.status === "Out of Stock").length;
+  const capitalInvestmentInRange = expenseRows
+    .filter((expense) => expense.expense_date >= startDate && isCapitalInvestmentType(expense.expense_type))
+    .reduce((total, expense) => total + toNumber(expense.amount), 0);
+  const operatingExpensesInRange = expenseRows
+    .filter((expense) => expense.expense_date >= startDate && isOperatingExpenseType(expense.expense_type))
+    .reduce((total, expense) => total + toNumber(expense.amount), 0);
+  const operatingExpensesSinceInvestment = investmentStartDate
+    ? expenseRows
+        .filter((expense) => expense.expense_date >= investmentStartDate && isOperatingExpenseType(expense.expense_type))
+        .reduce((total, expense) => total + toNumber(expense.amount), 0)
+    : 0;
+  const roiBreakdown = calculateRoiBreakdown(
+    Math.max(0, salesInRange - operatingExpensesInRange),
+    capitalInvestmentInRange,
+  );
+  const recoveryProjection = calculateRecoveryProjection({
+    periodSales: salesInRange,
+    periodStart: start,
+    recoveredSales: Math.max(0, recoveredSales - operatingExpensesSinceInvestment),
+    totalInvestment: totalCapitalInvestment,
+  });
+  const requiredPeriodSales = getRecoveryTargetForPeriod(recoveryProjection.remainingInvestment, range)
+    + operatingExpensesInRange;
 
   return {
     range,
@@ -549,7 +714,15 @@ export async function getOperationsDashboard(range: DashboardRange) {
       inventoryValue,
       estimatedSalesValue,
       investmentInRange,
-      roi: investmentInRange > 0 ? ((salesInRange - investmentInRange) / investmentInRange) * 100 : 0,
+      capitalInvestmentInRange,
+      averageDailySales: recoveryProjection.averageDailySales,
+      projectedAnnualSales: recoveryProjection.projectedAnnualSales,
+      recoveryRate: recoveryProjection.recoveryRate,
+      recoveryStatus: recoveryProjection.status,
+      requiredDailySales: recoveryProjection.requiredDailySales,
+      requiredPeriodSales,
+      totalCapitalInvestment,
+      roi: roiBreakdown.roi,
       lowStockItems: lowStock.length,
       outOfStockItems,
       totalCustomers: customers.size,

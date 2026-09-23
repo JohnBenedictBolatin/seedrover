@@ -44,7 +44,8 @@ enum StockTransactionType {
   stockIn,
   stockOut,
   adjustment,
-  sale;
+  sale,
+  harvest;
 
   String get label {
     return switch (this) {
@@ -52,6 +53,7 @@ enum StockTransactionType {
       StockTransactionType.stockOut => 'Stock Out',
       StockTransactionType.adjustment => 'Adjustment',
       StockTransactionType.sale => 'Sale',
+      StockTransactionType.harvest => 'Harvest',
     };
   }
 }

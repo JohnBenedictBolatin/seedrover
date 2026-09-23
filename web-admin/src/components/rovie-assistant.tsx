@@ -100,7 +100,7 @@ export function RovieAssistant() {
         type="button"
         onClick={() => setOpen(true)}
       >
-        <img alt="" src="/mascot/rovie-assistant.png" />
+        <img alt="" src="/mascots/assistant.png" />
         <span>Ask Rovie</span>
       </button>
 
@@ -110,7 +110,7 @@ export function RovieAssistant() {
             <header className={styles.header}>
               <div className={styles.titleGroup}>
                 <span className={styles.avatar}>
-                  <img alt="Rovie mascot" src="/mascot/rovie-assistant.png" />
+                  <img alt="Rovie mascot" src="/mascots/assistant.png" />
                 </span>
                 <div>
                   <p>SeedRover assistant</p>
@@ -126,14 +126,14 @@ export function RovieAssistant() {
               {messages.map((message, index) => (
                 <article className={styles.message} data-role={message.role} key={`${message.role}-${index}`}>
                   {message.role === "assistant" ? (
-                    <img alt="" className={styles.messageMascot} src="/mascot/rovie-assistant.png" />
+                    <img alt="" className={styles.messageMascot} src="/mascots/assistant.png" />
                   ) : null}
                   <p>{message.content}</p>
                 </article>
               ))}
               {sending ? (
                 <article className={styles.message} data-role="assistant">
-                  <img alt="" className={styles.messageMascot} src="/mascot/rovie-thinking.png" />
+                  <img alt="" className={styles.messageMascot} src="/mascots/thinking.png" />
                   <p className={styles.typing}>
                     <Loader2 size={15} />
                     Rovie is checking farm data...

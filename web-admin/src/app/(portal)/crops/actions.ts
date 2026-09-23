@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdminRole } from "@/lib/auth";
 import { NOT_HARVESTED_CAUSES, OTHER_NOT_HARVESTED_CAUSE } from "@/lib/crop-outcome-causes";
 import type { CropActivityRecord, CropSensorReading } from "@/lib/crops";
+import { INVENTORY_UNIT } from "@/lib/inventory";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const CROP_IMAGE_BUCKET = "crop-images";
@@ -42,21 +43,6 @@ function text(formData: FormData, key: string, fallback = "") {
 function numberValue(formData: FormData, key: string, fallback = 0) {
   const value = Number(formData.get(key) ?? fallback);
   return Number.isFinite(value) ? value : fallback;
-}
-
-function localDateInputValue() {
-  const date = new Date();
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-async function userId() {
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) return null;
-  const { data } = await supabase.auth.getUser();
-  return data.user?.id ?? null;
 }
 
 async function logCropActivity(
@@ -132,51 +118,6 @@ async function uploadCropImage(cropId: string, file: FormDataEntryValue | null) 
   return path;
 }
 
-export async function createCropAction(formData: FormData) {
-  const profile = await requireAdminRole(["Farm Planting Manager"]);
-
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) throw new Error("Supabase is not configured.");
-  const name = text(formData, "crop_name");
-  if (!name) throw new Error("Crop name is required.");
-  const manualReason = text(formData, "manual_creation_reason");
-  if (!manualReason) throw new Error("Explain why this crop was added without a rover planting receipt.");
-  const plantingDate = text(formData, "planting_date", localDateInputValue());
-  const estimatedHarvest = text(formData, "estimated_harvest");
-
-  if (estimatedHarvest && estimatedHarvest < plantingDate) {
-    throw new Error("Estimated harvest cannot be before the planting date.");
-  }
-
-  const id = randomUUID();
-  const imagePath = await uploadCropImage(id, formData.get("image"));
-
-  const { error } = await supabase.from("crops").insert({
-    id,
-    crop_name: name,
-    assigned_manager: await userId(),
-    planting_date: plantingDate,
-    estimated_harvest: estimatedHarvest || null,
-    growth_stage: text(formData, "growth_stage", "Seeded"),
-    crop_status: "Active",
-    planting_source: "Manual",
-    manual_creation_reason: manualReason,
-    field_label: text(formData, "field_label") || null,
-    field_area_m2: numberValue(formData, "field_area_m2") || null,
-    propagation_method: text(formData, "propagation_method", "Direct seed"),
-    crop_profile_key: text(formData, "crop_profile_key") || null,
-    maintenance_notes: text(formData, "maintenance_notes") || null,
-    ...(imagePath ? { image_path: imagePath } : {}),
-  }).select("id").single();
-  if (error) throw new Error(error.message);
-  await logCropActivity(
-    profile.id,
-    "Crop record created",
-    `${profile.fullName} created the crop record for ${name}.`,
-  );
-  revalidatePath("/crops");
-}
-
 export async function updateCropAction(formData: FormData) {
   const profile = await requireAdminRole(["System Administrator", "Farm Planting Manager"]);
 
@@ -239,7 +180,7 @@ export async function cropMaintenanceAction(formData: FormData) {
     p_activity_type: activity,
     p_performed_at: new Date().toISOString(),
     p_quantity: quantity || null,
-    p_unit: text(formData, "unit") || null,
+    p_unit: activity === "Harvested" ? INVENTORY_UNIT : text(formData, "unit") || null,
     p_material: text(formData, "material") || null,
     p_notes: note,
     p_observed_stage: text(formData, "observed_stage") || null,
@@ -275,7 +216,7 @@ export async function refreshCropWeatherAction() {
   const supabase = await createSupabaseServerClient();
   if (!supabase) throw new Error("Supabase is not configured.");
 
-  const { error } = await supabase.functions.invoke("crop-monitor", { body: {} });
+  const { error } = await supabase.functions.invoke("crop-monitor", { body: { weatherOnly: true } });
   if (error) throw new Error(error.message);
 
   revalidatePath("/crops");
@@ -356,7 +297,7 @@ export async function getCropActivityHistoryAction(cropId: string) {
       performedAt: activity.performed_at,
       performedBy: performer?.full_name ?? (activity.source === "Rover" ? "SeedRover" : "Unknown user"),
       quantity: activity.quantity === null ? null : Number(activity.quantity),
-      unit: activity.unit,
+      unit: activity.activity_type === "Harvested" ? INVENTORY_UNIT : activity.unit,
       material: activity.material,
       notes: activity.notes,
       observedStage: activity.observed_stage,

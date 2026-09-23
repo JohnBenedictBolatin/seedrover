@@ -10,14 +10,13 @@ import {
   ChevronLeft,
   ChevronRight,
   CloudRain,
-  CloudSun,
+  Cloud,
   Database,
   Droplets,
   Edit3,
   Filter,
   History,
   Leaf,
-  Plus,
   Search,
   SlidersHorizontal,
   Sprout,
@@ -34,7 +33,6 @@ import { CalendarField } from "@/components/calendar-field";
 import { FileUploadField } from "@/components/file-upload-field";
 import { NOT_HARVESTED_CAUSES, OTHER_NOT_HARVESTED_CAUSE } from "@/lib/crop-outcome-causes";
 import {
-  createCropAction,
   cropMaintenanceAction,
   getCropActivityHistoryAction,
   getCropSensorHistoryAction,
@@ -66,24 +64,19 @@ const stageInputOptions = [
   "Repeated Harvest",
   "Completed",
 ];
-const statuses = ["All", "Active", "Needs Attention", "Harvest Ready", "Completed", "Not Harvested"];
-const statusInputOptions = statuses.slice(1).filter((status) => status !== "Not Harvested");
+
+const WEATHER_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+const WEATHER_REFRESH_CHECK_INTERVAL_MS = 60 * 1000;
+const WEATHER_REFRESH_RETRY_COOLDOWN_MS = 60 * 1000;
+const statuses = ["All", "Active", "Needs Attention", "Harvest Ready"];
+const statusInputOptions = ["Active", "Needs Attention", "Harvest Ready"];
 const sortOptions = ["Newest", "Name", "Harvest Soon"];
 
 function displayCropStatus(status: string) {
   return status === "Cancelled" ? "Not Harvested" : status;
 }
 
-function localDateInputValue() {
-  const date = new Date();
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 type ModalState =
-  | { type: "add" }
   | { type: "details"; crop: CropItem }
   | { type: "activity"; crop: CropItem }
   | { type: "activities"; crop: CropItem }
@@ -96,13 +89,11 @@ type ModalState =
 export function CropsWorkspace({
   crops,
   weather,
-  canAddManualCrop,
   outcomes,
   outcomesError,
 }: {
   crops: CropItem[];
   weather: CropWeatherStatus | null;
-  canAddManualCrop: boolean;
   outcomes: CropOutcome[];
   outcomesError: string | null;
 }) {
@@ -112,7 +103,8 @@ export function CropsWorkspace({
   const [modal, setModal] = useState<ModalState>(null);
   const [alerts, setAlerts] = useState<ActionAlert[]>([]);
   const [, startWeatherRefresh] = useTransition();
-  const attemptedWeatherRefresh = useRef(false);
+  const weatherRefreshInFlight = useRef(false);
+  const lastWeatherRefreshAttempt = useRef(0);
   const router = useRouter();
 
   function notify(tone: AlertTone, text: string) {
@@ -124,20 +116,41 @@ export function CropsWorkspace({
   }
 
   useEffect(() => {
-    const fetchedAt = weather?.fetchedAt ? new Date(weather.fetchedAt).getTime() : 0;
-    const weatherIsStale = weather?.needsRefresh || !fetchedAt || Date.now() - fetchedAt >= 60 * 60 * 1000;
-    if (attemptedWeatherRefresh.current || !weatherIsStale) {
-      return;
-    }
-    attemptedWeatherRefresh.current = true;
-    startWeatherRefresh(async () => {
-      try {
-        await refreshCropWeatherAction();
-        router.refresh();
-      } catch (error) {
-        notify("error", `Weather update failed - ${error instanceof Error ? error.message : "Try again later."}`);
+    let active = true;
+
+    const refreshWeatherIfStale = () => {
+      const fetchedAt = weather?.fetchedAt ? new Date(weather.fetchedAt).getTime() : 0;
+      const weatherIsStale = weather?.needsRefresh || !fetchedAt || Date.now() - fetchedAt >= WEATHER_REFRESH_INTERVAL_MS;
+      const retryAllowed = Date.now() - lastWeatherRefreshAttempt.current >= WEATHER_REFRESH_RETRY_COOLDOWN_MS;
+      if (!active || !weatherIsStale || weatherRefreshInFlight.current || !retryAllowed) {
+        return;
       }
-    });
+
+      weatherRefreshInFlight.current = true;
+      lastWeatherRefreshAttempt.current = Date.now();
+      startWeatherRefresh(async () => {
+        try {
+          await refreshCropWeatherAction();
+          if (active) router.refresh();
+        } catch (error) {
+          if (active) {
+            notify("error", `Weather update failed - ${error instanceof Error ? error.message : "Try again later."}`);
+          }
+        } finally {
+          weatherRefreshInFlight.current = false;
+        }
+      });
+    };
+
+    refreshWeatherIfStale();
+    const intervalId = window.setInterval(refreshWeatherIfStale, WEATHER_REFRESH_CHECK_INTERVAL_MS);
+    window.addEventListener("focus", refreshWeatherIfStale);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshWeatherIfStale);
+    };
   }, [router, weather?.fetchedAt, weather?.needsRefresh]);
 
   const filteredCrops = useMemo(() => {
@@ -149,7 +162,9 @@ export function CropsWorkspace({
 
         return (
           (normalizedQuery.length === 0 || haystack.includes(normalizedQuery)) &&
-          (status === "All" || displayCropStatus(crop.cropStatus) === status)
+          (status === "All"
+            ? !["Completed", "Not Harvested"].includes(displayCropStatus(crop.cropStatus))
+            : displayCropStatus(crop.cropStatus) === status)
         );
       })
       .sort((left, right) => {
@@ -174,26 +189,28 @@ export function CropsWorkspace({
     }, {});
   }, [filteredCrops]);
 
+  const condition = weather?.currentCondition?.toLowerCase() ?? "";
+  const rainyWeather = /rain|storm|shower|drizzle|thunder/.test(condition) || (weather?.rainChancePercent ?? 0) >= 60;
+  const sunnyWeather = /sunny|clear|sun/.test(condition) && !rainyWeather;
+  const weatherTone = rainyWeather ? styles.weatherRainy : sunnyWeather ? styles.weatherSunny : styles.weatherCloudy;
+  const WeatherIcon = rainyWeather ? CloudRain : sunnyWeather ? Sun : Cloud;
+
   return (
     <>
-      <section className={styles.weatherStrip} aria-label="Weather and field status">
-        <div><CloudSun size={20} /><span>Weather now</span><strong>{weather?.currentCondition ?? "Loading weather"}{weather?.temperatureC == null ? "" : ` · ${weather.temperatureC.toFixed(1)}°C`}</strong></div>
-        <div><Droplets size={20} /><span>Rain chance</span><strong>{weather?.rainChancePercent == null ? "--" : `${Math.round(weather.rainChancePercent)}% in the next 24 hours`}</strong></div>
-        <div><CloudRain size={20} /><span>Next rain</span><strong>{weather?.nextRainWindow ? formatDateTime(weather.nextRainWindow) : "No rain expected in 24 hours"}</strong></div>
+      <section className={`${styles.weatherStrip} ${weatherTone}`} aria-label="Estimated and forecasted weather">
+        <div className={styles.weatherCard}><WeatherIcon size={24} /><span>Estimated weather now</span><strong>{weather?.currentCondition ?? "Weather unavailable"}{weather?.temperatureC == null ? "" : ` · ${weather.temperatureC.toFixed(1)}°C`}</strong></div>
+        <div className={styles.weatherCard}><Droplets size={24} /><span>Forecasted rain chance</span><strong>{weather?.rainChancePercent == null ? "Unavailable" : `${Math.round(weather.rainChancePercent)}% in the next 24 hours`}</strong></div>
+        <div className={styles.weatherCard}><WeatherIcon size={24} /><span>Forecasted next rain</span><strong>{weather?.nextRainWindow ? formatDateTime(weather.nextRainWindow) : "No rain expected in 24 hours"}</strong></div>
       </section>
       <section className={quickActionStyles.quickActions}>
         <div>
           <p className={quickActionStyles.eyebrow}>Quick action</p>
           <h2>Crop records</h2>
-          <span>Add an authorized manual crop or review completed and failed crops.</span>
+          <span>Review rover-created crop records, including completed and failed crops.</span>
         </div>
         <div className={styles.cropQuickActions}>
-          {canAddManualCrop ? <button className={`${quickActionStyles.recordSaleButton} ${styles.manualCropButton}`} type="button" onClick={() => setModal({ type: "add" })}>
-            <span className={`${quickActionStyles.recordSaleText} ${styles.pastCropsButtonText}`}>ADD MANUAL CROP</span>
-            <span className={quickActionStyles.recordSaleIcon} aria-hidden="true"><Plus size={20} /></span>
-          </button> : null}
           <button className={`${quickActionStyles.recordSaleButton} ${styles.pastCropsButton}`} type="button" onClick={() => setModal({ type: "outcomes" })}>
-            <span className={`${quickActionStyles.recordSaleText} ${styles.pastCropsButtonText}`}>VIEW PAST CROPS</span>
+            <span className={`${quickActionStyles.recordSaleText} ${styles.pastCropsButtonText}`}>VIEW CROP HISTORY</span>
             <span className={quickActionStyles.recordSaleIcon} aria-hidden="true"><History size={20} /></span>
           </button>
         </div>
@@ -370,14 +387,13 @@ function CropDialog({
   }
 
   const modalMeta = {
-    add: { title: "Add Crop", icon: <Sprout size={18} /> },
     details: { title: "Crop Details", icon: <Leaf size={18} /> },
     activity: { title: "Record Crop Activity", icon: <ClipboardCheck size={18} /> },
     activities: { title: "Crop Activity History", icon: <History size={18} /> },
     sensors: { title: "Crop Sensor Data", icon: <Database size={18} /> },
     edit: { title: "Edit Crop", icon: <Edit3 size={18} /> },
     "not-harvested": { title: "Mark Not Harvested", icon: <CircleSlash2 size={18} /> },
-    outcomes: { title: "Past Crops", icon: <History size={18} /> },
+    outcomes: { title: "Crop History", icon: <History size={18} /> },
   }[dialog.type];
 
   return (
@@ -420,9 +436,6 @@ function CropDialog({
             crop={dialog.crop}
             onBack={() => onOpen({ type: "details", crop: dialog.crop })}
           />
-        ) : null}
-        {dialog.type === "add" ? (
-          <CropForm action={createCropAction} notify={notify} onSuccess={onClose} successMessage="Success - Crop record added." />
         ) : null}
         {dialog.type === "edit" ? (
           <CropForm
@@ -880,7 +893,7 @@ function CropForm({
   successMessage,
 }: {
   action: (formData: FormData) => void | Promise<void>;
-  crop?: CropItem;
+  crop: CropItem;
   notify: (tone: AlertTone, text: string) => void;
   onSuccess: () => void;
   successMessage: string;
@@ -921,34 +934,20 @@ function CropForm({
   return (
     <>
     <form className={styles.formGrid} onSubmit={handleSubmit}>
-      {crop ? <input name="id" type="hidden" value={crop.id} /> : null}
+      <input name="id" type="hidden" value={crop.id} />
       <Field label="Crop name" name="crop_name" placeholder="e.g. Romaine lettuce" required defaultValue={crop?.cropName} />
-      {!crop ? <>
-        <div className={styles.twoColumn}>
-          <ThemedSelect label="Crop profile" name="crop_profile_key" options={["calamansi", "sitaw", "peanut"]} defaultValue="sitaw" />
-          <Field label="Field or bed" name="field_label" placeholder="e.g. North Field - Row 3" required />
-        </div>
-        <div className={styles.twoColumn}>
-          <Field label="Field area (m²)" min="0" name="field_area_m2" placeholder="e.g. 25" step="0.01" type="number" />
-          <ThemedSelect label="Propagation" name="propagation_method" options={["Direct seed", "Seedbed", "Transplant"]} defaultValue="Direct seed" />
-        </div>
-        <label>
-          <span>Manual creation reason</span>
-          <textarea name="manual_creation_reason" placeholder="e.g. Rover unavailable during nursery sowing" required />
-        </label>
-      </> : null}
       <div className={styles.twoColumn}>
         <CalendarField
           label="Planting date"
           name="planting_date"
           required
-          defaultValue={crop?.plantingDate ?? localDateInputValue()}
+          defaultValue={crop.plantingDate}
         />
         <CalendarField label="Estimated harvest" name="estimated_harvest" defaultValue={crop?.estimatedHarvest ?? ""} />
       </div>
       <div className={styles.twoColumn}>
         <ThemedSelect label="Growth stage" name="growth_stage" options={stageInputOptions} defaultValue={crop?.growthStage ?? "Seeded"} />
-        {crop ? <ThemedSelect label="Status" name="crop_status" options={statusInputOptions} defaultValue={displayCropStatus(crop.cropStatus)} /> : null}
+        <ThemedSelect label="Status" name="crop_status" options={statusInputOptions} defaultValue={displayCropStatus(crop.cropStatus)} />
       </div>
       <label>
         <span>Maintenance notes</span>
@@ -963,7 +962,7 @@ function CropForm({
       />
       <button className={styles.primaryAction} disabled={pending} type="submit">
         <Sprout size={17} />
-        <span>{pending ? "Saving..." : crop ? "Save Changes" : "Save Crop"}</span>
+        <span>{pending ? "Saving..." : "Save Changes"}</span>
       </button>
     </form>
     {confirmationDialog}
@@ -1059,7 +1058,7 @@ function CropOutcomesPanel({
 
   return (
     <div className={styles.outcomesWorkspace}>
-      {error ? <div className={styles.outcomesNotice}><strong>Past crops are unavailable.</strong><span>{error}</span></div> : null}
+      {error ? <div className={styles.outcomesNotice}><strong>Crop history is unavailable.</strong><span>{error}</span></div> : null}
 
       <section className={styles.outcomeSection}>
         <div className={styles.outcomeSectionHeader}><div><span>History</span><h4>Past crop outcomes</h4></div><p>{outcomes.length} record{outcomes.length === 1 ? "" : "s"}</p></div>
@@ -1078,7 +1077,7 @@ function CropOutcomesPanel({
                 <span data-label="Recorded">{formatDateTime(outcome.recordedAt)}</span>
               </div>
             ))}
-            <div className={styles.outcomePagination} aria-label="Past crops pagination">
+            <div className={styles.outcomePagination} aria-label="Crop history pagination">
               <button aria-label="Previous past crops page" disabled={safeCurrentPage === 1} type="button" onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}><ChevronLeft size={17} /></button>
               <div>{pageNumbers.map((page) => <button aria-current={page === safeCurrentPage ? "page" : undefined} data-active={page === safeCurrentPage ? "true" : "false"} key={page} type="button" onClick={() => setCurrentPage(page)}>{page}</button>)}</div>
               <button aria-label="Next past crops page" disabled={safeCurrentPage === totalPages} type="button" onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}><ChevronRight size={17} /></button>

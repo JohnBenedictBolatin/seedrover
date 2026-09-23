@@ -464,7 +464,11 @@ export async function recordInventorySaleAction(formData: FormData) {
     p_quantity_sold: numberValue(formData, "quantity"),
     p_unit_price: numberValue(formData, "unit_price"),
     p_sale_date: text(formData, "sale_date", new Date().toISOString()),
-    p_customer_name: optionalText(formData, "customer_name"),
+    p_customer_name: [
+      optionalText(formData, "customer_first_name"),
+      (optionalText(formData, "customer_middle_initial") ?? "").replace(/[^a-z]/gi, "").slice(0, 1).toUpperCase(),
+      optionalText(formData, "customer_last_name"),
+    ].filter(Boolean).join(" "),
     p_remarks: optionalText(formData, "remarks"),
   };
   const paymentMethod = text(formData, "payment_method", "Cash");

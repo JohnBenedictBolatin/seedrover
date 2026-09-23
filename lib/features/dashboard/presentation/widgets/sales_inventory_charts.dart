@@ -789,7 +789,7 @@ class _OverviewData {
             stock.status == StockStatus.criticalStock ||
             stock.status == StockStatus.outOfStock)
         .length;
-    final activeCrops = crops.where((crop) => !crop.isHarvested).toList();
+    final activeCrops = crops.where((crop) => !crop.isCompleted).toList();
     final harvestReady = activeCrops.where((crop) => crop.isHarvestReady).length;
 
     return _OverviewData(

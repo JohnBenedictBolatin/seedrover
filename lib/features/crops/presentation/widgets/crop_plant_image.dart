@@ -79,6 +79,7 @@ class CropPlantImage extends StatelessWidget {
       CropStatus.needsFertilizer => 'needs_fertilizer',
       CropStatus.readyForHarvest => 'harvest_ready',
       CropStatus.harvested => 'harvested',
+      CropStatus.notHarvested => 'harvested',
       CropStatus.healthy => _growthStageKey(crop.growthStage),
     };
   }
@@ -101,6 +102,7 @@ class CropPlantImage extends StatelessWidget {
       CropStatus.needsFertilizer => 'Needs Fertilizer',
       CropStatus.readyForHarvest => 'Harvest Ready',
       CropStatus.harvested => 'Harvested',
+      CropStatus.notHarvested => 'Not Harvested',
       CropStatus.healthy => crop.growthStage.label,
     };
   }
@@ -112,6 +114,7 @@ class CropPlantImage extends StatelessWidget {
       CropStatus.needsFertilizer => AppColors.warning,
       CropStatus.readyForHarvest => AppColors.success,
       CropStatus.harvested => AppColors.mutedText,
+      CropStatus.notHarvested => AppColors.danger,
     };
   }
 }

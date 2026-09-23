@@ -1,16 +1,12 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type RoverStatus = {
-  batteryLevel: number;
-  seedLevel: number;
   roverStatus: string;
   wifiConnected: boolean;
-  bluetoothConnected: boolean;
-  cameraConnected: boolean;
   currentActivity: string;
-  speed: number;
   emergencyStop: boolean;
   lastUpdated: string;
+  heartbeatFresh: boolean;
 };
 
 export type RoverCommand = {
@@ -27,10 +23,12 @@ export type RoverCommand = {
 
 export type RoverSensorReading = {
   soilMoisture: number;
-  soilTemperature: number;
-  humidity: number;
-  environmentalTemperature: number;
+  soilTemperature: number | null;
+  humidity: number | null;
+  environmentalTemperature: number | null;
   recordedAt: string;
+  source: string;
+  fresh: boolean;
 };
 
 type RoverStatusRow = {
@@ -60,10 +58,12 @@ type RoverCommandRow = {
 
 type SensorReadingRow = {
   soil_moisture: number;
+  calibrated_value: number | null;
   soil_temperature: number;
   humidity: number;
   environmental_temperature: number;
   recorded_at: string;
+  source: string;
 };
 
 function profileName(row: RoverCommandRow) {
@@ -106,7 +106,7 @@ export async function getRoverMonitor() {
       supabase
         .from("sensor_readings")
         .select(
-          "soil_moisture, soil_temperature, humidity, environmental_temperature, recorded_at",
+          "soil_moisture, calibrated_value, soil_temperature, humidity, environmental_temperature, recorded_at, source",
         )
         .order("recorded_at", { ascending: false })
         .limit(1)
@@ -131,16 +131,12 @@ export async function getRoverMonitor() {
   return {
     status: statusRow
       ? {
-          batteryLevel: statusRow.battery_level,
-          seedLevel: statusRow.seed_level,
           roverStatus: heartbeatFresh ? statusRow.rover_status : "Offline",
           wifiConnected: heartbeatFresh && statusRow.wifi_connected,
-          bluetoothConnected: statusRow.bluetooth_connected,
-          cameraConnected: statusRow.camera_connected,
-          currentActivity: statusRow.current_activity,
-          speed: statusRow.speed,
+          currentActivity: heartbeatFresh ? statusRow.current_activity : "No recent heartbeat",
           emergencyStop: statusRow.emergency_stop,
           lastUpdated: statusRow.last_updated,
+          heartbeatFresh,
         }
       : null,
     commands: (commandRows ?? []).map<RoverCommand>((row) => ({
@@ -156,11 +152,16 @@ export async function getRoverMonitor() {
     })),
     sensors: sensorRow
       ? {
-          soilMoisture: Number(sensorRow.soil_moisture),
-          soilTemperature: Number(sensorRow.soil_temperature),
-          humidity: Number(sensorRow.humidity),
-          environmentalTemperature: Number(sensorRow.environmental_temperature),
+          soilMoisture: Number(sensorRow.calibrated_value ?? sensorRow.soil_moisture),
+          // Hardware planting receipts currently provide soil moisture and one
+          // DS18B20 temperature only. Zero placeholders must not be presented
+          // as real soil-temperature or humidity measurements.
+          soilTemperature: sensorRow.source === "Hardware" ? null : Number(sensorRow.soil_temperature),
+          humidity: sensorRow.source === "Hardware" ? null : Number(sensorRow.humidity),
+          environmentalTemperature: Number(sensorRow.environmental_temperature) || null,
           recordedAt: sensorRow.recorded_at,
+          source: sensorRow.source,
+          fresh: Date.now() - new Date(sensorRow.recorded_at).getTime() <= 60_000,
         }
       : null,
     error: null,

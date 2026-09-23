@@ -6,13 +6,16 @@ export function LiveDateTime() {
   const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
-    setNow(new Date());
+    const initialUpdate = window.setTimeout(() => setNow(new Date()), 0);
 
     const timer = window.setInterval(() => {
       setNow(new Date());
     }, 1000);
 
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearTimeout(initialUpdate);
+      window.clearInterval(timer);
+    };
   }, []);
 
   if (!now) {

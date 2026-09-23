@@ -8,7 +8,7 @@
   align-items: center;
   justify-content: center;
   gap: 9px;
-  border: 1px solid rgba(141, 255, 42, 0.42);
+  border: 1px solid rgba(var(--green-rgb), 0.42);
   border-radius: 999px;
   color: var(--green-accent);
   background:
@@ -34,7 +34,7 @@
 }
 
 .floatingButton:hover {
-  border-color: rgba(141, 255, 42, 0.68);
+  border-color: rgba(var(--green-rgb), 0.68);
   color: #102006;
   background: linear-gradient(135deg, var(--green-accent), var(--green));
   transform: translateY(-2px);
@@ -102,10 +102,10 @@
   height: 54px;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(141, 255, 42, 0.24);
+  border: 1px solid rgba(var(--green-rgb), 0.24);
   border-radius: 12px;
   color: var(--green-accent);
-  background: rgba(83, 209, 30, 0.08);
+  background: rgba(var(--green-secondary-rgb), 0.08);
   overflow: hidden;
   padding: 4px;
 }
@@ -194,9 +194,9 @@
 }
 
 .message[data-role="user"] p {
-  border-color: rgba(141, 255, 42, 0.28);
+  border-color: rgba(var(--green-rgb), 0.28);
   color: var(--text);
-  background: rgba(83, 209, 30, 0.12);
+  background: rgba(var(--green-secondary-rgb), 0.12);
   font-weight: 800;
 }
 
@@ -244,14 +244,14 @@
 }
 
 .form input:focus {
-  border-color: rgba(141, 255, 42, 0.42);
+  border-color: rgba(var(--green-rgb), 0.42);
   background: rgba(18, 18, 18, 0.94);
 }
 
 .form button {
   display: inline-grid;
   place-items: center;
-  border: 1px solid rgba(141, 255, 42, 0.42);
+  border: 1px solid rgba(var(--green-rgb), 0.42);
   border-radius: 8px;
   color: #102006;
   background: linear-gradient(135deg, var(--green-accent), var(--green));

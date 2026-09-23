@@ -19,6 +19,9 @@ export type CustomerSummary = {
   key: string;
   profileId: string | null;
   name: string;
+  firstName: string;
+  lastName: string;
+  middleInitial: string;
   contact: string;
   alternateContact: string;
   location: string;
@@ -56,6 +59,7 @@ export type CustomerDiscount = {
 
 type SalesOrderRow = {
   id: string;
+  customer_id: string | null;
   receipt_number: string;
   customer_name: string | null;
   customer_contact: string | null;
@@ -72,6 +76,7 @@ type SalesOrderRow = {
 
 type MarketSaleRow = {
   id: string;
+  customer_id: string | null;
   sale_date: string;
   customer_name: string | null;
   payment_method?: string | null;
@@ -91,7 +96,9 @@ type MarketSaleRow = {
 type CustomerProfileRow = {
   id: string;
   customer_key: string;
-  display_name: string;
+  first_name: string | null;
+  last_name: string | null;
+  middle_initial: string | null;
   contact_number: string | null;
   alternate_contact: string | null;
   customer_type: string | null;
@@ -174,6 +181,9 @@ function createCustomer(key: string, name: string, contact: string): CustomerSum
     key,
     profileId: null,
     name,
+    firstName: "",
+    lastName: "",
+    middleInitial: "",
     contact,
     alternateContact: "",
     location: "",
@@ -240,7 +250,7 @@ export async function getCustomersDashboard() {
     supabase
       .from("sales_orders")
       .select(
-        "id, receipt_number, customer_name, customer_contact, payment_method, total_amount, sale_date, status, sales_order_items(item_name_snapshot, quantity_sold, line_total)",
+        "id, customer_id, receipt_number, customer_name, customer_contact, payment_method, total_amount, sale_date, status, sales_order_items(item_name_snapshot, quantity_sold, line_total)",
       )
       .eq("status", "Completed")
       .order("sale_date", { ascending: false })
@@ -248,7 +258,7 @@ export async function getCustomersDashboard() {
     supabase
       .from("sales_transactions")
       .select(
-        "id, sale_date, customer_name, payment_method, quantity_sold, total_amount, status, inventory(item_name)",
+        "id, customer_id, sale_date, customer_name, payment_method, quantity_sold, total_amount, status, inventory(item_name)",
       )
       .eq("status", "Completed")
       .order("sale_date", { ascending: false })
@@ -256,7 +266,7 @@ export async function getCustomersDashboard() {
     supabase
       .from("customers")
       .select(
-        "id, customer_key, display_name, contact_number, alternate_contact, customer_type, tags, notes, location",
+        "id, customer_key, first_name, last_name, middle_initial, contact_number, alternate_contact, customer_type, tags, notes, location",
       )
       .returns<CustomerProfileRow[]>(),
     supabase
@@ -270,7 +280,7 @@ export async function getCustomersDashboard() {
     ? await supabase
         .from("sales_transactions")
         .select(
-          "id, sale_date, customer_name, quantity_sold, total_amount, status, inventory(item_name)",
+          "id, customer_id, sale_date, customer_name, quantity_sold, total_amount, status, inventory(item_name)",
         )
         .eq("status", "Completed")
         .order("sale_date", { ascending: false })
@@ -305,13 +315,15 @@ export async function getCustomersDashboard() {
         status: discount.status,
       }));
   const profilesByKey = new Map(profileRows.map((profile) => [profile.customer_key, profile]));
+  const profilesById = new Map(profileRows.map((profile) => [profile.id, profile]));
   const customersByKey = new Map<string, CustomerSummary>();
 
   for (const row of ordersResult.data ?? []) {
     const name = normalizeText(row.customer_name || "Walk-in customer");
     const contact = normalizeText(row.customer_contact || "Not provided");
-    const key = customerKey(name, contact);
+    const key = row.customer_id ?? customerKey(name, contact);
     const customer = customersByKey.get(key) ?? createCustomer(key, name, contact);
+    if (row.customer_id) customer.profileId = row.customer_id;
     const totalAmount = toNumber(row.total_amount);
 
     addReceipt(
@@ -342,8 +354,9 @@ export async function getCustomersDashboard() {
     }
 
     const contact = "Not provided";
-    const key = customerKey(name, contact);
+    const key = row.customer_id ?? customerKey(name, contact);
     const customer = customersByKey.get(key) ?? createCustomer(key, name, contact);
+    if (row.customer_id) customer.profileId = row.customer_id;
     const totalAmount = toNumber(row.total_amount);
     const inventory = firstRelation(row.inventory);
 
@@ -369,12 +382,22 @@ export async function getCustomersDashboard() {
     customersByKey.set(key, customer);
   }
 
+  for (const profile of profileRows) {
+    if (!customersByKey.has(profile.customer_key)) {
+      const name = [profile.first_name, profile.middle_initial ? `${profile.middle_initial}.` : "", profile.last_name].filter(Boolean).join(" ") || "Unnamed customer";
+      customersByKey.set(profile.customer_key, createCustomer(profile.customer_key, name, profile.contact_number ?? "Not provided"));
+    }
+  }
+
   for (const [key, customer] of customersByKey) {
-    const profile = profilesByKey.get(key);
+    const profile = (customer.profileId ? profilesById.get(customer.profileId) : undefined) ?? profilesByKey.get(key);
 
     if (profile) {
       customer.profileId = profile.id;
-      customer.name = profile.display_name || customer.name;
+      customer.name = [profile.first_name, profile.middle_initial ? `${profile.middle_initial}.` : "", profile.last_name].filter(Boolean).join(" ") || customer.name;
+      customer.firstName = profile.first_name ?? "";
+      customer.lastName = profile.last_name ?? "";
+      customer.middleInitial = profile.middle_initial ?? "";
       customer.contact = profile.contact_number || customer.contact;
       customer.alternateContact = profile.alternate_contact ?? "";
       customer.customerType = profile.customer_type ?? "Farm Buyer";

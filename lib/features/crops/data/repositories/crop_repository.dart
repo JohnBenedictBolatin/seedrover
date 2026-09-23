@@ -72,94 +72,6 @@ class CropRepository {
     );
   }
 
-  Future<CropModel> createCrop(CropModel crop) async {
-    final row = await _client
-        .from(DatabaseTables.crops)
-        .insert({
-          ..._cropPayload(crop),
-          'assigned_manager': _client.auth.currentUser?.id,
-        })
-        .select(
-          'id, batch_code, crop_name, assigned_manager, planting_date, estimated_harvest, '
-          'growth_stage, maintenance_notes, image_path, crop_status, created_at, '
-          'updated_at, planting_source, field_label, field_area_m2, completed_drop_cycles, '
-          'estimated_seed_count_min, estimated_seed_count_max, harvest_window_start, '
-          'harvest_window_end, forecast_confidence, expected_stage, current_care_status, '
-          'propagation_method, last_watered_at, profiles(full_name)',
-        )
-        .single();
-
-    await _recordActivity(
-      activity: 'Crop record created',
-      description: '${crop.name} crop record created.',
-    );
-
-    final cropId = row['id'] as String;
-    return _cropFromRow(
-      row,
-      await _latestSensorSnapshot(cropId: cropId),
-      maintenanceHistory: await _activityHistory(cropId),
-    );
-  }
-
-  Future<CropModel> createManualCrop({
-    required String profileKey,
-    required String fieldLabel,
-    required double fieldAreaM2,
-    required DateTime plantingDate,
-    required String reason,
-  }) async {
-    final names = {
-      'calamansi': 'Calamansi',
-      'sitaw': 'Sitaw',
-      'peanut': 'Peanut'
-    };
-    final harvestDays = {'sitaw': 60, 'peanut': 95};
-    final name = names[profileKey] ?? profileKey;
-    final harvest = harvestDays[profileKey] == null
-        ? null
-        : plantingDate.add(Duration(days: harvestDays[profileKey]!));
-    final row = await _client
-        .from(DatabaseTables.crops)
-        .insert({
-          'crop_name': name,
-          'assigned_manager': _client.auth.currentUser?.id,
-          'planting_date': _dateOnly(plantingDate),
-          'estimated_harvest': harvest == null ? null : _dateOnly(harvest),
-          'growth_stage': 'Seeded',
-          'crop_status': 'Active',
-          'planting_source': 'Manual',
-          'manual_creation_reason': reason.trim(),
-          'crop_profile_key': profileKey,
-          'profile_version': 1,
-          'field_label': fieldLabel.trim(),
-          'field_area_m2': fieldAreaM2,
-          'propagation_method': profileKey == 'calamansi'
-              ? 'Direct seed to nursery'
-              : 'Direct seed',
-          'harvest_window_start': harvest == null ? null : _dateOnly(harvest),
-          'harvest_window_end': harvest == null
-              ? null
-              : _dateOnly(
-                  harvest.add(Duration(days: profileKey == 'sitaw' ? 10 : 5))),
-          'forecast_confidence': 'Low',
-          'expected_stage': profileKey == 'calamansi'
-              ? 'Germination and nursery review'
-              : 'Germination',
-          'current_care_status': 'Manual planting - verify field conditions',
-        })
-        .select(
-          'id, batch_code, crop_name, assigned_manager, planting_date, estimated_harvest, growth_stage, maintenance_notes, image_path, crop_status, created_at, updated_at, planting_source, field_label, field_area_m2, completed_drop_cycles, estimated_seed_count_min, estimated_seed_count_max, harvest_window_start, harvest_window_end, forecast_confidence, expected_stage, current_care_status, propagation_method, last_watered_at, profiles(full_name)',
-        )
-        .single();
-    final cropId = row['id'] as String;
-    return _cropFromRow(
-      row,
-      await _latestSensorSnapshot(cropId: cropId),
-      maintenanceHistory: await _activityHistory(cropId),
-    );
-  }
-
   Future<CropModel> updateCrop(CropModel crop) async {
     final row = await _client
         .from(DatabaseTables.crops)
@@ -234,6 +146,14 @@ class CropRepository {
       'p_idempotency_key':
           'mobile:${crop.id}:${date.microsecondsSinceEpoch}:$activityType',
     });
+    if (activity != CropMaintenanceActivity.harvested &&
+        (status != null || growthStage != null)) {
+      await _client.from(DatabaseTables.crops).update({
+        if (status != null) 'crop_status': _statusToDb(status),
+        if (growthStage != null) 'growth_stage': _growthStageToDb(growthStage),
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', crop.id);
+    }
     final row = await _client
         .from(DatabaseTables.crops)
         .select(
@@ -297,14 +217,15 @@ class CropRepository {
       managerName: manager?['full_name'] as String? ?? 'Unassigned',
       progress: _progressFor(growthStage, status),
       sensorSnapshot: sensors,
-      maintenanceHistory: maintenanceHistory ?? [
-        CropMaintenanceRecord(
-          activity: CropMaintenanceActivity.planted,
-          performedAt: plantingDate,
-          notes: 'Crop record loaded from Supabase.',
-          performedBy: 'SeedRover',
-        ),
-      ],
+      maintenanceHistory: maintenanceHistory ??
+          [
+            CropMaintenanceRecord(
+              activity: CropMaintenanceActivity.planted,
+              performedAt: plantingDate,
+              notes: 'Crop record loaded from Supabase.',
+              performedBy: 'SeedRover',
+            ),
+          ],
       reminders: _remindersFor(status, estimatedHarvest),
       notes: notes?.trim().isNotEmpty == true
           ? notes!.trim()
@@ -463,6 +384,7 @@ class CropRepository {
       CropStatus.needsFertilizer => const ['Fertilizer review is due.'],
       CropStatus.readyForHarvest => const ['Prepare harvest check.'],
       CropStatus.harvested => const ['Crop cycle completed.'],
+      CropStatus.notHarvested => const ['Crop cycle closed without harvest.'],
       CropStatus.healthy => [
           'Estimated harvest: ${_dateOnly(harvestDate)}.',
         ],
@@ -488,7 +410,7 @@ class CropRepository {
   }
 
   double _progressFor(CropGrowthStage stage, CropStatus status) {
-    if (status == CropStatus.harvested) {
+    if (status == CropStatus.harvested || status == CropStatus.notHarvested) {
       return 1;
     }
 
@@ -532,7 +454,7 @@ class CropRepository {
       'Needs Attention' => CropStatus.needsWater,
       'Harvest Ready' => CropStatus.readyForHarvest,
       'Completed' => CropStatus.harvested,
-      'Cancelled' => CropStatus.harvested,
+      'Cancelled' => CropStatus.notHarvested,
       _ => CropStatus.healthy,
     };
   }
@@ -544,6 +466,7 @@ class CropRepository {
       CropStatus.needsFertilizer => 'Needs Attention',
       CropStatus.readyForHarvest => 'Harvest Ready',
       CropStatus.harvested => 'Completed',
+      CropStatus.notHarvested => 'Cancelled',
     };
   }
 

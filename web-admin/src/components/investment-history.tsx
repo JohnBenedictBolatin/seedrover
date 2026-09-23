@@ -26,9 +26,6 @@ export type InvestmentRecord = {
   quantity: number | null;
   unitCost: number | null;
   notes: string | null;
-  frequency: string | null;
-  nextDueDate: string | null;
-  endDate: string | null;
   hasReceipt: boolean;
   receiptUrl: string | null;
   receiptFileName: string | null;
@@ -115,9 +112,9 @@ export function InvestmentHistory({ records }: { records: InvestmentRecord[] }) 
 
   async function removeRecord(record: InvestmentRecord) {
     const approved = await confirm({
-      title: "Remove investment?",
+      title: "Remove farm cost?",
       message: `Are you sure you want to remove ${record.description}? This cannot be undone.`,
-      confirmLabel: "Remove Investment",
+      confirmLabel: "Remove Cost",
       cancelLabel: "Cancel",
       tone: "danger",
     });
@@ -130,9 +127,9 @@ export function InvestmentHistory({ records }: { records: InvestmentRecord[] }) 
         await deleteExpenseAction(formData);
         setSelected(null);
         router.refresh();
-        notify("success", "Success - Investment record removed.");
+        notify("success", "Success - Farm cost removed.");
       } catch (error) {
-        notify("error", `Error - ${error instanceof Error ? error.message : "Unable to remove investment."}`);
+        notify("error", `Error - ${error instanceof Error ? error.message : "Unable to remove the farm cost."}`);
       }
     });
   }
@@ -154,7 +151,7 @@ export function InvestmentHistory({ records }: { records: InvestmentRecord[] }) 
 
       {filteredRecords.length === 0 ? (
         <div className={styles.empty}>
-          <strong>{records.length === 0 ? "No investments recorded yet." : "No investments match the current filters."}</strong>
+          <strong>{records.length === 0 ? "No farm costs recorded yet." : "No farm costs match the current filters."}</strong>
           {records.length > 0 ? <span>Change the search, dates, or filters.</span> : null}
         </div>
       ) : (
@@ -171,12 +168,12 @@ export function InvestmentHistory({ records }: { records: InvestmentRecord[] }) 
               <span className={styles.amount} data-label="Amount">{money(record.amount)}</span>
               <span className={styles.historyDate} data-label="Date">{record.expenseDate}</span>
               <div className={styles.rowActions} data-label="Actions">
-                <button aria-label="View investment details" type="button" onClick={() => setSelected(record)}><Eye size={17} /></button>
-                <button aria-label="Remove investment" className={styles.removeAction} disabled={pending} type="button" onClick={() => removeRecord(record)}><Trash2 size={17} /></button>
+                <button aria-label="View farm cost details" type="button" onClick={() => setSelected(record)}><Eye size={17} /></button>
+                <button aria-label="Remove farm cost" className={styles.removeAction} disabled={pending} type="button" onClick={() => removeRecord(record)}><Trash2 size={17} /></button>
               </div>
             </div>
           ))}
-          <div className={styles.paginationBar} aria-label="Investment history pagination">
+          <div className={styles.paginationBar} aria-label="Farm cost history pagination">
             <button aria-label="Previous investment page" disabled={safeCurrentPage === 1} type="button" onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}><ChevronLeft size={17} /></button>
             <div className={styles.pageNumbers}>
               {pageNumbers.map((page) => (
@@ -194,20 +191,20 @@ export function InvestmentHistory({ records }: { records: InvestmentRecord[] }) 
       {selected && typeof document !== "undefined"
         ? createPortal(
             <div className={styles.modalBackdrop} data-ui-backdrop="true" role="presentation">
-              <section className={`${styles.modal} ${styles.detailModal}`} data-ui-modal="true" role="dialog" aria-modal="true" aria-label="Investment details">
+              <section className={`${styles.modal} ${styles.detailModal}`} data-ui-modal="true" role="dialog" aria-modal="true" aria-label="Farm cost details">
                 <header className={styles.modalHeader}>
                   <h3 className={styles.modalTitle}>
                     <span className={styles.modalTitleIcon} aria-hidden="true"><ReceiptText size={18} /></span>
-                    <span>Investment Details</span>
+                    <span>Farm Cost Details</span>
                   </h3>
                   <button aria-label="Close modal" className={styles.modalCloseButton} type="button" onClick={() => setSelected(null)}><X size={18} /></button>
                 </header>
                 <dl className={styles.detailGrid}>
                   <div><dt>Description</dt><dd>{selected.description}</dd></div>
                   <div><dt>Category</dt><dd>{selected.category}</dd></div>
-                  <div><dt>Expense type</dt><dd>{selected.expenseType}</dd></div>
+                  <div><dt>Cost type</dt><dd>{selected.expenseType}</dd></div>
                   <div><dt>Total amount</dt><dd>{money(selected.amount)}</dd></div>
-                  <div><dt>Expense date</dt><dd>{selected.expenseDate}</dd></div>
+                  <div><dt>Cost date</dt><dd>{selected.expenseDate}</dd></div>
                   <div><dt>Vendor / payee</dt><dd>{selected.vendor ?? "Not recorded"}</dd></div>
                   <div><dt>Payment method</dt><dd>{selected.paymentMethod}</dd></div>
                   <div><dt>Reference number</dt><dd>{selected.referenceNumber ?? "Not recorded"}</dd></div>
@@ -216,9 +213,6 @@ export function InvestmentHistory({ records }: { records: InvestmentRecord[] }) 
                   <div><dt>Related inventory</dt><dd>{selected.inventoryName ?? "None"}</dd></div>
                   <div><dt>Quantity</dt><dd>{selected.quantity ?? "Not recorded"}</dd></div>
                   <div><dt>Unit cost</dt><dd>{selected.unitCost === null ? "Not recorded" : money(selected.unitCost)}</dd></div>
-                  <div><dt>Frequency</dt><dd>{selected.frequency ?? "Not recurring"}</dd></div>
-                  <div><dt>Next due date</dt><dd>{selected.nextDueDate ?? "Not applicable"}</dd></div>
-                  <div><dt>End date</dt><dd>{selected.endDate ?? "Not set"}</dd></div>
                   <div className={styles.detailNotes}><dt>Notes</dt><dd>{selected.notes ?? "No notes recorded."}</dd></div>
                   <div className={styles.detailReceipt}>
                     <dt>Receipt attachment</dt>

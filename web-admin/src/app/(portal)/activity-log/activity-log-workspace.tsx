@@ -9,7 +9,6 @@ import {
   ChevronRight,
   ClipboardList,
   Filter,
-  History,
   LockKeyhole,
   Search,
   ShieldCheck,
@@ -192,15 +191,17 @@ export function ActivityLogWorkspace({ logs, summary }: Props) {
             </div>
             {visibleLogs.map((log) => (
               <article className={styles.tableRow} key={log.id}>
-                <div className={styles.activityCell}>
+                <div className={styles.activityCell} data-label="Activity">
                   <strong>{log.activity}</strong>
                   <span>{log.description}</span>
                 </div>
-                <span className={`${styles.moduleBadge} ${moduleTone(log.module)}`}>
-                  {log.module}
-                </span>
-                <span className={styles.userCell}>{log.userName}</span>
-                <time className={styles.dateCell}>{formatDateTime(log.createdAt)}</time>
+                <div className={styles.moduleCell} data-label="Module">
+                  <span className={`${styles.moduleBadge} ${moduleTone(log.module)}`}>
+                    {log.module}
+                  </span>
+                </div>
+                <span className={styles.userCell} data-label="User">{log.userName}</span>
+                <time className={styles.dateCell} data-label="Date / time">{formatDateTime(log.createdAt)}</time>
               </article>
             ))}
             <div className={styles.paginationBar} aria-label="Activity log pagination">

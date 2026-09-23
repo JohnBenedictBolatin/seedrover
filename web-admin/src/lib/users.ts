@@ -11,6 +11,9 @@ export type AdminUser = {
   username: string;
   email: string;
   fullName: string;
+  firstName: string;
+  lastName: string;
+  middleInitial: string;
   roleName: string;
   isActive: boolean;
   createdAt: string;
@@ -28,6 +31,9 @@ type UserRow = {
   username: string;
   email: string;
   full_name: string;
+  first_name: string | null;
+  last_name: string | null;
+  middle_initial: string | null;
   is_active: boolean;
   created_at: string;
   roles: { role_name: string } | { role_name: string }[] | null;
@@ -40,7 +46,7 @@ type RoleRow = {
 
 function roleName(row: UserRow) {
   const role = Array.isArray(row.roles) ? row.roles[0] : row.roles;
-  return role?.role_name ?? "Farm Staff";
+  return role?.role_name ?? "Unassigned";
 }
 
 export async function getUsersDashboard() {
@@ -59,7 +65,7 @@ export async function getUsersDashboard() {
     await Promise.all([
       supabase
         .from("profiles")
-        .select("id, username, email, full_name, is_active, created_at, roles(role_name)")
+        .select("id, username, email, full_name, first_name, last_name, middle_initial, is_active, created_at, roles(role_name)")
         .order("created_at", { ascending: false })
         .returns<UserRow[]>(),
       supabase
@@ -84,6 +90,9 @@ export async function getUsersDashboard() {
     username: row.username,
     email: row.email,
     fullName: row.full_name,
+    firstName: row.first_name ?? "",
+    lastName: row.last_name ?? "",
+    middleInitial: row.middle_initial ?? "",
     roleName: roleName(row),
     isActive: row.is_active,
     createdAt: row.created_at,

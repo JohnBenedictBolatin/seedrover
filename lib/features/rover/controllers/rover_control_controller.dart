@@ -55,6 +55,7 @@ class RoverControlController extends StateNotifier<RoverControlState> {
   Timer? _plantingStatusTimer;
   DateTime? _plantingStartedAt;
   final Set<String> _storedTerminalSessions = {};
+  final Map<String, Future<void>> _terminalReceiptWrites = {};
 
   Future<void> load() async {
     try {
@@ -132,7 +133,7 @@ class RoverControlController extends StateNotifier<RoverControlState> {
     if (state.localWifiConnecting || state.localWifiConnected) return;
     state = state.copyWith(
       localWifiConnecting: true,
-      errorMessage: 'Connecting to the ESP32 on home Wi-Fi...',
+      errorMessage: 'Connecting to the ESP32 on SeedRover-01...',
     );
     try {
       await _localWifiService.connect();
@@ -474,22 +475,44 @@ class RoverControlController extends StateNotifier<RoverControlState> {
 
   Future<void> _storeTerminalReceipt(PlantingOperationStatus operation) async {
     if (_storedTerminalSessions.contains(operation.sessionId)) return;
+    final inFlight = _terminalReceiptWrites[operation.sessionId];
+    if (inFlight != null) {
+      await inFlight;
+      return;
+    }
     final configuration = state.activePlantingConfig;
     if (configuration == null ||
         configuration.sessionId != operation.sessionId) {
       return;
     }
-    _storedTerminalSessions.add(operation.sessionId);
+    final write = _persistTerminalReceipt(configuration, operation);
+    _terminalReceiptWrites[operation.sessionId] = write;
+    try {
+      await write;
+      _storedTerminalSessions.add(operation.sessionId);
+    } finally {
+      _terminalReceiptWrites.remove(operation.sessionId);
+    }
+  }
+
+  Future<void> _persistTerminalReceipt(
+    PlantingRowConfig configuration,
+    PlantingOperationStatus operation,
+  ) async {
+    final completedByHardware =
+        operation.state == 'COMPLETED' && operation.completedDrops > 0;
     await _receiptRepository.save(
       PendingPlantingReceipt(
         config: configuration,
         status: operation,
         startedAt: _plantingStartedAt ?? DateTime.now(),
         completedAt: DateTime.now(),
+        plantingConfirmed: completedByHardware,
+        plantingSuccessful: completedByHardware ? true : null,
       ),
     );
     await _refreshPendingReceiptCount();
-    unawaited(synchronizePendingReceipts());
+    await synchronizePendingReceipts();
   }
 
   Future<void> _refreshPendingReceiptCount() async {

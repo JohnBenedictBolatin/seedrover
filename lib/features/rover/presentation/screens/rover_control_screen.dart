@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/constants/permission_keys.dart';
+import '../../../../core/config/app_environment.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -67,6 +68,7 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen> {
     final state = ref.watch(roverControlControllerProvider);
     final controller = ref.read(roverControlControllerProvider.notifier);
     final profile = ref.watch(authControllerProvider).profile;
+    final environment = ref.watch(appEnvironmentProvider);
 
     final canControl =
         profile?.hasPermission(PermissionKeys.roverControl) ?? false;
@@ -100,7 +102,12 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen> {
                       if (context.canPop()) {
                         context.pop();
                       } else {
-                        context.go(AppRoutes.dashboard);
+                        context.go(
+                          profile?.isPlantingManager == true ||
+                                  profile?.isPlantingStaff == true
+                              ? AppRoutes.crops
+                              : AppRoutes.dashboard,
+                        );
                       }
                     },
                   ),
@@ -127,9 +134,17 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen> {
                             children: [
                               Expanded(
                                 child: CameraPreviewPanel(
-                                  connected: telemetry.cameraConnected,
-                                  loading: telemetry.cameraLoading,
+                                  // The camera is on the local SeedRover network, so its
+                                  // availability follows the local rover link.
+                                  // The cloud telemetry flag does not describe
+                                  // the ESP32-CAM connection.
+                                  connected: state.localWifiConnected,
+                                  // The MJPEG widget owns the local camera loading
+                                  // state. Cloud telemetry can describe an older
+                                  // simulated camera and must not block the stream.
+                                  loading: false,
                                   canView: canViewCamera,
+                                  cameraBaseUrl: environment.cameraBaseUrl,
                                 ),
                               ),
                             ],
@@ -159,8 +174,6 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen> {
                                   soilCheckMessage: state.soilCheckMessage,
                                   manualControlsEnabled:
                                       !state.isPlantingLocked && canControl,
-                                  calibrationEnabled: !state.isPlantingLocked &&
-                                      canControlPlanting,
                                   canStartPlanting: canControlPlanting &&
                                       (state.canStartPlanting ||
                                           state.plantingStatus ==
@@ -192,6 +205,8 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen> {
                                     'RAKE_UP',
                                     'Rake up',
                                   ),
+                                  calibrationEnabled: !state.isPlantingLocked &&
+                                      canControlPlanting,
                                   onStartPlanting: () =>
                                       _showPlantingConfiguration(
                                     context,

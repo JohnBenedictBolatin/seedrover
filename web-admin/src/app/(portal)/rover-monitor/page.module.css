@@ -406,11 +406,15 @@
   display: grid;
   grid-template-columns: minmax(190px, 1.2fr) 115px minmax(130px, .72fr) minmax(190px, .9fr);
   align-items: center;
-  gap: 12px;
+  column-gap: 20px;
   border: 1px solid var(--history-border);
   border-radius: 8px;
   background: var(--history-row-surface);
   padding: 12px;
+}
+
+.commandItem > * {
+  min-width: 0;
 }
 
 .commandItem:hover {

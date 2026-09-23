@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ClipboardList,
   Clock3,
+  History,
   X,
   ChevronRight,
   Edit3,
@@ -22,7 +23,6 @@ import {
   ImageIcon,
   Package,
   PackagePlus,
-  Plus,
   Search,
   SlidersHorizontal,
   Sprout,
@@ -49,6 +49,7 @@ import { FileUploadField } from "@/components/file-upload-field";
 import { formatCurrency, formatDateTime, formatQuantity } from "@/lib/format";
 import type { InventoryItem } from "@/lib/inventory";
 import styles from "@/app/(portal)/inventory/page.module.css";
+import quickActionStyles from "@/app/(portal)/sales/page.module.css";
 
 const categoryInputOptions = [
   "Leafy Vegetables",
@@ -88,6 +89,7 @@ type DialogState =
   | { type: "stock-in"; item: InventoryItem }
   | { type: "stock-out"; item: InventoryItem }
   | { type: "delete"; item: InventoryItem }
+  | { type: "history" }
   | null;
 
 function getStockStatus(item: InventoryItem) {
@@ -256,6 +258,23 @@ export function InventoryWorkspace({ items }: { items: InventoryItem[] }) {
 
   return (
     <>
+      <section className={quickActionStyles.quickActions} aria-label="Inventory quick actions">
+        <div>
+          <p className={quickActionStyles.eyebrow}>Quick action</p>
+          <h2>Inventory control</h2>
+          <span>Add an inventory item or review every stock movement.</span>
+        </div>
+        <div className={styles.inventoryQuickActions}>
+          <button className={quickActionStyles.recordSaleButton} type="button" onClick={() => setDialog({ type: "add" })}>
+            <span className={quickActionStyles.recordSaleText}>ADD ITEM</span>
+            <span className={quickActionStyles.recordSaleIcon} aria-hidden="true"><PackagePlus size={20} /></span>
+          </button>
+          <button className={quickActionStyles.recordSaleButton} type="button" onClick={() => setDialog({ type: "history" })}>
+            <span className={quickActionStyles.recordSaleText}>VIEW INVENTORY HISTORY</span>
+            <span className={quickActionStyles.recordSaleIcon} aria-hidden="true"><History size={20} /></span>
+          </button>
+        </div>
+      </section>
       <section className={styles.inventoryToolbar}>
         <label className={styles.searchField}>
           <Search size={18} />
@@ -287,16 +306,6 @@ export function InventoryWorkspace({ items }: { items: InventoryItem[] }) {
           values={sortOptions}
           onChange={setSort}
         />
-        <button
-          className={styles.addItemButton}
-          type="button"
-          onClick={() => setDialog({ type: "add" })}
-        >
-          <span className={styles.addItemText}>Add Item</span>
-          <span className={styles.addItemIcon} aria-hidden="true">
-            <Plus size={20} />
-          </span>
-        </button>
       </section>
 
       {filteredItems.length === 0 ? (
@@ -319,6 +328,7 @@ export function InventoryWorkspace({ items }: { items: InventoryItem[] }) {
 
       <InventoryDialog
         dialog={dialog}
+        items={items}
         notify={notify}
         onClose={() => setDialog(null)}
       />
@@ -613,13 +623,16 @@ function IconAction({
 
 function InventoryDialog({
   dialog,
+  items,
   notify,
   onClose,
 }: {
   dialog: DialogState;
+  items: InventoryItem[];
   notify: (tone: AlertTone, text: string) => void;
   onClose: () => void;
 }) {
+  const [historyPage, setHistoryPage] = useState(1);
   if (!dialog) {
     return null;
   }
@@ -631,12 +644,13 @@ function InventoryDialog({
     "stock-in": { title: "Stock In", icon: <ArrowUpCircle size={18} /> },
     "stock-out": { title: "Stock Out", icon: <ArrowDownCircle size={18} /> },
     delete: { title: "Delete Item", icon: <Trash2 size={18} /> },
+    history: { title: "Inventory History", icon: <Clock3 size={18} /> },
   }[dialog.type];
   const title = modalMeta.title;
 
   return (
     <div className={styles.modalBackdrop} data-ui-backdrop="true" role="presentation">
-      <section className={styles.modal} role="dialog" aria-modal="true" aria-label={title}>
+      <section className={`${styles.modal} ${dialog.type === "history" ? styles.transactionHistoryModal : ""}`} role="dialog" aria-modal="true" aria-label={title}>
         <header className={styles.modalHeader}>
           <h3 className={styles.modalTitle}>
             <span className={styles.modalTitleIcon} aria-hidden="true">
@@ -689,6 +703,22 @@ function InventoryDialog({
         ) : null}
         {dialog.type === "delete" ? (
           <DeleteForm item={dialog.item} notify={notify} onSuccess={onClose} />
+        ) : null}
+        {dialog.type === "history" ? (
+          <div className={styles.inventoryHistoryLedger}>
+            <div className={styles.historyPanel}>
+              <div className={styles.historyHeader}><div><h4 className={styles.historyHeading}>Stock movements</h4><p>Stock in, stock out, and adjustments</p></div><strong>{items.reduce((total, item) => total + item.transactions.length, 0)} records</strong></div>
+              {items.flatMap((item) => item.transactions.map((transaction) => ({ item, transaction }))).sort((a, b) => new Date(b.transaction.createdAt).getTime() - new Date(a.transaction.createdAt).getTime()).slice((historyPage - 1) * 8, historyPage * 8).map(({ item, transaction }) => (
+                <div className={styles.historyItem} key={transaction.id}>
+                  <div><strong>{transaction.type === "IN" ? "Stock In" : transaction.type === "OUT" ? "Stock Out" : "Adjustment"}</strong><span>{item.itemName} · {transaction.quantity} {item.unit}</span></div>
+                  <div><small>{transaction.source || "Manual"}</small><small>{formatDateTime(transaction.createdAt)}</small></div>
+                  {transaction.remarks ? <p>{transaction.remarks}</p> : null}
+                </div>
+              ))}
+              {items.every((item) => item.transactions.length === 0) ? <p>No inventory movements recorded yet.</p> : null}
+              {items.some((item) => item.transactions.length > 0) ? <div className={styles.historyPagination}><button disabled={historyPage === 1} type="button" onClick={() => setHistoryPage((value) => Math.max(1, value - 1))}><ChevronLeft size={16} /></button><span>Page {historyPage} of {Math.max(1, Math.ceil(items.reduce((total, item) => total + item.transactions.length, 0) / 8))}</span><button disabled={historyPage >= Math.ceil(items.reduce((total, item) => total + item.transactions.length, 0) / 8)} type="button" onClick={() => setHistoryPage((value) => value + 1)}><ChevronRight size={16} /></button></div> : null}
+            </div>
+          </div>
         ) : null}
       </section>
     </div>
@@ -1045,7 +1075,9 @@ function MovementForm({
               placeholder="e.g. TXN-2026-0012"
             />
           ) : null}
-          <Field label="Customer name" name="customer_name" />
+          <Field label="Customer first name" name="customer_first_name" />
+          <Field label="Customer middle initial" name="customer_middle_initial" />
+          <Field label="Customer last name" name="customer_last_name" />
           <Field label="Sale remarks" name="remarks" defaultValue="Market distribution." />
         </>
       ) : (

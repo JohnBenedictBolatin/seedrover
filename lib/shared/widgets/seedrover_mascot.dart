@@ -19,7 +19,7 @@ enum SeedRoverMascotExpression {
 
   final String assetName;
 
-  String get assetPath => 'assets/images/mascot/$assetName.png';
+  String get assetPath => 'assets/images/mascots/$assetName.png';
 }
 
 class SeedRoverMascot extends StatelessWidget {

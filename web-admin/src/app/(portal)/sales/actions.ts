@@ -17,6 +17,7 @@ type SubmittedItem = {
 };
 
 const paymentMethods = new Set(["Cash", "GCash", "Bank Transfer", "Card", "Installment", "Other"]);
+const installmentFrequencies = new Set(["Weekly", "Monthly", "Yearly"]);
 
 function parseNumber(value: FormDataEntryValue | null) {
   const parsed = Number(String(value ?? "").trim());
@@ -94,9 +95,22 @@ export async function recordSalesOrderAction(
   }
 
   const discountCode = text(formData, "discount_code").toUpperCase();
+  const customerFirstName = text(formData, "customer_first_name");
+  const customerMiddleInitial = text(formData, "customer_middle_initial").replace(/[^a-z]/gi, "").slice(0, 1).toUpperCase();
+  const customerLastName = text(formData, "customer_last_name");
+  const customerName = [customerFirstName, customerMiddleInitial ? `${customerMiddleInitial}.` : "", customerLastName].filter(Boolean).join(" ");
+  const customerContact = text(formData, "customer_contact");
   const paymentMethod = text(formData, "payment_method", "Cash");
   const transactionReference = text(formData, "transaction_reference");
   const otherPaymentMethod = text(formData, "other_payment_method");
+
+  if (!customerName) {
+    return { message: "Customer name is required." };
+  }
+
+  if (!customerContact) {
+    return { message: "Customer contact is required." };
+  }
 
   if (!paymentMethods.has(paymentMethod)) {
     return { message: "Select a valid payment method." };
@@ -140,15 +154,25 @@ export async function recordSalesOrderAction(
     }
   }
 
-  const installmentTerms = text(formData, "installment_terms");
+  const installmentFrequency = text(formData, "installment_frequency");
+  const installmentAmountRaw = text(formData, "installment_amount");
+  const installmentAmount = parseNumber(formData.get("installment_amount"));
   const installmentDueDate = text(formData, "installment_due_date");
-  if (paymentMethod === "Installment" && (!installmentTerms || !installmentDueDate)) {
-    return { message: "Installment terms and the next payment due date are required." };
+  if (paymentMethod === "Installment" && !installmentFrequencies.has(installmentFrequency)) {
+    return { message: "Select a valid installment payment frequency." };
+  }
+
+  if (paymentMethod === "Installment" && (!installmentAmountRaw || installmentAmount <= 0)) {
+    return { message: "Enter an installment amount greater than zero." };
+  }
+
+  if (paymentMethod === "Installment" && !installmentDueDate) {
+    return { message: "The next installment payment due date is required." };
   }
 
   const payload = {
-    p_customer_name: String(formData.get("customer_name") ?? ""),
-    p_customer_contact: String(formData.get("customer_contact") ?? ""),
+    p_customer_name: customerName,
+    p_customer_contact: customerContact,
     p_payment_method: paymentMethod === "Installment" ? "Other" : paymentMethod,
     p_transaction_reference: transactionReference,
     p_other_payment_method: paymentMethod === "Installment" ? "Installment" : otherPaymentMethod,
@@ -174,12 +198,16 @@ export async function recordSalesOrderAction(
       !error.message.includes("p_transaction_reference") &&
       !error.message.includes("p_other_payment_method")
     ) {
-      const {
-        p_discount_code: _unusedDiscountCode,
-        p_transaction_reference: _unusedTransactionReference,
-        p_other_payment_method: _unusedOtherPaymentMethod,
-        ...legacyPayload
-      } = payload;
+      const legacyPayload = Object.fromEntries(
+        Object.entries(payload).filter(
+          ([key]) =>
+            ![
+              "p_discount_code",
+              "p_transaction_reference",
+              "p_other_payment_method",
+            ].includes(key),
+        ),
+      );
       const fallback = await supabase
         .rpc("record_sales_order", legacyPayload)
         .single<{ id: string; receipt_number: string }>();
@@ -227,7 +255,7 @@ export async function recordSalesOrderAction(
         sale_reference: data.receipt_number,
         amount: balance,
         due_date: installmentDueDate,
-        notes: installmentTerms,
+        notes: `${installmentFrequency} payments of PHP ${installmentAmount.toFixed(2)}`,
       });
     }
   }

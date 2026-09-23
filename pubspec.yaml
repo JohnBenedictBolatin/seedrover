@@ -20,8 +20,7 @@ dependencies:
   shared_preferences: ^2.3.3
   supabase_flutter: ^2.15.2
   flutter_blue_plus: 2.2.1
-  firebase_core: ^4.12.1
-  firebase_messaging: ^16.4.3
+  mjpeg_view: ^1.0.1
 
 dev_dependencies:
   flutter_test:
@@ -33,6 +32,6 @@ flutter:
   assets:
     - .env
     - assets/images/
-    - assets/images/mascot/
+    - assets/images/mascots/
     - assets/images/crops/
     - assets/images/stocks/

@@ -10,6 +10,7 @@ class CropActionButtons extends StatelessWidget {
     required this.onWater,
     required this.onFertilize,
     this.onHarvest,
+    this.onNotHarvested,
     required this.onEdit,
     super.key,
   });
@@ -17,6 +18,7 @@ class CropActionButtons extends StatelessWidget {
   final VoidCallback onWater;
   final VoidCallback onFertilize;
   final VoidCallback? onHarvest;
+  final VoidCallback? onNotHarvested;
   final VoidCallback onEdit;
 
   @override
@@ -52,6 +54,14 @@ class CropActionButtons extends StatelessWidget {
                 icon: Icons.agriculture_outlined,
                 color: AppColors.warning,
                 onPressed: onHarvest!,
+              ),
+            if (onNotHarvested != null)
+              _ActionButton(
+                width: buttonWidth,
+                label: 'Not Harvested',
+                icon: Icons.block_outlined,
+                color: AppColors.danger,
+                onPressed: onNotHarvested!,
               ),
             _ActionButton(
               width: buttonWidth,

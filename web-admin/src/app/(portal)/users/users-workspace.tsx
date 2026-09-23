@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Check,
   Eye,
+  EyeOff,
   Filter,
   IdCard,
   LockKeyhole,
@@ -102,14 +103,6 @@ export function UsersWorkspace({ users, roles, summary }: Props) {
   );
 
   const farmManagers = users.filter((user) => user.roleName.includes("Manager")).length;
-
-  function resetFilters() {
-    setQuery("");
-    setRoleFilter("all");
-    setStatusFilter("All");
-    setSortBy("Newest");
-    setPage(1);
-  }
 
   function notify(message: string) {
     setToast(message);
@@ -326,8 +319,9 @@ export function UsersWorkspace({ users, roles, summary }: Props) {
           roles={roles}
           onClose={() => setSelectedUser(null)}
           onSubmit={() => {
+            setSelectedUser(null);
             router.refresh();
-            notify("User profile update submitted.");
+            notify("User profile updated.");
           }}
           onError={notify}
         />
@@ -487,8 +481,16 @@ function UserModal({
         >
           <input name="user_id" type="hidden" value={user.id} />
           <label>
-            Full name
-            <input name="full_name" defaultValue={user.fullName} />
+            First name
+            <input name="first_name" defaultValue={user.firstName} required />
+          </label>
+          <label>
+            Middle initial
+            <input name="middle_initial" defaultValue={user.middleInitial} maxLength={1} />
+          </label>
+          <label>
+            Last name
+            <input name="last_name" defaultValue={user.lastName} required />
           </label>
           <label>
             Role
@@ -540,6 +542,7 @@ function CreateUserModal({
     success: false,
   });
   const confirmedRef = useRef(false);
+  const [showPassword, setShowPassword] = useState(false);
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const router = useRouter();
   const roleOptions = roles.map((role) => ({
@@ -561,6 +564,8 @@ function CreateUserModal({
   }, [onClose, onNotify, router, state]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    const form = event.currentTarget;
+
     if (confirmedRef.current) {
       confirmedRef.current = false;
       return;
@@ -578,7 +583,7 @@ function CreateUserModal({
     }
 
     confirmedRef.current = true;
-    event.currentTarget.requestSubmit();
+    form.requestSubmit();
   }
 
   return (
@@ -617,8 +622,16 @@ function CreateUserModal({
           onSubmit={handleSubmit}
         >
           <label>
-            Full name
-            <input name="full_name" placeholder="Enter staff full name" required />
+            First name
+            <input name="first_name" placeholder="e.g. Juan" required />
+          </label>
+          <label>
+            Middle initial
+            <input maxLength={1} name="middle_initial" placeholder="e.g. D" />
+          </label>
+          <label>
+            Last name
+            <input name="last_name" placeholder="e.g. Dela Cruz" required />
           </label>
           <label>
             Username
@@ -640,15 +653,24 @@ function CreateUserModal({
               <input name="contact_number" placeholder="e.g. 0912 345 6789" />
             </span>
           </label>
-          <label>
+          <label className={styles.passwordLabel}>
             Temporary password
             <input
               minLength={8}
               name="temporary_password"
               placeholder="Set temporary password"
               required
-              type="password"
+              type={showPassword ? "text" : "password"}
             />
+            <button
+              aria-label={showPassword ? "Hide temporary password" : "Show temporary password"}
+              aria-pressed={showPassword}
+              className={styles.passwordToggle}
+              type="button"
+              onClick={() => setShowPassword((current) => !current)}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
           </label>
           <label>
             Role

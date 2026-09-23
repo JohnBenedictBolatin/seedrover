@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isAdminRole } from "@/lib/auth";
@@ -55,6 +56,7 @@ export async function signInAction(
   const password = String(formData.get("password") ?? "");
   const rememberSession = formData.get("rememberMe") === "true";
   let signedIn = false;
+  let signedInRole = "";
 
   if (!username) {
     return { message: "Enter your username." };
@@ -135,12 +137,17 @@ export async function signInAction(
     });
 
     signedIn = true;
+    signedInRole = roleName;
   } catch {
     return { message: "Unable to sign in right now. Please try again." };
   }
 
   if (signedIn) {
-    redirect("/dashboard");
+    redirect(
+      ["Farm Planting Manager", "Planting Staff"].includes(signedInRole)
+        ? "/crops"
+        : "/dashboard",
+    );
   }
 
   return { message: "Unable to sign in right now. Please try again." };
@@ -173,7 +180,13 @@ export async function forgotPasswordAction(username: string) {
   }
 
   try {
-    await supabase.auth.resetPasswordForEmail(email);
+    const origin = (await headers()).get("origin");
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: origin ? `${origin.replace(/\/$/, "")}/login` : undefined,
+    });
+    if (error) {
+      return `Unable to send reset email: ${error.message}`;
+    }
     return genericResetMessage;
   } catch {
     return "Unable to send reset email right now. Please try again.";

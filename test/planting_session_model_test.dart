@@ -75,4 +75,34 @@ void main() {
     expect(status('EMERGENCY_STOPPED').isTerminal, isTrue);
     expect(status('FAILED').isTerminal, isTrue);
   });
+
+  test('completed hardware receipt synchronizes without operator confirmation',
+      () {
+    final config = PlantingRowConfig.defaults(PlantingSeedType.sitaw);
+    final receipt = PendingPlantingReceipt(
+      config: config,
+      status: PlantingOperationStatus(
+        state: 'COMPLETED',
+        sessionId: config.sessionId,
+        cropProfile: 'sitaw',
+        fieldLabel: 'North row',
+        targetDrops: 5,
+        completedDrops: 5,
+        distanceCm: 200,
+        soilRaw: 2000,
+        soilPercent: 55,
+        temperatureC: 28,
+        seedLoadRaw: 800,
+        firmwareVersion: 'test',
+        distanceIsEstimated: true,
+        movementTracking: 'timed_estimate',
+      ),
+      startedAt: DateTime.utc(2026, 8, 18),
+      completedAt: DateTime.utc(2026, 8, 18, 0, 1),
+    );
+
+    expect(receipt.plantingConfirmed, isFalse);
+    expect(receipt.isHardwareConfirmedSuccess, isTrue);
+    expect(receipt.readyToSynchronize, isTrue);
+  });
 }

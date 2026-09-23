@@ -112,11 +112,15 @@
 
 .notificationCard {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 90px 220px;
+  grid-template-columns: minmax(0, 1fr) 110px 220px;
   align-items: center;
-  gap: 14px;
+  column-gap: 20px;
   background: var(--surface);
   padding: 16px;
+}
+
+.notificationCard > * {
+  min-width: 0;
 }
 
 .notificationCard[data-read="false"] {

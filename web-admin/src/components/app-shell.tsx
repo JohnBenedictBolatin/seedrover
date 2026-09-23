@@ -35,16 +35,24 @@ import styles from "./app-shell.module.css";
 
 function navGroupsFor(roleName: AdminProfile["roleName"]) {
   const canManageInventory =
-    roleName === "System Administrator" || roleName === "Farm Inventory Manager";
+    roleName === "System Administrator" ||
+    roleName === "Farm Inventory Manager" ||
+    roleName === "Inventory Staff";
   const canManageCrops =
-    roleName === "System Administrator" || roleName === "Farm Planting Manager";
+    roleName === "System Administrator" ||
+    roleName === "Farm Planting Manager" ||
+    roleName === "Planting Staff";
   const isAdmin = roleName === "System Administrator";
+  const isPlantingOnly =
+    roleName === "Farm Planting Manager" || roleName === "Planting Staff";
 
   return [
-    {
-      label: "Overview",
-      items: [{ label: "Dashboard", href: "/dashboard" }],
-    },
+    !isPlantingOnly
+      ? {
+          label: "Overview",
+          items: [{ label: "Dashboard", href: "/dashboard" }],
+        }
+      : null,
     canManageInventory
       ? {
           label: "Operations",
@@ -52,7 +60,7 @@ function navGroupsFor(roleName: AdminProfile["roleName"]) {
             { label: "Inventory", href: "/inventory" },
             { label: "Sales", href: "/sales" },
             { label: "Customers", href: "/customers" },
-            { label: "Investments", href: "/investments" },
+            ...(isAdmin ? [{ label: "Investments", href: "/investments" }] : []),
           ],
         }
       : null,
@@ -167,7 +175,9 @@ export function AppShell({
     const savedTheme = window.localStorage.getItem("seedrover-theme");
     const nextTheme = savedTheme === "light" ? "light" : "dark";
     document.documentElement.dataset.theme = nextTheme;
-    setTheme(nextTheme);
+    const updateThemeState = window.setTimeout(() => setTheme(nextTheme), 0);
+
+    return () => window.clearTimeout(updateThemeState);
   }, []);
 
   function toggleTheme() {
@@ -333,7 +343,6 @@ export function AppShell({
                   <section
                     className={styles.notificationPopover}
                     aria-label="Notifications"
-                    aria-modal="false"
                   >
                     <header>
                       <div>

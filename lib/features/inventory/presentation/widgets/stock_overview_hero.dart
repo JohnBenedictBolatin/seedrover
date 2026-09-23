@@ -10,7 +10,7 @@ class StockOverviewHero extends StatelessWidget {
     required this.inStockItems,
     required this.needsAttentionItems,
     super.key,
-    this.imageAsset = 'assets/images/stock_hero.png',
+    this.imageAsset = 'assets/images/mascots/inventory_mobile.png',
   });
 
   final int inStockItems;
@@ -41,7 +41,8 @@ class StockOverviewHero extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          Positioned.fill(child: CustomPaint(painter: _StockStarFieldPainter())),
+          Positioned.fill(
+              child: CustomPaint(painter: _StockStarFieldPainter())),
           Padding(
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: Row(
@@ -101,15 +102,21 @@ class _StockHeroImage extends StatelessWidget {
     return SizedBox(
       width: 86,
       height: 86,
-      child: asset == null || asset!.isEmpty
-          ? const _StockHeroImageFallback()
-          : Image.asset(
-              asset!,
-              width: double.infinity,
-              height: double.infinity,
-              fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => const _StockHeroImageFallback(),
-            ),
+      child: ClipRect(
+        child: asset == null || asset!.isEmpty
+            ? const _StockHeroImageFallback()
+            : Transform.scale(
+                scaleX: 1.18,
+                scaleY: 1,
+                child: Image.asset(
+                  asset!,
+                  width: double.infinity,
+                  height: double.infinity,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const _StockHeroImageFallback(),
+                ),
+              ),
+      ),
     );
   }
 }

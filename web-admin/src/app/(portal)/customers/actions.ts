@@ -48,11 +48,16 @@ export async function saveCustomerProfileAction(formData: FormData) {
     throw new Error("Sign in before saving customer notes.");
   }
 
-  const displayName = text(formData, "display_name", "Walk-in customer");
+  const firstName = text(formData, "first_name");
+  const lastName = text(formData, "last_name");
+  const middleInitial = text(formData, "middle_initial");
+  const displayName = [firstName, middleInitial ? `${middleInitial}.` : "", lastName].filter(Boolean).join(" ") || "Walk-in customer";
   const contactNumber = text(formData, "contact_number", "Not provided");
   const payload = {
     customer_key: customerKey(displayName, contactNumber),
-    display_name: displayName,
+    first_name: firstName || null,
+    last_name: lastName || null,
+    middle_initial: middleInitial || null,
     contact_number: contactNumber,
     alternate_contact: text(formData, "alternate_contact") || null,
     customer_type: text(formData, "customer_type", "Farm Buyer"),
@@ -70,6 +75,13 @@ export async function saveCustomerProfileAction(formData: FormData) {
   if (error) {
     throw new Error(databaseSetupMessage(error));
   }
+
+  await supabase.from("activity_logs").insert({
+    user_id: user.id,
+    activity: "Customer profile saved",
+    description: `${displayName} customer profile was saved.`,
+    module: "Customers",
+  });
 
   revalidatePath("/customers");
 }
@@ -149,6 +161,13 @@ export async function createCustomerDiscountAction(formData: FormData) {
   if (error) {
     throw new Error(databaseSetupMessage(error));
   }
+
+  await supabase.from("activity_logs").insert({
+    user_id: user.id,
+    activity: "Customer discount released",
+    description: `${code} was released for ${customerName}.`,
+    module: "Customers",
+  });
 
   revalidatePath("/customers");
   revalidatePath("/sales");

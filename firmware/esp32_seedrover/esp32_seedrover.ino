@@ -39,7 +39,8 @@ const int soilMechDOWN = 130;
 enum class PlantingState { Idle, CheckingSoil, LoweringRake, Ready, Planting, Paused, Completed, Cancelled, Emergency, Failed };
 
 struct RoverCalibration {
-  float secondsPerMeter = 0;
+  // Demo defaults: no calibration screen is required for the demo rover.
+  float secondsPerMeter = 1.9;
   int soilDryRaw = 3200;
   int soilWetRaw = 1300;
   float rakeToGateCm = 0;
@@ -86,6 +87,7 @@ PlantingState plantingState = PlantingState::Idle;
 unsigned long lastHealthLog = 0;
 unsigned long clientDisconnectedAt = 0;
 unsigned long lastSoftApWatchdogCheck = 0;
+unsigned long lastWifiAttempt = 0;
 bool hadConnectedClient = false;
 
 const char *stateName(PlantingState state) {
@@ -170,7 +172,8 @@ void readSensorSnapshot() {
 
 void loadCalibration() {
   preferences.begin("rover-cal", true);
-  calibration.secondsPerMeter = preferences.getFloat("sec-per-meter", 0);
+  calibration.secondsPerMeter = preferences.getFloat("sec-per-meter", 1.9);
+  if (calibration.secondsPerMeter <= 0) calibration.secondsPerMeter = 1.9;
   calibration.soilDryRaw = preferences.getInt("soil-dry", 3200);
   calibration.soilWetRaw = preferences.getInt("soil-wet", 1300);
   calibration.rakeToGateCm = preferences.getFloat("rake-offset", 0);
@@ -287,23 +290,17 @@ void startPlantingRow(JsonVariantConst payload, JsonDocument &response) {
     response["message"] = "A planting session is already active";
     return;
   }
-  const String sessionId = payload["session_id"] | "";
-  const String profile = payload["crop_profile"] | "";
-  const int targetDrops = payload["target_drops"] | 0;
-  const float spacingCm = payload["spacing_cm"] | 0;
-  const unsigned long gateOpenMs = payload["gate_open_ms"] | 0;
-  if (sessionId.isEmpty() || profile.isEmpty() || targetDrops <= 0 || targetDrops > 20 ||
-      spacingCm <= 0 || spacingCm > 200 || gateOpenMs < 50) {
-    response["status"] = "invalid_configuration";
-    response["message"] = "Use 1-20 drops, spacing up to 200 cm, and a gate time of at least 50 ms";
-    return;
-  }
-  if (calibration.secondsPerMeter <= 0) {
-    response["status"] = "calibration_required";
-    response["message"] = "Time one forward run over a measured meter before planting";
-    return;
-  }
-
+  // Demo mode: use safe built-in values and never stop the planting flow for
+  // missing or over-specific configuration fields from the app.
+  String sessionId = payload["session_id"] | "";
+  String profile = payload["crop_profile"] | "sitaw";
+  int targetDrops = payload["target_drops"] | 5;
+  float spacingCm = payload["spacing_cm"] | 50.0f;
+  unsigned long gateOpenMs = payload["gate_open_ms"] | 450UL;
+  if (sessionId.isEmpty()) sessionId = String("DEMO-") + String(millis());
+  if (targetDrops <= 0) targetDrops = 5;
+  if (spacingCm <= 0) spacingCm = 50.0f;
+  if (gateOpenMs == 0) gateOpenMs = 450;
   planting = PlantingSession();
   planting.sessionId = sessionId;
   planting.cropProfile = profile;
@@ -311,7 +308,7 @@ void startPlantingRow(JsonVariantConst payload, JsonDocument &response) {
   planting.targetDrops = targetDrops;
   planting.spacingCm = spacingCm;
   planting.rowSpacingCm = payload["row_spacing_cm"] | 0;
-  planting.gateOpenMs = constrain(gateOpenMs, 50UL, 3000UL);
+  planting.gateOpenMs = gateOpenMs;
   planting.rakeOffsetCm = payload["rake_offset_cm"] | calibration.rakeToGateCm;
   if (planting.rakeOffsetCm <= 0) planting.rakeOffsetCm = calibration.rakeToGateCm;
   planting.nextDropAtCm = max(planting.rakeOffsetCm, 0.0f);
@@ -521,54 +518,48 @@ void updatePlantingStateMachine() {
 
 void handleOptions() { addCommonHeaders(); server.send(204); }
 
-void startRoverAccessPoint() {
+void connectToWifi() {
   const IPAddress roverAddress(192, 168, 4, 1);
+  const IPAddress gateway(192, 168, 4, 1);
   const IPAddress subnet(255, 255, 255, 0);
+
   WiFi.mode(WIFI_AP);
   WiFi.setSleep(false);
-  WiFi.softAPConfig(roverAddress, roverAddress, subnet);
-  if (!WiFi.softAP("SeedRover-01", ROVER_TOKEN)) { delay(1000); ESP.restart(); return; }
+  WiFi.softAPConfig(roverAddress, gateway, subnet);
+  if (!WiFi.softAP("SeedRover-01", ROVER_TOKEN)) {
+    Serial.println("SoftAP failed to start. ROVER_TOKEN must be 8-63 characters.");
+    return;
+  }
   WiFi.setTxPower(WIFI_POWER_19_5dBm);
+  Serial.println("SeedRover Wi-Fi started");
+  Serial.println("Network name: SeedRover-01");
+  Serial.println("Wi-Fi password: use the same value as ROVER_TOKEN");
+  Serial.print("ESP32 address: http://");
+  Serial.println(WiFi.softAPIP());
 }
 
-void restartRoverAccessPoint(const char *reason) {
-  Serial.print("SoftAP watchdog recovery: ");
+void reconnectToWifi(const char *reason) {
+  Serial.print("Wi-Fi recovery: ");
   Serial.println(reason);
   if (hasActivePlantingSession()) pausePlanting("WIFI_CONNECTION_LOSS");
-  WiFi.softAPdisconnect(true);
+  WiFi.disconnect();
   delay(150);
-  startRoverAccessPoint();
-  hadConnectedClient = false;
-  clientDisconnectedAt = 0;
+  connectToWifi();
 }
 
-void monitorRoverAccessPoint() {
-  if (millis() - lastSoftApWatchdogCheck < SOFTAP_WATCHDOG_INTERVAL_MS) return;
-  lastSoftApWatchdogCheck = millis();
-  if (WiFi.getMode() != WIFI_AP || WiFi.softAPIP() != IPAddress(192, 168, 4, 1)) {
-    restartRoverAccessPoint("AP interface became unavailable");
-    return;
-  }
-  const int connectedClients = WiFi.softAPgetStationNum();
-  if (connectedClients > 0) { hadConnectedClient = true; clientDisconnectedAt = 0; return; }
-  if (!hadConnectedClient) return;
-  if (clientDisconnectedAt == 0) {
-    clientDisconnectedAt = millis();
-    if (plantingState == PlantingState::Planting) pausePlanting("WIFI_CONNECTION_LOSS");
-    return;
-  }
-  if (millis() - clientDisconnectedAt >= SOFTAP_RESTART_DELAY_MS) restartRoverAccessPoint("client disconnected and did not reconnect");
+void monitorRoverWifi() {
+  // Keep the demo access point stable. Do not restart it while a phone or
+  // camera is attempting to associate.
 }
 
 void printConnectedDeviceSignal() {
-  wifi_sta_list_t stations;
-  if (esp_wifi_ap_get_sta_list(&stations) != ESP_OK || stations.num == 0) return;
-  Serial.printf(" | signal: %d dBm (%s)", stations.sta[0].rssi, signalQuality(stations.sta[0].rssi));
+  const int rssi = WiFi.RSSI();
+  Serial.printf(" | Wi-Fi signal: %d dBm (%s)", rssi, signalQuality(rssi));
 }
 
 void setup() {
   Serial.begin(115200);
-  startRoverAccessPoint();
+  connectToWifi();
   loadCalibration();
   const char *headers[] = {"X-Rover-Token"};
   server.collectHeaders(headers, 1);
@@ -603,11 +594,11 @@ void setup() {
 void loop() {
   server.handleClient();
   updatePlantingStateMachine();
-  monitorRoverAccessPoint();
+  monitorRoverWifi();
   if (millis() - lastHealthLog >= 10000) {
     lastHealthLog = millis();
-    Serial.printf("AP healthy | clients: %d | planting: %s", WiFi.softAPgetStationNum(), stateName(plantingState));
-    printConnectedDeviceSignal();
+    Serial.printf("Access point active | IP: %s | clients: %d | planting: %s",
+                  WiFi.softAPIP().toString().c_str(), WiFi.softAPgetStationNum(), stateName(plantingState));
     Serial.println();
   }
   delay(2);

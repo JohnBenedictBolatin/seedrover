@@ -37,7 +37,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     'System Administrator',
     'Farm Planting Manager',
     'Farm Inventory Manager',
-    'Farm Staff',
+    'Planting Staff',
+    'Inventory Staff',
   ];
 
   @override

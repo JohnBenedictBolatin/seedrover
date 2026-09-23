@@ -5,6 +5,7 @@ import { getCustomerPayments } from "@/lib/customer-payments";
 import { CustomersWorkspace } from "@/components/customers-workspace";
 import { CustomerPaymentsPanel } from "@/components/customer-payments-panel";
 import { LiveDateTime } from "@/components/live-date-time";
+import { ModuleHeaderIntro } from "@/components/module-header-intro";
 import styles from "./page.module.css";
 
 export default async function CustomersPage() {
@@ -14,7 +15,7 @@ export default async function CustomersPage() {
     redirect("/login");
   }
 
-  if (profile.roleName === "Farm Planting Manager") {
+  if (["Farm Planting Manager", "Planting Staff"].includes(profile.roleName)) {
     redirect("/dashboard");
   }
 
@@ -26,11 +27,11 @@ export default async function CustomersPage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <div>
-          <p className={styles.eyebrow}>Operations</p>
-          <h1>Customers</h1>
-          <p>Buyer profiles, purchase history, discounts, and payments.</p>
-        </div>
+          <ModuleHeaderIntro mascot="customers">
+            <p className={styles.eyebrow}>Operations</p>
+            <h1>Customers</h1>
+            <p>Buyer profiles, purchase history, discounts, and payments.</p>
+          </ModuleHeaderIntro>
         <div className={styles.liveDateTime}>
           <LiveDateTime />
         </div>

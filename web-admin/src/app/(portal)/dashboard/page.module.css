@@ -1,6 +1,21 @@
 .page {
+  --dashboard-green-rgb: 141, 255, 42;
+  --dashboard-green-secondary-rgb: 83, 209, 30;
+  --dashboard-green-spark-rgb: 214, 255, 177;
   display: grid;
   gap: 24px;
+}
+
+:global(html[data-theme="dark"]) .page {
+  --green: #2b8a4a;
+  --green-secondary: #226c3c;
+  --green-accent: #4fb86a;
+  --dashboard-green-rgb: 79, 184, 106;
+  --dashboard-green-secondary-rgb: 43, 132, 70;
+  --dashboard-green-spark-rgb: 159, 220, 173;
+  --chart-series-1: #4fb86a;
+  --chart-fill-1: rgba(79, 184, 106, 0.22);
+  --chart-cursor: rgba(79, 184, 106, 0.3);
 }
 
 .header {
@@ -86,7 +101,7 @@
   gap: 18px;
   overflow: hidden;
   isolation: isolate;
-  border-color: rgba(141, 255, 42, 0.18);
+  border-color: rgba(var(--dashboard-green-rgb), 0.18);
   background:
     radial-gradient(ellipse at bottom, rgba(38, 72, 43, 0.88) 0%, rgba(31, 38, 32, 0.94) 46%, rgba(25, 25, 25, 0.98) 100%),
     linear-gradient(180deg, rgba(49, 49, 49, 0.98), rgba(37, 37, 37, 0.96));
@@ -108,8 +123,8 @@
 .analysisPanel::before {
   opacity: 0.58;
   background-image:
-    radial-gradient(circle, rgba(214, 255, 177, 0.86) 0 1px, transparent 1.5px),
-    radial-gradient(circle, rgba(141, 255, 42, 0.58) 0 1.5px, transparent 2px),
+    radial-gradient(circle, rgba(var(--dashboard-green-spark-rgb), 0.86) 0 1px, transparent 1.5px),
+    radial-gradient(circle, rgba(var(--dashboard-green-rgb), 0.58) 0 1.5px, transparent 2px),
     radial-gradient(circle, rgba(255, 255, 255, 0.56) 0 1px, transparent 1.6px);
   background-size: 58px 58px, 96px 96px, 148px 148px;
   background-position: 0 0, 22px 18px, 46px 34px;
@@ -120,8 +135,8 @@
 .analysisPanel::after {
   opacity: 0.46;
   background:
-    radial-gradient(circle at 18% 78%, rgba(141, 255, 42, 0.22), transparent 28%),
-    radial-gradient(circle at 82% 18%, rgba(83, 209, 30, 0.16), transparent 26%),
+    radial-gradient(circle at 18% 78%, rgba(var(--dashboard-green-rgb), 0.22), transparent 28%),
+    radial-gradient(circle at 82% 18%, rgba(var(--dashboard-green-secondary-rgb), 0.16), transparent 26%),
     linear-gradient(180deg, rgba(16, 16, 16, 0), rgba(16, 16, 16, 0.3));
 }
 
@@ -158,7 +173,7 @@
   min-height: 40px;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(141, 255, 42, 0.22);
+  border: 1px solid rgba(var(--dashboard-green-rgb), 0.22);
   border-radius: 8px;
   color: var(--text-secondary);
   background: rgba(24, 24, 24, 0.62);
@@ -175,9 +190,9 @@
 
 .rangeTab:hover,
 .rangeTabActive {
-  border-color: rgba(141, 255, 42, 0.52);
+  border-color: rgba(var(--dashboard-green-rgb), 0.52);
   color: var(--green-accent);
-  background: rgba(83, 209, 30, 0.1);
+  background: rgba(var(--dashboard-green-secondary-rgb), 0.1);
 }
 
 .rangeTab:active,
@@ -212,10 +227,10 @@
   height: 38px;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(141, 255, 42, 0.2);
+  border: 1px solid rgba(var(--dashboard-green-rgb), 0.2);
   border-radius: 8px;
   color: var(--green-accent);
-  background: rgba(83, 209, 30, 0.08);
+  background: rgba(var(--dashboard-green-secondary-rgb), 0.08);
 }
 
 .metric p {
@@ -250,6 +265,21 @@
   white-space: nowrap;
 }
 
+.metricDetailLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--green-accent);
+  font-size: .68rem;
+  font-weight: 900;
+  letter-spacing: .04em;
+  text-decoration: none;
+}
+
+.metricDetailLink:hover {
+  color: var(--text);
+}
+
 .analysisPanel {
   position: relative;
   display: grid;
@@ -258,7 +288,7 @@
   gap: 18px;
   overflow: hidden;
   isolation: isolate;
-  border-color: rgba(141, 255, 42, 0.18);
+  border-color: rgba(var(--dashboard-green-rgb), 0.18);
   background:
     radial-gradient(ellipse at bottom, rgba(38, 72, 43, 0.88) 0%, rgba(31, 38, 32, 0.94) 46%, rgba(25, 25, 25, 0.98) 100%),
     linear-gradient(180deg, rgba(49, 49, 49, 0.98), rgba(37, 37, 37, 0.96));
@@ -286,7 +316,7 @@
 .analysisList div {
   display: grid;
   gap: 6px;
-  border-left: 2px solid rgba(141, 255, 42, 0.32);
+  border-left: 2px solid rgba(var(--dashboard-green-rgb), 0.32);
   padding-left: 12px;
 }
 
@@ -321,8 +351,13 @@
 
 .chartHeader {
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 14px;
+}
+
+.chartHeaderCopy {
+  min-width: 0;
 }
 
 .chartHeader h2 {
@@ -336,14 +371,153 @@
   font-weight: 700;
 }
 
+.chartSummary {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 18px;
+  max-width: 58%;
+  text-align: right;
+}
+
+.chartSummaryItem {
+  display: grid;
+  min-width: 88px;
+  gap: 4px;
+}
+
+.chartSummaryItem strong {
+  overflow: hidden;
+  color: var(--green-accent);
+  font-family: var(--font-roboto-mono);
+  font-size: clamp(1rem, 1.7vw, 1.45rem);
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:global(html[data-theme="dark"]) .chartSummaryItem strong {
+  color: var(--text);
+}
+
+.chartSummaryItem span {
+  color: var(--text-muted);
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+
 .chartBox {
   min-height: 260px;
+}
+
+.pieChartLayout {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.85fr) minmax(210px, 1.15fr);
+  min-height: 260px;
+  align-items: center;
+  gap: 18px;
+}
+
+.pieChartGraphic {
+  position: relative;
+  min-width: 0;
+  height: 220px;
+}
+
+.pieChartCenter {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: 96px;
+  justify-items: center;
+  gap: 3px;
+  pointer-events: none;
+  text-align: center;
+  transform: translate(-50%, -50%);
+}
+
+.pieChartCenter span {
+  color: var(--text-secondary);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.pieChartCenter strong {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text);
+  font-family: var(--font-roboto-mono);
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pieLegend {
+  display: grid;
+  max-height: 230px;
+  min-width: 0;
+  align-content: center;
+  overflow-y: auto;
+}
+
+.pieLegendItem {
+  display: grid;
+  grid-template-columns: 11px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 2px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.pieLegendItem:last-child {
+  border-bottom: 0;
+}
+
+.pieLegendSwatch {
+  width: 10px;
+  height: 10px;
+  border: 1px solid;
+  border-radius: 3px;
+}
+
+.pieLegendLabel {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.pieLegendLabel span {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pieLegendLabel small {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.pieLegendItem > strong {
+  color: var(--text);
+  font-family: var(--font-roboto-mono);
+  font-size: 0.78rem;
 }
 
 .chartTooltip {
   display: grid;
   gap: 5px;
-  border: 1px solid rgba(141, 255, 42, 0.22);
+  border: 1px solid rgba(var(--dashboard-green-rgb), 0.22);
   border-radius: 8px;
   color: var(--text);
   background: rgba(30, 30, 30, 0.96);
@@ -384,10 +558,10 @@
 
 .panelPill {
   flex: 0 0 auto;
-  border: 1px solid rgba(141, 255, 42, 0.22);
+  border: 1px solid rgba(var(--dashboard-green-rgb), 0.22);
   border-radius: 999px;
   color: var(--green-accent);
-  background: rgba(83, 209, 30, 0.08);
+  background: rgba(var(--dashboard-green-secondary-rgb), 0.08);
   font-size: 0.72rem;
   font-weight: 900;
   padding: 7px 10px;
@@ -460,8 +634,8 @@
 }
 
 .activityItem {
-  grid-template-columns: 40px minmax(0, 1fr) auto;
-  gap: 12px;
+  grid-template-columns: 42px minmax(0, 1fr) minmax(122px, auto);
+  gap: 14px;
   border-color: var(--history-border);
   background: var(--history-row-surface);
 }
@@ -470,27 +644,104 @@
   background: var(--history-row-hover);
 }
 
-.activityItem > span {
+.activityIcon {
   display: inline-flex;
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   align-items: center;
   justify-content: center;
   border-radius: 8px;
   color: var(--green-accent);
-  background: rgba(83, 209, 30, 0.08);
+  background: rgba(var(--dashboard-green-secondary-rgb), 0.08);
 }
 
-.activityItem[data-type="stock"] > span {
-  color: #b6ff75;
+.activityItem[data-type="stock-in"] .activityIcon {
+  color: var(--green-accent);
+  background: rgba(var(--dashboard-green-secondary-rgb), 0.1);
 }
 
-.activityItem > div:last-child {
+.activityItem[data-type="stock-out"] .activityIcon {
+  color: var(--warning);
+  background: rgba(255, 176, 0, 0.1);
+}
+
+.activityItem[data-type="stock-adjustment"] .activityIcon {
+  color: var(--text-secondary);
+  background: var(--history-row-hover);
+}
+
+.activityContent {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.activityHeading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.activityHeading strong {
+  font-size: 0.9rem;
+}
+
+.activityHeading span {
+  flex: 0 1 auto;
+  overflow: hidden;
+  border: 1px solid var(--history-border);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-family: var(--font-roboto-mono);
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 3px 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activityContent > p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.activityMetadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.activityMetadata span {
+  position: relative;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.activityMetadata span:not(:last-child)::after {
+  position: absolute;
+  right: -7px;
+  color: var(--history-border);
+  content: "•";
+}
+
+.activityValue {
   text-align: right;
 }
 
-.activityItem > div:last-child strong {
+.activityValue strong {
   font-family: var(--font-roboto-mono);
+}
+
+.activityItem[data-type="stock-in"] .activityValue strong {
+  color: var(--green-accent);
+}
+
+.activityItem[data-type="stock-out"] .activityValue strong {
+  color: var(--warning);
 }
 
 .activityPagination {
@@ -514,7 +765,7 @@
   align-items: center;
   justify-content: center;
   place-items: center;
-  border: 1px solid rgba(141, 255, 42, 0.22);
+  border: 1px solid rgba(var(--dashboard-green-rgb), 0.22);
   border-radius: 8px;
   color: var(--green-accent);
   background: rgba(24, 24, 24, 0.62);
@@ -523,8 +774,8 @@
 }
 
 .activityPagination button:hover:not(:disabled) {
-  border-color: rgba(141, 255, 42, 0.42);
-  background: rgba(83, 209, 30, 0.16);
+  border-color: rgba(var(--dashboard-green-rgb), 0.42);
+  background: rgba(var(--dashboard-green-secondary-rgb), 0.16);
   transform: translateY(-1px);
 }
 
@@ -613,6 +864,21 @@
 
   .metricGrid {
     grid-template-columns: 1fr;
+  }
+
+  .pieChartLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .chartSummary {
+    align-self: flex-start;
+    justify-content: flex-start;
+    max-width: 100%;
+    text-align: left;
+  }
+
+  .pieChartGraphic {
+    height: 190px;
   }
 
   .rangeTabs {

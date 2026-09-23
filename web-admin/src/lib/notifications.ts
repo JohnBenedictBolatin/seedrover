@@ -56,7 +56,7 @@ function allowedModulesFor(roleName: AdminProfile["roleName"]) {
     return null;
   }
 
-  if (roleName === "Farm Inventory Manager") {
+  if (roleName === "Farm Inventory Manager" || roleName === "Inventory Staff") {
     return ["Inventory", "Stocks", "Sales", "Customers", "Discounts", "Reports"];
   }
 
@@ -68,7 +68,7 @@ function allowedNotificationTypesFor(roleName: AdminProfile["roleName"]) {
     return null;
   }
 
-  if (roleName === "Farm Inventory Manager") {
+  if (roleName === "Farm Inventory Manager" || roleName === "Inventory Staff") {
     return ["Inventory", "Stocks", "Sales", "Customers", "System"];
   }
 

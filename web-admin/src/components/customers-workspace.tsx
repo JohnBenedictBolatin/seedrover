@@ -269,7 +269,9 @@ export function CustomersWorkspace({ customers, discounts, stats }: CustomersWor
   }, [customerFilter, customers, endDate, paymentFilter, query, sortBy, startDate]);
 
   useEffect(() => {
-    setCurrentPage(1);
+    const resetPage = window.setTimeout(() => setCurrentPage(1), 0);
+
+    return () => window.clearTimeout(resetPage);
   }, [customerFilter, endDate, paymentFilter, query, sortBy, startDate]);
 
   const totalPages = Math.max(1, Math.ceil(filteredCustomers.length / CUSTOMER_ROWS_PER_PAGE));
@@ -427,19 +429,19 @@ export function CustomersWorkspace({ customers, discounts, stats }: CustomersWor
             </div>
             {paginatedCustomers.map((customer) => (
               <article className={styles.customerRow} key={customer.key}>
-                <div className={styles.customerIdentity}>
+                <div className={styles.customerIdentity} data-label="Customer">
                   <strong>{customer.name}</strong>
                 </div>
-                <div className={styles.contactCell}>
+                <div className={styles.contactCell} data-label="Contact details">
                   <strong>{customer.contact}</strong>
                   <span>{customer.alternateContact || "No alternate contact"}</span>
                 </div>
-                <span className={styles.typeCell}>{customer.customerType}</span>
-                <strong className={styles.receiptsCell}>{customer.receiptCount}</strong>
-                <strong className={styles.totalCell}>{formatCurrency(customer.totalSpent)}</strong>
-                <span className={styles.dateCell}>{formatDateTime(customer.lastPurchaseAt)}</span>
-                <span className={styles.paymentCell}>{customer.paymentMethods.join(", ")}</span>
-                <div className={styles.tableActions}>
+                <span className={styles.typeCell} data-label="Type">{customer.customerType}</span>
+                <strong className={styles.receiptsCell} data-label="Receipts">{customer.receiptCount}</strong>
+                <strong className={styles.totalCell} data-label="Total spent">{formatCurrency(customer.totalSpent)}</strong>
+                <span className={styles.dateCell} data-label="Last purchase">{formatDateTime(customer.lastPurchaseAt)}</span>
+                <span className={styles.paymentCell} data-label="Payment">{customer.paymentMethods.join(", ")}</span>
+                <div className={styles.tableActions} data-label="Actions">
                   <button
                     aria-label={`View ${customer.name}`}
                     type="button"
@@ -937,8 +939,10 @@ function CustomerDetailModal({
             </div>
 
             <form className={styles.profileForm} onSubmit={handleSubmit}>
-              <input name="display_name" type="hidden" value={customer.name} />
               <input name="contact_number" type="hidden" value={customer.contact} />
+              <label>First name<input name="first_name" defaultValue={customer.firstName} /></label>
+              <label>Middle initial<input name="middle_initial" defaultValue={customer.middleInitial} maxLength={2} /></label>
+              <label>Last name<input name="last_name" defaultValue={customer.lastName} /></label>
               <FormSelect
                 label="Customer type"
                 name="customer_type"

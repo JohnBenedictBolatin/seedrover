@@ -124,7 +124,7 @@ class _SeedRoverStartupSplashState extends State<_SeedRoverStartupSplash>
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Image.asset(
-                          'assets/images/seedrover_splash.png',
+                          'assets/images/mascots/assistant.png',
                           width: 172,
                           fit: BoxFit.contain,
                         ),

@@ -8,14 +8,14 @@ final themeModeControllerProvider =
 );
 
 class ThemeModeController extends StateNotifier<ThemeMode> {
-  ThemeModeController() : super(ThemeMode.dark);
+  ThemeModeController() : super(ThemeMode.light);
 
   static const _storageKey = 'seedrover.theme_mode';
 
   Future<void> restore() async {
     final preferences = await SharedPreferences.getInstance();
     final value = preferences.getString(_storageKey);
-    state = value == ThemeMode.light.name ? ThemeMode.light : ThemeMode.dark;
+    state = value == ThemeMode.dark.name ? ThemeMode.dark : ThemeMode.light;
   }
 
   Future<void> setLightMode(bool enabled) async {

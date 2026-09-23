@@ -1,12 +1,14 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+export const INVENTORY_UNIT = "kg" as const;
+
 export type InventoryItem = {
   id: string;
   stockCode: string;
   itemName: string;
   category: string;
   quantity: number;
-  unit: string;
+  unit: typeof INVENTORY_UNIT;
   minimumQuantity: number;
   storageLocation: string;
   unitCost: number | null;
@@ -291,7 +293,7 @@ export async function getInventoryDashboard() {
     itemName: row.item_name,
     category: row.category,
     quantity: toNumber(row.quantity),
-    unit: row.unit,
+    unit: INVENTORY_UNIT,
     minimumQuantity: toNumber(row.minimum_quantity),
     storageLocation: row.storage_location ?? "Not set",
     unitCost: row.unit_cost === null ? null : toNumber(row.unit_cost),

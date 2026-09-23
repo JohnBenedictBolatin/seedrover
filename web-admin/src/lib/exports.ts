@@ -1,5 +1,6 @@
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { getCustomersDashboard } from "@/lib/customers";
+import { INVENTORY_UNIT } from "@/lib/inventory";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type ExportInventoryRow = {
@@ -207,7 +208,7 @@ export async function requireOperationsExporter() {
 
   if (
     !profile ||
-    !["System Administrator", "Farm Inventory Manager"].includes(profile.roleName)
+    !["System Administrator", "Farm Inventory Manager", "Inventory Staff"].includes(profile.roleName)
   ) {
     return null;
   }
@@ -257,7 +258,7 @@ export async function getInventoryExportRows(filters: ReportExportFilters = {}) 
       itemName: row.item_name,
       category: row.category,
       quantity,
-      unit: row.unit,
+      unit: INVENTORY_UNIT,
       minimumQuantity: toNumber(row.minimum_quantity),
       storageLocation: row.storage_location ?? "Not set",
       unitCost,
@@ -366,7 +367,7 @@ export async function getSalesExportRows(filters: SalesExportFilters = {}) {
       transactionReference: "",
       itemName: item.item_name_snapshot,
       quantitySold: toNumber(item.quantity_sold),
-      unit: item.unit_snapshot,
+      unit: INVENTORY_UNIT,
       unitPrice: toNumber(item.unit_price),
       lineTotal: toNumber(item.line_total),
       receiptSubtotal: toNumber(order.subtotal),
@@ -389,7 +390,7 @@ export async function getSalesExportRows(filters: SalesExportFilters = {}) {
       transactionReference: sale.transaction_reference ?? "",
       itemName: inventory?.item_name ?? "Market distribution",
       quantitySold: toNumber(sale.quantity_sold),
-      unit: inventory?.unit ?? "unit",
+      unit: INVENTORY_UNIT,
       unitPrice: toNumber(sale.unit_price),
       lineTotal: total,
       receiptSubtotal: total,

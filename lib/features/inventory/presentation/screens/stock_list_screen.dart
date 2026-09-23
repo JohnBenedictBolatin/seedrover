@@ -27,15 +27,7 @@ import '../widgets/stock_overview_hero.dart';
 class StockListScreen extends ConsumerWidget {
   const StockListScreen({super.key});
 
-  static const _unitOptions = [
-    'kg',
-    'g',
-    'pcs',
-    'bundle',
-    'crate',
-    'tray',
-    'sack',
-  ];
+  static const _unitOptions = ['kg'];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -382,7 +374,7 @@ class StockListScreen extends ConsumerWidget {
                                   name: name,
                                   category: category,
                                   currentQuantity: quantity,
-                                  unit: selectedUnit,
+                                  unit: 'kg',
                                   storageLocation:
                                       locationController.text.trim().isEmpty
                                           ? 'Unassigned'

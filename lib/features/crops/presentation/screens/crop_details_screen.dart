@@ -80,14 +80,18 @@ class CropDetailsScreen extends ConsumerWidget {
         const SizedBox(height: AppSpacing.md),
         CropDetailPanel(
           crop: crop,
-          actions: canManage
+          actions: canManage && !crop.isCompleted
               ? CropActionButtons(
                   onWater: () => _showWaterDialog(context, controller, crop),
                   onFertilize: () =>
                       _showFertilizeDialog(context, controller, crop),
-                  onHarvest: crop.isHarvested
-                      ? null
-                      : () => _confirmHarvest(context, controller, crop),
+                  onHarvest: () =>
+                      _showHarvestDialog(context, controller, crop),
+                  onNotHarvested: () => _showNotHarvestedDialog(
+                    context,
+                    controller,
+                    crop,
+                  ),
                   onEdit: () => _showEditDialog(
                     context,
                     controller,
@@ -297,7 +301,9 @@ class CropDetailsScreen extends ConsumerWidget {
                       decoration:
                           const InputDecoration(labelText: 'Growth Stage'),
                       items: [
-                        for (final item in CropGrowthStage.values)
+                        for (final item in CropGrowthStage.values.where(
+                          (item) => item != CropGrowthStage.harvested,
+                        ))
                           DropdownMenuItem(
                               value: item, child: Text(item.label)),
                       ],
@@ -312,7 +318,11 @@ class CropDetailsScreen extends ConsumerWidget {
                       decoration:
                           const InputDecoration(labelText: 'Crop Status'),
                       items: [
-                        for (final item in CropStatus.values)
+                        for (final item in CropStatus.values.where(
+                          (item) =>
+                              item != CropStatus.harvested &&
+                              item != CropStatus.notHarvested,
+                        ))
                           DropdownMenuItem(
                               value: item, child: Text(item.label)),
                       ],
@@ -377,20 +387,81 @@ class CropDetailsScreen extends ConsumerWidget {
     );
   }
 
-  void _confirmHarvest(
+  Future<void> _showHarvestDialog(
+    BuildContext context,
+    CropMonitoringController controller,
+    CropModel crop,
+  ) async {
+    // Planting roles can record harvests through the secured RPC, but they do
+    // not have permission to read the inventory table directly. The database
+    // validates that the matching inventory item exists atomically.
+    const targetUnit = 'kg';
+    final quantityController = TextEditingController();
+    final notesController = TextEditingController();
+    _showFormDialog(
+      context: context,
+      title: 'Complete Harvest',
+      fields: [
+        Text(
+          'The harvest will be added to the matching ${crop.name} inventory item in $targetUnit and this crop will move to Crop History.',
+          style: AppTypography.small.copyWith(color: AppColors.secondaryText),
+        ),
+        TextField(
+          controller: quantityController,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+          ],
+          decoration: InputDecoration(
+            labelText: 'Harvested quantity ($targetUnit)',
+          ),
+        ),
+        TextField(
+          controller: notesController,
+          minLines: 2,
+          maxLines: 4,
+          decoration: const InputDecoration(
+            labelText: 'Harvest notes (optional)',
+          ),
+        ),
+      ],
+      onConfirm: () => controller.harvestCrop(
+        cropId: crop.id,
+        quantity: double.tryParse(quantityController.text) ?? 0,
+        unit: targetUnit,
+        notes: notesController.text,
+      ),
+    );
+  }
+
+  void _showNotHarvestedDialog(
     BuildContext context,
     CropMonitoringController controller,
     CropModel crop,
   ) {
-    _showConfirmationDialog(
+    final reasonController = TextEditingController();
+    _showFormDialog(
       context: context,
-      title: 'Mark Harvested',
-      message: crop.name.toLowerCase().contains('sitaw')
-          ? 'Record this sitaw harvest? The crop stays active for the next picking cycle.'
-          : 'Mark ${crop.name} as harvested and complete this crop cycle?',
-      onConfirm: () async {
-        return controller.harvestCrop(crop.id);
-      },
+      title: 'Mark Not Harvested',
+      fields: [
+        Text(
+          'This closes the crop cycle and records the reason in its activity history.',
+          style: AppTypography.small.copyWith(color: AppColors.secondaryText),
+        ),
+        TextField(
+          controller: reasonController,
+          minLines: 3,
+          maxLines: 5,
+          decoration: const InputDecoration(
+            labelText: 'Reason',
+            hintText: 'Describe why the crop could not be harvested',
+          ),
+        ),
+      ],
+      onConfirm: () => controller.markCropNotHarvested(
+        cropId: crop.id,
+        reason: reasonController.text,
+      ),
     );
   }
 

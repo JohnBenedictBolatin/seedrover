@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:mjpeg_view/mjpeg_view.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
@@ -12,12 +15,14 @@ class CameraPreviewPanel extends StatelessWidget {
     required this.connected,
     required this.loading,
     required this.canView,
+    required this.cameraBaseUrl,
     super.key,
   });
 
   final bool connected;
   final bool loading;
   final bool canView;
+  final String cameraBaseUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -36,17 +41,22 @@ class CameraPreviewPanel extends StatelessWidget {
                   color: AppColors.primaryBackground,
                   borderRadius: BorderRadius.circular(AppRadius.sm),
                 ),
-                child: _CameraPlaceholder(
+                child: _CameraPreview(
                   connected: connected && canView,
                   loading: loading,
                   canView: canView,
+                  cameraBaseUrl: cameraBaseUrl,
                 ),
               ),
               Positioned(
                 left: AppSpacing.md,
                 top: AppSpacing.md,
                 child: StatusBadge(
-                  label: connected && canView ? 'Camera Online' : 'Camera Offline',
+                  label: !canView
+                      ? 'Camera Restricted'
+                      : connected
+                          ? 'Rover Network Ready'
+                          : 'Camera Offline',
                   color: connected && canView
                       ? AppColors.primaryGreen
                       : AppColors.inactiveBorder,
@@ -60,44 +70,99 @@ class CameraPreviewPanel extends StatelessWidget {
   }
 }
 
-class _CameraPlaceholder extends StatelessWidget {
-  const _CameraPlaceholder({
+class _CameraPreview extends StatefulWidget {
+  const _CameraPreview({
     required this.connected,
     required this.loading,
     required this.canView,
+    required this.cameraBaseUrl,
   });
 
   final bool connected;
   final bool loading;
   final bool canView;
+  final String cameraBaseUrl;
+
+  @override
+  State<_CameraPreview> createState() => _CameraPreviewState();
+}
+
+class _CameraPreviewState extends State<_CameraPreview> {
+  Timer? _retryTimer;
+  int _streamGeneration = 0;
+
+  @override
+  void didUpdateWidget(covariant _CameraPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.connected != widget.connected ||
+        oldWidget.cameraBaseUrl != widget.cameraBaseUrl ||
+        oldWidget.canView != widget.canView) {
+      _retryTimer?.cancel();
+      _retryTimer = null;
+      _streamGeneration++;
+    }
+  }
+
+  @override
+  void dispose() {
+    _retryTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (!canView) {
+    if (!widget.canView) {
       return const _CameraMessage(message: 'Camera access is not assigned.');
     }
 
-    if (loading) {
+    if (widget.loading) {
       return Center(
         child: CircularProgressIndicator(color: AppColors.primaryGreen),
       );
     }
 
-    if (!connected) {
+    if (!widget.connected || widget.cameraBaseUrl.isEmpty) {
       return const _CameraMessage(message: 'Waiting for camera connection.');
     }
 
-    return CustomPaint(
-      painter: _CameraGridPainter(),
-      child: Center(
-        child: Text(
-          'SIMULATED CAMERA STREAM',
-          style: AppTypography.statusBadge.copyWith(
-            color: AppColors.primaryGreen,
-          ),
-        ),
+    final baseUrl = widget.cameraBaseUrl.replaceFirst(RegExp(r'/*$'), '');
+    return MjpegView(
+      key: ValueKey('$baseUrl|${widget.connected}|$_streamGeneration'),
+      uri: '$baseUrl/stream',
+      fit: BoxFit.cover,
+      fps: 12,
+      timeout: const Duration(seconds: 5),
+      loadingWidget: (_) => Center(
+        child: CircularProgressIndicator(color: AppColors.primaryGreen),
+      ),
+      errorWidget: (_) => _streamError(
+        'Camera feed unavailable. Connect to SeedRover-01 and check the camera connection.',
+      ),
+      doneWidget: (_) => _streamError(
+        'Camera feed ended. Connect to SeedRover-01 and check the camera connection.',
       ),
     );
+  }
+
+  Widget _streamError(String message) {
+    _scheduleStreamRetry();
+    return _CameraMessage(message: message);
+  }
+
+  void _scheduleStreamRetry() {
+    if (_retryTimer != null) return;
+
+    _retryTimer = Timer(const Duration(seconds: 2), () {
+      _retryTimer = null;
+      if (!mounted ||
+          !widget.connected ||
+          !widget.canView ||
+          widget.cameraBaseUrl.isEmpty) {
+        return;
+      }
+      setState(() => _streamGeneration++);
+    });
   }
 }
 
@@ -116,24 +181,4 @@ class _CameraMessage extends StatelessWidget {
       ),
     );
   }
-}
-
-class _CameraGridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = AppColors.primaryGreen.withOpacity(0.12)
-      ..strokeWidth = 1;
-
-    for (var x = 0.0; x < size.width; x += 32) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-
-    for (var y = 0.0; y < size.height; y += 32) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

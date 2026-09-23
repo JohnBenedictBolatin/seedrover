@@ -39,7 +39,7 @@ begin
     updated_by
   )
   values
-    ('STK-DEMO-001', 'Malunggay', 0, 'bundle', 10, 'Cold Storage A', 'Leafy Vegetables', 6, 10, demo_actor),
+    ('STK-DEMO-001', 'Malunggay', 0, 'kg', 10, 'Cold Storage A', 'Leafy Vegetables', 6, 10, demo_actor),
     ('STK-DEMO-002', 'Pechay', 0, 'kg', 8, 'Cold Storage A', 'Leafy Vegetables', 45, 70, demo_actor),
     ('STK-DEMO-003', 'Tomato', 0, 'kg', 12, 'Crate Rack B', 'Fruit Vegetables', 55, 85, demo_actor),
     ('STK-DEMO-004', 'Okra', 0, 'kg', 6, 'Crate Rack B', 'Fruit Vegetables', 35, 60, demo_actor),
@@ -189,7 +189,7 @@ begin
       line_total
     )
     values
-      (order_id, malunggay_id, 'Malunggay', 'bundle', 5, 10, 50),
+      (order_id, malunggay_id, 'Malunggay', 'kg', 5, 10, 50),
       (order_id, tomato_id, 'Tomato', 'kg', 1, 85, 85),
       (order_id, pechay_id, 'Pechay', 'kg', 1.142857, 70, 80);
 

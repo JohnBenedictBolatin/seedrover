@@ -11,7 +11,7 @@ class CropOverviewHero extends StatelessWidget {
     required this.needsAttention,
     required this.upcomingHarvests,
     super.key,
-    this.imageAsset = 'assets/images/crop_hero.png',
+    this.imageAsset = 'assets/images/mascots/crops_mobile.png',
   });
 
   final int activeCrops;
@@ -22,7 +22,7 @@ class CropOverviewHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 174,
+      height: 138,
       width: double.infinity,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
@@ -54,25 +54,30 @@ class CropOverviewHero extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Crops overview',
+                        'Crop overview',
                         style: AppTypography.small.copyWith(
                           color: AppColors.heroSecondaryText,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(height: AppSpacing.sm),
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            _Metric(
-                                label: 'ACTIVE BATCHES', value: activeCrops),
-                            _Metric(
-                                label: 'NEED ATTENTION', value: needsAttention),
-                            _Metric(
-                                label: 'HARVESTING SOON',
-                                value: upcomingHarvests),
-                          ],
+                      Text(
+                        '$activeCrops active batches',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.displayHeading.copyWith(
+                          color: Colors.white,
+                          fontSize: 24,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '$needsAttention need attention  •  $upcomingHarvests harvesting soon',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.monoCaption.copyWith(
+                          color: AppColors.heroMutedText,
+                          fontSize: 10,
                         ),
                       ),
                     ],
@@ -89,28 +94,6 @@ class CropOverviewHero extends StatelessWidget {
   }
 }
 
-class _Metric extends StatelessWidget {
-  const _Metric({required this.label, required this.value});
-  final String label;
-  final int value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Text('$value',
-            style: AppTypography.cardTitle.copyWith(color: Colors.white)),
-        const SizedBox(width: AppSpacing.xs),
-        Expanded(
-            child: Text(label,
-                maxLines: 2,
-                style: AppTypography.monoCaption
-                    .copyWith(color: AppColors.heroMutedText, fontSize: 9))),
-      ],
-    );
-  }
-}
-
 class _CropHeroImage extends StatelessWidget {
   const _CropHeroImage({required this.asset});
 
@@ -121,15 +104,21 @@ class _CropHeroImage extends StatelessWidget {
     return SizedBox(
       width: 86,
       height: 86,
-      child: asset == null || asset!.isEmpty
-          ? const _CropHeroImageFallback()
-          : Image.asset(
-              asset!,
-              width: double.infinity,
-              height: double.infinity,
-              fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => const _CropHeroImageFallback(),
-            ),
+      child: ClipRect(
+        child: asset == null || asset!.isEmpty
+            ? const _CropHeroImageFallback()
+            : Transform.scale(
+                scaleX: 1.18,
+                scaleY: 1,
+                child: Image.asset(
+                  asset!,
+                  width: double.infinity,
+                  height: double.infinity,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const _CropHeroImageFallback(),
+                ),
+              ),
+      ),
     );
   }
 }

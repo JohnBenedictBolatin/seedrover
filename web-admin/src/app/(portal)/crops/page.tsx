@@ -5,6 +5,7 @@ import { getCropsDashboard } from "@/lib/crops";
 import { getCropOutcomes } from "@/lib/crop-outcomes";
 import { CountUpValue } from "@/components/count-up-value";
 import { LiveDateTime } from "@/components/live-date-time";
+import { ModuleHeaderIntro } from "@/components/module-header-intro";
 import { CropsWorkspace } from "@/components/crops-workspace";
 import styles from "./page.module.css";
 
@@ -15,7 +16,7 @@ export default async function CropsPage() {
     redirect("/login");
   }
 
-  if (profile.roleName === "Farm Inventory Manager") {
+  if (["Farm Inventory Manager", "Inventory Staff"].includes(profile.roleName)) {
     redirect("/dashboard");
   }
 
@@ -27,12 +28,12 @@ export default async function CropsPage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <div>
-          <p className={styles.eyebrow}>Operations</p>
-          <h1>Crops</h1>
-          <p>Crop batches, care status, sensor readings, and harvest history.</p>
-        </div>
-        <div className={styles.liveDateTime}><LiveDateTime /></div>
+          <ModuleHeaderIntro mascot="crops">
+            <p className={styles.eyebrow}>Operations</p>
+            <h1>Crops</h1>
+            <p>Crop batches, care status, sensor readings, and harvest history.</p>
+          </ModuleHeaderIntro>
+          <div className={styles.liveDateTime}><LiveDateTime /></div>
       </header>
 
       {error ? (
@@ -69,7 +70,6 @@ export default async function CropsPage() {
       <CropsWorkspace
         crops={crops}
         weather={weather}
-        canAddManualCrop={profile.roleName === "Farm Planting Manager"}
         outcomes={outcomes}
         outcomesError={outcomesError}
       />

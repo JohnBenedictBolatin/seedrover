@@ -14,7 +14,6 @@ import '../../features/crops/presentation/screens/crop_monitoring_screen.dart';
 import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
 import '../../features/inventory/presentation/screens/stock_details_screen.dart';
 import '../../features/inventory/presentation/screens/stock_list_screen.dart';
-import '../../features/notifications/providers/notification_providers.dart';
 import '../../features/notifications/presentation/screens/notification_details_screen.dart';
 import '../../features/notifications/presentation/screens/notification_list_screen.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
@@ -56,6 +55,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       if (isLoggingIn) {
         return _initialRouteFor(authState);
+      }
+
+      final profile = authState.profile;
+      if (state.matchedLocation == AppRoutes.dashboard &&
+          (profile?.isPlantingManager == true ||
+              profile?.isPlantingStaff == true)) {
+        return AppRoutes.crops;
       }
 
       final requiredPermission = _requiredPermissionFor(state.matchedLocation);
@@ -267,6 +273,10 @@ CustomTransitionPage<void> _smoothPage(
 String _initialRouteFor(AppAuthState authState) {
   final profile = authState.profile;
 
+  if (profile?.isPlantingManager == true || profile?.isPlantingStaff == true) {
+    return AppRoutes.crops;
+  }
+
   if (profile?.hasPermission(PermissionKeys.dashboardView) ?? false) {
     return AppRoutes.dashboard;
   }
@@ -334,7 +344,9 @@ List<NavigationItemData> _navigationItemsFor(AppAuthState authState) {
   }
 
   return [
-    if (canView(PermissionKeys.dashboardView))
+    if (canView(PermissionKeys.dashboardView) &&
+        profile?.isPlantingManager != true &&
+        profile?.isPlantingStaff != true)
       const NavigationItemData(
         label: 'Dashboard',
         location: AppRoutes.dashboard,

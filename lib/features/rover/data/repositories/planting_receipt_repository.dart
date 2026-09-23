@@ -47,13 +47,20 @@ class PlantingReceiptRepository {
     final retained = <PendingPlantingReceipt>[];
     var synced = 0;
     for (final receipt in pending) {
+      if (!receipt.readyToSynchronize) {
+        retained.add(receipt);
+        continue;
+      }
       try {
         final completed = receipt.status.completedDrops;
-        final terminalStatus = completed == 0
+        final operatorReportedFailure = receipt.plantingSuccessful == false;
+        final terminalStatus = operatorReportedFailure
             ? 'Failed'
-            : completed >= receipt.config.targetDrops
-                ? 'Completed'
-                : 'Partial';
+            : completed == 0
+                ? 'Failed'
+                : completed >= receipt.config.targetDrops
+                    ? 'Completed'
+                    : 'Partial';
         await _client.rpc('record_rover_planting_session', params: {
           'p_client_session_id': receipt.config.sessionId,
           'p_rover_id': 'SeedRover-01',
@@ -71,7 +78,9 @@ class PlantingReceiptRepository {
           'p_environmental_temperature': receipt.status.temperatureC,
           'p_seed_load_raw': receipt.status.seedLoadRaw,
           'p_firmware_version': receipt.status.firmwareVersion,
-          'p_failure_code': receipt.status.failureCode,
+          'p_failure_code': operatorReportedFailure
+              ? 'OPERATOR_REPORTED_FAILURE'
+              : receipt.status.failureCode,
           'p_sync_payload': receipt.toJson(),
         });
         final existingCalibration = await _client

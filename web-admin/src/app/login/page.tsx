@@ -1,17 +1,9 @@
 import Image from "next/image";
 import { LoginForm } from "@/components/login-form";
 import { LoginThemeSwitch } from "@/components/login-theme-switch";
-import { getCurrentAdminProfile } from "@/lib/auth";
-import { redirect } from "next/navigation";
 import styles from "./page.module.css";
 
 export default async function LoginPage() {
-  const profile = await getCurrentAdminProfile();
-
-  if (profile) {
-    redirect("/dashboard");
-  }
-
   return (
     <main className={styles.page}>
       <div className={styles.background} aria-hidden="true" />
@@ -21,7 +13,12 @@ export default async function LoginPage() {
 
       <section className={styles.shell} aria-labelledby="login-title">
         <div className={styles.identity}>
-          <Image
+        </div>
+
+        <div className={styles.loginSide}>
+          <div className={styles.loginContent}>
+            <div className={styles.loginBrand}>
+            <Image
             alt="SeedRover"
             className={`${styles.logo} ${styles.logoDark}`}
             height={186}
@@ -29,7 +26,7 @@ export default async function LoginPage() {
             src="/brand/seedrover-logo-dark.png"
             width={278}
           />
-          <Image
+            <Image
             alt="SeedRover"
             className={`${styles.logo} ${styles.logoLight}`}
             height={186}
@@ -37,19 +34,19 @@ export default async function LoginPage() {
             src="/brand/seedrover-logo-light.png"
             width={278}
           />
-          <p>Welcome back!</p>
-          <h1 id="login-title">Manage farm operations from one dashboard.</h1>
-        </div>
+            <p>Welcome back!</p>
+            <h1 id="login-title">Manage your farm in one convenient system.</h1>
+            </div>
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <div>
+                  <h2>Sign in</h2>
+              </div>
+            </div>
 
-        <div className={styles.panel}>
-          <div className={styles.panelHeader}>
-            <div>
-              <p className={styles.eyebrow}>SeedRover web console</p>
-              <h2>Sign in</h2>
+            <LoginForm />
             </div>
           </div>
-
-          <LoginForm />
         </div>
       </section>
     </main>

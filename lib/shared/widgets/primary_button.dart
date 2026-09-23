@@ -38,8 +38,8 @@ class PrimaryButton extends StatelessWidget {
             disabledBackgroundColor: Colors.transparent,
             shadowColor: Colors.transparent,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            foregroundColor: AppColors.primaryText,
-            disabledForegroundColor: AppColors.primaryText,
+            foregroundColor: Colors.white,
+            disabledForegroundColor: Colors.white70,
             textStyle: AppTypography.body.copyWith(
               fontWeight: FontWeight.w600,
               letterSpacing: 0,
@@ -51,7 +51,10 @@ class PrimaryButton extends StatelessWidget {
           child: isLoading
               ? const SizedBox.square(
                   dimension: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 )
               : Text(label),
         ),

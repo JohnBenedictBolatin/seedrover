@@ -29,11 +29,17 @@ export async function createCustomerPaymentAction(formData: FormData) {
     recorded_by: profile.id,
   });
   if (error) throw new Error(error.message);
+  await supabase.from("activity_logs").insert({
+    user_id: profile.id,
+    activity: "Customer payment created",
+    description: `A payment record for ${customerName} was created.`,
+    module: "Customers",
+  });
   revalidatePath("/customers");
 }
 
 export async function markCustomerPaymentPaidAction(formData: FormData) {
-  await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
+  const profile = await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
   const supabase = await createSupabaseServerClient();
   if (!supabase) throw new Error("Supabase is not configured.");
   const { error } = await supabase
@@ -41,5 +47,11 @@ export async function markCustomerPaymentPaidAction(formData: FormData) {
     .update({ status: "Paid", paid_at: new Date().toISOString() })
     .eq("id", text(formData, "id"));
   if (error) throw new Error(error.message);
+  await supabase.from("activity_logs").insert({
+    user_id: profile.id,
+    activity: "Customer payment marked paid",
+    description: "A customer payment was marked as paid.",
+    module: "Customers",
+  });
   revalidatePath("/customers");
 }

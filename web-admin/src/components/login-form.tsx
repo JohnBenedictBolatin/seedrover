@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useActionState, useState } from "react";
+import { startTransition, useActionState, useEffect, useState, type FormEvent } from "react";
 import { Eye, EyeOff, Lock, LogIn, UserRound } from "lucide-react";
 import {
   forgotPasswordAction,
@@ -8,6 +8,7 @@ import {
   type LoginState,
 } from "@/app/login/actions";
 import styles from "./login-form.module.css";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 const initialState: LoginState = {
   message: "",
@@ -20,6 +21,39 @@ export function LoginForm() {
   const [username, setUsername] = useState("");
   const [resetMessage, setResetMessage] = useState("");
   const [resetPending, setResetPending] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [recoveryMessage, setRecoveryMessage] = useState("");
+
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) return;
+    const subscription = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") setRecoveryMode(true);
+    });
+    return () => subscription.data.subscription.unsubscribe();
+  }, []);
+
+  async function handlePasswordUpdate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (newPassword.length < 8) return setRecoveryMessage("Password must be at least 8 characters.");
+    if (newPassword !== confirmPassword) return setRecoveryMessage("Passwords do not match.");
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) return setRecoveryMessage("Password recovery is not configured.");
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setRecoveryMessage(error?.message ?? "Password updated. You can now sign in.");
+    if (!error) setRecoveryMode(false);
+  }
+
+  if (recoveryMode) {
+    return <form className={styles.form} onSubmit={handlePasswordUpdate}>
+      <label><span>New password</span><input minLength={8} required type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label>
+      <label><span>Confirm new password</span><input minLength={8} required type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} /></label>
+      {recoveryMessage ? <p className={styles.resetMessage} role="status">{recoveryMessage}</p> : null}
+      <button className={styles.submitButton} type="submit">Update password</button>
+    </form>;
+  }
 
   function handleForgotPassword() {
     setResetPending(true);

@@ -17,7 +17,7 @@ export default async function DiscountsPrintPage({
     redirect("/login");
   }
 
-  if (profile.roleName === "Farm Planting Manager") {
+  if (["Farm Planting Manager", "Planting Staff"].includes(profile.roleName)) {
     redirect("/dashboard");
   }
 

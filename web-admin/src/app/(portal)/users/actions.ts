@@ -36,7 +36,12 @@ export async function createUserAction(
     };
   }
 
-  const fullName = text(formData, "full_name");
+  const firstName = text(formData, "first_name");
+  const middleInitial = text(formData, "middle_initial").replace(/[^a-z]/gi, "").slice(0, 1).toUpperCase();
+  const lastName = text(formData, "last_name");
+  const fullName = [firstName, middleInitial ? `${middleInitial}.` : "", lastName]
+    .filter(Boolean)
+    .join(" ");
   const username = normalizeUsername(text(formData, "username"));
   const email = text(formData, "email").toLowerCase();
   const password = String(formData.get("temporary_password") ?? "");
@@ -45,7 +50,7 @@ export async function createUserAction(
   const isActive = text(formData, "is_active", "true") === "true";
   const accessNote = text(formData, "access_note");
 
-  if (!fullName || !username || !email || !password || !roleId) {
+  if (!firstName || !lastName || !username || !email || !password || !roleId) {
     return { message: "Complete all required account fields.", success: false };
   }
 
@@ -124,14 +129,19 @@ export async function createUserAction(
   }
 
   const userId = createdAuthUser.user.id;
-  const { error: profileError } = await adminSupabase.from("profiles").insert({
+  // Auth fires on_auth_user_created, which creates a default profile row.
+  // Upsert that row instead of inserting a second row with the same UUID.
+  const { error: profileError } = await adminSupabase.from("profiles").upsert({
     id: userId,
     username,
     email,
     full_name: fullName,
+    first_name: firstName,
+    last_name: lastName,
+    middle_initial: middleInitial || null,
     role_id: role.id,
     is_active: isActive,
-  });
+  }, { onConflict: "id" });
 
   if (profileError) {
     await adminSupabase.auth.admin.deleteUser(userId);
@@ -161,7 +171,10 @@ export async function updateUserAction(formData: FormData) {
   const profile = await requireAdminRole(["System Administrator"]);
 
   const userId = String(formData.get("user_id") ?? "");
-  const fullName = String(formData.get("full_name") ?? "").trim();
+  const firstName = String(formData.get("first_name") ?? "").trim();
+  const lastName = String(formData.get("last_name") ?? "").trim();
+  const middleInitial = String(formData.get("middle_initial") ?? "").replace(/[^a-z]/gi, "").slice(0, 1).toUpperCase();
+  const fullName = [firstName, middleInitial ? `${middleInitial}.` : "", lastName].filter(Boolean).join(" ");
   const roleId = String(formData.get("role_id") ?? "");
   const isActive = String(formData.get("is_active") ?? "false") === "true";
 
@@ -219,6 +232,9 @@ export async function updateUserAction(formData: FormData) {
     .from("profiles")
     .update({
       full_name: fullName,
+      first_name: firstName,
+      last_name: lastName,
+      middle_initial: middleInitial || null,
       role_id: roleId,
       is_active: isActive,
     })

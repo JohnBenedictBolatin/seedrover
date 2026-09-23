@@ -28,7 +28,8 @@ class UserDetailsScreen extends ConsumerWidget {
     'System Administrator',
     'Farm Planting Manager',
     'Farm Inventory Manager',
-    'Farm Staff',
+    'Planting Staff',
+    'Inventory Staff',
   ];
 
   final String userId;

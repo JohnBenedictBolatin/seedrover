@@ -13,7 +13,7 @@ class DashboardSummaryHero extends ConsumerStatefulWidget {
   const DashboardSummaryHero({
     super.key,
     this.contentAfterHero,
-    this.heroImageAsset = 'assets/images/sales_today.png',
+    this.heroImageAsset = 'assets/images/mascots/dashboard_mobile.png',
   });
 
   final Widget? contentAfterHero;
@@ -259,19 +259,24 @@ class _HeroImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: 86,
       height: 86,
-      alignment: Alignment.center,
-      child: asset == null || asset!.isEmpty
-          ? _HeroImageFallback()
-          : Image.asset(
-              asset!,
-              width: double.infinity,
-              height: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _HeroImageFallback(),
-            ),
+      child: ClipRect(
+        child: asset == null || asset!.isEmpty
+            ? _HeroImageFallback()
+            : Transform.scale(
+                scaleX: 1.18,
+                scaleY: 1,
+                child: Image.asset(
+                  asset!,
+                  width: double.infinity,
+                  height: double.infinity,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => _HeroImageFallback(),
+                ),
+              ),
+      ),
     );
   }
 }

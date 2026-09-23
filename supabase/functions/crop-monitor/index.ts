@@ -32,6 +32,10 @@ Deno.serve(async (request) => {
     }
   }
 
+  const requestBody = await request.json().catch(() => ({}));
+  const weatherOnly = typeof requestBody === "object" && requestBody !== null
+    && (requestBody as { weatherOnly?: unknown }).weatherOnly === true;
+
   const admin = createClient(supabaseUrl, serviceKey);
   const now = new Date();
 
@@ -44,6 +48,10 @@ Deno.serve(async (request) => {
     if (settingsError) throw settingsError;
 
     const weather = await loadWeather(admin, settings, now);
+    if (weatherOnly) {
+      return reply({ status: "success", weather });
+    }
+
     const { data: crops, error: cropError } = await admin
       .from("crops")
       .select("id,crop_name,assigned_manager,planting_date,crop_profile_key,field_area_m2,harvest_window_start,harvest_window_end,last_watered_at,last_fertilized_at,growth_stage,crop_status,crop_profiles(*)")

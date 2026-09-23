@@ -132,15 +132,6 @@ class PlantingControlPanel extends StatelessWidget {
               children: [
                 Expanded(
                   child: _ActionButton(
-                    label: 'Calibration',
-                    icon: CupertinoIcons.settings,
-                    enabled: calibrationEnabled,
-                    onPressed: onCalibration,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.xs),
-                Expanded(
-                  child: _ActionButton(
                     label: status == PlantingStatus.paused
                         ? 'Resume'
                         : 'Start Planting',
@@ -152,6 +143,16 @@ class PlantingControlPanel extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            SizedBox(
+              width: double.infinity,
+              child: _ActionButton(
+                label: 'Calibration',
+                icon: CupertinoIcons.settings,
+                enabled: calibrationEnabled,
+                onPressed: onCalibration,
+              ),
             ),
           ] else ...[
             Row(

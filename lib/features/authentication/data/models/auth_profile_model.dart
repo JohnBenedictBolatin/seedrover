@@ -23,7 +23,7 @@ class AuthProfileModel {
       username: json['username'] as String,
       email: json['email'] as String,
       fullName: json['full_name'] as String,
-      roleName: role?['role_name'] as String? ?? 'Farm Staff',
+      roleName: role?['role_name'] as String? ?? 'Unassigned',
       isActive: json['is_active'] as bool? ?? false,
       permissions: permissions,
     );
@@ -40,7 +40,9 @@ class AuthProfileModel {
   bool get isAdministrator => roleName == 'System Administrator';
   bool get isPlantingManager => roleName == 'Farm Planting Manager';
   bool get isInventoryManager => roleName == 'Farm Inventory Manager';
-  bool get isFarmStaff => roleName == 'Farm Staff';
+  bool get isPlantingStaff => roleName == 'Planting Staff';
+  bool get isInventoryStaff => roleName == 'Inventory Staff';
+  bool get isFarmStaff => isPlantingStaff || isInventoryStaff;
 
   bool hasPermission(String permissionKey) {
     if (isAdministrator) {
@@ -57,9 +59,8 @@ class AuthProfileModel {
   }
 
   Set<String> get _roleDefaultPermissions {
-    if (isPlantingManager) {
+    if (isPlantingManager || isPlantingStaff) {
       return {
-        PermissionKeys.dashboardView,
         PermissionKeys.roverView,
         PermissionKeys.roverControl,
         PermissionKeys.roverCameraView,
@@ -72,7 +73,7 @@ class AuthProfileModel {
       };
     }
 
-    if (isInventoryManager) {
+    if (isInventoryManager || isInventoryStaff) {
       return {
         PermissionKeys.dashboardView,
         PermissionKeys.stocksView,

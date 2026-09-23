@@ -170,6 +170,8 @@ class PendingPlantingReceipt {
     required this.status,
     required this.startedAt,
     required this.completedAt,
+    this.plantingConfirmed = false,
+    this.plantingSuccessful,
   });
 
   factory PendingPlantingReceipt.fromJson(Map<String, dynamic> json) {
@@ -196,6 +198,10 @@ class PendingPlantingReceipt {
           json['status'] as Map<String, dynamic>),
       startedAt: DateTime.parse(json['started_at'].toString()),
       completedAt: DateTime.parse(json['completed_at'].toString()),
+      plantingConfirmed: json.containsKey('planting_confirmed')
+          ? json['planting_confirmed'] as bool? ?? false
+          : true,
+      plantingSuccessful: json['planting_successful'] as bool?,
     );
   }
 
@@ -203,6 +209,28 @@ class PendingPlantingReceipt {
   final PlantingOperationStatus status;
   final DateTime startedAt;
   final DateTime completedAt;
+  final bool plantingConfirmed;
+  final bool? plantingSuccessful;
+
+  bool get isHardwareConfirmedSuccess =>
+      status.state == 'COMPLETED' && status.completedDrops > 0;
+
+  bool get readyToSynchronize =>
+      plantingConfirmed || isHardwareConfirmedSuccess;
+
+  PendingPlantingReceipt copyWith({
+    bool? plantingConfirmed,
+    bool? plantingSuccessful,
+  }) {
+    return PendingPlantingReceipt(
+      config: config,
+      status: status,
+      startedAt: startedAt,
+      completedAt: completedAt,
+      plantingConfirmed: plantingConfirmed ?? this.plantingConfirmed,
+      plantingSuccessful: plantingSuccessful ?? this.plantingSuccessful,
+    );
+  }
 
   Map<String, Object?> toJson() => {
         ...config.toProtocolPayload(),
@@ -214,6 +242,8 @@ class PendingPlantingReceipt {
         'estimated_seeds_max': config.estimatedSeedsPerDropMax,
         'started_at': startedAt.toUtc().toIso8601String(),
         'completed_at': completedAt.toUtc().toIso8601String(),
+        'planting_confirmed': plantingConfirmed,
+        'planting_successful': plantingSuccessful,
         'status': {
           'state': status.state,
           'session_id': status.sessionId,

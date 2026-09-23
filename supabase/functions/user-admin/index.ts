@@ -31,6 +31,33 @@ serve(async (request) => {
   if (!caller?.is_active || role !== "System Administrator") return json({ error: "Administrator access required." }, 403);
 
   const body = await request.json().catch(() => null);
+  const action = String(body?.action ?? "create");
+  const targetUserId = String(body?.user_id ?? "").trim();
+
+  if (action === "reset_password") {
+    const temporaryPassword = String(body?.temporary_password ?? "");
+    if (!targetUserId || temporaryPassword.length < 8) return json({ error: "Invalid password reset request." }, 400);
+    if (targetUserId === user.id) return json({ error: "Use the profile password form to change your own password." }, 400);
+
+    const { error } = await adminClient.auth.admin.updateUserById(targetUserId, { password: temporaryPassword });
+    if (error) return json({ error: error.message }, 400);
+    await adminClient.from("activity_logs").insert({ user_id: user.id, activity: "Password Reset", description: "An administrator issued a temporary password.", module: "Users" });
+    return json({ success: true });
+  }
+
+  if (action === "delete") {
+    if (!targetUserId) return json({ error: "User is required." }, 400);
+    if (targetUserId === user.id) return json({ error: "You cannot delete your own account." }, 400);
+
+    const { data: target } = await adminClient.from("profiles").select("full_name").eq("id", targetUserId).maybeSingle();
+    const { error } = await adminClient.auth.admin.deleteUser(targetUserId);
+    if (error) return json({ error: error.message }, 400);
+    await adminClient.from("activity_logs").insert({ user_id: user.id, activity: "User Deleted", description: `${target?.full_name ?? "A user"} was deleted.`, module: "Users" });
+    return json({ success: true });
+  }
+
+  if (action !== "create") return json({ error: "Unsupported action." }, 400);
+
   const fullName = String(body?.full_name ?? "").trim();
   const username = String(body?.username ?? "").trim().toLowerCase();
   const email = String(body?.email ?? "").trim().toLowerCase();

@@ -8,6 +8,7 @@ import '../../../../shared/widgets/animated_content.dart';
 import '../../../../shared/widgets/app_card.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../data/models/crop_model.dart';
+import 'crop_plant_image.dart';
 
 class CropCard extends StatelessWidget {
   const CropCard({
@@ -51,24 +52,37 @@ class CropCard extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.xs),
             AnimatedTypingText(
-              '${crop.trackingCode} · ${crop.fieldLabel}',
+              crop.trackingCode,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: AppTypography.small,
+              style: AppTypography.monoCaption.copyWith(
+                color: AppColors.primaryGreen,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Center(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppColors.cardBackground,
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  child: CropPlantImage(crop: crop, size: 64),
+                ),
+              ),
             ),
             const SizedBox(height: AppSpacing.md),
             _CropMetaRow(
-              icon: Icons.water_drop_outlined,
-              label: 'Latest soil',
-              value: crop.sensorSnapshot.recordedAt == null
-                  ? 'No recent reading'
-                  : '${crop.sensorSnapshot.soilMoisture.toStringAsFixed(0)}%',
+              icon: Icons.place_outlined,
+              label: 'Field',
+              value: crop.fieldLabel,
             ),
             const SizedBox(height: AppSpacing.sm),
             _CropMetaRow(
               icon: Icons.checklist_outlined,
-              label: 'What is next',
-              value: crop.careStatus,
+              label: 'Stage',
+              value: crop.growthStage.label,
             ),
             const SizedBox(height: AppSpacing.sm),
             _CropMetaRow(
@@ -82,9 +96,26 @@ class CropCard extends StatelessWidget {
                   : '${_formatDate(crop.harvestWindowStart!)}-${_formatDate(crop.harvestWindowEnd ?? crop.harvestWindowStart!)}',
             ),
             const SizedBox(height: AppSpacing.sm),
-            AnimatedTypingText(
-              crop.growthStage.label,
-              style: AppTypography.monoCaption.copyWith(color: statusColor),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: onTap,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.cardBackground,
+                  foregroundColor: AppColors.primaryGreen,
+                  minimumSize: const Size.fromHeight(32),
+                  side: BorderSide(color: AppColors.primaryGreen),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                  ),
+                ),
+                child: Text(
+                  'View',
+                  style: AppTypography.statusBadge.copyWith(
+                    color: AppColors.primaryGreen,
+                  ),
+                ),
+              ),
             ),
           ],
         ),
@@ -99,6 +130,7 @@ class CropCard extends StatelessWidget {
       CropStatus.needsFertilizer => AppColors.warning,
       CropStatus.readyForHarvest => AppColors.primaryGreen,
       CropStatus.harvested => AppColors.mutedText,
+      CropStatus.notHarvested => AppColors.danger,
     };
   }
 
@@ -141,10 +173,14 @@ class _CropMetaRow extends StatelessWidget {
         const SizedBox(width: AppSpacing.sm),
         AnimatedTypingText(label, style: AppTypography.caption),
         const Spacer(),
-        AnimatedTypingText(
-          value,
-          textAlign: TextAlign.end,
-          style: AppTypography.monoCaption,
+        Flexible(
+          child: AnimatedTypingText(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.end,
+            style: AppTypography.monoCaption,
+          ),
         ),
       ],
     );

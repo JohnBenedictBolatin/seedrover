@@ -1,12 +1,8 @@
 import {
   Activity,
   Antenna,
-  BatteryCharging,
-  Bluetooth,
   Camera,
   Droplets,
-  Gauge,
-  Leaf,
   Radio,
   Sun,
   Thermometer,
@@ -16,6 +12,7 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { CountUpValue } from "@/components/count-up-value";
 import { LiveDateTime } from "@/components/live-date-time";
+import { ModuleHeaderIntro } from "@/components/module-header-intro";
 import { RoverLiveRefresh } from "@/components/rover-live-refresh";
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
@@ -30,7 +27,7 @@ export default async function RoverMonitorPage() {
     redirect("/login");
   }
 
-  if (profile.roleName === "Farm Inventory Manager") {
+  if (["Farm Inventory Manager", "Inventory Staff"].includes(profile.roleName)) {
     redirect("/dashboard");
   }
 
@@ -40,11 +37,11 @@ export default async function RoverMonitorPage() {
     <div className={styles.page}>
       <RoverLiveRefresh />
       <header className={styles.header}>
-        <div>
-          <p className={styles.eyebrow}>Farm</p>
-          <h1>Rover Monitor</h1>
-          <p>Connection status, sensors, planting sessions, and commands.</p>
-        </div>
+          <ModuleHeaderIntro mascot="rover_monitor">
+            <p className={styles.eyebrow}>Farm</p>
+            <h1>Rover Monitor</h1>
+            <p>Connection status, sensors, planting sessions, and commands.</p>
+          </ModuleHeaderIntro>
         <div className={styles.liveDateTime}>
           <LiveDateTime />
         </div>
@@ -59,23 +56,21 @@ export default async function RoverMonitorPage() {
 
       <section className={styles.metricGrid} aria-label="Rover status summary">
         <MetricCard icon={<Radio size={20} />} label="Status" value={status?.roverStatus ?? "Unknown"} />
-        <MetricCard icon={<BatteryCharging size={20} />} label="Battery" numeric suffix="%" value={status?.batteryLevel ?? 0} />
-        <MetricCard icon={<Leaf size={20} />} label="Seed level" numeric suffix="%" value={status?.seedLevel ?? 0} />
-        <MetricCard icon={<Gauge size={20} />} label="Speed" numeric suffix="%" value={status?.speed ?? 0} />
+        <MetricCard icon={<Wifi size={20} />} label="Cloud heartbeat" value={status?.heartbeatFresh ? "Current" : "Stale"} />
+        <MetricCard icon={<Droplets size={20} />} label="Last soil reading" numeric={sensors != null} suffix="%" value={sensors?.soilMoisture ?? "Unavailable"} />
+        <MetricCard icon={<Thermometer size={20} />} label="Last temperature" value={sensors?.environmentalTemperature == null ? "Unavailable" : `${formatSensorValue(sensors.environmentalTemperature)}°C`} />
       </section>
 
       <section className={styles.monitorGrid}>
         <article className={`${styles.panel} ${styles.cameraPanel}`}>
           <PanelTitle eyebrow="Camera" title="Field View" icon={<Camera size={18} />} />
-          <div className={styles.cameraPreview} data-connected={status?.cameraConnected ? "true" : "false"}>
+          <div className={styles.cameraPreview} data-connected="false">
             <Camera size={46} />
-            <strong>{status?.cameraConnected ? "Camera Online" : "Camera Offline"}</strong>
-            <span>{status?.currentActivity ?? "Waiting for rover activity."}</span>
+            <strong>Local camera feed</strong>
+            <span>The ESP32-CAM feed is available only while connected to the rover&apos;s local network.</span>
           </div>
           <div className={styles.pillRow}>
             <StatusPill icon={<Wifi size={15} />} label="Wi-Fi" active={status?.wifiConnected === true} />
-            <StatusPill icon={<Bluetooth size={15} />} label="Bluetooth" active={status?.bluetoothConnected === true} />
-            <StatusPill icon={<Camera size={15} />} label="Camera" active={status?.cameraConnected === true} />
           </div>
         </article>
 
@@ -170,7 +165,7 @@ function DeviceHealth({ status }: { status: RoverStatus }) {
     ["Current activity", status.currentActivity],
     ["Emergency stop", status.emergencyStop ? "Active" : "Inactive"],
     ["Last update", formatDateTime(status.lastUpdated)],
-    ["Connection mode", status.wifiConnected ? "Wi-Fi" : status.bluetoothConnected ? "Bluetooth" : "Offline"],
+    ["Connection mode", status.wifiConnected ? "Cloud heartbeat via Wi-Fi" : "Offline / stale"],
   ];
 
   return (
@@ -190,27 +185,26 @@ function DeviceHealth({ status }: { status: RoverStatus }) {
 function SensorGrid({ sensors }: { sensors: RoverSensorReading }) {
   const sensorItems = [
     { label: "Soil Moisture", value: sensors.soilMoisture, unit: "%", icon: <Droplets size={20} />, status: moistureStatus(sensors.soilMoisture) },
-    { label: "Soil Temp", value: sensors.soilTemperature, unit: "C", icon: <Thermometer size={20} />, status: "Moderate" },
-    { label: "Environment", value: sensors.environmentalTemperature, unit: "C", icon: <Sun size={20} />, status: "Good" },
-    { label: "Humidity", value: sensors.humidity, unit: "%", icon: <Droplets size={20} />, status: "Good" },
+    { label: "Soil Temp", value: sensors.soilTemperature, unit: "°C", icon: <Thermometer size={20} />, status: null },
+    { label: "Temperature", value: sensors.environmentalTemperature, unit: "°C", icon: <Sun size={20} />, status: null },
+    { label: "Humidity", value: sensors.humidity, unit: "%", icon: <Droplets size={20} />, status: null },
   ];
 
   return (
     <div className={styles.sensorGrid}>
       {sensorItems.map((sensor) => (
-        <div className={styles.sensorCard} data-status={sensor.status} key={sensor.label}>
+        <div className={styles.sensorCard} data-status={sensor.status ?? "Unavailable"} key={sensor.label}>
           <span>{sensor.icon}</span>
           <div>
             <small>{sensor.label}</small>
             <strong>
-              {formatSensorValue(sensor.value)}
-              {sensor.unit}
+              {sensor.value == null ? "Unavailable" : `${formatSensorValue(sensor.value)}${sensor.unit}`}
             </strong>
           </div>
-          <em>{sensor.status}</em>
+          <em>{sensor.value == null ? "Not measured" : sensor.status ?? "Recorded"}</em>
         </div>
       ))}
-      <time>Recorded {formatDateTime(sensors.recordedAt)}</time>
+      <time>{sensors.fresh ? "Live reading" : "Last recorded reading"} · {sensors.source} · {formatDateTime(sensors.recordedAt)}</time>
     </div>
   );
 }

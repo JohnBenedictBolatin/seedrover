@@ -25,7 +25,8 @@ enum CropStatus {
   needsWater,
   needsFertilizer,
   readyForHarvest,
-  harvested;
+  harvested,
+  notHarvested;
 
   String get label {
     return switch (this) {
@@ -34,6 +35,7 @@ enum CropStatus {
       CropStatus.needsFertilizer => 'Needs Fertilizer',
       CropStatus.readyForHarvest => 'Ready for Harvest',
       CropStatus.harvested => 'Harvested',
+      CropStatus.notHarvested => 'Not Harvested',
     };
   }
 }
@@ -206,6 +208,8 @@ class CropModel {
   }
 
   bool get isHarvested => status == CropStatus.harvested;
+  bool get isCompleted =>
+      status == CropStatus.harvested || status == CropStatus.notHarvested;
   bool get isHarvestReady => status == CropStatus.readyForHarvest;
 
   String get trackingCode {

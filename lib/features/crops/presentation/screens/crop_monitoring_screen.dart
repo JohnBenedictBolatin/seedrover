@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_routes.dart';
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
-import '../../../../core/theme/app_colors.dart';
-import '../../../../features/authentication/providers/auth_providers.dart';
 import '../../../../shared/widgets/content_skeleton.dart';
 import '../../data/models/crop_model.dart';
-import '../../controllers/crop_monitoring_controller.dart';
 import '../../controllers/crop_monitoring_state.dart';
 import '../../providers/crop_providers.dart';
 import '../widgets/crop_empty_state.dart';
@@ -26,8 +24,6 @@ class CropMonitoringScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(cropMonitoringControllerProvider);
     final controller = ref.read(cropMonitoringControllerProvider.notifier);
-    final profile = ref.watch(authControllerProvider).profile;
-    final weather = ref.watch(cropWeatherProvider);
     final today = DateTime.now();
 
     if (state.isLoading) {
@@ -41,20 +37,6 @@ class CropMonitoringScreen extends ConsumerWidget {
         padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
           const CropScreenHeader(),
-          const SizedBox(height: AppSpacing.md),
-          _CropQuickActions(
-            canAddManual: profile?.isPlantingManager == true,
-            onStartRover: () => context.push(AppRoutes.rover),
-            onAddManual: () => _showManualCropDialog(context, controller),
-            onPastCrops: () =>
-                controller.updateFilter(CropFilterType.harvested),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          weather.when(
-            data: (value) => _WeatherStrip(weather: value),
-            loading: () => const LinearProgressIndicator(minHeight: 3),
-            error: (_, __) => const _WeatherUnavailable(),
-          ),
           const SizedBox(height: AppSpacing.lg),
           CropOverviewHero(
             activeCrops: state.activeCrops,
@@ -69,6 +51,12 @@ class CropMonitoringScreen extends ConsumerWidget {
                     crop.harvestWindowStart!.difference(today).inDays <= 14 &&
                     crop.harvestWindowStart!.isAfter(today))
                 .length,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _CropQuickActions(
+            onStartRover: () => context.push(AppRoutes.rover),
+            onPastCrops: () =>
+                controller.updateFilter(CropFilterType.harvested),
           ),
           const SizedBox(height: AppSpacing.xl),
           CropFilterBar(
@@ -94,233 +82,145 @@ class CropMonitoringScreen extends ConsumerWidget {
       ),
     );
   }
-
-  Future<void> _showManualCropDialog(
-      BuildContext context, CropMonitoringController controller) async {
-    final values = await showDialog<_ManualCropValues>(
-        context: context, builder: (_) => const _ManualCropDialog());
-    if (values == null) return;
-    await controller.createManualCrop(
-      profileKey: values.profileKey,
-      fieldLabel: values.fieldLabel,
-      fieldAreaM2: values.areaM2,
-      plantingDate: values.plantingDate,
-      reason: values.reason,
-    );
-  }
-}
-
-class _WeatherStrip extends StatelessWidget {
-  const _WeatherStrip({required this.weather});
-  final CropWeatherSnapshot weather;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Wrap(
-          spacing: AppSpacing.lg,
-          runSpacing: AppSpacing.sm,
-          children: [
-            _WeatherValue(
-              'WEATHER NOW',
-              weather.temperatureC == null
-                  ? weather.currentCondition
-                  : '${weather.currentCondition} · ${weather.temperatureC!.toStringAsFixed(1)}°C',
-            ),
-            _WeatherValue(
-                'RAIN CHANCE',
-                weather.rainChancePercent == null
-                    ? '--'
-                    : '${weather.rainChancePercent!.round()}% in 24 hours'),
-            _WeatherValue(
-                'NEXT RAIN',
-                weather.nextRainAt == null
-                    ? 'No rain expected in 24 hours'
-                    : _shortDate(weather.nextRainAt!)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  static String _shortDate(DateTime value) =>
-      '${value.month}/${value.day} ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
-}
-
-class _WeatherValue extends StatelessWidget {
-  const _WeatherValue(this.label, this.value);
-  final String label;
-  final String value;
-  @override
-  Widget build(BuildContext context) => SizedBox(
-        width: 150,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label,
-              style: AppTypography.monoCaption
-                  .copyWith(color: AppColors.secondaryText)),
-          const SizedBox(height: 3),
-          Text(value,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: AppTypography.small.copyWith(fontWeight: FontWeight.w700)),
-        ]),
-      );
-}
-
-class _WeatherUnavailable extends StatelessWidget {
-  const _WeatherUnavailable();
-  @override
-  Widget build(BuildContext context) => const Card(
-      child: Padding(
-          padding: EdgeInsets.all(AppSpacing.md),
-          child: Text(
-              'Weather monitoring is unavailable. Configure the farm location and try again.')));
 }
 
 class _CropQuickActions extends StatelessWidget {
   const _CropQuickActions(
-      {required this.canAddManual,
-      required this.onStartRover,
-      required this.onAddManual,
-      required this.onPastCrops});
-  final bool canAddManual;
+      {required this.onStartRover, required this.onPastCrops});
   final VoidCallback onStartRover;
-  final VoidCallback onAddManual;
   final VoidCallback onPastCrops;
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.sm,
+    return Row(
       children: [
-        FilledButton.icon(
+        Expanded(
+          child: _CropQuickActionTile(
+            icon: Icons.agriculture_outlined,
+            label: 'START ROVER PLANTING',
             onPressed: onStartRover,
-            icon: const Icon(Icons.agriculture_outlined),
-            label: const Text('START ROVER PLANTING')),
-        if (canAddManual)
-          OutlinedButton.icon(
-              onPressed: onAddManual,
-              icon: const Icon(Icons.add),
-              label: const Text('ADD MANUAL CROP')),
-        OutlinedButton.icon(
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: _CropQuickActionTile(
+            icon: Icons.history,
+            label: 'VIEW PAST CROPS',
             onPressed: onPastCrops,
-            icon: const Icon(Icons.history),
-            label: const Text('VIEW PAST CROPS')),
+          ),
+        ),
       ],
     );
   }
 }
 
-class _ManualCropValues {
-  const _ManualCropValues(this.profileKey, this.fieldLabel, this.areaM2,
-      this.plantingDate, this.reason);
-  final String profileKey;
-  final String fieldLabel;
-  final double areaM2;
-  final DateTime plantingDate;
-  final String reason;
-}
+class _CropQuickActionTile extends StatelessWidget {
+  const _CropQuickActionTile({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
 
-class _ManualCropDialog extends StatefulWidget {
-  const _ManualCropDialog();
-  @override
-  State<_ManualCropDialog> createState() => _ManualCropDialogState();
-}
-
-class _ManualCropDialogState extends State<_ManualCropDialog> {
-  final _formKey = GlobalKey<FormState>();
-  final _field = TextEditingController();
-  final _area = TextEditingController();
-  final _reason = TextEditingController();
-  String _profile = 'sitaw';
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('ADD MANUAL CROP'),
-      content: SizedBox(
-        width: 520,
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<String>(
-                value: _profile,
-                decoration: const InputDecoration(
-                    labelText: 'CROP PROFILE', border: OutlineInputBorder()),
-                items: const [
-                  DropdownMenuItem(
-                      value: 'calamansi', child: Text('Calamansi')),
-                  DropdownMenuItem(value: 'sitaw', child: Text('Sitaw')),
-                  DropdownMenuItem(value: 'peanut', child: Text('Peanut')),
-                ],
-                onChanged: (value) =>
-                    setState(() => _profile = value ?? _profile),
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        child: Ink(
+          height: 68,
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment.bottomCenter,
+              radius: 1.25,
+              colors: AppColors.heroGradientColors,
+            ),
+            border: Border.all(
+              color: AppColors.primaryGreen.withValues(alpha: .34),
+            ),
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primaryGreen.withValues(alpha: .06),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
               ),
-              const SizedBox(height: AppSpacing.sm),
-              TextFormField(
-                  controller: _field,
-                  decoration: const InputDecoration(
-                      labelText: 'FIELD OR BED',
-                      hintText: 'e.g. North Field - Row 3',
-                      border: OutlineInputBorder()),
-                  validator: _required),
-              const SizedBox(height: AppSpacing.sm),
-              TextFormField(
-                  controller: _area,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-                  ],
-                  decoration: const InputDecoration(
-                      labelText: 'FIELD AREA (M2)',
-                      hintText: 'e.g. 25',
-                      border: OutlineInputBorder()),
-                  validator: (value) => (double.tryParse(value ?? '') ?? 0) <= 0
-                      ? 'Enter an area greater than zero'
-                      : null),
-              const SizedBox(height: AppSpacing.sm),
-              TextFormField(
-                  controller: _reason,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                      labelText: 'MANUAL CREATION REASON',
-                      hintText: 'e.g. Rover unavailable during nursery sowing',
-                      border: OutlineInputBorder()),
-                  validator: _required),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                  'Manual crops are audit logged. Use this only when a rover planting receipt is unavailable.',
-                  style: AppTypography.small
-                      .copyWith(color: AppColors.secondaryText)),
+            ],
+          ),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(painter: _CropActionStarFieldPainter()),
+                ),
+              ),
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.xs,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(icon, color: AppColors.heroIconGreen, size: 20),
+                      const SizedBox(width: AppSpacing.sm),
+                      Flexible(
+                        child: Text(
+                          label,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: AppTypography.caption.copyWith(
+                            color: AppColors.heroPrimaryText,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),
       ),
-      actions: [
-        TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('CANCEL')),
-        FilledButton(onPressed: _submit, child: const Text('SAVE MANUAL CROP')),
-      ],
     );
   }
+}
 
-  void _submit() {
-    if (!_formKey.currentState!.validate()) return;
-    Navigator.pop(
-        context,
-        _ManualCropValues(_profile, _field.text.trim(),
-            double.parse(_area.text), DateTime.now(), _reason.text.trim()));
+class _CropActionStarFieldPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    const stars = <Offset>[
+      Offset(.08, .18),
+      Offset(.18, .54),
+      Offset(.31, .26),
+      Offset(.47, .66),
+      Offset(.62, .2),
+      Offset(.76, .5),
+      Offset(.91, .28),
+    ];
+    final paint = Paint()..color = AppColors.accentGreen.withValues(alpha: .3);
+    for (var index = 0; index < stars.length; index++) {
+      final star = stars[index];
+      canvas.drawCircle(
+        Offset(star.dx * size.width, star.dy * size.height),
+        index.isEven ? 1 : .65,
+        paint,
+      );
+    }
   }
 
-  static String? _required(String? value) =>
-      value == null || value.trim().isEmpty ? 'This field is required' : null;
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _CropLoadingSkeleton extends StatelessWidget {
@@ -345,8 +245,6 @@ class _CropLoadingSkeleton extends StatelessWidget {
             SizedBox(height: AppSpacing.md),
             Row(
               children: [
-                Expanded(child: SkeletonBlock(height: 34)),
-                SizedBox(width: AppSpacing.sm),
                 Expanded(child: SkeletonBlock(height: 34)),
                 SizedBox(width: AppSpacing.sm),
                 Expanded(child: SkeletonBlock(height: 34)),

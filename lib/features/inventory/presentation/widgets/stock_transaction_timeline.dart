@@ -105,6 +105,7 @@ class _TransactionTile extends StatelessWidget {
       StockTransactionType.stockOut => AppColors.warning,
       StockTransactionType.sale => AppColors.primaryGreen,
       StockTransactionType.adjustment => AppColors.information,
+      StockTransactionType.harvest => AppColors.primaryGreen,
     };
   }
 
@@ -114,6 +115,7 @@ class _TransactionTile extends StatelessWidget {
       StockTransactionType.stockOut => Icons.remove_circle_outline,
       StockTransactionType.sale => Icons.point_of_sale_outlined,
       StockTransactionType.adjustment => Icons.tune,
+      StockTransactionType.harvest => Icons.agriculture_outlined,
     };
   }
 

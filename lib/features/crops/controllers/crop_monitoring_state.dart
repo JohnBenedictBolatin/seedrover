@@ -98,11 +98,13 @@ class CropMonitoringState {
   int get totalCrops => crops.length;
 
   int get activeCrops {
-    return crops.where((crop) => crop.status != CropStatus.harvested).length;
+    return crops.where((crop) => !crop.isCompleted).length;
   }
 
   int get harvestReadyCrops {
-    return crops.where((crop) => crop.status == CropStatus.readyForHarvest).length;
+    return crops
+        .where((crop) => crop.status == CropStatus.readyForHarvest)
+        .length;
   }
 
   List<String> get cropNames {

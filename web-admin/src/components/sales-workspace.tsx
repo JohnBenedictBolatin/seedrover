@@ -202,7 +202,9 @@ export function SalesWorkspace({
   }, [endDate, orders, payment, query, startDate, status]);
 
   useEffect(() => {
-    setCurrentPage(1);
+    const resetPage = window.setTimeout(() => setCurrentPage(1), 0);
+
+    return () => window.clearTimeout(resetPage);
   }, [endDate, payment, query, startDate, status]);
 
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / SALES_ROWS_PER_PAGE));
@@ -374,20 +376,22 @@ export function SalesWorkspace({
             </div>
             {paginatedOrders.map((order) => (
               <div className={styles.salesTableRow} key={`${order.source}-${order.id}`}>
-                <strong className={styles.receiptCell}>{order.receiptNumber}</strong>
-                <span className={styles.dateCell}>{formatDateTime(order.saleDate)}</span>
-                <strong className={styles.customerCell}>{order.customerName}</strong>
-                <span className={styles.typeCell}>
+                <strong className={styles.receiptCell} data-label="Receipt">{order.receiptNumber}</strong>
+                <span className={styles.dateCell} data-label="Date / time">{formatDateTime(order.saleDate)}</span>
+                <strong className={styles.customerCell} data-label="Customer">{order.customerName}</strong>
+                <span className={styles.typeCell} data-label="Type">
                   {order.source === "market" ? "Market distribution" : "Receipt sale"}
                 </span>
-                <span className={styles.itemsCell}>{order.itemCount ?? 1}</span>
-                <span className={styles.paymentCell}>{order.paymentMethod}</span>
-                <span className={styles.discountCell}>{formatCurrency(order.discountAmount ?? 0)}</span>
-                <strong className={styles.totalCell}>{formatCurrency(order.totalAmount)}</strong>
-                <span className={styles.statusPill} data-status={order.status.toLowerCase()}>
-                  {order.status}
-                </span>
-                <div className={styles.tableActions}>
+                <span className={styles.itemsCell} data-label="Items">{order.itemCount ?? 1}</span>
+                <span className={styles.paymentCell} data-label="Payment">{order.paymentMethod}</span>
+                <span className={styles.discountCell} data-label="Discount">{formatCurrency(order.discountAmount ?? 0)}</span>
+                <strong className={styles.totalCell} data-label="Total">{formatCurrency(order.totalAmount)}</strong>
+                <div className={styles.statusCell} data-label="Status">
+                  <span className={styles.statusPill} data-status={order.status.toLowerCase()}>
+                    {order.status}
+                  </span>
+                </div>
+                <div className={styles.tableActions} data-label="Actions">
                   {order.source === "receipt" ? (
                     <button
                       aria-label="View receipt details"

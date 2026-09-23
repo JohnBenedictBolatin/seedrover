@@ -84,6 +84,7 @@ class CropDetailPanel extends StatelessWidget {
       CropStatus.needsFertilizer => AppColors.warning,
       CropStatus.readyForHarvest => AppColors.primaryGreen,
       CropStatus.harvested => AppColors.mutedText,
+      CropStatus.notHarvested => AppColors.danger,
     };
   }
 
