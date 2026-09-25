@@ -7,6 +7,7 @@ export type InventoryItem = {
   stockCode: string;
   itemName: string;
   category: string;
+  notes: string;
   quantity: number;
   unit: typeof INVENTORY_UNIT;
   minimumQuantity: number;
@@ -64,6 +65,7 @@ type InventoryRow = {
   stock_code: string | null;
   item_name: string;
   category: string;
+  notes: string | null;
   quantity: number | string;
   unit: string;
   minimum_quantity: number | string;
@@ -184,7 +186,7 @@ export async function getInventoryDashboard() {
   const { data: inventoryRows, error: inventoryError } = await supabase
     .from("inventory")
     .select(
-      "id, stock_code, item_name, category, quantity, unit, minimum_quantity, storage_location, unit_cost, selling_price, image_path, created_at, updated_at",
+      "id, stock_code, item_name, category, quantity, unit, minimum_quantity, storage_location, unit_cost, selling_price, image_path, notes, created_at, updated_at",
     )
     .order("item_name", { ascending: true })
     .returns<InventoryRow[]>();
@@ -292,6 +294,7 @@ export async function getInventoryDashboard() {
     stockCode: row.stock_code ?? "Uncoded",
     itemName: row.item_name,
     category: row.category,
+    notes: row.notes ?? '',
     quantity: toNumber(row.quantity),
     unit: INVENTORY_UNIT,
     minimumQuantity: toNumber(row.minimum_quantity),

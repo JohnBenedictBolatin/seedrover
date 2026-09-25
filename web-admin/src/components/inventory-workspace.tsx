@@ -42,6 +42,7 @@ import { useConfirmationDialog } from "@/components/confirmation-dialog";
 import { useActionFeedback } from "@/components/action-feedback";
 import { FileUploadField } from "@/components/file-upload-field";
 import { formatCurrency, formatDateTime, formatQuantity } from "@/lib/format";
+import { sharedWorkflowChoices, sharedWorkflowTerms } from "@/lib/shared-workflow-terms";
 import type { InventoryItem } from "@/lib/inventory";
 import styles from "@/app/(portal)/inventory/page.module.css";
 import quickActionStyles from "@/app/(portal)/sales/page.module.css";
@@ -61,19 +62,8 @@ const units = ["kg"];
 const wholeNumberUnits = new Set<string>();
 const statusOptions = ["All", "In Stock", "Low Stock", "Critical Stock", "Out of Stock"];
 const sortOptions = ["Name", "Quantity", "Updated", "Value"];
-const stockInLocations = [
-  "Harvest Bay",
-  "Greenhouse Sorting",
-  "Field Crate",
-  "Market Return",
-  "Farm-table Prep",
-];
-const stockOutReasons = [
-  "Farm-table Dining",
-  "Kitchen Preparation",
-  "Spoilage Removal",
-  "Staff Allocation",
-];
+const stockInLocations = [...sharedWorkflowChoices.receiptSources];
+const stockOutReasons = [...sharedWorkflowChoices.issueReasons];
 
 type DialogState =
   | { type: "add" }
@@ -354,6 +344,8 @@ function ThemedSelect({
   name,
   onChange,
   options,
+  placeholder,
+  required = false,
   value,
   variant = "form",
 }: {
@@ -363,6 +355,8 @@ function ThemedSelect({
   name?: string;
   onChange?: (value: string) => void;
   options: string[];
+  placeholder?: string;
+  required?: boolean;
   value?: string;
   variant?: "toolbar" | "form";
 }) {
@@ -388,7 +382,7 @@ function ThemedSelect({
       }}
     >
       {name ? <input name={name} type="hidden" value={selectedValue} /> : null}
-      {variant === "form" ? <span className={styles.themedSelectLabel}>{label}</span> : null}
+      {variant === "form" ? <span className={styles.themedSelectLabel}>{label}{required ? <span aria-hidden="true" className={styles.requiredMarker}>*</span> : null}</span> : null}
       <button
         aria-expanded={open}
         className={styles.themedSelectButton}
@@ -397,7 +391,7 @@ function ThemedSelect({
       >
         {icon ? <span className={styles.themedSelectIcon}>{icon}</span> : null}
         {variant === "toolbar" ? <span className={styles.themedSelectLabel}>{label}</span> : null}
-        <span className={styles.themedSelectValue}>{selectedValue}</span>
+        <span className={styles.themedSelectValue}>{selectedValue || placeholder || "No stage change"}</span>
         <ChevronDown className={styles.themedSelectChevron} size={16} />
       </button>
       {open ? (
@@ -551,14 +545,14 @@ function InventoryCard({
       </dl>
       <div className={styles.cardActions}>
         <IconAction
-          label="Stock In"
+          label={sharedWorkflowTerms.receiveStock}
           tone="stock-in"
           onClick={() => onOpen({ type: "stock-in", item })}
         >
           <ArrowUpCircle size={16} />
         </IconAction>
         <IconAction
-          label="Stock Out"
+          label={sharedWorkflowTerms.issueStock}
           tone="stock-out"
           onClick={() => onOpen({ type: "stock-out", item })}
         >
@@ -644,10 +638,10 @@ function InventoryDialog({
   const modalMeta = {
     add: { title: "Add Item", icon: <PackagePlus size={18} /> },
     details: { title: "Stock Details", icon: <ClipboardList size={18} /> },
-    edit: { title: "Edit Item", icon: <Edit3 size={18} /> },
-    "stock-in": { title: "Stock In", icon: <ArrowUpCircle size={18} /> },
-    "stock-out": { title: "Stock Out", icon: <ArrowDownCircle size={18} /> },
-    delete: { title: "Delete Item", icon: <Trash2 size={18} /> },
+    edit: { title: "Edit item", icon: <Edit3 size={18} /> },
+    "stock-in": { title: sharedWorkflowTerms.receiveStock, icon: <ArrowUpCircle size={18} /> },
+    "stock-out": { title: sharedWorkflowTerms.issueStock, icon: <ArrowDownCircle size={18} /> },
+    delete: { title: "Delete item", icon: <Trash2 size={18} /> },
     history: { title: "Inventory History", icon: <Clock3 size={18} /> },
   }[dialog.type];
   const title = modalMeta.title;
@@ -711,7 +705,7 @@ function InventoryDialog({
         {dialog.type === "history" ? (
           <div className={styles.inventoryHistoryLedger}>
             <div className={styles.historyPanel}>
-              <div className={styles.historyHeader}><div><h4 className={styles.historyHeading}>Stock movements</h4><p>Stock in, stock out, and adjustments</p></div><strong>{historyRecords.length} records</strong></div>
+              <div className={styles.historyHeader}><div><h4 className={styles.historyHeading}>Stock movements</h4><p>Receipts, issues, and adjustments</p></div><strong>{historyRecords.length} records</strong></div>
               <div className={styles.historyTableHeader} aria-hidden="true">
                 <span>Type</span>
                 <span>Item and quantity</span>
@@ -721,7 +715,7 @@ function InventoryDialog({
               <div className={styles.inventoryHistoryRecords}>
               {visibleHistoryRecords.map(({ item, transaction }) => (
                 <div className={styles.historyItem} key={transaction.id}>
-                  <div><strong>{transaction.type === "IN" ? "Stock In" : transaction.type === "OUT" ? "Stock Out" : "Adjustment"}</strong><span>{item.itemName} · {transaction.quantity} {item.unit}</span></div>
+                  <div><strong>{transaction.type === "IN" ? sharedWorkflowTerms.receiveStock : transaction.type === "OUT" ? sharedWorkflowTerms.issueStock : sharedWorkflowTerms.adjustQuantity}</strong><span>{item.itemName} · {transaction.quantity} {item.unit}</span></div>
                   <div><small>{formatDateTime(transaction.createdAt)}</small></div>
                   <p>{transaction.remarks || "—"}</p>
                 </div>
@@ -904,7 +898,7 @@ function InventoryForm({
     <>
     <form className={styles.formGrid} onSubmit={handleSubmit}>
       {item ? <input name="id" type="hidden" value={item.id} /> : null}
-      <Field label="Item name" name="item_name" placeholder="e.g. Tomato seeds" required={!item} defaultValue={item?.itemName} />
+      <Field label={sharedWorkflowTerms.itemName} name="item_name" placeholder="e.g. Tomato seeds" required={!item} defaultValue={item?.itemName} />
       <ThemedSelect
         label="Category"
         name="category"
@@ -934,6 +928,7 @@ function InventoryForm({
         <Field label="Selling price (PHP)" name="selling_price" placeholder="e.g. 180.00" type="number" step="0.01" min="0" required={!item} defaultValue={item?.sellingPrice ?? ""} />
       </div>
       <Field label="Storage location" name="storage_location" placeholder="e.g. Greenhouse storage" required={!item} defaultValue={item?.storageLocation ?? ""} />
+      <Field label={`${sharedWorkflowTerms.itemNotes} (optional)`} name="notes" defaultValue={item?.notes ?? ""} />
       <FileUploadField
         accept="image/jpeg,image/png,image/webp"
         helperText="JPG, PNG or WEBP"
@@ -975,9 +970,9 @@ function MovementForm({
   onSuccess: () => void;
 }) {
   const options = mode === "in" ? stockInLocations : stockOutReasons;
-  const [reason, setReason] = useState(
-    mode === "in" ? stockInLocations[0] : stockOutReasons[0],
-  );
+  const [reason, setReason] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [formError, setFormError] = useState("");
   const [pending, startTransition] = useTransition();
 
   const { confirm, confirmationDialog } = useConfirmationDialog();
@@ -988,13 +983,14 @@ function MovementForm({
     const form = event.currentTarget;
 
     const formData = new FormData(form);
-    const quantity = String(formData.get("quantity") ?? "");
+    if (!reason) { setFormError(mode === "in" ? "Choose a source." : "Choose a reason."); return; }
+    const quantityValue = String(formData.get("quantity") ?? "");
     const confirmed = await confirm({
-      title: mode === "in" ? "Record stock in?" : "Record stock out?",
+      title: mode === "in" ? "Receive stock?" : "Issue stock?",
       message: mode === "in"
-        ? `Add ${quantity} ${item.unit} to ${item.itemName}?`
-        : `Deduct ${quantity} ${item.unit} from ${item.itemName} for ${reason}?`,
-      confirmLabel: mode === "in" ? "Add stock" : "Deduct stock",
+        ? `Add ${quantityValue} ${item.unit} to ${item.itemName}?`
+        : `Deduct ${quantityValue} ${item.unit} from ${item.itemName} for ${reason}?`,
+      confirmLabel: mode === "in" ? "Receive stock" : "Issue stock",
     });
 
     if (!confirmed) {
@@ -1031,22 +1027,28 @@ function MovementForm({
         <Field
           label={`Quantity (${item.unit})`}
           name="quantity"
+          value={quantity}
+          onChange={(event) => setQuantity(event.currentTarget.value)}
           required
           type="number"
           step={wholeNumberUnits.has(item.unit) ? "1" : "0.01"}
           min="0.01"
         />
         <ThemedSelect
-          label={mode === "in" ? "Stock in location" : "Reason"}
+          label={mode === "in" ? "Source" : "Reason"}
           name="reason"
-          options={options}
+          options={["", ...options]}
           value={reason}
           onChange={setReason}
+          placeholder={mode === "in" ? "Choose a source" : "Choose a reason"}
+          required
         />
+        <ReadOnly label="Resulting balance" value={formatQuantity(item.quantity + (mode === "in" ? 1 : -1) * (Number(quantity) || 0), item.unit)} />
+        {formError ? <p role="alert">{formError}</p> : null}
         <Field
           label="Remarks"
           name="remarks"
-          defaultValue={mode === "in" ? "Harvest received." : "Stock deducted."}
+          defaultValue=""
         />
         <button className={styles.primaryAction} disabled={pending} type="submit">
           {mode === "in" ? (
@@ -1088,7 +1090,7 @@ function DeleteForm({
       <p className={styles.warningText}>Delete {item.itemName}? This cannot be undone.</p>
       <button className={styles.dangerAction} disabled={pending} type="submit">
         <Trash2 size={17} />
-        <span>{pending ? "Deleting..." : "Delete Item"}</span>
+        <span>{pending ? "Deleting..." : "Delete item"}</span>
       </button>
     </form>
     {confirmationDialog}

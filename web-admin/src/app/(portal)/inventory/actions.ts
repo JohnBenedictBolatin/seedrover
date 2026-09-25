@@ -177,6 +177,7 @@ function inventoryPayload(formData: FormData, options?: { includeQuantity?: bool
     storage_location: isCreate
       ? requiredText(formData, "storage_location", "Storage location")
       : text(formData, "storage_location", "Unassigned"),
+    notes: text(formData, "notes").trim() || null,
     unit_cost: unitCost,
     selling_price: sellingPrice,
   };
@@ -365,7 +366,8 @@ async function createMovement(
     inventory_id: inventoryId,
     transaction_type: transactionType,
     quantity,
-    remarks: combinedRemarks,
+    remarks: remarks || reason || (transactionType === "IN" ? "Stock received." : transactionType === "OUT" ? "Stock issued." : "Stock adjusted."),
+    source: transactionType === "IN" ? reason : null,
     performed_by: userId,
   });
 
