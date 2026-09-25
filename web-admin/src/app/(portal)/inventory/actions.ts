@@ -314,13 +314,13 @@ export async function deleteInventoryItemAction(formData: FormData) {
 
 export async function stockInAction(formData: FormData) {
   const quantity = numberValue(formData, "quantity");
-  if (quantity <= 0) throw new Error("Stock in quantity must be greater than zero.");
+  if (quantity <= 0) throw new Error("Quantity must be greater than zero.");
   await createMovement(formData, "IN", quantity);
 }
 
 export async function stockOutAction(formData: FormData) {
   const quantity = numberValue(formData, "quantity");
-  if (quantity <= 0) throw new Error("Stock out quantity must be greater than zero.");
+  if (quantity <= 0) throw new Error("Quantity must be greater than zero.");
   await createMovement(formData, "OUT", quantity);
 }
 
@@ -328,6 +328,49 @@ export async function adjustStockAction(formData: FormData) {
   const quantity = numberValue(formData, "new_quantity");
   if (quantity < 0) throw new Error("Adjusted quantity cannot be negative.");
   await createMovement(formData, "ADJUSTMENT", quantity);
+}
+
+export async function recordInventorySaleAction(formData: FormData) {
+  await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
+  const inventoryId = requiredText(formData, "id", "Item");
+  const quantity = requiredNumber(formData, "quantity", "Quantity");
+  const unitPrice = requiredNumber(formData, "unit_price", "Unit price");
+  const first = requiredText(formData, "customer_first_name", "First name");
+  const middle = text(formData, "customer_middle_initial").slice(0, 1);
+  const last = requiredText(formData, "customer_last_name", "Last name");
+  const contact = requiredText(formData, "customer_contact", "Contact number");
+  const payment = requiredText(formData, "payment_method", "Payment method");
+  const reference = text(formData, "transaction_reference");
+  const otherPayment = text(formData, "other_payment_method");
+  if (quantity <= 0) throw new Error("Quantity must be greater than zero.");
+  if (unitPrice < 0) throw new Error("Unit price cannot be negative.");
+  if (!["Cash", "GCash", "Bank Transfer", "Card", "Other"].includes(payment)) {
+    throw new Error("Choose a valid payment method.");
+  }
+  if (payment !== "Cash" && !reference) throw new Error("Transaction ID is required for non-cash payments.");
+  if (payment === "Other" && !otherPayment) throw new Error("Other payment method is required.");
+
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const customerName = [first, middle ? `${middle}.` : "", last].filter(Boolean).join(" ");
+  const { error } = await supabase.rpc("record_inventory_sale_v2", {
+    p_inventory_id: inventoryId,
+    p_quantity_sold: quantity,
+    p_unit_price: unitPrice,
+    p_sale_date: new Date().toISOString(),
+    p_customer_name: customerName,
+    p_customer_contact: contact,
+    p_remarks: text(formData, "remarks") || null,
+    p_payment_method: payment,
+    p_transaction_reference: reference || null,
+    p_other_payment_method: otherPayment || null,
+  });
+  if (error) throw new Error(error.message);
+  await logInventoryActivity("Sale recorded", `${quantity} kg of ${text(formData, "item_name", "inventory item")} sold to ${customerName}.`, await currentUserId());
+  revalidatePath("/inventory");
+  revalidatePath("/dashboard");
+  revalidatePath("/sales");
+  revalidatePath("/customers");
 }
 
 async function createMovement(
@@ -345,7 +388,6 @@ async function createMovement(
   const userId = await currentUserId();
   const reason = text(formData, "reason");
   const remarks = text(formData, "remarks", "Inventory updated.");
-  const combinedRemarks = reason ? `${reason} - ${remarks}` : remarks;
   const inventoryId = text(formData, "id");
 
   const { data: movementItem } = await supabase
@@ -383,13 +425,13 @@ async function createMovement(
 
   await logInventoryActivity(
     transactionType === "IN"
-      ? "Stock in recorded"
+      ? "Receive stock recorded"
       : transactionType === "OUT"
-        ? "Stock out recorded"
+        ? "Issue stock recorded"
         : "Stock quantity adjusted",
     `${item?.item_name ?? "Inventory item"} ${
       transactionType === "ADJUSTMENT" ? "was adjusted to" : "moved"
-    } ${quantity} ${item?.unit ?? "unit"}. Reason: ${combinedRemarks}`,
+    } ${quantity} ${item?.unit ?? "unit"}. ${reason ? `${transactionType === "IN" ? "Source" : "Reason"}: ${reason}. ` : ""}${remarks}`,
     userId,
   );
 

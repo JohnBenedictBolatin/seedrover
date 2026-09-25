@@ -125,7 +125,7 @@ export function LoginForm() {
             value="true"
             onChange={(event) => setRememberMe(event.target.checked)}
           />
-          <span>Remember me</span>
+          <span>Keep me signed in</span>
         </label>
         <button
           className={styles.linkButton}

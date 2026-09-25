@@ -35,6 +35,7 @@ import {
   deleteInventoryItemAction,
   stockInAction,
   stockOutAction,
+  recordInventorySaleAction,
   updateInventoryItemAction,
 } from "@/app/(portal)/inventory/actions";
 import type { AlertTone } from "@/components/action-alert-stack";
@@ -71,6 +72,7 @@ type DialogState =
   | { type: "edit"; item: InventoryItem }
   | { type: "stock-in"; item: InventoryItem }
   | { type: "stock-out"; item: InventoryItem }
+  | { type: "sale"; item: InventoryItem }
   | { type: "delete"; item: InventoryItem }
   | { type: "history" }
   | null;
@@ -306,6 +308,7 @@ export function InventoryWorkspace({ items }: { items: InventoryItem[] }) {
         dialog={dialog}
         items={items}
         notify={notify}
+        onAction={setDialog}
         onClose={() => setDialog(null)}
       />
     </>
@@ -599,11 +602,13 @@ function InventoryDialog({
   dialog,
   items,
   notify,
+  onAction,
   onClose,
 }: {
   dialog: DialogState;
   items: InventoryItem[];
   notify: (tone: AlertTone, text: string) => void;
+  onAction: (dialog: DialogState) => void;
   onClose: () => void;
 }) {
   const [historyPage, setHistoryPage] = useState(1);
@@ -641,6 +646,7 @@ function InventoryDialog({
     edit: { title: "Edit item", icon: <Edit3 size={18} /> },
     "stock-in": { title: sharedWorkflowTerms.receiveStock, icon: <ArrowUpCircle size={18} /> },
     "stock-out": { title: sharedWorkflowTerms.issueStock, icon: <ArrowDownCircle size={18} /> },
+    sale: { title: sharedWorkflowTerms.recordSale, icon: <WalletCards size={18} /> },
     delete: { title: "Delete item", icon: <Trash2 size={18} /> },
     history: { title: "Inventory History", icon: <Clock3 size={18} /> },
   }[dialog.type];
@@ -673,7 +679,7 @@ function InventoryDialog({
             successMessage="Inventory item added."
           />
         ) : null}
-        {dialog.type === "details" ? <DetailsPanel item={dialog.item} /> : null}
+        {dialog.type === "details" ? <DetailsPanel item={dialog.item} onAction={onAction} /> : null}
         {dialog.type === "edit" ? (
           <InventoryForm
             action={updateInventoryItemAction}
@@ -698,6 +704,9 @@ function InventoryDialog({
             notify={notify}
             onSuccess={onClose}
           />
+        ) : null}
+        {dialog.type === "sale" ? (
+          <SaleForm item={dialog.item} notify={notify} onSuccess={onClose} />
         ) : null}
         {dialog.type === "delete" ? (
           <DeleteForm item={dialog.item} notify={notify} onSuccess={onClose} />
@@ -1056,7 +1065,7 @@ function MovementForm({
           ) : (
             <ArrowDownCircle size={17} />
           )}
-          <span>{pending ? "Saving..." : "Confirm"}</span>
+          <span>{pending ? "Saving..." : mode === "in" ? sharedWorkflowTerms.receiveStock : sharedWorkflowTerms.issueStock}</span>
         </button>
       </form>
       {confirmationDialog}
@@ -1098,9 +1107,14 @@ function DeleteForm({
   );
 }
 
-function DetailsPanel({ item }: { item: InventoryItem }) {
+function DetailsPanel({ item, onAction }: { item: InventoryItem; onAction: (dialog: DialogState) => void }) {
   return (
     <div className={styles.detailsGrid}>
+      <div className={styles.cardActions}>
+        <button className={styles.primaryAction} type="button" onClick={() => onAction({ type: "sale", item })}>{sharedWorkflowTerms.recordSale}</button>
+        <button className={styles.primaryAction} type="button" onClick={() => onAction({ type: "stock-in", item })}>{sharedWorkflowTerms.receiveStock}</button>
+        <button className={styles.primaryAction} type="button" onClick={() => onAction({ type: "stock-out", item })}>{sharedWorkflowTerms.issueStock}</button>
+      </div>
       <div className={styles.detailsTop}>
         <div className={styles.detailHero}>
           {item.imageUrl ? (
@@ -1137,6 +1151,65 @@ function DetailsPanel({ item }: { item: InventoryItem }) {
       <HistoryList item={item} />
     </div>
   );
+}
+
+function SaleForm({ item, notify, onSuccess }: { item: InventoryItem; notify: (tone: AlertTone, text: string) => void; onSuccess: () => void }) {
+  const [quantity, setQuantity] = useState("");
+  const [unitPrice, setUnitPrice] = useState(String(item.sellingPrice ?? 0));
+  const [payment, setPayment] = useState("Cash");
+  const [pending, startTransition] = useTransition();
+  const { confirm, confirmationDialog } = useConfirmationDialog();
+  const router = useRouter();
+  const qty = Number(quantity) || 0;
+  const price = Number(unitPrice) || 0;
+  const total = qty * price;
+  const resulting = item.quantity - qty;
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    if (qty <= 0 || qty > item.quantity || price < 0) return;
+    const confirmed = await confirm({
+      title: "Review sale",
+      message: `${qty} kg of ${item.itemName} will be sold for ${formatCurrency(total)}. Available stock will change from ${formatQuantity(item.quantity, item.unit)} to ${formatQuantity(resulting, item.unit)}.`,
+      confirmLabel: sharedWorkflowTerms.recordSale,
+    });
+    if (!confirmed) return;
+    startTransition(async () => {
+      try {
+        await recordInventorySaleAction(data);
+        onSuccess();
+        router.refresh();
+        notify("success", "Sale recorded.");
+      } catch (error) {
+        notify("error", error instanceof Error ? error.message : "The sale could not be confirmed. Refresh sales history before trying again.");
+      }
+    });
+  }
+
+  return <>
+    <form className={styles.formGrid} onSubmit={submit}>
+      <input name="id" type="hidden" value={item.id} />
+      <input name="item_name" type="hidden" value={item.itemName} />
+      <ReadOnly label="Available quantity" value={formatQuantity(item.quantity, item.unit)} />
+      <Field label={`Quantity (${item.unit})`} name="quantity" type="number" min="0.01" max={item.quantity} step="0.01" required value={quantity} onChange={(e) => setQuantity(e.currentTarget.value)} />
+      <Field label="Unit price (PHP)" name="unit_price" type="number" min="0" step="0.01" required value={unitPrice} onChange={(e) => setUnitPrice(e.currentTarget.value)} />
+      <ReadOnly label="Total" value={formatCurrency(total)} />
+      <ReadOnly label="Resulting balance" value={formatQuantity(resulting, item.unit)} />
+      <Field label="First name" name="customer_first_name" required />
+      <Field label="Middle initial (optional)" name="customer_middle_initial" maxLength={1} />
+      <Field label="Last name" name="customer_last_name" required />
+      <Field label="Contact number" name="customer_contact" type="tel" required />
+      <ThemedSelect label="Payment method" name="payment_method" options={[...sharedWorkflowChoices.paymentMethods]} value={payment} onChange={setPayment} />
+      {payment !== "Cash" ? <Field label="Transaction ID" name="transaction_reference" required /> : null}
+      {payment === "Other" ? <Field label="Other payment method" name="other_payment_method" required /> : null}
+      <Field label="Notes (optional)" name="remarks" />
+      <p>Sale date and time: recorded when this sale is submitted.</p>
+      <button className={styles.primaryAction} disabled={pending} type="submit">{pending ? "Recording sale…" : sharedWorkflowTerms.recordSale}</button>
+    </form>
+    {confirmationDialog}
+  </>;
 }
 
 function HistoryList({ item }: { item: InventoryItem }) {

@@ -11,6 +11,8 @@
     "start": "next start",
     "lint": "eslint",
     "verify": "npm run lint && npm run build",
+    "generate:shared-workflows": "node ../scripts/generate_shared_workflows.mjs",
+    "check:shared-workflows": "node ../scripts/generate_shared_workflows.mjs --check",
     "check:tracked-secrets": "node scripts/check-tracked-secrets.mjs"
   },
   "dependencies": {

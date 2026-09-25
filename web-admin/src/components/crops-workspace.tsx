@@ -30,6 +30,7 @@ import type { CropActivityRecord, CropItem, CropSensorReading } from "@/lib/crop
 import type { CropOutcome } from "@/lib/crop-outcomes";
 import type { PlantingRunHistoryRow } from "@/app/(portal)/crops/actions";
 import { formatDate, formatDateTime } from "@/lib/format";
+import { sharedWorkflowTerms } from "@/lib/shared-workflow-terms";
 import type { AlertTone } from "@/components/action-alert-stack";
 import { useActionFeedback } from "@/components/action-feedback";
 import { CalendarField } from "@/components/calendar-field";
@@ -51,7 +52,7 @@ const statusInputOptions = ["Active", "Needs Attention", "Harvest Ready"];
 const sortOptions = ["Newest", "Name", "Harvest Soon"];
 
 function displayCropStatus(status: string) {
-  return status === "Cancelled" ? "Not Harvested" : status;
+  return status === "Cancelled" ? sharedWorkflowTerms.closedWithoutHarvest : status;
 }
 
 type ModalState =
@@ -403,9 +404,9 @@ function CropDialog({
 
   const modalMeta = {
     details: { title: dialog.type === "details" ? dialog.crop.cropName : "Crop Details", icon: <Leaf size={18} /> },
-    activity: { title: dialog.type === "activity" && dialog.activity === "Not Harvested" ? "Cancel Crop" : "Record Crop Activity", icon: <ClipboardCheck size={18} /> },
+    activity: { title: dialog.type === "activity" && dialog.activity === "Not Harvested" ? sharedWorkflowTerms.closeWithoutHarvest : "Record care", icon: <ClipboardCheck size={18} /> },
     edit: { title: "Edit Crop", icon: <Edit3 size={18} /> },
-    "not-harvested": { title: "Mark Not Harvested", icon: <CircleSlash2 size={18} /> },
+    "not-harvested": { title: sharedWorkflowTerms.closeWithoutHarvest, icon: <CircleSlash2 size={18} /> },
     outcomes: { title: "Crop History", icon: <History size={18} /> },
     "planting-guide": { title: "How Planting Works", icon: <BookOpenCheck size={18} /> },
   }[dialog.type];
@@ -454,7 +455,7 @@ function CropDialog({
         </div> : null}
         {dialog.type === "details" ? <div className={`${styles.cropWorkspaceFooter} ${styles.modalFooterActions}`}>
           {dialog.crop.cropStatus !== "Completed" && dialog.crop.cropStatus !== "Cancelled" ? <>
-            <button className={`${styles.dangerAction} ${styles.cancelCropButton}`} type="button" onClick={() => onOpen({ type: "activity", crop: dialog.crop, activity: "Not Harvested" })}><CircleSlash2 size={17} aria-hidden="true" /><span>CANCEL CROP</span></button>
+            <button className={`${styles.dangerAction} ${styles.cancelCropButton}`} type="button" onClick={() => onOpen({ type: "activity", crop: dialog.crop, activity: "Not Harvested" })}><CircleSlash2 size={17} aria-hidden="true" /><span>{sharedWorkflowTerms.closeWithoutHarvest}</span></button>
             <div className={styles.cropFooterActions}>
             <button className={styles.primaryAction} type="button" onClick={() => onOpen({ type: "activity", crop: dialog.crop })}><ClipboardCheck size={17} aria-hidden="true" /><span>RECORD ACTIVITY</span></button>
             </div>
@@ -1084,7 +1085,7 @@ function CropOutcomesPanel({
               <thead><tr><th scope="col">Crop</th><th scope="col">Outcome</th><th scope="col">Reason / notes</th><th scope="col" className={historyStyles.numeric}>Quantity</th><th scope="col">Recorded</th></tr></thead>
               <tbody>{visibleOutcomes.map((outcome) => <tr key={outcome.id}>
                 <td data-label="Crop"><strong>{outcome.cropName}</strong></td>
-                <td data-label="Outcome"><HistoryBadge label={outcome.outcome === "Failed" ? "Not Harvested" : outcome.outcome} /></td>
+                <td data-label="Outcome"><HistoryBadge label={outcome.outcome === "Failed" ? sharedWorkflowTerms.closedWithoutHarvest : outcome.outcome} /></td>
                 <td data-label="Reason / notes">{outcome.reason === "Harvest recorded from the crop card." ? "—" : outcome.reason || "—"}</td>
                 <td data-label="Quantity" className={historyStyles.numeric}>{outcome.quantity === null ? "—" : `${outcome.quantity} kg`}</td>
                 <td data-label="Recorded"><time dateTime={outcome.recordedAt}>{formatDateTime(outcome.recordedAt)}</time><small>By {outcome.recordedByName}</small></td>

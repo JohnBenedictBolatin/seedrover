@@ -58,13 +58,19 @@ serve(async (request) => {
 
   if (action !== "create") return json({ error: "Unsupported action." }, 400);
 
-  const fullName = String(body?.full_name ?? "").trim();
+  const firstName = String(body?.first_name ?? "").trim();
+  const middleInitial = String(body?.middle_initial ?? "").replace(/[^a-z]/gi, "").slice(0, 1).toUpperCase();
+  const lastName = String(body?.last_name ?? "").trim();
+  const fullName = [firstName, middleInitial ? `${middleInitial}.` : "", lastName].filter(Boolean).join(" ");
   const username = String(body?.username ?? "").trim().toLowerCase();
   const email = String(body?.email ?? "").trim().toLowerCase();
-  const password = String(body?.temporary_password ?? "");
+  const customPassword = String(body?.temporary_password ?? "");
+  const password = customPassword || generateTemporaryPassword();
   const contactNumber = String(body?.contact_number ?? "").trim();
   const roleName = String(body?.role_name ?? "").trim();
-  if (!fullName || !email || password.length < 8 || !/^[a-z0-9_]{3,32}$/.test(username)) return json({ error: "Invalid user details." }, 400);
+  const isActive = body?.is_active !== false;
+  const accessNote = String(body?.access_note ?? "").trim();
+  if (!firstName || !lastName || !email || password.length < 8 || !/^[a-z0-9_]{3,32}$/.test(username)) return json({ error: "Invalid user details." }, 400);
 
   const { data: selectedRole } = await adminClient.from("roles").select("id, role_name").eq("role_name", roleName).single();
   if (!selectedRole) return json({ error: "Role not found." }, 400);
@@ -82,18 +88,28 @@ serve(async (request) => {
     username,
     email,
     full_name: fullName,
+    first_name: firstName,
+    middle_initial: middleInitial || null,
+    last_name: lastName,
     contact_number: contactNumber,
     role_id: selectedRole.id,
-    is_active: true,
+    is_active: isActive,
   });
   if (profileError) {
     await adminClient.auth.admin.deleteUser(created.user.id);
     return json({ error: profileError.message }, 400);
   }
 
-  await adminClient.from("activity_logs").insert({ user_id: user.id, activity: "User Created", description: `${fullName} was created as ${roleName}.`, module: "Users" });
-  return json({ success: true });
+  await adminClient.from("activity_logs").insert({ user_id: user.id, activity: "User Created", description: `${fullName} was created as ${roleName}.${accessNote ? ` Note: ${accessNote}` : ""}`, module: "Users" });
+  return json({ success: true, full_name: fullName, temporary_password: password });
 });
+
+function generateTemporaryPassword() {
+  const bytes = new Uint8Array(18);
+  crypto.getRandomValues(bytes);
+  const randomPart = Array.from(bytes, (value) => value.toString(36).padStart(2, "0")).join("");
+  return `Sr!${randomPart.slice(0, 15)}A7`;
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });

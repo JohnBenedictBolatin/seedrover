@@ -10,6 +10,7 @@ export type AdminUser = {
   employeeId: string;
   username: string;
   email: string;
+  contactNumber: string;
   fullName: string;
   firstName: string;
   lastName: string;
@@ -30,6 +31,7 @@ type UserRow = {
   id: string;
   username: string;
   email: string;
+  contact_number: string | null;
   full_name: string;
   first_name: string | null;
   last_name: string | null;
@@ -65,7 +67,7 @@ export async function getUsersDashboard() {
     await Promise.all([
       supabase
         .from("profiles")
-        .select("id, username, email, full_name, first_name, last_name, middle_initial, is_active, created_at, roles(role_name)")
+        .select("id, username, email, contact_number, full_name, first_name, last_name, middle_initial, is_active, created_at, roles(role_name)")
         .order("created_at", { ascending: false })
         .returns<UserRow[]>(),
       supabase
@@ -89,6 +91,7 @@ export async function getUsersDashboard() {
     employeeId: `EMP-${row.id.slice(0, 8).toUpperCase()}`,
     username: row.username,
     email: row.email,
+    contactNumber: row.contact_number ?? "",
     fullName: row.full_name,
     firstName: row.first_name ?? "",
     lastName: row.last_name ?? "",

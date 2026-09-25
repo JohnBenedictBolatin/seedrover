@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { randomBytes } from "node:crypto";
 import { requireAdminRole } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -8,6 +9,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export type CreateUserState = {
   message: string;
   success: boolean;
+  temporaryPassword?: string;
+  fullName?: string;
 };
 
 function text(formData: FormData, key: string, fallback = "") {
@@ -44,13 +47,14 @@ export async function createUserAction(
     .join(" ");
   const username = normalizeUsername(text(formData, "username"));
   const email = text(formData, "email").toLowerCase();
-  const password = String(formData.get("temporary_password") ?? "");
+  const suppliedPassword = String(formData.get("temporary_password") ?? "");
+  const password = suppliedPassword || `Sr!${randomBytes(12).toString("base64url")}A7`;
   const contactNumber = text(formData, "contact_number");
   const roleId = text(formData, "role_id");
   const isActive = text(formData, "is_active", "true") === "true";
   const accessNote = text(formData, "access_note");
 
-  if (!firstName || !lastName || !username || !email || !password || !roleId) {
+  if (!firstName || !lastName || !username || !email || !roleId) {
     return { message: "Complete all required account fields.", success: false };
   }
 
@@ -139,6 +143,7 @@ export async function createUserAction(
     first_name: firstName,
     last_name: lastName,
     middle_initial: middleInitial || null,
+    contact_number: contactNumber,
     role_id: role.id,
     is_active: isActive,
   }, { onConflict: "id" });
@@ -164,6 +169,8 @@ export async function createUserAction(
   return {
     message: `${fullName} account created. Share the temporary password securely and ask them to change it after signing in.`,
     success: true,
+    temporaryPassword: password,
+    fullName,
   };
 }
 
@@ -177,6 +184,7 @@ export async function updateUserAction(formData: FormData) {
   const fullName = [firstName, middleInitial ? `${middleInitial}.` : "", lastName].filter(Boolean).join(" ");
   const roleId = String(formData.get("role_id") ?? "");
   const isActive = String(formData.get("is_active") ?? "false") === "true";
+  const contactNumber = String(formData.get("contact_number") ?? "").trim();
 
   if (!userId || !fullName || !roleId) {
     throw new Error("Complete all required user profile fields.");
@@ -235,6 +243,7 @@ export async function updateUserAction(formData: FormData) {
       first_name: firstName,
       last_name: lastName,
       middle_initial: middleInitial || null,
+      contact_number: contactNumber,
       role_id: roleId,
       is_active: isActive,
     })

@@ -55,6 +55,7 @@ export type InventorySale = {
   totalAmount: number;
   saleDate: string;
   customerName: string | null;
+  customerContact: string | null;
   paymentMethod: string;
   remarks: string | null;
   status: string;
@@ -85,6 +86,7 @@ type SaleRow = {
   total_amount: number | string;
   sale_date: string;
   customer_name?: string | null;
+  customer_contact?: string | null;
   payment_method?: string | null;
   other_payment_method?: string | null;
   remarks?: string | null;
@@ -217,7 +219,7 @@ export async function getInventoryDashboard() {
     const itemSalesResultWithPayment = await supabase
       .from("sales_transactions")
       .select(
-        "id, inventory_id, quantity_sold, unit_price, total_amount, sale_date, customer_name, payment_method, other_payment_method, remarks, status",
+        "id, inventory_id, quantity_sold, unit_price, total_amount, sale_date, customer_name, customer_contact, payment_method, other_payment_method, remarks, status",
       )
       .in("inventory_id", inventoryIds)
       .order("sale_date", { ascending: false })
@@ -278,6 +280,7 @@ export async function getInventoryDashboard() {
       totalAmount: toNumber(row.total_amount),
       saleDate: row.sale_date,
       customerName: row.customer_name ?? null,
+      customerContact: row.customer_contact ?? null,
       paymentMethod: displayPaymentMethod(row.payment_method, row.other_payment_method),
       remarks: row.remarks ?? null,
       status: row.status,

@@ -486,6 +486,10 @@ function UserModal({
             <input name="last_name" defaultValue={user.lastName} required />
           </label>
           <label>
+            Contact number
+            <input name="contact_number" defaultValue={user.contactNumber} inputMode="tel" />
+          </label>
+          <label>
             Role
             <ThemedSelect
               icon={<ShieldCheck size={16} />}
@@ -536,12 +540,13 @@ function CreateUserModal({
   });
   const confirmedRef = useRef(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [useCustomPassword, setUseCustomPassword] = useState(false);
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const router = useRouter();
-  const roleOptions = roles.map((role) => ({
+  const roleOptions = [{ value: "", label: "Choose a role" }, ...roles.map((role) => ({
     value: role.id,
     label: role.roleName,
-  }));
+  }))];
 
   useEffect(() => {
     if (!state.message) {
@@ -550,10 +555,7 @@ function CreateUserModal({
 
     onNotify(state.message, state.success ? "success" : "error");
 
-    if (state.success) {
-      onClose();
-      router.refresh();
-    }
+    if (state.success) router.refresh();
   }, [onClose, onNotify, router, state]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -567,7 +569,7 @@ function CreateUserModal({
     event.preventDefault();
 
     const confirmed = await confirm({
-      title: "Create user account?",
+      title: "Review new account",
       message: "This will create a staff account with the selected role and access status.",
       confirmLabel: "Create account",
     });
@@ -578,6 +580,10 @@ function CreateUserModal({
 
     confirmedRef.current = true;
     form.requestSubmit();
+  }
+
+  if (state.success && state.temporaryPassword) {
+    return <div className={styles.modalBackdrop} data-ui-backdrop="true"><section className={styles.modal} role="dialog" aria-modal="true" aria-label="Temporary password"><div className={styles.modalHeader}><h2>Account created</h2></div><p>{state.fullName} can sign in with this temporary password and should change it after signing in.</p><label>Temporary password<input readOnly type={showPassword ? "text" : "password"} value={state.temporaryPassword} /></label><div className={styles.formActions}><button type="button" onClick={() => setShowPassword((value) => !value)}>{showPassword ? "Hide password" : "Reveal password"}</button><button type="button" onClick={async () => { try { await navigator.clipboard.writeText(state.temporaryPassword!); onNotify("Temporary password copied.", "success"); } catch { onNotify("Clipboard access is unavailable. Reveal the password to copy it manually.", "error"); } }}>Copy password</button><button className={styles.primaryActionButton} type="button" onClick={() => { onClose(); router.refresh(); }}>Done</button></div></section></div>;
   }
 
   return (
@@ -647,32 +653,15 @@ function CreateUserModal({
               <input name="contact_number" placeholder="e.g. 0912 345 6789" />
             </span>
           </label>
-          <label className={styles.passwordLabel}>
-            Temporary password
-            <input
-              minLength={8}
-              name="temporary_password"
-              placeholder="Set temporary password"
-              required
-              type={showPassword ? "text" : "password"}
-            />
-            <button
-              aria-label={showPassword ? "Hide temporary password" : "Show temporary password"}
-              aria-pressed={showPassword}
-              className={styles.passwordToggle}
-              type="button"
-              onClick={() => setShowPassword((current) => !current)}
-            >
-              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-            </button>
-          </label>
+          <label><input checked={useCustomPassword} type="checkbox" onChange={(event) => setUseCustomPassword(event.currentTarget.checked)} /> Enter a custom temporary password</label>
+          {useCustomPassword ? <label className={styles.passwordLabel}>Temporary password *<input minLength={8} name="temporary_password" placeholder="At least 8 characters" required type={showPassword ? "text" : "password"} /><button aria-label={showPassword ? "Hide temporary password" : "Show temporary password"} className={styles.passwordToggle} type="button" onClick={() => setShowPassword((current) => !current)}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></label> : null}
           <label>
             Role
             <ThemedSelect
               icon={<ShieldCheck size={16} />}
               name="role_id"
               options={roleOptions}
-              defaultValue={roles[0]?.id ?? ""}
+              defaultValue=""
             />
           </label>
           <label>
