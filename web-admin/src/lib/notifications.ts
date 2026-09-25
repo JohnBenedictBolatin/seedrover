@@ -4,6 +4,7 @@ import type { AdminProfile } from "@/lib/auth";
 export type AdminNotification = {
   id: string;
   recipientName: string;
+  actorName: string | null;
   title: string;
   message: string;
   notificationType: string;
@@ -28,39 +29,38 @@ type NotificationRow = {
   is_read: boolean;
   action_route: string | null;
   created_at: string;
-  profiles: { full_name: string } | { full_name: string }[] | null;
+  recipient: ProfileName | ProfileName[] | null;
+  actor: ProfileName | ProfileName[] | null;
 };
 
-type ActivityNotificationRow = {
-  id: string;
-  activity: string;
-  description: string | null;
-  module: string;
-  user_id: string | null;
-  created_at: string;
-  profiles: { full_name: string } | { full_name: string }[] | null;
+type ProfileName = {
+  first_name: string | null;
+  last_name: string | null;
+  full_name: string | null;
 };
+
+function profileDisplayName(profile: ProfileName | null) {
+  if (!profile) return null;
+
+  const firstName = profile.first_name?.trim().split(/\s+/)[0] ?? "";
+  const lastName = profile.last_name?.trim() ?? "";
+  const fallbackParts = (profile.full_name ?? "").trim().split(/\s+/).filter(Boolean);
+  const resolvedFirstName = firstName || fallbackParts[0] || "";
+  const resolvedLastName = lastName || fallbackParts[fallbackParts.length - 1] || "";
+
+  if (!resolvedFirstName) return null;
+  return resolvedLastName
+    ? `${resolvedFirstName} ${resolvedLastName.charAt(0).toUpperCase()}.`
+    : resolvedFirstName;
+}
+
+function profileFromRelation(profile: ProfileName | ProfileName[] | null) {
+  return Array.isArray(profile) ? profile[0] ?? null : profile;
+}
 
 function recipientName(row: NotificationRow) {
-  const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
-  return profile?.full_name ?? "SeedRover user";
-}
-
-function activityUserName(row: ActivityNotificationRow) {
-  const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
-  return profile?.full_name ?? "SeedRover user";
-}
-
-function allowedModulesFor(roleName: AdminProfile["roleName"]) {
-  if (roleName === "System Administrator") {
-    return null;
-  }
-
-  if (roleName === "Farm Inventory Manager" || roleName === "Inventory Staff") {
-    return ["Inventory", "Stocks", "Sales", "Customers", "Discounts", "Reports"];
-  }
-
-  return ["Crops", "Planting", "Rover", "Rover Monitor"];
+  const profile = Array.isArray(row.recipient) ? row.recipient[0] : row.recipient;
+  return profileDisplayName(profile);
 }
 
 function allowedNotificationTypesFor(roleName: AdminProfile["roleName"]) {
@@ -69,10 +69,32 @@ function allowedNotificationTypesFor(roleName: AdminProfile["roleName"]) {
   }
 
   if (roleName === "Farm Inventory Manager" || roleName === "Inventory Staff") {
-    return ["Inventory", "Stocks", "Sales", "Customers", "System"];
+    return ["Inventory", "System"];
   }
 
-  return ["Crops", "Planting", "Rover", "System"];
+  return [
+    "Crop Reminder",
+    "Robot Status",
+    "System",
+  ];
+}
+
+function isNoiseNotification(notification: AdminNotification) {
+  const title = notification.title.trim().toLowerCase();
+  const message = notification.message.trim().toLowerCase();
+
+  return (
+    [
+      "login",
+      "logout",
+      "web login",
+      "web logout",
+      "notification read",
+      "notification deleted",
+    ].includes(title) ||
+    message.includes("signed in") ||
+    message.includes("signed out")
+  );
 }
 
 export async function getNotificationsDashboard(profile?: AdminProfile) {
@@ -89,7 +111,7 @@ export async function getNotificationsDashboard(profile?: AdminProfile) {
   const { data, error } = await supabase
     .from("notifications")
     .select(
-      "id, title, message, notification_type, is_read, action_route, created_at, profiles(full_name)",
+      "id, title, message, notification_type, is_read, action_route, created_at, recipient:profiles!notifications_recipient_id_fkey(first_name,last_name,full_name), actor:profiles!notifications_actor_id_fkey(first_name,last_name,full_name)",
     )
     .order("created_at", { ascending: false })
     .returns<NotificationRow[]>();
@@ -106,59 +128,23 @@ export async function getNotificationsDashboard(profile?: AdminProfile) {
 
   const notifications = (data ?? [])
     .map<AdminNotification>((row) => ({
-    id: row.id,
-    recipientName: recipientName(row),
-    title: row.title,
-    message: row.message,
-    notificationType: row.notification_type,
-    isRead: row.is_read,
-    actionRoute: row.action_route ?? "",
-    createdAt: row.created_at,
-    source: "notification",
-  }))
+      id: row.id,
+      recipientName: recipientName(row) ?? "SeedRover user",
+      actorName: profileDisplayName(profileFromRelation(row.actor)),
+      title: row.title,
+      message: row.message,
+      notificationType: row.notification_type,
+      isRead: row.is_read,
+      actionRoute: row.action_route ?? "",
+      createdAt: row.created_at,
+      source: "notification",
+    }))
     .filter(
       (notification) =>
-        !allowedTypes || allowedTypes.includes(notification.notificationType),
+        !isNoiseNotification(notification) &&
+        (!allowedTypes || allowedTypes.includes(notification.notificationType)),
     );
-
-  let activityNotifications: AdminNotification[] = [];
-  let activityError: string | null = null;
-
-  if (profile) {
-    let activityQuery = supabase
-      .from("activity_logs")
-      .select("id, activity, description, module, user_id, created_at, profiles(full_name)")
-      .neq("user_id", profile.id);
-
-    const modules = allowedModulesFor(profile.roleName);
-
-    if (modules) {
-      activityQuery = activityQuery.in("module", modules);
-    }
-
-    const { data: activityRows, error: logsError } = await activityQuery
-      .order("created_at", { ascending: false })
-      .limit(40)
-      .returns<ActivityNotificationRow[]>();
-
-    if (logsError) {
-      activityError = logsError.message;
-    }
-
-    activityNotifications = (activityRows ?? []).map<AdminNotification>((row) => ({
-      id: `activity-${row.id}`,
-      recipientName: activityUserName(row),
-      title: row.activity,
-      message: row.description ?? `${activityUserName(row)} performed an action.`,
-      notificationType: row.module,
-      isRead: false,
-      actionRoute: "",
-      createdAt: row.created_at,
-      source: "activity",
-    }));
-  }
-
-  const combinedNotifications = [...notifications, ...activityNotifications]
+  const combinedNotifications = notifications
     .sort(
       (left, right) =>
         new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
@@ -179,6 +165,6 @@ export async function getNotificationsDashboard(profile?: AdminProfile) {
   return {
     notifications: combinedNotifications,
     summary,
-    error: activityError,
+    error: null,
   };
 }

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { getCustomersDashboard } from "@/lib/customers";
-import { getCustomerPayments } from "@/lib/customer-payments";
+import { getInstallmentPlans } from "@/lib/customer-payments";
 import { CustomersWorkspace } from "@/components/customers-workspace";
 import { CustomerPaymentsPanel } from "@/components/customer-payments-panel";
 import { LiveDateTime } from "@/components/live-date-time";
@@ -19,9 +19,9 @@ export default async function CustomersPage() {
     redirect("/dashboard");
   }
 
-  const [{ customers, discounts, stats, error, profileError }, paymentData] = await Promise.all([
+  const [{ customers, discounts, stats, error }, installmentData] = await Promise.all([
     getCustomersDashboard(),
-    getCustomerPayments(),
+    getInstallmentPlans(),
   ]);
 
   return (
@@ -30,7 +30,7 @@ export default async function CustomersPage() {
           <ModuleHeaderIntro mascot="customers">
             <p className={styles.eyebrow}>Operations</p>
             <h1>Customers</h1>
-            <p>Buyer profiles, purchase history, discounts, and payments.</p>
+            <p>Customer records and purchase history are built from completed sales.</p>
           </ModuleHeaderIntro>
         <div className={styles.liveDateTime}>
           <LiveDateTime />
@@ -44,16 +44,9 @@ export default async function CustomersPage() {
         </section>
       ) : null}
 
-      {profileError ? (
-        <section className={styles.notice}>
-          <strong>Saved customer profiles are not available yet.</strong>
-          <span>{profileError}</span>
-        </section>
-      ) : null}
-
       <CustomersWorkspace customers={customers} discounts={discounts} stats={stats} />
-      {paymentData.error ? <section className={styles.notice}><strong>Installment tracking is unavailable.</strong><span>{paymentData.error}</span></section> : null}
-      <CustomerPaymentsPanel payments={paymentData.payments} />
+      <CustomerPaymentsPanel plans={installmentData.plans} />
+      {installmentData.error ? <section className={styles.notice}><strong>Installment schedules are unavailable.</strong><span>{installmentData.error}</span></section> : null}
     </div>
   );
 }

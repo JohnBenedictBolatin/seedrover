@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
-  ArrowUpRight,
   Package,
   PackageMinus,
   PackagePlus,
@@ -38,7 +37,7 @@ import type {
   OperationsDashboardData,
   StockMovementPoint,
 } from "@/lib/dashboard";
-import { formatCurrency, formatDateTime, formatQuantity } from "@/lib/format";
+import { formatCurrency, formatDateTime } from "@/lib/format";
 import styles from "@/app/(portal)/dashboard/page.module.css";
 
 const ranges: Array<{ label: string; value: DashboardRange }> = [
@@ -73,30 +72,19 @@ type OperationsDashboardWorkspaceProps = {
 
 export function OperationsDashboardWorkspace({ canViewInvestments, isInventoryManager, data }: OperationsDashboardWorkspaceProps) {
   const [activityPage, setActivityPage] = useState(1);
-  const activityPageSize = 5;
+  const activityPageSize = 3;
   const activityPageCount = Math.max(1, Math.ceil(data.recentActivity.length / activityPageSize));
   const visibleActivity = data.recentActivity.slice(
     (activityPage - 1) * activityPageSize,
     activityPage * activityPageSize,
   );
-  const recoveryStatus = data.summary.recoveryStatus === "recovered"
-    ? "Investment recovered"
-    : data.summary.recoveryStatus === "on-track"
-      ? "On track"
-      : data.summary.recoveryStatus === "behind"
-        ? "Below target"
-        : "No investment baseline";
-  const recoveryRangeLabel = data.range === "day"
+  const rangeLabel = data.range === "day"
     ? "Daily"
     : data.range === "week"
       ? "Weekly"
-        : data.range === "month"
-          ? "Monthly"
-          : "Yearly";
-  const topSalesCategory = data.charts.salesByCategory[0];
-  const topSellingItem = data.charts.topItems[0];
-  const stockInTotal = data.charts.stockMovement.reduce((total, point) => total + point.in, 0);
-  const stockOutTotal = data.charts.stockMovement.reduce((total, point) => total + point.out, 0);
+      : data.range === "month"
+        ? "Monthly"
+        : "Yearly";
   const summaryCards = [
     {
       icon: <TrendingUp size={20} />,
@@ -117,235 +105,100 @@ export function OperationsDashboardWorkspace({ canViewInvestments, isInventoryMa
     },
     {
       icon: <TrendingUp size={20} />,
-      label: `${recoveryRangeLabel} ROI target`,
-      value: data.summary.requiredPeriodSales,
-      currency: true,
-      suffix: undefined,
-      secondary: recoveryStatus,
-      detailsHref: canViewInvestments ? `/investments?range=${data.range}` : undefined,
+      label: `${rangeLabel} ROI`,
+      value: data.summary.roi,
+      suffix: "%",
     }] : []),
     ...(isInventoryManager ? [
       {
         icon: <AlertTriangle size={20} />,
         label: "Low-stock items",
         value: data.summary.lowStockItems,
-        detailsHref: "/inventory",
       },
       {
         icon: <PackageX size={20} />,
         label: "Out-of-stock items",
         value: data.summary.outOfStockItems,
-        detailsHref: "/inventory",
       },
     ] : []),
   ];
 
-  const insights = [
-    {
-      label: "Best seller",
-      value: data.insights.bestSellingItem,
-    },
-    {
-      label: "Strongest category",
-      value: data.insights.strongestCategory,
-    },
-    {
-      label: "Top payment",
-      value: data.insights.preferredPaymentMethod,
-    },
-    {
-      label: "Rover",
-      value: data.insights.roverWarning,
-    },
-  ];
-
   return (
     <>
-      <section className={styles.rangePanel} aria-label="Dashboard range selector">
-        <div>
-          <h2>Farm overview</h2>
-        </div>
-        <div className={styles.rangeTabs} aria-label="Select dashboard date range">
-          {ranges.map((range) => (
-            <Link
-              aria-current={data.range === range.value ? "page" : undefined}
-              className={data.range === range.value ? styles.rangeTabActive : styles.rangeTab}
-              href={`/dashboard?range=${range.value}`}
-              key={range.value}
-            >
-              {range.label}
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <section className={styles.metricGrid} aria-label="Operations summary">
-        {summaryCards.map((card) => (
-          <article className={styles.metric} key={card.label}>
-            <div className={styles.metricMeta}>
-              <span className={styles.metricIcon}>{card.icon}</span>
-              <p>{card.label}</p>
+      <div className={styles.dashboardLayout}>
+        <div className={styles.dashboardOverview}>
+          <section className={styles.rangePanel} aria-label="Dashboard range selector">
+            <div>
+              <h2>Farm overview</h2>
             </div>
-          <div className={styles.metricValue}>
-            <CountUpValue className="mono" currency={card.currency} value={card.value} suffix={card.suffix} />
-            {card.secondary ? <small className={styles.metricSecondary}>{card.secondary}</small> : null}
-            {card.detailsHref ? <Link className={styles.metricDetailLink} href={card.detailsHref}>VIEW DETAILS <ArrowUpRight size={13} /></Link> : null}
-          </div>
+            <div className={styles.rangeTabs} aria-label="Select dashboard date range">
+              {ranges.map((range) => (
+                <Link
+                  aria-current={data.range === range.value ? "page" : undefined}
+                  className={data.range === range.value ? styles.rangeTabActive : styles.rangeTab}
+                  href={`/dashboard?range=${range.value}`}
+                  key={range.value}
+                >
+                  {range.label}
+                </Link>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.metricGrid} aria-label="Operations summary">
+            {summaryCards.map((card) => (
+              <article className={styles.metric} key={card.label}>
+                <div className={styles.metricMeta}>
+                  <span className={styles.metricIcon}>{card.icon}</span>
+                  <p>{card.label}</p>
+                </div>
+                <div className={styles.metricValue}>
+                  <CountUpValue className="mono" currency={card.currency} value={card.value} suffix={card.suffix} />
+                </div>
+              </article>
+            ))}
+          </section>
+
+        </div>
+
+        <aside className={styles.priorityRail} aria-label="Priority operational details">
+          <article className={styles.listPanel}>
+            <div className={styles.sectionHeader}>
+              <div>
+                <p className={styles.eyebrow}>Inventory</p>
+                <h2>Low stock items</h2>
+              </div>
+              <span className={styles.panelPill}>{data.insights.stockWarning}</span>
+            </div>
+            {data.lowStock.length > 0 ? (
+              <div className={styles.riskList}>
+                {data.lowStock.map((item) => (
+                  <div className={styles.riskItem} data-status={item.status} key={item.id}>
+                    <div>
+                      <strong>{item.itemName}</strong>
+                      <span>{item.category}</span>
+                    </div>
+                    <div>
+                      <strong>{item.quantity}</strong>
+                      <span>{item.unit}</span>
+                    </div>
+                    <em>{item.status}</em>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState text="No low-stock items." />
+            )}
           </article>
-        ))}
-      </section>
 
-      <section className={styles.analysisPanel} aria-label="Operations insights">
-        <div>
-          <p className={styles.eyebrow}>Highlights</p>
-          <h2>Current operations</h2>
-        </div>
-        <div className={styles.analysisList}>
-          {insights.map((insight) => (
-            <div key={insight.label}>
-              <span>{insight.label}</span>
-              <strong>{insight.value}</strong>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className={styles.chartGrid} aria-label="Operations charts">
-        <ChartPanel
-          description="Completed sales only."
-          summary={[
-            { value: formatCurrency(data.summary.salesInRange), label: "Completed sales" },
-            { value: formatCurrency(data.summary.averageSale), label: "Average sale" },
-          ]}
-          title="Sales trend"
-        >
-          <AreaValueChart data={data.charts.salesTrend} />
-        </ChartPanel>
-
-        <ChartPanel
-          description="Completed sales grouped by inventory category."
-          summary={[
-            { value: formatCurrency(data.summary.salesInRange), label: "Total sales" },
-            { value: topSalesCategory?.label ?? "No category sales", label: "Top category" },
-          ]}
-          title="Sales by category"
-        >
-          <PieValueChart data={data.charts.salesByCategory} />
-        </ChartPanel>
-
-        <ChartPanel
-          description="Current quantity × unit cost."
-          summary={[
-            { value: formatCurrency(data.summary.inventoryValue), label: "Current value" },
-            { value: formatCurrency(data.summary.estimatedSalesValue), label: "Est. sales value" },
-          ]}
-          title="Stock value"
-        >
-          <BarValueChart currency data={data.charts.stockValueByCategory} />
-        </ChartPanel>
-
-        <ChartPanel
-          summary={[
-            { value: formatQuantity(stockInTotal, "kg"), label: "Stock in" },
-            { value: formatQuantity(stockOutTotal, "kg"), label: "Stock out" },
-          ]}
-          title="Stock movement"
-        >
-          <StockMovementLineChart data={data.charts.stockMovement} />
-        </ChartPanel>
-
-        <ChartPanel
-          summary={[
-            { value: formatCurrency(data.summary.salesInRange), label: "Completed sales" },
-            { value: data.insights.preferredPaymentMethod, label: "Top method" },
-          ]}
-          title="Payment breakdown"
-        >
-          <PieValueChart data={data.charts.paymentMethods} />
-        </ChartPanel>
-
-        <ChartPanel
-          summary={[
-            { value: formatQuantity(topSellingItem?.value ?? 0, "kg"), label: "Top item sold" },
-            { value: topSellingItem?.label ?? "No sales yet", label: "Best seller" },
-          ]}
-          title="Top-selling items"
-        >
-          <BarValueChart data={data.charts.topItems} />
-        </ChartPanel>
-
-      </section>
-
-      <section className={styles.detailGrid} aria-label="Operational detail lists">
-        <article className={styles.listPanel}>
-          <div className={styles.sectionHeader}>
-            <div>
-              <p className={styles.eyebrow}>Inventory</p>
-              <h2>Low stock items</h2>
-            </div>
-            <span className={styles.panelPill}>{data.insights.stockWarning}</span>
-          </div>
-          {data.lowStock.length > 0 ? (
-            <div className={styles.riskList}>
-              {data.lowStock.map((item) => (
-                <div className={styles.riskItem} data-status={item.status} key={item.id}>
-                  <div>
-                    <strong>{item.itemName}</strong>
-                    <span>{item.category}</span>
-                  </div>
-                  <div>
-                    <strong>{item.quantity}</strong>
-                    <span>{item.unit}</span>
-                  </div>
-                  <em>{item.status}</em>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <EmptyState text="No low-stock items." />
-          )}
-        </article>
-
-        <article className={styles.listPanel}>
-          <div className={styles.sectionHeader}>
-            <div>
-              <p className={styles.eyebrow}>Activity</p>
-              <h2>Recent activity</h2>
-            </div>
-            <span className={styles.panelPill}>{data.summary.roverStatus}</span>
-          </div>
-          {data.recentActivity.length > 0 ? (
-            <div className={styles.activityList}>
-              {visibleActivity.map((activity) => (
-                <div className={styles.activityItem} data-type={activity.type} key={`${activity.type}-${activity.id}`}>
-                  <span className={styles.activityIcon}>
-                    {activity.type === "sale" ? <ReceiptText size={17} /> : null}
-                    {activity.type === "stock-in" ? <PackagePlus size={17} /> : null}
-                    {activity.type === "stock-out" ? <PackageMinus size={17} /> : null}
-                    {activity.type === "stock-adjustment" ? <SlidersHorizontal size={17} /> : null}
-                  </span>
-                  <div className={styles.activityContent}>
-                    <div className={styles.activityHeading}>
-                      <strong>{activity.action}</strong>
-                      <span>{activity.label}</span>
-                    </div>
-                    <p>{activity.detail}</p>
-                    <div className={styles.activityMetadata}>
-                      {activity.metadata.map((item) => <span key={item}>{item}</span>)}
-                    </div>
-                  </div>
-                  <div className={styles.activityValue}>
-                    <strong>
-                      {activity.type === "sale"
-                        ? formatCurrency(Number(activity.value))
-                        : activity.value}
-                    </strong>
-                    <p>{formatDateTime(activity.createdAt)}</p>
-                  </div>
-                </div>
-              ))}
+          <article className={styles.listPanel}>
+            <div className={`${styles.sectionHeader} ${styles.activitySectionHeader}`}>
+              <div>
+                <p className={styles.eyebrow}>Activity</p>
+                <h2>Recent activity</h2>
+              </div>
               {activityPageCount > 1 ? (
-                <div className={styles.activityPagination}>
+                <nav className={styles.activityPagination} aria-label="Recent activity pagination">
                   <button
                     aria-label="Previous activity page"
                     disabled={activityPage === 1}
@@ -363,46 +216,86 @@ export function OperationsDashboardWorkspace({ canViewInvestments, isInventoryMa
                   >
                     <ChevronRight size={16} />
                   </button>
-                </div>
+                </nav>
               ) : null}
             </div>
-          ) : (
-            <EmptyState text="No recent sales or stock movement in this range." />
-          )}
-        </article>
-      </section>
+            {data.recentActivity.length > 0 ? (
+              <div className={styles.activityList}>
+                {visibleActivity.map((activity) => (
+                  <div className={styles.activityItem} data-type={activity.type} key={`${activity.type}-${activity.id}`}>
+                    <span className={styles.activityIcon}>
+                      {activity.type === "sale" ? <ReceiptText size={17} /> : null}
+                      {activity.type === "stock-in" ? <PackagePlus size={17} /> : null}
+                      {activity.type === "stock-out" ? <PackageMinus size={17} /> : null}
+                      {activity.type === "stock-adjustment" ? <SlidersHorizontal size={17} /> : null}
+                    </span>
+                    <div className={styles.activityContent}>
+                      <div className={styles.activityHeading}>
+                        <strong>{activity.action}</strong>
+                        <span className={styles.activityLabel}>{activity.label}</span>
+                      </div>
+                    </div>
+                    <div className={styles.activityValue}>
+                      <strong>
+                        {activity.type === "sale"
+                          ? formatCurrency(Number(activity.value))
+                          : activity.value}
+                      </strong>
+                      <p>{formatDateTime(activity.createdAt)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState text="No recent sales or stock movement in this range." />
+            )}
+          </article>
+        </aside>
+
+        <section className={styles.chartGrid} aria-label="Operations charts">
+          <ChartPanel
+            title="Sales trend"
+          >
+            <AreaValueChart data={data.charts.salesTrend} />
+          </ChartPanel>
+
+          <ChartPanel title="Sales by category">
+            <PieValueChart data={data.charts.salesByCategory} />
+          </ChartPanel>
+
+          <ChartPanel title="Stock value">
+            <BarValueChart currency data={data.charts.stockValueByCategory} />
+          </ChartPanel>
+
+          <ChartPanel title="Stock movement">
+            <StockMovementLineChart data={data.charts.stockMovement} />
+          </ChartPanel>
+
+          <ChartPanel title="Payment breakdown">
+            <PieValueChart data={data.charts.paymentMethods} />
+          </ChartPanel>
+
+          <ChartPanel title="Top-selling items">
+            <BarValueChart data={data.charts.topItems} />
+          </ChartPanel>
+
+        </section>
+      </div>
     </>
   );
 }
 
 function ChartPanel({
   children,
-  description,
-  summary,
   title,
 }: {
   children: React.ReactNode;
-  description?: string;
-  summary?: Array<{ value: string; label: string }>;
   title: string;
 }) {
   return (
     <article className={styles.chartPanel}>
       <div className={styles.chartHeader}>
-        <div className={styles.chartHeaderCopy}>
-          <h2>{title}</h2>
-          {description ? <p>{description}</p> : null}
-        </div>
-        {summary?.length ? (
-          <div aria-label={`${title} summary`} className={styles.chartSummary}>
-            {summary.map((item) => (
-              <div className={styles.chartSummaryItem} key={item.label}>
-                <strong>{item.value}</strong>
-                <span>{item.label}</span>
-              </div>
-            ))}
-          </div>
-        ) : null}
+        <h2>{title}</h2>
       </div>
       <div className={styles.chartBox}>{children}</div>
     </article>

@@ -1,6 +1,7 @@
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { getCustomersDashboard } from "@/lib/customers";
 import { INVENTORY_UNIT } from "@/lib/inventory";
+import { getInstallmentCollectionEvents } from "@/lib/sales";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type ExportInventoryRow = {
@@ -19,7 +20,10 @@ export type ExportInventoryRow = {
 };
 
 export type ExportSalesRow = {
+  entryKind: "sale" | "collection";
+  entryType: string;
   receiptNumber: string;
+  receiptLink: string;
   saleDate: string;
   customerName: string;
   customerContact: string;
@@ -30,25 +34,22 @@ export type ExportSalesRow = {
   unit: string;
   unitPrice: number;
   lineTotal: number;
-  receiptSubtotal: number;
-  discountAmount: number;
-  receiptTotal: number;
+  receiptSubtotal: number | null;
+  discountAmount: number | null;
+  receiptTotal: number | null;
+  collectionAmount: number | null;
   status: string;
 };
 
 export type ExportCustomerRow = {
   name: string;
   contact: string;
-  customerType: string;
-  tags: string;
-  location: string;
   receiptCount: number;
   totalSpent: number;
   averageSpend: number;
   lastPurchaseAt: string;
   paymentMethods: string;
   topItems: string;
-  notes: string;
 };
 
 export type ExportStockMovementRow = {
@@ -100,11 +101,14 @@ type InventoryRow = {
 };
 
 type SalesOrderRow = {
+  id: string;
   receipt_number: string;
   sale_date: string;
   customer_name: string | null;
   customer_contact: string | null;
   payment_method: string;
+  amount_paid: number | string | null;
+  change_amount: number | string | null;
   subtotal: number | string;
   discount_amount: number | string;
   total_amount: number | string;
@@ -280,7 +284,7 @@ export async function getSalesExportRows(filters: SalesExportFilters = {}) {
   let orderQuery = supabase
     .from("sales_orders")
     .select(
-      "receipt_number, sale_date, customer_name, customer_contact, payment_method, subtotal, discount_amount, total_amount, status, sales_order_items(item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total)",
+      "id, receipt_number, sale_date, customer_name, customer_contact, payment_method, amount_paid, change_amount, subtotal, discount_amount, total_amount, status, sales_order_items(item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total)",
     )
     .order("sale_date", { ascending: false });
 
@@ -358,8 +362,11 @@ export async function getSalesExportRows(filters: SalesExportFilters = {}) {
     : marketResultWithReference;
 
   const orderRows = (ordersResult.data ?? []).flatMap<ExportSalesRow>((order) =>
-    order.sales_order_items.map((item) => ({
+    order.sales_order_items.map((item, itemIndex) => ({
+      entryKind: "sale",
+      entryType: order.payment_method === "Installment" ? "Installment sale" : "Sale",
       receiptNumber: order.receipt_number,
+      receiptLink: `/sales/${order.id}`,
       saleDate: order.sale_date,
       customerName: order.customer_name ?? "Walk-in customer",
       customerContact: order.customer_contact ?? "",
@@ -370,9 +377,12 @@ export async function getSalesExportRows(filters: SalesExportFilters = {}) {
       unit: INVENTORY_UNIT,
       unitPrice: toNumber(item.unit_price),
       lineTotal: toNumber(item.line_total),
-      receiptSubtotal: toNumber(order.subtotal),
-      discountAmount: toNumber(order.discount_amount),
-      receiptTotal: toNumber(order.total_amount),
+      receiptSubtotal: itemIndex === 0 ? toNumber(order.subtotal) : null,
+      discountAmount: itemIndex === 0 ? toNumber(order.discount_amount) : null,
+      receiptTotal: itemIndex === 0 ? toNumber(order.total_amount) : null,
+      collectionAmount: itemIndex === 0 && order.payment_method !== "Installment"
+        ? Math.max(toNumber(order.amount_paid ?? order.total_amount) - toNumber(order.change_amount), 0)
+        : null,
       status: order.status,
     })),
   );
@@ -382,7 +392,10 @@ export async function getSalesExportRows(filters: SalesExportFilters = {}) {
     const total = toNumber(sale.total_amount);
 
     return {
+      entryKind: "sale",
+      entryType: "Market distribution",
       receiptNumber: `SR-${sale.id.slice(0, 8).toUpperCase()}`,
+      receiptLink: "",
       saleDate: sale.sale_date,
       customerName: sale.customer_name ?? "Market distribution",
       customerContact: "",
@@ -396,11 +409,46 @@ export async function getSalesExportRows(filters: SalesExportFilters = {}) {
       receiptSubtotal: total,
       discountAmount: 0,
       receiptTotal: total,
+      collectionAmount: sale.status === "Completed" ? total : null,
       status: sale.status,
     };
   });
 
-  return [...orderRows, ...marketRows].sort(
+  const collectionResult = await getInstallmentCollectionEvents();
+  if (collectionResult.error) throw new Error(`Installment payment records could not be loaded: ${collectionResult.error}`);
+  const collectionRows = collectionResult.events
+    .filter((event) => {
+      if (filters.start && event.paymentDate < filters.start) return false;
+      if (filters.end && event.paymentDate > filters.end) return false;
+      if (filters.payment && filters.payment !== "All" && event.paymentMethod !== filters.payment) return false;
+      if (filters.status && filters.status !== "All" && event.saleStatus !== filters.status) return false;
+      return true;
+    })
+    .map<ExportSalesRow>((event) => ({
+      entryKind: "collection",
+      entryType: event.collectionType === "down_payment"
+        ? "Down payment"
+        : `Installment (${event.installmentNumber ?? "?"}/${event.installmentCount || "?"})`,
+      receiptNumber: event.receiptNumber,
+      receiptLink: `/sales/${event.salesOrderId}`,
+      saleDate: event.paymentDate,
+      customerName: event.customerName,
+      customerContact: "",
+      paymentMethod: event.paymentMethod,
+      transactionReference: event.transactionReference ?? "",
+      itemName: event.collectionType === "down_payment" ? "Down payment" : "Installment payment",
+      quantitySold: 0,
+      unit: INVENTORY_UNIT,
+      unitPrice: 0,
+      lineTotal: 0,
+      receiptSubtotal: null,
+      discountAmount: null,
+      receiptTotal: null,
+      collectionAmount: event.paymentAmount,
+      status: event.saleStatus === "Voided" ? "Sale voided" : "Recorded",
+    }));
+
+  return [...orderRows, ...marketRows, ...collectionRows].sort(
     (left, right) => new Date(right.saleDate).getTime() - new Date(left.saleDate).getTime(),
   );
 }
@@ -415,16 +463,13 @@ export async function getCustomerExportRows(filters: ReportExportFilters = {}) {
         return true;
       }
 
-      return `${customer.name} ${customer.contact} ${customer.customerType} ${customer.paymentMethods.join(" ")} ${customer.purchasedItems.map((item) => item.itemName).join(" ")}`
+      return `${customer.name} ${customer.contact} ${customer.paymentMethods.join(" ")} ${customer.purchasedItems.map((item) => item.itemName).join(" ")}`
         .toLowerCase()
         .includes(search);
     })
     .map<ExportCustomerRow>((customer) => ({
     name: customer.name,
     contact: customer.contact,
-    customerType: customer.customerType,
-    tags: customer.tags.join(", "),
-    location: customer.location,
     receiptCount: customer.receiptCount,
     totalSpent: customer.totalSpent,
     averageSpend: customer.averageSpend,
@@ -434,7 +479,6 @@ export async function getCustomerExportRows(filters: ReportExportFilters = {}) {
       .slice(0, 3)
       .map((item) => item.itemName)
       .join(", "),
-    notes: customer.notes,
     }));
 }
 

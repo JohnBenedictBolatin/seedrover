@@ -1,9 +1,5 @@
 import { redirect } from "next/navigation";
-import {
-  deleteNotificationAction,
-  markNotificationReadAction,
-} from "@/app/(portal)/notifications/actions";
-import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { NotificationDeleteButton, NotificationReadButton } from "@/components/notification-action-buttons";
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 import { getNotificationsDashboard } from "@/lib/notifications";
@@ -92,35 +88,12 @@ export default async function NotificationsPage() {
                   {notification.isRead ? "Read" : "Unread"}
                 </div>
                 <div className={styles.actions}>
-                  <form action={markNotificationReadAction}>
-                    <input
-                      name="notification_id"
-                      type="hidden"
-                      value={notification.id}
-                    />
-                    <input
-                      name="is_read"
-                      type="hidden"
-                      value={String(!notification.isRead)}
-                    />
-                    <button type="submit">
-                      {notification.isRead ? "Mark unread" : "Mark read"}
-                    </button>
-                  </form>
-                  <form action={deleteNotificationAction}>
-                    <input
-                      name="notification_id"
-                      type="hidden"
-                      value={notification.id}
-                    />
-                    <ConfirmSubmitButton
-                      className={styles.dangerButton}
-                      confirmMessage="Are you sure you want to delete this notification?"
-                      type="submit"
-                    >
+                  <NotificationReadButton id={notification.id} isRead={notification.isRead}>
+                    {notification.isRead ? "Mark unread" : "Mark read"}
+                  </NotificationReadButton>
+                  <NotificationDeleteButton id={notification.id} className={styles.dangerButton}>
                       Delete
-                    </ConfirmSubmitButton>
-                  </form>
+                  </NotificationDeleteButton>
                 </div>
               </article>
             ))}

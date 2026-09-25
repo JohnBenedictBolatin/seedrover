@@ -13,9 +13,25 @@ function text(formData: FormData, key: string, fallback = "") {
   return String(formData.get(key) ?? fallback).trim();
 }
 
-function optionalText(formData: FormData, key: string) {
+function requiredText(formData: FormData, key: string, label: string) {
   const value = text(formData, key);
-  return value.length === 0 ? null : value;
+  if (!value) {
+    throw new Error(`${label} is required.`);
+  }
+  return value;
+}
+
+function requiredNumber(formData: FormData, key: string, label: string) {
+  const raw = text(formData, key);
+  if (!raw) {
+    throw new Error(`${label} is required.`);
+  }
+
+  const value = Number(raw);
+  if (!Number.isFinite(value)) {
+    throw new Error(`${label} must be a valid number.`);
+  }
+  return value;
 }
 
 function numberValue(formData: FormData, key: string, fallback = 0) {
@@ -75,105 +91,6 @@ async function logInventoryActivity(
   }
 }
 
-type StockSnapshot = {
-  item_name: string;
-  quantity: number;
-  minimum_quantity: number;
-  unit: string;
-};
-
-function stockStatus(snapshot: StockSnapshot | null) {
-  if (!snapshot) {
-    return "Unknown";
-  }
-
-  if (snapshot.quantity <= 0) {
-    return "Out of Stock";
-  }
-
-  if (snapshot.minimum_quantity > 0 && snapshot.quantity <= snapshot.minimum_quantity * 0.5) {
-    return "Critical Stock";
-  }
-
-  if (snapshot.minimum_quantity > 0 && snapshot.quantity <= snapshot.minimum_quantity) {
-    return "Low Stock";
-  }
-
-  return "In Stock";
-}
-
-async function stockSnapshot(inventoryId: string) {
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) {
-    return null;
-  }
-
-  const { data } = await supabase
-    .from("inventory")
-    .select("item_name, quantity, minimum_quantity, unit")
-    .eq("id", inventoryId)
-    .single<StockSnapshot>();
-
-  return data ?? null;
-}
-
-async function notifyIfStockNeedsReplenishment(
-  inventoryId: string,
-  userId: string | null,
-  previous: StockSnapshot | null,
-) {
-  if (!userId) {
-    return;
-  }
-
-  const current = await stockSnapshot(inventoryId);
-  const previousStatus = stockStatus(previous);
-  const currentStatus = stockStatus(current);
-  const alertStatuses = new Set(["Low Stock", "Critical Stock", "Out of Stock"]);
-
-  if (!current || !alertStatuses.has(currentStatus) || previousStatus === currentStatus) {
-    return;
-  }
-
-  const minimumText =
-    current.minimum_quantity > 0
-      ? ` Minimum level is ${current.minimum_quantity} ${current.unit}.`
-      : "";
-
-  try {
-    const supabase = await createSupabaseServerClient();
-    await supabase?.from("notifications").insert({
-      recipient_id: userId,
-      title: `${currentStatus}: ${current.item_name}`,
-      message: `${current.item_name} needs replenishment. Current stock is ${current.quantity} ${current.unit}.${minimumText}`,
-      notification_type: "Inventory",
-      action_route: "/inventory",
-    });
-  } catch {
-    // Notifications should not block the stock action itself.
-  }
-}
-
-async function nextStockCode() {
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) {
-    throw new Error("Supabase is not configured.");
-  }
-
-  const { data } = await supabase.from("inventory").select("stock_code");
-  let max = 0;
-
-  for (const row of data ?? []) {
-    const match = /^STK-(\d+)$/.exec(String(row.stock_code ?? ""));
-    const value = Number(match?.[1] ?? 0);
-    if (value > max) {
-      max = value;
-    }
-  }
-
-  return `STK-${String(max + 1).padStart(3, "0")}`;
-}
-
 async function uploadImage(inventoryId: string, file: FormDataEntryValue | null) {
   if (!(file instanceof File) || file.size === 0) {
     return null;
@@ -218,14 +135,23 @@ async function uploadImage(inventoryId: string, file: FormDataEntryValue | null)
 }
 
 function inventoryPayload(formData: FormData, options?: { includeQuantity?: boolean }) {
-  const unit = text(formData, "unit", "kg").toLowerCase();
+  const isCreate = options?.includeQuantity === true;
+  const unit = (isCreate ? requiredText(formData, "unit", "Unit") : text(formData, "unit", "kg")).toLowerCase();
   if (unit !== "kg") {
     throw new Error("Inventory quantities must use kg as the unit.");
   }
-  const quantity = numberValue(formData, "quantity");
-  const minimumQuantity = numberValue(formData, "minimum_quantity");
-  const unitCost = optionalNumber(formData, "unit_cost");
-  const sellingPrice = optionalNumber(formData, "selling_price");
+  const quantity = isCreate
+    ? requiredNumber(formData, "quantity", "Quantity")
+    : numberValue(formData, "quantity");
+  const minimumQuantity = isCreate
+    ? requiredNumber(formData, "minimum_quantity", "Minimum stock level")
+    : numberValue(formData, "minimum_quantity");
+  const unitCost = isCreate
+    ? requiredNumber(formData, "unit_cost", "Unit cost")
+    : optionalNumber(formData, "unit_cost");
+  const sellingPrice = isCreate
+    ? requiredNumber(formData, "selling_price", "Selling price")
+    : optionalNumber(formData, "selling_price");
 
   if (options?.includeQuantity) validateQuantity(quantity, unit, "Current quantity");
   validateQuantity(minimumQuantity, unit, "Minimum quantity");
@@ -239,12 +165,18 @@ function inventoryPayload(formData: FormData, options?: { includeQuantity?: bool
   }
 
   return {
-    item_name: text(formData, "item_name"),
-    category: text(formData, "category", "Fruit Vegetables"),
+    item_name: isCreate
+      ? requiredText(formData, "item_name", "Item name")
+      : text(formData, "item_name"),
+    category: isCreate
+      ? requiredText(formData, "category", "Category")
+      : text(formData, "category", "Fruit Vegetables"),
     ...(options?.includeQuantity ? { quantity } : {}),
     unit,
     minimum_quantity: minimumQuantity,
-    storage_location: text(formData, "storage_location", "Unassigned"),
+    storage_location: isCreate
+      ? requiredText(formData, "storage_location", "Storage location")
+      : text(formData, "storage_location", "Unassigned"),
     unit_cost: unitCost,
     selling_price: sellingPrice,
   };
@@ -262,19 +194,36 @@ export async function createInventoryItemAction(formData: FormData) {
   const payload = inventoryPayload(formData, { includeQuantity: true });
   const id = randomUUID();
 
-  if (!payload.item_name) {
-    throw new Error("Item name is required.");
+  const { data: existingItems, error: duplicateLookupError } = await supabase
+    .from("inventory")
+    .select("id, item_name");
+
+  if (duplicateLookupError) {
+    throw new Error(duplicateLookupError.message);
   }
 
-  const imagePath = await uploadImage(id, formData.get("image"));
+  const normalizedName = payload.item_name.toLocaleLowerCase();
+  if (
+    (existingItems ?? []).some(
+      (item) => item.item_name.trim().toLocaleLowerCase() === normalizedName,
+    )
+  ) {
+    throw new Error("An inventory item with this name already exists.");
+  }
+
+  const image = formData.get("image");
+  if (!(image instanceof File) || image.size === 0) {
+    throw new Error("Stock image is required.");
+  }
+
+  const imagePath = await uploadImage(id, image);
 
   const { error } = await supabase
     .from("inventory")
     .insert({
       id,
       ...payload,
-      stock_code: await nextStockCode(),
-      ...(imagePath ? { image_path: imagePath } : {}),
+      image_path: imagePath,
       updated_by: userId,
     })
     .select("id")
@@ -397,7 +346,6 @@ async function createMovement(
   const remarks = text(formData, "remarks", "Inventory updated.");
   const combinedRemarks = reason ? `${reason} - ${remarks}` : remarks;
   const inventoryId = text(formData, "id");
-  const previousStock = await stockSnapshot(inventoryId);
 
   const { data: movementItem } = await supabase
     .from("inventory")
@@ -443,117 +391,8 @@ async function createMovement(
     userId,
   );
 
-  await notifyIfStockNeedsReplenishment(inventoryId, userId, previousStock);
-
   revalidatePath("/inventory");
   revalidatePath("/dashboard");
   revalidatePath("/notifications");
   revalidatePath("/", "layout");
-}
-
-export async function recordInventorySaleAction(formData: FormData) {
-  await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
-
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) {
-    throw new Error("Supabase is not configured.");
-  }
-
-  const payload = {
-    p_inventory_id: text(formData, "id"),
-    p_quantity_sold: numberValue(formData, "quantity"),
-    p_unit_price: numberValue(formData, "unit_price"),
-    p_sale_date: text(formData, "sale_date", new Date().toISOString()),
-    p_customer_name: [
-      optionalText(formData, "customer_first_name"),
-      (optionalText(formData, "customer_middle_initial") ?? "").replace(/[^a-z]/gi, "").slice(0, 1).toUpperCase(),
-      optionalText(formData, "customer_last_name"),
-    ].filter(Boolean).join(" "),
-    p_remarks: optionalText(formData, "remarks"),
-  };
-  const paymentMethod = text(formData, "payment_method", "Cash");
-  const transactionReference = optionalText(formData, "transaction_reference");
-  const otherPaymentMethod = optionalText(formData, "other_payment_method");
-
-  if (payload.p_quantity_sold <= 0) {
-    throw new Error("Sale quantity must be greater than zero.");
-  }
-
-  const { data: saleItem } = await supabase
-    .from("inventory")
-    .select("unit")
-    .eq("id", payload.p_inventory_id)
-    .single<{ unit: string }>();
-  if (saleItem?.unit !== "kg") {
-    throw new Error("Inventory quantities must use kg as the unit. Update this item before selling it.");
-  }
-  validateQuantity(payload.p_quantity_sold, saleItem?.unit ?? "kg", "Sale quantity", false);
-
-  if (payload.p_unit_price < 0) {
-    throw new Error("Sale unit price cannot be negative.");
-  }
-
-  if (paymentMethod === "Other" && !otherPaymentMethod) {
-    throw new Error("Enter the other payment method used.");
-  }
-
-  if (paymentMethod !== "Cash" && !transactionReference) {
-    throw new Error("Transaction ID is required for non-cash market distribution sales.");
-  }
-
-  const { error } = await supabase.rpc("record_inventory_sale", {
-    ...payload,
-    p_payment_method: paymentMethod,
-    p_transaction_reference: transactionReference,
-    p_other_payment_method: otherPaymentMethod,
-  });
-
-  if (error) {
-    const canRetryWithoutTransactionReference =
-      error.message.includes("record_inventory_sale") &&
-      (error.message.includes("p_transaction_reference") ||
-        error.message.includes("p_other_payment_method"));
-  
-    if (canRetryWithoutTransactionReference && paymentMethod !== "Other") {
-      const fallback = await supabase.rpc("record_inventory_sale", {
-        ...payload,
-        p_payment_method: paymentMethod,
-      });
-
-      if (!fallback.error) {
-        revalidatePath("/inventory");
-        revalidatePath("/sales");
-        revalidatePath("/customers");
-        revalidatePath("/dashboard");
-        return;
-      }
-
-      throw new Error(fallback.error.message);
-    }
-
-    const canRetryWithoutPayment =
-      error.message.includes("record_inventory_sale") &&
-      error.message.includes("p_payment_method");
-
-    if (canRetryWithoutPayment) {
-      const fallback = await supabase.rpc("record_inventory_sale", payload);
-
-      if (!fallback.error) {
-        revalidatePath("/inventory");
-        revalidatePath("/sales");
-        revalidatePath("/customers");
-        revalidatePath("/dashboard");
-        return;
-      }
-
-      throw new Error(fallback.error.message);
-    }
-
-    throw new Error(error.message);
-  }
-
-  revalidatePath("/inventory");
-  revalidatePath("/sales");
-  revalidatePath("/customers");
-  revalidatePath("/dashboard");
 }

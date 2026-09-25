@@ -11,6 +11,7 @@ type FileUploadFieldProps = {
   kind?: "image" | "document";
   label: string;
   name: string;
+  multiple?: boolean;
   prompt: string;
   required?: boolean;
 };
@@ -22,6 +23,7 @@ export function FileUploadField({
   kind = "image",
   label,
   name,
+  multiple = false,
   prompt,
   required = false,
 }: FileUploadFieldProps) {
@@ -36,10 +38,15 @@ export function FileUploadField({
           accept={accept}
           className={styles.input}
           disabled={disabled}
+          multiple={multiple}
           name={name}
           required={required}
           type="file"
-          onChange={(event) => setFileName(event.currentTarget.files?.[0]?.name ?? "")}
+          onChange={(event) => {
+            const files = Array.from(event.currentTarget.files ?? []);
+            const selectedLabel = kind === "image" ? "photos" : "files";
+            setFileName(multiple && files.length > 1 ? `${files.length} ${selectedLabel} selected` : files[0]?.name ?? "");
+          }}
         />
         <span className={styles.icon} aria-hidden="true">
           <UploadIcon size={20} strokeWidth={1.8} />

@@ -306,6 +306,1642 @@
   }
 }
 
+/* Final layout overrides follow the shared crops modal rules above. */
+.cropQuickActions {
+  display: grid;
+  width: min(100%, 540px);
+  flex: 0 1 540px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.cropQuickActions .pastCropsButton {
+  width: 100% !important;
+  min-width: 0;
+}
+
+.plantingGuideModal {
+  width: min(1180px, calc(100vw - 48px));
+}
+
+.plantingGuide {
+  gap: 20px;
+}
+
+.plantingGuideIntro {
+  display: grid;
+  gap: 5px;
+}
+
+.plantingGuideEyebrow,
+.plantingRowIllustrationHeading > span {
+  color: var(--green-accent);
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.plantingGuideIntro > span:last-child {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.plantingGuide .plantingGuideLead {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.7rem !important;
+  font-weight: 850;
+  line-height: 1.2;
+}
+
+.plantingGuideLayout {
+  display: block;
+}
+
+.plantingGuide .plantingGuideSteps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plantingGuide .plantingGuideSteps li {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 100%;
+  grid-template-columns: 1fr;
+  align-content: start;
+  gap: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  background: var(--surface);
+  padding: 14px;
+}
+
+.plantingGuide .plantingGuideSteps li:not(:last-child)::before {
+  top: 30px;
+  right: -13px;
+  bottom: auto;
+  left: auto;
+  z-index: 2;
+  width: 14px;
+  height: 2px;
+  background: var(--green-accent);
+}
+
+.plantingGuide .plantingGuideSteps li:not(:last-child)::after {
+  position: absolute;
+  top: 26px;
+  right: -14px;
+  z-index: 3;
+  width: 8px;
+  height: 8px;
+  border-top: 2px solid var(--green-accent);
+  border-right: 2px solid var(--green-accent);
+  content: "";
+  transform: rotate(45deg);
+}
+
+.plantingGuide .plantingGuideNumber {
+  width: 34px;
+  height: 34px;
+  background: var(--surface-raised);
+  font-size: 0.9rem;
+}
+
+.plantingGuide .plantingGuideSteps li > div {
+  min-width: 0;
+  align-content: start;
+  gap: 8px;
+  padding: 0;
+}
+
+.plantingGuide .plantingGuideSteps li strong {
+  color: var(--text);
+  font-size: 0.85rem;
+  line-height: 1.3;
+}
+
+.plantingGuide .plantingGuideSteps li div > span {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.plantingGuide .confirmationChoices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 2px;
+}
+
+.plantingGuide .confirmationChoices > span {
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: 0.65rem;
+  font-weight: 850;
+  line-height: 1.3;
+  padding: 4px 7px;
+}
+
+.plantingRowIllustration {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: radial-gradient(ellipse at 50% 110%, rgba(83, 209, 30, 0.09), transparent 62%), var(--surface);
+  padding: 16px 20px 10px;
+}
+
+.plantingRowIllustrationHeading {
+  display: grid;
+  gap: 4px;
+}
+
+.plantingRowIllustrationHeading strong {
+  color: var(--text);
+  font-size: 1.08rem;
+}
+
+.plantingRowIllustrationHeading small {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.plantingRowSvg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 210px;
+  overflow: visible;
+}
+
+.plantingGuideFooter {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 12px;
+}
+
+.plantingGuide .obstacleGuideCallout,
+.plantingGuide .plantingGuideNotes {
+  position: static;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: center;
+  align-items: start;
+  gap: 5px 12px;
+  border: 1px solid rgba(226, 160, 39, 0.42);
+  border-radius: 9px;
+  background: rgba(226, 160, 39, 0.09);
+  padding: 13px 15px;
+  line-height: 1.45;
+}
+
+.plantingGuide .obstacleGuideCallout > svg {
+  grid-row: span 2;
+  color: var(--warning);
+}
+
+.plantingGuide .obstacleGuideCallout > div,
+.plantingGuide .plantingGuideNotes {
+  display: grid;
+  gap: 5px;
+}
+
+.plantingGuide .obstacleGuideCallout strong,
+.plantingGuide .plantingGuideNotes strong {
+  color: var(--warning);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.plantingGuide .obstacleGuideCallout span,
+.plantingGuide .plantingGuideNotes span {
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.plantingGuide .plantingGuideNotes {
+  grid-template-columns: 1fr;
+  border-color: var(--border-soft);
+  background: var(--surface-raised);
+}
+
+.plantingGuide .plantingGuideNotes strong {
+  color: var(--green-accent);
+}
+
+:global(html[data-theme="light"]) .plantingGuide .plantingGuideSteps li,
+:global(html[data-theme="light"]) .plantingRowIllustration {
+  background-color: var(--surface);
+}
+
+@media (max-width: 900px) {
+  .cropQuickActions {
+    width: 100%;
+    flex-basis: 100%;
+  }
+
+  .plantingGuide .plantingGuideSteps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .plantingGuide .plantingGuideSteps li:not(:last-child)::before,
+  .plantingGuide .plantingGuideSteps li:not(:last-child)::after {
+    display: none;
+  }
+
+  .plantingGuideFooter {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .cropQuickActions {
+    grid-template-columns: 1fr;
+  }
+
+  .plantingGuideModal {
+    width: calc(100vw - 20px);
+  }
+
+  .plantingGuide .plantingGuideSteps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .plantingRowIllustration {
+    overflow-x: auto;
+    padding: 13px 10px 7px;
+  }
+
+  .plantingRowSvg {
+    min-width: 520px;
+  }
+}
+
+@media (max-width: 420px) {
+  .plantingGuide .plantingGuideSteps {
+    grid-template-columns: 1fr;
+  }
+
+  .plantingRowSvg {
+    min-width: 460px;
+  }
+}
+
+.cropDashboardLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.75fr) minmax(340px, 0.8fr);
+  grid-template-areas:
+    "summary care"
+    "actions care"
+    "filters care"
+    "crops care";
+  align-items: start;
+  gap: 16px 20px;
+}
+
+.cropSummaryArea,
+.cropQuickActionArea,
+.cropCollection,
+.cropCareSidebar {
+  min-width: 0;
+}
+
+.cropSummaryArea { grid-area: summary; }
+.cropQuickActionArea { grid-area: actions; }
+.inventoryToolbar { grid-area: filters; }
+.cropCollection { grid-area: crops; }
+
+.cropDashboardLayout .cropQuickActionArea {
+  display: flex;
+  min-height: 110px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-color: var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  box-shadow: none;
+  padding: 18px;
+}
+
+.cropDashboardLayout .cropQuickActionArea::before {
+  opacity: .06;
+  animation: none;
+}
+
+.cropDashboardLayout .cropQuickActionArea::after {
+  opacity: .1;
+}
+
+.cropDashboardLayout .cropQuickActionArea > div:first-child > span {
+  max-width: 42rem;
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.cropCareSidebar {
+  grid-area: care;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .cropDashboardLayout .cropQuickActionArea {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 1100px) {
+  .cropDashboardLayout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "summary"
+      "actions"
+      "care"
+      "filters"
+      "crops";
+  }
+}
+
+/* Final crop-tab overrides: keep these after legacy crop modal rules. */
+.cropWorkspaceModal .detailsGrid {
+  align-content: start;
+  gap: 18px;
+}
+
+.cropWorkspaceModal .detailMetrics .readOnly {
+  gap: 12px;
+  min-height: 112px;
+}
+
+.cropWorkspaceModal .detailMetrics .detailMetricLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.cropWorkspaceModal .detailMetricLabel i {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(var(--green-rgb), 0.2);
+  border-radius: 8px;
+  color: var(--green-accent);
+  background: rgba(var(--green-rgb), 0.07);
+  font-style: normal;
+}
+
+.cropWorkspaceModal .cropProgressPanel {
+  gap: 12px;
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 16px;
+}
+
+.cropWorkspaceModal .cropProgressHeader b,
+.cropWorkspaceModal .sensorValueCard strong,
+.cropWorkspaceModal .sensorHistoryRow,
+.cropWorkspaceModal .sensorHistoryRow time,
+.cropWorkspaceModal .sensorSectionHeading time {
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.cropWorkspaceModal .cropProgressPanel > small {
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.cropWorkspaceModal .sensorValueCard strong {
+  font-size: 1.08rem;
+}
+
+.cropWorkspaceModal .sensorSectionHeading time,
+.cropWorkspaceModal .sensorHistoryRow {
+  font-size: 0.84rem;
+}
+
+.cropWorkspaceModal .growthJourneyPanel {
+  gap: 12px;
+}
+
+.cropWorkspaceModal .growthJourneyIntro {
+  justify-content: flex-start;
+  border: 0;
+  background: transparent;
+  padding: 0 0 4px;
+}
+
+.cropWorkspaceModal .growthJourneyCurrent {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.cropWorkspaceModal .growthJourneyCurrent strong,
+.cropWorkspaceModal .growthStageRow,
+.cropWorkspaceModal .growthStageRow small,
+.cropWorkspaceModal .growthStageStatus,
+.cropWorkspaceModal .growthTimelinePoint {
+  font-family: inherit;
+}
+
+.cropWorkspaceModal .growthJourneyCurrent strong {
+  color: var(--text);
+  font-size: 0.96rem;
+}
+
+.cropWorkspaceModal .growthStageRow {
+  background: var(--surface);
+}
+
+.cropWorkspaceModal .growthStageStatus {
+  border: 1px solid var(--border-soft);
+  background: var(--surface-soft);
+  font-size: 0.74rem;
+  line-height: 1.25;
+}
+
+.cropWorkspaceModal .growthTimelineItemCompleted .growthTimelinePoint,
+:global(html[data-theme="light"]) .cropWorkspaceModal .growthTimelineItemCompleted .growthTimelinePoint {
+  border-color: #176b25;
+  color: #ffffff;
+  background: #176b25;
+}
+
+.cropWorkspaceModal .growthTimelineItemCompleted .growthTimelinePoint svg {
+  width: 24px;
+  height: 24px;
+  color: #ffffff;
+  stroke: #ffffff;
+}
+
+.cropWorkspaceModal .growthTimelineItemCompleted:not(:last-child) .growthTimelineTrack::after {
+  background: #176b25;
+}
+
+:global(html[data-theme="light"]) .cropWorkspaceModal .growthJourneyIntro,
+:global(html[data-theme="light"]) .cropWorkspaceModal .growthJourneyCurrent {
+  border: 0;
+  color: #123c1b;
+  background: transparent;
+  padding: 0 0 4px;
+}
+
+:global(html[data-theme="light"]) .cropWorkspaceModal .growthJourneyCurrent strong {
+  color: #123c1b;
+}
+
+.cropWorkspaceModal .cropWorkspaceFooter .primaryAction:hover:not(:disabled) {
+  color: #ffffff !important;
+}
+
+.cropWorkspaceModal .cropWorkspaceFooter {
+  justify-content: space-between;
+}
+
+.cropWorkspaceModal .cropFooterActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.cropWorkspaceModal .cropFooterActions > button {
+  min-width: 190px;
+}
+
+.cropWorkspaceModal .cropFooterActions > button > span {
+  position: relative;
+  z-index: 1;
+  color: inherit !important;
+}
+
+.cropWorkspaceModal .cropFooterActions > button:first-child svg {
+  color: var(--green-accent) !important;
+  stroke: var(--green-accent) !important;
+}
+
+.cropWorkspaceModal .cropFooterActions > button:first-child:hover:not(:disabled) svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+.cropWorkspaceModal .cropWorkspaceFooter .primaryAction:hover:not(:disabled) > span {
+  color: #ffffff !important;
+}
+
+.cropWorkspaceModal .cancelCropButton {
+  min-width: 190px;
+  border-color: rgba(255, 90, 95, 0.48);
+  color: #ff777b;
+  background: linear-gradient(135deg, rgba(255, 59, 48, 0.12), rgba(255, 110, 102, 0.07));
+}
+
+.cropWorkspaceModal .cancelCropButton:hover:not(:disabled),
+.cropWorkspaceModal .cancelCropButton:hover:not(:disabled) > * {
+  border-color: rgba(255, 123, 115, 0.72);
+  color: #ffffff !important;
+}
+
+.cropWorkspaceModal .cancelCropButton:focus-visible {
+  outline: 2px solid rgba(255, 90, 95, 0.42);
+  outline-offset: 2px;
+}
+
+@media (max-width: 520px) {
+  .cropWorkspaceModal .detailMetrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 680px) {
+  .cropWorkspaceModal .cropFooterActions {
+    width: auto;
+    gap: 8px;
+  }
+
+  .cropWorkspaceModal .cropFooterActions > button {
+    min-width: 150px;
+    min-height: 48px;
+    flex: 0 1 auto;
+    padding-inline: 8px;
+    font-size: 0.76rem;
+  }
+
+  .cropWorkspaceModal .cancelCropButton {
+    min-width: 150px;
+    min-height: 48px;
+    font-size: 0.76rem;
+    padding-inline: 8px;
+  }
+}
+
+@media (max-width: 420px) {
+  .cropWorkspaceModal .cropWorkspaceFooter {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: stretch;
+  }
+
+  .cropWorkspaceModal .cancelCropButton {
+    justify-self: start;
+  }
+
+  .cropWorkspaceModal .cropFooterActions {
+    justify-self: end;
+  }
+}
+
+/* Crop workspace cards and tabs follow the primary ledger typography and controls. */
+.stockCard[data-crop-card] {
+  cursor: default;
+}
+
+.cropDetailsAction {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  color: var(--text);
+  background: transparent;
+  cursor: pointer;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 850;
+  transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease;
+}
+
+.cropDetailsAction:hover {
+  border-color: rgba(var(--green-rgb), 0.4);
+  color: var(--green-accent);
+  background: rgba(var(--green-rgb), 0.08);
+}
+
+.cropDetailsAction svg:first-child {
+  color: var(--green-accent);
+}
+
+.stockCard[data-crop-card] .cardActions {
+  justify-content: flex-end;
+}
+
+:global(html[data-theme="light"]) .cropDetailsAction {
+  border-color: rgba(18, 60, 27, 0.2);
+  color: #123c1b;
+  background: #ffffff;
+}
+
+:global(html[data-theme="light"]) .cropDetailsAction:hover {
+  border-color: rgba(18, 60, 27, 0.38);
+  color: #16451f;
+  background: rgba(18, 60, 27, 0.06);
+}
+
+.cropWorkspaceFooter .primaryAction:hover:not(:disabled) {
+  color: #ffffff;
+}
+
+.detailsGrid {
+  align-content: start;
+  gap: 18px;
+}
+
+.detailMetrics .readOnly {
+  gap: 12px;
+  min-height: 112px;
+}
+
+.detailMetrics .detailMetricLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.detailMetricLabel i {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(var(--green-rgb), 0.2);
+  border-radius: 8px;
+  color: var(--green-accent);
+  background: rgba(var(--green-rgb), 0.07);
+  font-style: normal;
+}
+
+:global(html[data-theme="light"]) .detailMetricLabel i {
+  border-color: rgba(18, 60, 27, 0.18);
+  color: #176b25;
+  background: rgba(18, 60, 27, 0.05);
+}
+
+.cropProgressPanel {
+  gap: 12px;
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 16px;
+}
+
+.cropProgressHeader b {
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.cropProgressPanel > small {
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.sensorValueCard strong,
+.sensorHistoryRow,
+.sensorHistoryRow time,
+.sensorSectionHeading time {
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.sensorValueCard strong {
+  font-size: 1.08rem;
+}
+
+.sensorSectionHeading time,
+.sensorHistoryRow {
+  font-size: 0.84rem;
+}
+
+.growthJourneyPanel {
+  gap: 12px;
+}
+
+.growthJourneyIntro {
+  justify-content: flex-start;
+  border: 0;
+  background: transparent;
+  padding: 0 0 4px;
+}
+
+.growthJourneyCurrent {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.growthJourneyCurrent small {
+  font-size: 0.68rem;
+}
+
+.growthJourneyCurrent strong,
+.growthStageRow,
+.growthStageRow small,
+.growthStageStatus,
+.growthTimelinePoint {
+  font-family: inherit;
+}
+
+.growthJourneyCurrent strong {
+  color: var(--text);
+  font-size: 0.96rem;
+}
+
+:global(html[data-theme="light"]) .growthJourneyIntro {
+  border: 0;
+  background: transparent;
+  padding: 0 0 4px;
+}
+
+:global(html[data-theme="light"]) .growthJourneyCurrent {
+  border: 0;
+  color: #123c1b;
+  background: transparent;
+  padding: 0;
+}
+
+:global(html[data-theme="light"]) .growthJourneyCurrent strong {
+  color: #123c1b;
+}
+
+.growthStageRow {
+  background: var(--surface);
+}
+
+.growthStageStatus {
+  border: 1px solid var(--border-soft);
+  background: var(--surface-soft);
+  font-size: 0.74rem;
+  line-height: 1.25;
+}
+
+.growthTimelineItemCompleted .growthTimelinePoint {
+  border-color: #176b25;
+  color: #ffffff;
+  background: #176b25;
+}
+
+.growthTimelineItemCompleted .growthTimelinePoint svg {
+  width: 24px;
+  height: 24px;
+  color: #ffffff;
+  stroke: #ffffff;
+}
+
+.growthTimelineItemCompleted:not(:last-child) .growthTimelineTrack::after {
+  background: #176b25;
+}
+
+:global(html[data-theme="light"]) .growthTimelineItemCompleted .growthTimelinePoint {
+  border-color: #176b25;
+  color: #ffffff;
+  background: #176b25;
+}
+
+:global(html[data-theme="light"]) .growthTimelineItemCompleted .growthTimelinePoint svg {
+  color: #ffffff;
+  stroke: #ffffff;
+}
+
+.cropActivityTable {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+
+.cropActivityHeader,
+.cropActivityRow {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) minmax(220px, 1.8fr) minmax(150px, 1.15fr) minmax(120px, 0.9fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.cropActivityHeader {
+  padding: 0 14px 3px;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.cropActivityRow {
+  min-height: 64px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: var(--history-row-surface, var(--surface));
+  padding: 10px 14px;
+  font-size: 0.86rem;
+}
+
+.cropActivityRow > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.cropActivityRow > div:first-child strong {
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.cropActivityRow time {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.cropActivityRow small {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.activityDetailSummary {
+  overflow-wrap: anywhere;
+}
+
+.cropActivityRow:hover {
+  background: var(--history-row-hover, var(--surface-raised));
+}
+
+:global(html[data-theme="light"]) .cropActivityRow {
+  border-color: rgba(18, 60, 27, 0.16);
+  color: #344b38;
+  background: #ffffff;
+}
+
+:global(html[data-theme="light"]) .cropActivityRow > div:first-child strong,
+:global(html[data-theme="light"]) .cropActivityRow time {
+  color: #123c1b;
+}
+
+:global(html[data-theme="light"]) .cropActivityRow:hover {
+  background: #f7fbf4;
+}
+
+@media (max-width: 760px) {
+  .cropActivityHeader {
+    display: none;
+  }
+
+  .cropActivityRow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 12px 16px;
+    padding: 14px;
+  }
+
+  .cropActivityRow > * {
+    display: grid;
+    min-width: 0;
+    gap: 4px;
+  }
+
+  .cropActivityRow > *::before {
+    content: attr(data-label);
+    color: var(--text-muted);
+    font-size: 0.66rem;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .detailsTop {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 520px) {
+  .cropActivityRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .detailMetrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.plantingRover {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: plantingRoverPass 14s ease-in-out infinite;
+}
+
+.plantingSideLine,
+.plantingSideEdge {
+  stroke-dasharray: 617 617;
+  stroke-dashoffset: 617;
+  animation: plantingSideReveal 14s ease-in-out infinite;
+}
+
+.plantingSideEdge {
+  animation-delay: 120ms;
+}
+
+.plantingSeedling {
+  opacity: 0;
+}
+
+.plantingPointOne { animation: plantingPointOneReveal 14s ease-in-out infinite; }
+.plantingPointTwo { animation: plantingPointTwoReveal 14s ease-in-out infinite; }
+.plantingPointThree { animation: plantingPointThreeReveal 14s ease-in-out infinite; }
+.plantingPointFour { animation: plantingPointFourReveal 14s ease-in-out infinite; }
+.plantingPointFive { animation: plantingPointFiveReveal 14s ease-in-out infinite; }
+
+.plantingWheel {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: plantingWheelTurn 14s ease-in-out infinite;
+}
+
+.plantingRoverLight {
+  animation: roverStatusPulse 1.1s ease-in-out infinite alternate;
+}
+
+@keyframes plantingRoverPass {
+  0%, 4% { opacity: 1; transform: translateX(0); }
+  16% { transform: translateX(58%); }
+  20% { transform: translateX(58%); }
+  32% { transform: translateX(130%); }
+  36% { transform: translateX(130%); }
+  48% { transform: translateX(203%); }
+  52% { transform: translateX(203%); }
+  64% { transform: translateX(276%); }
+  68% { transform: translateX(276%); }
+  80% { transform: translateX(348%); }
+  84% { transform: translateX(348%); }
+  88% { transform: translateX(386%); }
+  92% { transform: translateX(424%); }
+  95%, 96% { opacity: 1; transform: translateX(460%); }
+  97% { opacity: 0; transform: translateX(460%); }
+  98% { opacity: 0; transform: translateX(0); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes plantingSideReveal {
+  0%, 27% { opacity: 0; stroke-dashoffset: 617; }
+  32%, 36% { opacity: 1; stroke-dashoffset: 578; }
+  48%, 52% { stroke-dashoffset: 450; }
+  64%, 68% { stroke-dashoffset: 322; }
+  80%, 84% { stroke-dashoffset: 196; }
+  88% { stroke-dashoffset: 129; }
+  92% { stroke-dashoffset: 63; }
+  95%, 96% { stroke-dashoffset: 0; }
+  97% { opacity: 0; stroke-dashoffset: 0; }
+  98%, 100% { opacity: 0; stroke-dashoffset: 617; }
+}
+
+@keyframes plantingPointOneReveal {
+  0%, 38% { opacity: 0; }
+  39%, 96% { opacity: 1; }
+  97%, 100% { opacity: 0; }
+}
+
+@keyframes plantingPointTwoReveal {
+  0%, 56% { opacity: 0; }
+  57%, 96% { opacity: 1; }
+  97%, 100% { opacity: 0; }
+}
+
+@keyframes plantingPointThreeReveal {
+  0%, 68% { opacity: 0; }
+  69%, 96% { opacity: 1; }
+  97%, 100% { opacity: 0; }
+}
+
+@keyframes plantingPointFourReveal {
+  0%, 83% { opacity: 0; }
+  84%, 96% { opacity: 1; }
+  97%, 100% { opacity: 0; }
+}
+
+@keyframes plantingPointFiveReveal {
+  0%, 92% { opacity: 0; }
+  93%, 96% { opacity: 1; }
+  97%, 100% { opacity: 0; }
+}
+
+@keyframes plantingWheelTurn {
+  0%, 4% { transform: rotate(0); }
+  16%, 20% { transform: rotate(360deg); }
+  32%, 36% { transform: rotate(720deg); }
+  48%, 52% { transform: rotate(1080deg); }
+  64%, 68% { transform: rotate(1440deg); }
+  80%, 84% { transform: rotate(1800deg); }
+  88% { transform: rotate(1980deg); }
+  92% { transform: rotate(2160deg); }
+  95%, 96% { transform: rotate(2340deg); }
+  97%, 100% { transform: rotate(2520deg); }
+}
+
+@keyframes roverStatusPulse {
+  from { opacity: 0.55; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plantingRover,
+  .plantingSideLine,
+  .plantingSideEdge,
+  .plantingSeedling,
+  .plantingWheel,
+  .plantingRoverLight {
+    animation: none;
+  }
+
+  .plantingRover { opacity: 1; transform: translateX(460%); }
+  .plantingSideLine,
+  .plantingSideEdge { opacity: 1; stroke-dasharray: none; stroke-dashoffset: 0; }
+  .plantingSeedling { opacity: 1; }
+  .plantingWheel { transform: none; }
+  .plantingRoverLight { opacity: 1; }
+}
+
+.outcomeSection .outcomeTableScroll {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
+}
+
+.outcomeSection .outcomeTableScroll::-webkit-scrollbar {
+  display: none;
+}
+
+.outcomeSection .outcomeTable {
+  width: 100%;
+  min-width: 0;
+}
+
+.outcomeSection .outcomeRow,
+.outcomeSection .outcomeTableHeader {
+  grid-template-columns: minmax(90px, .9fr) minmax(105px, .95fr) minmax(100px, 1.1fr) minmax(65px, .65fr) minmax(145px, 1.3fr);
+}
+
+.outcomeSection .outcomeRow {
+  color: var(--text);
+}
+
+.outcomeSection .outcomeRow > span:last-child {
+  white-space: normal;
+}
+
+.outcomeSection .outcomeTableHeader {
+  color: var(--text);
+}
+
+.outcomeRecordedAt,
+.outcomeRecorder {
+  display: block;
+}
+
+.outcomeRecordedAt {
+  color: var(--text);
+  font-size: inherit;
+  font-weight: 600;
+}
+
+.outcomeRecorder {
+  margin-top: 3px;
+  color: var(--text-secondary);
+  font-size: .76rem;
+}
+
+.outcomeSection .plantingRunHeader,
+.outcomeSection .plantingRunRow {
+  grid-template-columns: minmax(120px, 1.3fr) minmax(100px, 1.1fr) 58px minmax(105px, 1fr) minmax(130px, 1.25fr) 108px;
+}
+
+.outcomeSection .plantingRunRow {
+  color: var(--text);
+}
+
+.outcomeSection .plantingRunRow small {
+  color: var(--text-secondary);
+}
+
+.outcomeSection .outcomeTableScroll[aria-busy="true"] {
+  opacity: .58;
+  pointer-events: none;
+}
+
+.outcomeSection .outcomePagination {
+  width: 100%;
+  justify-content: flex-end;
+  border-top: 1px solid var(--border-soft);
+  padding-top: 12px;
+}
+
+.outcomeSection .outcomePagination button:focus-visible {
+  outline: 2px solid var(--green-accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 980px) {
+  .outcomeSection .outcomeTable {
+    min-width: 0;
+  }
+
+  .outcomeSection .outcomeRow,
+  .outcomeSection .outcomeTableHeader {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .outcomeSection .outcomeTableHeader,
+  .outcomeSection .plantingRunHeader {
+    display: none;
+  }
+
+  .outcomeSection .plantingRunRow {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .outcomeSection .outcomeRow,
+  .outcomeSection .plantingRunRow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+:global(html[data-theme="light"]) .outcomesModal .outcomeSection .outcomeRow,
+:global(html[data-theme="light"]) .outcomesModal .outcomeSection .plantingRunRow,
+:global(html[data-theme="light"]) .outcomesModal .outcomeSection .outcomeRecordedAt {
+  color: #1d2d21;
+}
+
+:global(html[data-theme="light"]) .outcomesModal .outcomeSection .outcomeTableHeader,
+:global(html[data-theme="light"]) .outcomesModal .outcomeSection .outcomeSectionHeader p {
+  color: #294b31;
+}
+
+:global(html[data-theme="light"]) .outcomesModal .outcomeSection .outcomeRecorder {
+  color: #49634e;
+}
+
+:global(html[data-theme="light"]) .outcomesModal .outcomeSection .plantingRunRow small {
+  color: #49634e;
+}
+
+.plantingGuide .plantingGuideSteps li {
+  min-height: 0;
+}
+
+.plantingGuide .confirmationResultGuide {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.7fr) minmax(0, 2.3fr);
+  align-items: center;
+  gap: 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  background: var(--surface-raised);
+  padding: 12px 14px;
+}
+
+.plantingGuide .plantingGuideSteps > .plantingGuideStepCard {
+  min-height: 0;
+}
+
+.confirmationResultIntro {
+  display: grid;
+  gap: 5px;
+}
+
+.confirmationResultIntro strong {
+  color: var(--green-accent);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.confirmationResultIntro span {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.plantingGuide .confirmationChoices {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.plantingGuide .confirmationChoices > span {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 4px;
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  background: var(--surface);
+  padding: 8px;
+}
+
+.plantingGuide .confirmationResultGuide .confirmationChoices {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.plantingGuide .confirmationResultGuide .confirmationChoices > span {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 4px;
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  background: var(--surface);
+  padding: 8px;
+}
+
+.plantingGuide .confirmationResultGuide .confirmationChoices b {
+  color: var(--text);
+  font-size: 0.68rem;
+  line-height: 1.25;
+}
+
+.plantingGuide .confirmationResultGuide .confirmationChoices small {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.plantingGuide .confirmationChoices b {
+  color: var(--text);
+  font-size: 0.68rem;
+  line-height: 1.25;
+}
+
+.plantingGuide .confirmationChoices small {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+:global(html[data-theme="light"]) .plantingGuide .confirmationResultGuide {
+  background: var(--surface-raised);
+}
+
+@media (max-width: 900px) {
+  .plantingGuide .confirmationResultGuide {
+    grid-template-columns: 1fr;
+  }
+
+  .plantingGuide .confirmationChoices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .plantingGuide .confirmationResultGuide .confirmationChoices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .plantingGuide .confirmationChoices {
+    grid-template-columns: 1fr;
+  }
+
+  .plantingGuide .confirmationResultGuide .confirmationChoices {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Give the crop quick actions equal room, and let the planting guide use the
+   full dialog width for a scan-friendly, illustrated workflow. */
+.cropQuickActions {
+  display: grid;
+  width: min(100%, 540px);
+  flex: 0 1 540px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.cropQuickActions .pastCropsButton {
+  width: 100% !important;
+  min-width: 0;
+}
+
+.plantingGuideModal {
+  width: min(1180px, calc(100vw - 48px));
+}
+
+.plantingGuide {
+  gap: 20px;
+}
+
+.plantingGuideIntro {
+  display: grid;
+  gap: 5px;
+}
+
+.plantingGuideEyebrow,
+.plantingRowIllustrationHeading > span {
+  color: var(--green-accent);
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.plantingGuideIntro > span:last-child {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.plantingGuideLead {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.7rem !important;
+  font-weight: 850;
+  line-height: 1.2;
+}
+
+.plantingGuideLayout {
+  display: block;
+}
+
+.plantingGuideSteps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plantingGuideSteps li {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 100%;
+  grid-template-columns: 1fr;
+  align-content: start;
+  gap: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  background: var(--surface);
+  padding: 14px;
+}
+
+.plantingGuideSteps li:not(:last-child)::before {
+  top: 30px;
+  right: -13px;
+  bottom: auto;
+  left: auto;
+  z-index: 2;
+  width: 14px;
+  height: 2px;
+  background: var(--green-accent);
+}
+
+.plantingGuideSteps li:not(:last-child)::after {
+  position: absolute;
+  top: 26px;
+  right: -14px;
+  z-index: 3;
+  width: 8px;
+  height: 8px;
+  border-top: 2px solid var(--green-accent);
+  border-right: 2px solid var(--green-accent);
+  content: "";
+  transform: rotate(45deg);
+}
+
+.plantingGuideNumber {
+  width: 34px;
+  height: 34px;
+  background: var(--surface-raised);
+  font-size: 0.9rem;
+}
+
+.plantingGuideSteps li > div {
+  min-width: 0;
+  align-content: start;
+  gap: 8px;
+  padding: 0;
+}
+
+.plantingGuideSteps li strong {
+  color: var(--text);
+  font-size: 0.85rem;
+  line-height: 1.3;
+}
+
+.plantingGuideSteps li div > span {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.confirmationChoices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 2px;
+}
+
+.confirmationChoices > span {
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: 0.65rem;
+  font-weight: 850;
+  line-height: 1.3;
+  padding: 4px 7px;
+}
+
+.plantingRowIllustration {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background:
+    radial-gradient(ellipse at 50% 110%, rgba(83, 209, 30, 0.09), transparent 62%),
+    var(--surface);
+  padding: 16px 20px 10px;
+}
+
+.plantingRowIllustrationHeading {
+  display: grid;
+  gap: 4px;
+}
+
+.plantingRowIllustrationHeading strong {
+  color: var(--text);
+  font-size: 1.08rem;
+}
+
+.plantingRowIllustrationHeading small {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.plantingRowSvg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 210px;
+  overflow: visible;
+}
+
+.plantingGuideFooter {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 12px;
+}
+
+.obstacleGuideCallout,
+.plantingGuideNotes {
+  position: static;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: center;
+  align-items: start;
+  gap: 5px 12px;
+  border: 1px solid rgba(226, 160, 39, 0.42);
+  border-radius: 9px;
+  background: rgba(226, 160, 39, 0.09);
+  padding: 13px 15px;
+  line-height: 1.45;
+}
+
+.obstacleGuideCallout > svg {
+  grid-row: span 2;
+  color: var(--warning);
+}
+
+.obstacleGuideCallout > div,
+.plantingGuideNotes {
+  display: grid;
+  gap: 5px;
+}
+
+.obstacleGuideCallout strong,
+.plantingGuideNotes strong {
+  color: var(--warning);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.obstacleGuideCallout span,
+.plantingGuideNotes span {
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.plantingGuideNotes {
+  grid-template-columns: 1fr;
+  border-color: var(--border-soft);
+  background: var(--surface-raised);
+}
+
+.plantingGuideNotes strong {
+  color: var(--green-accent);
+}
+
+:global(html[data-theme="light"]) .plantingGuideSteps li,
+:global(html[data-theme="light"]) .plantingRowIllustration {
+  background-color: var(--surface);
+}
+
+@media (max-width: 900px) {
+  .cropQuickActions {
+    width: 100%;
+    flex-basis: 100%;
+  }
+
+  .plantingGuideSteps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .plantingGuideSteps li:not(:last-child)::before,
+  .plantingGuideSteps li:not(:last-child)::after {
+    display: none;
+  }
+
+  .plantingGuideFooter {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .cropQuickActions {
+    grid-template-columns: 1fr;
+  }
+
+  .plantingGuideModal {
+    width: calc(100vw - 20px);
+  }
+
+  .plantingGuideSteps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .plantingRowIllustration {
+    padding: 13px 10px 7px;
+  }
+
+  .plantingRowSvg {
+    min-width: 520px;
+  }
+
+  .plantingRowIllustration {
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 420px) {
+  .plantingGuideSteps {
+    grid-template-columns: 1fr;
+  }
+
+  .plantingRowSvg {
+    min-width: 460px;
+  }
+}
+
 .searchField,
 .dateFilter {
   display: grid;
@@ -342,7 +1978,7 @@
 
 .searchField input,
 .dateFilter input,
-.formGrid input,
+.formGrid input:not([type="file"]),
 .formGrid textarea {
   min-width: 0;
   border: 0;
@@ -682,6 +2318,12 @@
   font-size: 0.88rem;
 }
 
+.readOnly small {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
 .cardActions {
   display: flex;
   flex-wrap: wrap;
@@ -799,8 +2441,8 @@
 
 .modal {
   display: grid;
-  width: min(100%, 760px);
-  max-height: min(86vh, 860px);
+  width: min(100%, 720px);
+  max-height: min(90dvh, 900px);
   gap: 18px;
   overflow-y: auto;
   border: 1px solid var(--border-soft);
@@ -834,6 +2476,84 @@
   display: grid;
   gap: 16px;
 }
+
+.cropHistoryTabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.cropHistoryTabs button {
+  border: 1px solid transparent;
+  border-bottom: 2px solid transparent;
+  border-radius: 7px 7px 0 0;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 10px 14px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.cropHistoryTabs button[aria-selected="true"] {
+  border-color: var(--border-soft);
+  border-bottom-color: var(--green);
+  color: var(--green);
+  background: var(--surface);
+}
+
+.plantingRunTable { min-width: 760px; }
+.plantingRunRecord { border-top: 1px solid var(--border-soft); }
+.plantingRunHeader,
+.plantingRunRow {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.35fr) minmax(110px, 1fr) 74px minmax(110px, 1fr) minmax(130px, 1fr) 90px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+}
+.plantingRunHeader {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+.plantingRunRow {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.plantingRunRow > strong { color: var(--text); }
+.plantingRunRow small { display: block; margin-top: 4px; color: var(--text-muted); font-weight: 500; }
+.plantingRunRow a { color: var(--green); font-weight: 850; text-decoration: none; }
+.plantingRunDetails { padding: 0 12px 10px; }
+.plantingRunDetails summary { width: fit-content; color: var(--green-accent); font-size: 10px; font-weight: 850; cursor: pointer; }
+.savedRunTimeline { display: grid; gap: 12px; padding: 14px 4px 4px; }
+.savedRunTimeline ol { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.savedRunTimeline li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; min-height: 58px; }
+.savedRunTimeline li:not(:last-child) .savedRunCheck::after { position: absolute; top: 26px; left: 12px; width: 2px; height: 34px; background: var(--border); content: ""; }
+.savedRunTimeline li[data-complete="true"] .savedRunCheck { border-color: var(--green); background: var(--green); color: #fff; }
+.savedRunCheck { position: relative; display: grid; width: 26px; height: 26px; place-items: center; border: 1px solid var(--border); border-radius: 50%; color: var(--text-muted); font-weight: 900; }
+.savedRunTimeline li > div { display: grid; gap: 4px; padding-bottom: 10px; }
+.savedRunTimeline li strong { color: var(--green-accent); font-size: 10px; }
+.savedRunTimeline li span:last-child { color: var(--text-secondary); font-size: 12px; line-height: 1.45; }
+.savedRunReadings { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.savedRunReadings span { display: grid; gap: 4px; border: 1px solid var(--border-soft); border-radius: 6px; padding: 8px; color: var(--text-muted); font-size: 10px; }
+.savedRunReadings strong { color: var(--text); font-size: 12px; }
+.outcomePagination > span { color: var(--text-muted); font-size: 11px; font-weight: 800; }
+
+.plantingGuide { display: grid; gap: 18px; color: var(--text-secondary); }
+.plantingGuide > p { margin: 0; color: var(--text); font-size: 15px; line-height: 1.55; }
+.plantingGuide ol { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.plantingGuide li { display: grid; grid-template-columns: 38px 1fr; gap: 12px; min-height: 84px; }
+.plantingGuide li:not(:last-child) .plantingGuideCheck::after { position: absolute; top: 37px; left: 17px; width: 2px; height: 48px; background: var(--green); content: ""; opacity: .55; }
+.plantingGuideCheck { position: relative; display: grid; width: 36px; height: 36px; place-items: center; border-radius: 50%; background: var(--green); color: #fff; }
+.plantingGuide li > div { display: grid; gap: 5px; padding: 1px 0 18px; }
+.plantingGuide li strong { color: var(--green); font-size: 13px; }
+.plantingGuide li span:last-child { line-height: 1.5; }
+.plantingGuide aside { display: grid; gap: 6px; border: 1px solid rgba(226, 160, 39, .45); border-radius: 8px; background: rgba(226, 160, 39, .1); padding: 14px; line-height: 1.5; }
+.plantingGuide aside strong { color: var(--warning); }
+.plantingGuide > small { line-height: 1.5; }
 
 .outcomesNotice,
 .outcomeSection {
@@ -1130,8 +2850,12 @@
 
 .careAdvisory {
   margin: 0;
+  border-left: 3px solid rgba(141, 255, 42, 0.34);
+  border-radius: 0 8px 8px 0;
   color: var(--text-secondary);
+  background: rgba(83, 209, 30, 0.045);
   line-height: 1.55;
+  padding: 11px 14px;
 }
 
 .careSectionHeader {
@@ -1156,15 +2880,10 @@
   text-transform: uppercase;
 }
 
-.careSectionHeader > svg {
+.careRecordAction {
+  min-width: 178px;
   flex: 0 0 auto;
-  width: 38px;
-  height: 38px;
-  border: 1px solid rgba(141, 255, 42, 0.22);
-  border-radius: 8px;
-  color: var(--green-accent);
-  background: rgba(83, 209, 30, 0.08);
-  padding: 8px;
+  white-space: nowrap;
 }
 
 .careSectionActions {
@@ -1174,24 +2893,40 @@
   padding-top: 2px;
 }
 
+.careSectionActions .secondaryAction {
+  min-width: 0;
+  justify-content: flex-start;
+  white-space: nowrap;
+}
+
 .formGrid label {
   display: grid;
   gap: 7px;
 }
 
-.formGrid input,
-.formGrid textarea {
+.formGrid input:not([type="file"]),
+.formGrid textarea,
+.formGrid select {
   min-height: 44px;
   border: 1px solid var(--border-soft);
   border-radius: 8px;
+  color: var(--text);
   background: rgba(27, 27, 27, 0.42);
   padding: 0 12px;
+  font: inherit;
 }
 
 .formGrid textarea {
   min-height: 92px;
   resize: vertical;
   padding: 12px;
+}
+
+.formGrid input:not([type="file"]):focus,
+.formGrid textarea:focus,
+.formGrid select:focus {
+  border-color: rgba(var(--green-rgb), 0.42);
+  outline: 2px solid rgba(var(--green-rgb), 0.12);
 }
 
 .twoColumn,
@@ -1224,6 +2959,227 @@
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.03);
   padding: 14px;
+}
+
+.growthJourneyModal {
+  width: min(100%, 860px);
+}
+
+.growthJourneyPanel {
+  display: grid;
+  min-height: 0;
+  gap: 18px;
+}
+
+.growthJourneyIntro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 16px;
+}
+
+.growthJourneyIntro > div:first-child {
+  display: grid;
+  gap: 5px;
+}
+
+.growthJourneyIntro > div:first-child > span,
+.growthJourneyCurrent small {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.growthJourneyIntro h4,
+.growthJourneyIntro p {
+  margin: 0;
+}
+
+.growthJourneyIntro h4 {
+  color: var(--text);
+  font-size: 1.25rem;
+}
+
+.growthJourneyIntro p {
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.growthJourneyCurrent {
+  display: grid;
+  min-width: 170px;
+  gap: 5px;
+  border: 1px solid rgba(141, 255, 42, 0.24);
+  border-radius: 8px;
+  color: var(--green-accent);
+  background: rgba(83, 209, 30, 0.08);
+  padding: 11px 13px;
+}
+
+.growthJourneyCurrent strong {
+  font-size: 0.94rem;
+}
+
+.growthJourneyMessage,
+.growthJourneyNotice {
+  border: 1px dashed var(--border-soft);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  padding: 14px;
+}
+
+.growthJourneyNotice {
+  border-style: solid;
+  border-color: rgba(255, 176, 0, 0.28);
+  color: var(--warning);
+  background: rgba(255, 176, 0, 0.08);
+}
+
+.growthTimeline {
+  display: grid;
+  max-height: min(58vh, 620px);
+  overflow-y: auto;
+  padding: 2px 4px 2px 0;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.growthTimeline::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.growthTimelineItem {
+  position: relative;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 12px;
+  padding-bottom: 16px;
+}
+
+.growthTimelineItem:last-child {
+  padding-bottom: 0;
+}
+
+.growthTimelineTrack {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.growthTimelineItem:not(:last-child) .growthTimelineTrack::after {
+  position: absolute;
+  top: 34px;
+  bottom: -16px;
+  left: 50%;
+  width: 2px;
+  border-radius: 999px;
+  background: var(--border-soft);
+  content: "";
+  transform: translateX(-50%);
+}
+
+.growthTimelineItemCompleted:not(:last-child) .growthTimelineTrack::after {
+  background: var(--green-accent);
+}
+
+.growthTimelinePoint {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--border-soft);
+  border-radius: 50%;
+  color: var(--text-muted);
+  background: var(--surface);
+  font-family: var(--font-roboto-mono);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.growthTimelineItemCompleted .growthTimelinePoint {
+  border-color: var(--green-accent);
+  color: #132313;
+  background: var(--green-accent);
+}
+
+.growthTimelineItemCompleted .growthTimelinePoint svg {
+  color: #ffffff;
+  stroke: #ffffff;
+}
+
+.growthTimelineItemCurrent .growthTimelinePoint {
+  border-color: var(--green-accent);
+  color: var(--green-accent);
+  background: rgba(83, 209, 30, 0.12);
+  box-shadow: 0 0 0 4px rgba(141, 255, 42, 0.08);
+}
+
+.growthStageRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 14px;
+  align-items: center;
+  min-width: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.025);
+  padding: 12px 14px;
+}
+
+.growthStageRow > div {
+  display: grid;
+  gap: 3px;
+}
+
+.growthStageRow strong {
+  color: var(--text);
+  font-size: 0.96rem;
+}
+
+.growthStageRow small {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.growthStageStatus {
+  width: max-content;
+  border-radius: 999px;
+  color: var(--text-muted);
+  background: rgba(154, 154, 154, 0.1);
+  font-size: 0.72rem;
+  font-weight: 900;
+  padding: 5px 9px;
+}
+
+.growthTimelineItemCompleted .growthStageStatus {
+  color: var(--green-accent);
+  background: rgba(83, 209, 30, 0.1);
+}
+
+.growthTimelineItemCurrent .growthStageStatus {
+  color: var(--green-accent);
+  background: rgba(83, 209, 30, 0.14);
+}
+
+.growthStageRow p {
+  grid-column: 1 / -1;
+  margin: 2px 0 0;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.45;
 }
 
 .cropProgressHeader {
@@ -1777,7 +3733,7 @@
 .warningAction::after {
   content: "";
   position: absolute;
-  z-index: 0;
+  z-index: -1;
   border-radius: 50%;
   transition: all 0.5s 0.08s cubic-bezier(0.55, 0, 0.1, 1);
 }
@@ -1915,7 +3871,7 @@
 
 :global(html[data-theme="light"]) .searchField input,
 :global(html[data-theme="light"]) .dateFilter input,
-:global(html[data-theme="light"]) .formGrid input,
+:global(html[data-theme="light"]) .formGrid input:not([type="file"]),
 :global(html[data-theme="light"]) .formGrid textarea {
   color: #123c1b;
 }
@@ -2071,6 +4027,12 @@
   background: #f9fcf7;
 }
 
+:global(html[data-theme="light"]) .careAdvisory {
+  border-left-color: rgba(18, 60, 27, 0.3);
+  color: #243c2a;
+  background: rgba(18, 60, 27, 0.045);
+}
+
 :global(html[data-theme="light"]) .activityFormIntro h4,
 :global(html[data-theme="light"]) .activityFormSectionTitle strong,
 :global(html[data-theme="light"]) .sensorHistoryIntro h4,
@@ -2149,6 +4111,62 @@
   color: rgba(18, 60, 27, 0.66);
 }
 
+:global(html[data-theme="light"]) .growthJourneyIntro,
+:global(html[data-theme="light"]) .growthStageRow {
+  border-color: rgba(18, 60, 27, 0.14);
+  background: #ffffff;
+}
+
+:global(html[data-theme="light"]) .growthJourneyIntro h4,
+:global(html[data-theme="light"]) .growthStageRow strong {
+  color: #123c1b;
+}
+
+:global(html[data-theme="light"]) .growthJourneyIntro p,
+:global(html[data-theme="light"]) .growthStageRow p {
+  color: #243c2a;
+}
+
+:global(html[data-theme="light"]) .growthJourneyCurrent {
+  border-color: rgba(18, 60, 27, 0.2);
+  color: #176b25;
+  background: rgba(83, 209, 30, 0.09);
+}
+
+:global(html[data-theme="light"]) .growthTimelinePoint {
+  border-color: rgba(18, 60, 27, 0.2);
+  color: rgba(18, 60, 27, 0.68);
+  background: #ffffff;
+}
+
+:global(html[data-theme="light"]) .growthTimelineItemCompleted .growthTimelinePoint {
+  border-color: #176b25;
+  color: #ffffff;
+  background: #176b25;
+}
+
+:global(html[data-theme="light"]) .growthTimelineItemCurrent .growthTimelinePoint {
+  border-color: #176b25;
+  color: #176b25;
+  background: rgba(83, 209, 30, 0.1);
+}
+
+:global(html[data-theme="light"]) .growthStageStatus {
+  color: rgba(18, 60, 27, 0.62);
+  background: rgba(18, 60, 27, 0.08);
+}
+
+:global(html[data-theme="light"]) .growthTimelineItemCompleted .growthStageStatus,
+:global(html[data-theme="light"]) .growthTimelineItemCurrent .growthStageStatus {
+  color: #176b25;
+  background: rgba(83, 209, 30, 0.1);
+}
+
+:global(html[data-theme="light"]) .growthJourneyMessage,
+:global(html[data-theme="light"]) .growthJourneyNotice {
+  color: #243c2a;
+}
+
 :global(html[data-theme="light"]) .notesPanel p {
   color: #243c2a;
 }
@@ -2209,14 +4227,16 @@
   background: rgba(18,60,27,.07);
 }
 
-:global(html[data-theme="light"]) .formGrid input,
-:global(html[data-theme="light"]) .formGrid textarea {
+:global(html[data-theme="light"]) .formGrid input:not([type="file"]),
+:global(html[data-theme="light"]) .formGrid textarea,
+:global(html[data-theme="light"]) .formGrid select {
   border-color: rgba(18, 60, 27, 0.22);
   background: #ffffff;
 }
 
-:global(html[data-theme="light"]) .formGrid input:focus,
-:global(html[data-theme="light"]) .formGrid textarea:focus {
+:global(html[data-theme="light"]) .formGrid input:not([type="file"]):focus,
+:global(html[data-theme="light"]) .formGrid textarea:focus,
+:global(html[data-theme="light"]) .formGrid select:focus {
   border-color: rgba(18, 60, 27, 0.42);
   outline: 2px solid rgba(18, 60, 27, 0.08);
 }
@@ -2292,6 +4312,10 @@
   .sensorSummaryGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .careSectionActions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 680px) {
@@ -2355,6 +4379,15 @@
   .sensorHistoryTable {
     min-width: 0;
   }
+
+  .plantingRunTable { min-width: 0; }
+  .plantingRunHeader { display: none; }
+  .plantingRunRow { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 12px 16px; padding: 14px; }
+  .plantingRunRow > strong,
+  .plantingRunRow > span { display: grid; align-content: start; gap: 4px; white-space: normal; }
+  .plantingRunRow > strong::before,
+  .plantingRunRow > span::before { content: attr(data-label); color: var(--text-muted); font-size: 0.66rem; font-weight: 900; letter-spacing: 0.04em; text-transform: uppercase; }
+  .savedRunReadings { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
   .sensorHistorySection {
     overflow: visible;
@@ -2448,5 +4481,1521 @@
 
   .addItemButton {
     width: 100%;
+  }
+}
+
+/* Crops page redesign: scoped modal, card, timeline, and history refinements. */
+.stockGroupHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.stockGroupHeader h3 {
+  min-width: 0;
+}
+
+.stockScrollActions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.stockScrollActions button {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid rgba(141, 255, 42, 0.22);
+  border-radius: 8px;
+  color: var(--green-accent);
+  background: rgba(83, 209, 30, 0.08);
+  cursor: pointer;
+  transition: border-color 180ms ease, background 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.stockScrollActions button:hover {
+  border-color: rgba(141, 255, 42, 0.42);
+  background: rgba(83, 209, 30, 0.16);
+  transform: translateY(-1px);
+}
+
+.cardRow {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-behavior: smooth;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  padding: 1px 2px 8px;
+}
+
+.cardRow::-webkit-scrollbar {
+  display: none;
+}
+
+.stockCard {
+  width: min(82vw, 292px);
+  min-width: min(82vw, 292px);
+  min-height: 0;
+  grid-template-rows: auto auto auto auto 1fr;
+  align-content: start;
+  gap: 10px;
+  padding: 12px;
+  scroll-snap-align: start;
+}
+
+.stockCard[data-crop-card] {
+  min-width: min(82vw, 292px);
+}
+
+.cropHero,
+.cropHero img {
+  height: 112px;
+  max-height: 112px;
+}
+
+.cardTitleRow {
+  align-items: center;
+}
+
+.cardFacts dd {
+  overflow-wrap: anywhere;
+  font-size: 0.86rem;
+  line-height: 1.3;
+}
+
+.stockCard .cardFacts {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.stockCard .cardFacts > div:last-child:nth-child(odd) {
+  grid-column: auto;
+}
+
+.stockCard .cardFacts div {
+  gap: 3px;
+  padding: 8px;
+}
+
+.stockCard .cardFacts dt {
+  font-size: 0.65rem;
+}
+
+.cropNextCare {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+  align-content: start;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface-raised, rgba(255, 255, 255, 0.035));
+  padding: 9px 10px;
+}
+
+.cropNextCare > span,
+.detailEyebrow {
+  color: var(--green-accent);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.045em;
+}
+
+.cropNextCare strong {
+  color: var(--text);
+  font-size: 0.94rem;
+  line-height: 1.32;
+  overflow-wrap: anywhere;
+}
+
+.cropNextCare small {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.iconAction[data-tone="stock-in"] {
+  border-color: rgba(65, 215, 91, 0.2);
+  color: var(--success);
+  background: rgba(65, 215, 91, 0.08);
+}
+
+.iconAction[data-tone="stock-in"]:hover {
+  border-color: rgba(65, 215, 91, 0.34);
+  background: rgba(65, 215, 91, 0.14);
+}
+
+.iconAction[data-tone="stock-out"] {
+  border-color: rgba(255, 176, 0, 0.2);
+  color: var(--warning);
+  background: rgba(255, 176, 0, 0.08);
+}
+
+.iconAction[data-tone="stock-out"]:hover {
+  border-color: rgba(255, 176, 0, 0.34);
+  background: rgba(255, 176, 0, 0.14);
+}
+
+:global(html[data-theme="light"]) .stockScrollActions button {
+  border-color: rgba(18, 60, 27, 0.22);
+  color: #16451f;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+:global(html[data-theme="light"]) .stockScrollActions button:hover {
+  border-color: rgba(18, 60, 27, 0.38);
+  background: rgba(18, 60, 27, 0.08);
+}
+
+:global(html[data-theme="light"]) .iconAction[data-tone="stock-in"] {
+  border-color: rgba(33, 140, 57, 0.3);
+  color: #218c39;
+  background: rgba(33, 140, 57, 0.08);
+}
+
+:global(html[data-theme="light"]) .iconAction[data-tone="stock-out"] {
+  border-color: rgba(185, 120, 0, 0.32);
+  color: #9a6500;
+  background: rgba(185, 120, 0, 0.08);
+}
+
+.cropWorkspaceModal {
+  width: min(1040px, calc(100vw - 48px));
+  min-width: 0;
+  height: min(860px, 90dvh);
+  max-height: min(860px, 90dvh);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 18px;
+  overflow: hidden;
+  padding: 28px;
+}
+
+.cropWorkspaceModal > .modalHeader {
+  align-items: center;
+  margin: 0;
+}
+
+.cropWorkspaceModal .modalTitle {
+  align-items: center;
+  font-size: 1.65rem;
+  line-height: 1.2;
+}
+
+.cropModalTitleText {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.cropWorkspaceModal .cropModalIdentity {
+  font-size: 0.92rem;
+}
+
+.cropWorkspaceModal .modalTitle > .status {
+  flex: 0 0 auto;
+  margin-left: 4px;
+  font-size: 0.8rem;
+}
+
+.cropModalIdentity {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.cropWorkspaceModal > .modalBody {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.cropWorkspaceModal > .modalBody::-webkit-scrollbar {
+  display: none;
+}
+
+.cropWorkspaceModal .modalBody [hidden] {
+  display: none !important;
+}
+
+.cropDetailTabs {
+  display: flex;
+  min-width: 0;
+  gap: 8px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border-soft);
+  scrollbar-width: none;
+}
+
+.cropDetailTabs::-webkit-scrollbar {
+  display: none;
+}
+
+.cropDetailTabs button {
+  flex: 0 0 auto;
+  min-height: 44px;
+  border: 1px solid transparent;
+  border-bottom: 2px solid transparent;
+  border-radius: 7px 7px 0 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 10px 14px;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.cropDetailTabs button[aria-selected="true"] {
+  border-color: var(--border-soft);
+  border-bottom-color: var(--green);
+  background: var(--surface);
+  color: var(--green-accent);
+}
+
+.cropDetailTabs button:focus-visible,
+.runBackButton:focus-visible,
+.runDetailsButton:focus-visible,
+.modalCloseButton:focus-visible,
+.cropHistoryTabs button:focus-visible,
+.modalFooterActions button:focus-visible {
+  outline: 2px solid var(--green-accent);
+  outline-offset: 2px;
+}
+
+.cropWorkspaceFooter {
+  justify-content: space-between;
+  margin: 0;
+  border-top: 1px solid var(--border-soft);
+  padding-top: 16px;
+}
+
+.cropWorkspaceFooter > button {
+  min-width: 190px;
+}
+
+.detailsGrid {
+  gap: 24px;
+}
+
+.detailsTop {
+  grid-template-columns: minmax(220px, 0.82fr) minmax(0, 1.5fr);
+  gap: 20px;
+}
+
+.detailImagePanel,
+.detailImagePanel img {
+  min-height: 260px;
+  max-height: 360px;
+}
+
+.detailSummary {
+  align-content: start;
+  gap: 16px;
+}
+
+.nextCareSection {
+  min-height: 150px;
+  align-content: center;
+  padding: 22px;
+}
+
+.nextCareSection h4 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.5rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.nextCareSection p {
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.detailMetrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.detailMetrics .readOnly {
+  min-width: 0;
+  min-height: 88px;
+  align-content: start;
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  padding: 14px;
+}
+
+.detailMetrics .readOnly > span {
+  font-size: 0.76rem;
+}
+
+.detailMetrics .readOnly strong {
+  overflow-wrap: anywhere;
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.cropFarmNotes {
+  font-size: 1rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.historyViewHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+}
+
+.historyViewHeading > span {
+  color: var(--green-accent);
+}
+
+.activityHistoryList {
+  gap: 12px;
+}
+
+.cropWorkspaceModal .activityHistoryList {
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
+}
+
+.activityHistoryCard {
+  gap: 12px;
+  padding: 16px;
+}
+
+.activityHistoryCard header strong {
+  font-size: 1.08rem;
+}
+
+.activityHistoryCard header span,
+.activityDateAndAuthor small,
+.activityDateAndAuthor time {
+  font-size: 0.88rem;
+}
+
+.activityHistoryMeta {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.activityHistoryMeta span {
+  overflow-wrap: anywhere;
+  font-size: 0.94rem;
+}
+
+.activityHistoryNotes {
+  font-size: 1rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.sensorSummaryGrid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sensorValueCard {
+  min-height: 94px;
+  padding: 16px;
+}
+
+.sensorValueCard small {
+  font-size: 0.82rem;
+}
+
+.sensorValueCard strong {
+  font-size: 1.15rem;
+  overflow-wrap: anywhere;
+}
+
+.sensorHistoryRow,
+.sensorHistoryHeader {
+  grid-template-columns: minmax(150px, 1.3fr) repeat(4, minmax(90px, 0.8fr)) minmax(100px, 0.8fr);
+  gap: 12px;
+}
+
+.sensorHistoryRow {
+  font-size: 0.9rem;
+}
+
+.growthJourneyIntro {
+  align-items: center;
+  padding-bottom: 18px;
+}
+
+.growthJourneyIntro p {
+  max-width: 70ch;
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.growthTimeline {
+  max-height: none;
+  overflow: visible;
+}
+
+.growthTimelineItem {
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 14px;
+  min-height: 96px;
+}
+
+.growthTimelineTrack {
+  align-self: stretch;
+}
+
+.growthTimelineItem:not(:last-child) .growthTimelineTrack::after {
+  top: 52px;
+  bottom: -16px;
+  height: auto;
+}
+
+.growthTimelinePoint {
+  width: 42px;
+  height: 42px;
+  font-size: 1rem;
+}
+
+.growthTimelineItemCompleted .growthTimelinePoint svg {
+  width: 24px;
+  height: 24px;
+}
+
+.growthStageRow {
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 14px;
+  padding: 12px 14px;
+}
+
+.growthStageRow strong {
+  font-size: 1.08rem;
+}
+
+.growthStageRow small,
+.growthStageStatus {
+  font-size: 0.86rem;
+}
+
+.growthStageRow p {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.96rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.growthStagePhotos {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.growthStagePhotos[hidden] {
+  display: none;
+}
+
+.growthImageButton {
+  grid-column: 1 / -1;
+  justify-self: start;
+  min-height: 34px;
+  border-color: var(--border-soft);
+  color: var(--text-secondary);
+  background: var(--surface-soft);
+  font-size: 0.78rem;
+  font-weight: 750;
+  padding: 0 10px;
+}
+
+.growthImageButton:hover:not(:disabled) {
+  border-color: rgba(var(--green-rgb), 0.3);
+  color: var(--green-accent);
+  background: rgba(var(--green-rgb), 0.07);
+}
+
+.growthImageButton:focus-visible {
+  outline: 2px solid rgba(var(--green-rgb), 0.46);
+  outline-offset: 2px;
+}
+
+.growthStagePhotos a {
+  display: block;
+  width: min(100%, 168px);
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.growthStagePhotos img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.growthStagePhotos a:focus-visible {
+  outline: 2px solid var(--green-accent);
+  outline-offset: 2px;
+}
+
+.outcomesWorkspace {
+  min-height: 0;
+  gap: 18px;
+}
+
+.outcomesModal {
+  width: min(1080px, calc(100vw - 48px));
+  max-height: min(90dvh, 900px);
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  padding: 28px;
+}
+
+.outcomeSection {
+  min-width: 0;
+  padding: 20px;
+}
+
+.outcomesWorkspace {
+  min-height: 0;
+  align-content: start;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.outcomesWorkspace::-webkit-scrollbar {
+  display: none;
+}
+
+.outcomeTable {
+  width: 100%;
+}
+
+.outcomeRow,
+.outcomeTableHeader {
+  grid-template-columns: minmax(130px, 1.05fr) minmax(120px, 0.9fr) minmax(140px, 1.2fr) minmax(90px, 0.7fr) minmax(120px, 0.9fr) minmax(150px, 1fr);
+  gap: 12px;
+}
+
+.outcomeRow {
+  font-size: 0.88rem;
+}
+
+.outcomeRow > span {
+  overflow-wrap: anywhere;
+}
+
+.plantingRunTable {
+  min-width: 0;
+}
+
+.plantingRunHeader,
+.plantingRunRow {
+  grid-template-columns: minmax(140px, 1.25fr) minmax(100px, 0.85fr) 70px minmax(100px, 0.9fr) minmax(130px, 1fr) 80px 112px;
+  gap: 10px;
+}
+
+.plantingRunRow {
+  font-size: 0.83rem;
+}
+
+.runDetailsButton,
+.runBackButton {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--green-accent);
+  cursor: pointer;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.runDetailsButton:hover,
+.runBackButton:hover {
+  border-color: var(--green-accent);
+  background: var(--green);
+  color: #fff;
+}
+
+.runDetailView {
+  display: grid;
+  gap: 18px;
+}
+
+.runBackButton {
+  justify-self: start;
+}
+
+.runDetailIdentity {
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 16px;
+}
+
+.runDetailIdentity strong {
+  color: var(--text);
+  font-size: 1.25rem;
+}
+
+.runDetailIdentity span {
+  color: var(--text-muted);
+  font-family: var(--font-roboto-mono);
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+
+.runCropLink {
+  justify-self: end;
+  color: var(--green-accent);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.savedRunTimeline {
+  gap: 18px;
+}
+
+.savedRunTimeline li {
+  position: relative;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 14px;
+  min-height: 76px;
+}
+
+.savedRunTimeline li:not(:last-child)::before {
+  position: absolute;
+  top: 34px;
+  bottom: -17px;
+  left: 16px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--border-soft);
+  content: "";
+}
+
+.savedRunTimeline li[data-complete="true"]:not(:last-child)::before {
+  background: var(--green-accent);
+}
+
+.savedRunTimeline .savedRunCheck::after {
+  display: none;
+}
+
+.savedRunCheck {
+  width: 34px;
+  height: 34px;
+  font-size: 1rem;
+}
+
+.savedRunTimeline li strong {
+  font-size: 0.8rem;
+}
+
+.savedRunTimeline li span:last-child {
+  font-size: 0.96rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.savedRunReadings span {
+  min-width: 0;
+  padding: 12px;
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.savedRunReadings strong {
+  font-size: 0.96rem;
+  overflow-wrap: anywhere;
+}
+
+.runCropLink:focus-visible,
+.cropWorkspaceFooter button:focus-visible {
+  outline: 2px solid var(--green-accent);
+  outline-offset: 3px;
+}
+
+.plantingGuideModal {
+  width: min(900px, calc(100vw - 48px));
+  max-height: min(90dvh, 880px);
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  padding: 28px;
+}
+
+.plantingGuide {
+  min-height: 0;
+  gap: 18px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.plantingGuide::-webkit-scrollbar {
+  display: none;
+}
+
+.plantingGuideLead {
+  font-size: 1.4rem !important;
+  font-weight: 800;
+}
+
+.plantingGuideLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.62fr);
+  align-items: start;
+  gap: 24px;
+}
+
+.plantingGuide ol {
+  min-width: 0;
+}
+
+.plantingGuide li {
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 14px;
+  min-height: 0;
+}
+
+.plantingGuide li {
+  position: relative;
+}
+
+.plantingGuide li:not(:last-child)::before {
+  position: absolute;
+  top: 42px;
+  bottom: -20px;
+  left: 19px;
+  width: 2px;
+  background: var(--border);
+  content: "";
+}
+
+.plantingGuideNumber {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid var(--border-soft);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--green-accent);
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.plantingGuide li > div {
+  gap: 7px;
+  padding: 2px 0 24px;
+}
+
+.plantingGuide li strong {
+  font-size: 0.88rem;
+}
+
+.plantingGuide li div > span {
+  color: var(--text-secondary);
+  font-size: 0.96rem;
+  line-height: 1.55;
+}
+
+.confirmationChoices {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 850;
+  line-height: 1.5;
+}
+
+.rowPlantingExample {
+  display: grid;
+  grid-template-columns: auto minmax(90px, 1fr);
+  align-items: center;
+  gap: 8px 14px;
+  max-width: 360px;
+  margin-top: 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 12px;
+}
+
+.exampleRover {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.exampleRoverBody {
+  display: grid;
+  min-width: 52px;
+  height: 27px;
+  place-items: center;
+  border: 1px solid var(--green-accent);
+  border-radius: 6px;
+  color: var(--green-accent);
+  font-size: 0.62rem;
+  font-weight: 900;
+}
+
+.exampleWheel {
+  width: 7px;
+  height: 13px;
+  border-radius: 4px;
+  background: var(--text-muted);
+}
+
+.examplePlantingLine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 2px dashed var(--green-accent);
+}
+
+.examplePlantingLine i {
+  width: 11px;
+  height: 11px;
+  margin-top: -7px;
+  border: 2px solid var(--green-accent);
+  border-radius: 50%;
+  background: var(--surface);
+}
+
+.rowPlantingExample > small {
+  grid-column: 1 / -1;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 850;
+}
+
+.obstacleGuideCallout {
+  position: sticky;
+  top: 8px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  border: 1px solid rgba(226, 160, 39, .45);
+  border-radius: 8px;
+  background: rgba(226, 160, 39, .1);
+  padding: 16px;
+  line-height: 1.55;
+}
+
+.obstacleGuideCallout strong {
+  color: var(--warning);
+}
+
+.nextRowHint {
+  border-left: 3px solid var(--green-accent);
+  padding-left: 12px;
+  font-weight: 700;
+}
+
+.finishCropIdentity {
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 16px;
+}
+
+.finishCropIdentity > span {
+  color: var(--text-muted);
+  font-size: 0.86rem;
+}
+
+.finishCropIdentity > strong {
+  color: var(--text);
+  font-size: 1.2rem;
+}
+
+.finishCropIdentity > small,
+.finishOutcomeHelp {
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.finishOutcomeHelp {
+  margin: -8px 0 0;
+}
+
+:global(html[data-theme="light"]) .cropNextCare,
+:global(html[data-theme="light"]) .rowPlantingExample {
+  background: var(--surface);
+}
+
+:global(html[data-theme="light"]) .runDetailsButton:hover,
+:global(html[data-theme="light"]) .runBackButton:hover {
+  color: #fff;
+}
+
+:global(html[data-theme="light"]) .cropWorkspaceFooter .primaryAction:not(:disabled) {
+  color: #172117;
+}
+
+:global(html[data-theme="light"]) .cropWorkspaceFooter .primaryAction:hover:not(:disabled) {
+  color: #fff;
+}
+
+@media (max-width: 900px) {
+  .cropWorkspaceModal {
+    padding: 22px;
+  }
+
+  .plantingGuideLayout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .obstacleGuideCallout {
+    position: static;
+  }
+
+  .outcomeSection:has(.outcomeTable) {
+    overflow-x: visible;
+  }
+
+  .outcomeTable,
+  .plantingRunTable,
+  .sensorHistoryTable {
+    min-width: 0;
+  }
+
+  .outcomeTableHeader,
+  .plantingRunHeader,
+  .sensorHistoryHeader {
+    display: none;
+  }
+
+  .outcomeRow,
+  .plantingRunRow,
+  .sensorHistoryRow {
+    min-width: 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+    gap: 12px 16px;
+  }
+
+  .outcomeRow > *,
+  .plantingRunRow > strong,
+  .plantingRunRow > span,
+  .sensorHistoryRow > span {
+    display: grid;
+    align-content: start;
+    gap: 4px;
+    white-space: normal;
+    text-align: left;
+  }
+
+  .outcomeRow > *::before,
+  .plantingRunRow > strong::before,
+  .plantingRunRow > span::before,
+  .sensorHistoryRow > span::before {
+    content: attr(data-label);
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: 0.7rem;
+    font-weight: 900;
+    letter-spacing: 0.035em;
+    text-transform: uppercase;
+  }
+
+  .plantingRunRow > button {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+
+  .sensorHistoryRow time {
+    grid-column: 1 / -1;
+    border-bottom: 1px solid var(--border-soft);
+    padding-bottom: 8px;
+  }
+}
+
+@media (max-width: 680px) {
+  .stockCard .cardFacts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stockCard .cardFacts > div:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .cropWorkspaceModal,
+  .outcomesModal,
+  .plantingGuideModal {
+    width: calc(100vw - 20px);
+    height: min(90dvh, 860px);
+    max-height: 90dvh;
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .cropWorkspaceModal .modalTitle {
+    font-size: 1.35rem;
+  }
+
+  .cropModalIdentity {
+    font-size: 0.82rem;
+  }
+
+  .cropDetailTabs {
+    gap: 2px;
+  }
+
+  .cropDetailTabs button {
+    padding-inline: 10px;
+    font-size: 0.72rem;
+  }
+
+  .cropWorkspaceFooter > button {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .cropWorkspaceFooter > span {
+    display: none;
+  }
+
+  .detailMetrics,
+  .sensorSummaryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .detailsTop {
+    grid-template-columns: 1fr;
+  }
+
+  .detailImagePanel,
+  .detailImagePanel img {
+    min-height: 180px;
+    max-height: 240px;
+  }
+
+  .plantingRunHeader {
+    display: none;
+  }
+
+  .plantingRunRow {
+    min-width: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .plantingRunRow > button {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+
+  .outcomeSection {
+    padding: 14px;
+  }
+
+  .savedRunReadings {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stockCard,
+  .runDetailsButton,
+  .runBackButton,
+  .modalCloseButton,
+  .primaryAction,
+  .primaryAction::before,
+  .primaryAction::after,
+  .dangerAction,
+  .dangerAction::before,
+  .dangerAction::after,
+  .secondaryAction,
+  .cropDetailTabs button,
+  .cropHistoryTabs button {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* Final override order for the expanded planting guide and crop actions. */
+.cropQuickActions {
+  display: grid;
+  width: min(100%, 540px);
+  flex: 0 1 540px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.cropQuickActions .pastCropsButton {
+  width: 100% !important;
+  min-width: 0;
+}
+
+.plantingGuideModal {
+  width: min(1180px, calc(100vw - 48px));
+}
+
+.plantingGuide {
+  gap: 20px;
+}
+
+.plantingGuideIntro {
+  display: grid;
+  gap: 5px;
+}
+
+.plantingGuideEyebrow,
+.plantingRowIllustrationHeading > span {
+  color: var(--green-accent);
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.plantingGuideIntro > span:last-child {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.plantingGuide .plantingGuideLead {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.7rem !important;
+  font-weight: 850;
+  line-height: 1.2;
+}
+
+.plantingGuideLayout {
+  display: block;
+}
+
+.plantingGuide .plantingGuideSteps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plantingGuide .plantingGuideSteps li {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 100%;
+  grid-template-columns: 1fr;
+  align-content: start;
+  gap: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  background: var(--surface);
+  padding: 14px;
+}
+
+.plantingGuide .plantingGuideSteps li:not(:last-child)::before {
+  top: 30px;
+  right: -13px;
+  bottom: auto;
+  left: auto;
+  z-index: 2;
+  width: 14px;
+  height: 2px;
+  background: var(--green-accent);
+}
+
+.plantingGuide .plantingGuideSteps li:not(:last-child)::after {
+  position: absolute;
+  top: 26px;
+  right: -14px;
+  z-index: 3;
+  width: 8px;
+  height: 8px;
+  border-top: 2px solid var(--green-accent);
+  border-right: 2px solid var(--green-accent);
+  content: "";
+  transform: rotate(45deg);
+}
+
+.plantingGuide .plantingGuideNumber {
+  width: 34px;
+  height: 34px;
+  background: var(--surface-raised);
+  font-size: 0.9rem;
+}
+
+.plantingGuide .plantingGuideSteps li > div {
+  min-width: 0;
+  align-content: start;
+  gap: 8px;
+  padding: 0;
+}
+
+.plantingGuide .plantingGuideSteps li strong {
+  color: var(--text);
+  font-size: 0.85rem;
+  line-height: 1.3;
+}
+
+.plantingGuide .plantingGuideSteps li div > span {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.plantingGuide .confirmationChoices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 2px;
+}
+
+.plantingGuide .confirmationChoices > span {
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: 0.65rem;
+  font-weight: 850;
+  line-height: 1.3;
+  padding: 4px 7px;
+}
+
+.plantingRowIllustration {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: radial-gradient(ellipse at 50% 110%, rgba(83, 209, 30, 0.09), transparent 62%), var(--surface);
+  padding: 16px 20px 10px;
+}
+
+.plantingRowIllustrationHeading {
+  display: grid;
+  gap: 4px;
+}
+
+.plantingRowIllustrationHeading strong {
+  color: var(--text);
+  font-size: 1.08rem;
+}
+
+.plantingRowIllustrationHeading small {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.plantingRowSvg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 210px;
+  overflow: visible;
+}
+
+.plantingGuideFooter {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 12px;
+}
+
+.plantingGuide .obstacleGuideCallout,
+.plantingGuide .plantingGuideNotes {
+  position: static;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: center;
+  align-items: start;
+  gap: 5px 12px;
+  border: 1px solid rgba(226, 160, 39, 0.42);
+  border-radius: 9px;
+  background: rgba(226, 160, 39, 0.09);
+  padding: 13px 15px;
+  line-height: 1.45;
+}
+
+.plantingGuide .obstacleGuideCallout > svg {
+  grid-row: span 2;
+  color: var(--warning);
+}
+
+.plantingGuide .obstacleGuideCallout > div,
+.plantingGuide .plantingGuideNotes {
+  display: grid;
+  gap: 5px;
+}
+
+.plantingGuide .obstacleGuideCallout strong,
+.plantingGuide .plantingGuideNotes strong {
+  color: var(--warning);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.plantingGuide .obstacleGuideCallout span,
+.plantingGuide .plantingGuideNotes span {
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.plantingGuide .plantingGuideNotes {
+  grid-template-columns: 1fr;
+  border-color: var(--border-soft);
+  background: var(--surface-raised);
+}
+
+.plantingGuide .plantingGuideNotes strong {
+  color: var(--green-accent);
+}
+
+:global(html[data-theme="light"]) .plantingGuide .plantingGuideSteps li,
+:global(html[data-theme="light"]) .plantingRowIllustration {
+  background-color: var(--surface);
+}
+
+@media (max-width: 900px) {
+  .cropQuickActions {
+    width: 100%;
+    flex-basis: 100%;
+  }
+
+  .plantingGuide .plantingGuideSteps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .plantingGuide .plantingGuideSteps li:not(:last-child)::before,
+  .plantingGuide .plantingGuideSteps li:not(:last-child)::after {
+    display: none;
+  }
+
+  .plantingGuideFooter {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .cropQuickActions {
+    grid-template-columns: 1fr;
+  }
+
+  .plantingGuideModal {
+    width: calc(100vw - 20px);
+  }
+
+  .plantingGuide .plantingGuideSteps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .plantingRowIllustration {
+    overflow-x: auto;
+    padding: 13px 10px 7px;
+  }
+
+  .plantingRowSvg {
+    min-width: 520px;
+  }
+}
+
+@media (max-width: 420px) {
+  .plantingGuide .plantingGuideSteps {
+    grid-template-columns: 1fr;
+  }
+
+  .plantingRowSvg {
+    min-width: 460px;
+  }
+}
+
+/* Keep all crop filters together after legacy responsive toolbar rules. */
+.cropDashboardLayout .inventoryToolbar {
+  grid-template-columns: minmax(180px, 1.4fr) repeat(3, minmax(120px, 1fr));
+}
+
+.cropDashboardLayout .inventoryToolbar .themedSelectIcon {
+  display: none;
+}
+
+.cropDashboardLayout .inventoryToolbar .themedSelectButton {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 6px;
+  padding-inline: 8px;
+}
+
+.formGrid .activityFormWide {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 1180px) {
+  .cropDashboardLayout .inventoryToolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cropDashboardLayout .inventoryToolbar .searchField {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 680px) {
+  .cropDashboardLayout .inventoryToolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.detailsLowerGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 16px;
+}
+
+.detailsLowerGrid[data-has-notes="false"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.detailsLowerGrid > .cropProgressPanel,
+.detailsLowerGrid > .detailSection {
+  min-width: 0;
+  height: 100%;
+  align-content: start;
+}
+
+@media (max-width: 680px) {
+  .detailsLowerGrid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

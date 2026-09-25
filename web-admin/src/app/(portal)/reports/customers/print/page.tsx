@@ -43,7 +43,6 @@ export default async function CustomersPrintPage({
           <thead>
             <tr>
               <th>Customer</th>
-              <th>Type</th>
               <th>Receipts</th>
               <th>Total Spent</th>
               <th>Last Purchase</th>
@@ -56,7 +55,6 @@ export default async function CustomersPrintPage({
                   <strong>{row.name}</strong>
                   <span>{row.contact}</span>
                 </td>
-                <td>{row.customerType}</td>
                 <td>{row.receiptCount}</td>
                 <td>{formatCurrency(row.totalSpent)}</td>
                 <td>{row.lastPurchaseAt ? formatDateTime(row.lastPurchaseAt) : "No purchase"}</td>

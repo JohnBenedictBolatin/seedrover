@@ -9,11 +9,10 @@ import {
   Plus,
   Receipt,
   Trash2,
-  X,
 } from "lucide-react";
 import { recordSalesOrderAction, type SalesFormState } from "@/app/(portal)/sales/actions";
 import type { AlertTone } from "@/components/action-alert-stack";
-import { CalendarField } from "@/components/calendar-field";
+import { useConfirmationDialog } from "@/components/confirmation-dialog";
 import { formatCurrency, formatQuantity } from "@/lib/format";
 import type { ReleasedDiscount, SellableItem } from "@/lib/sales";
 import styles from "./sales-order-form.module.css";
@@ -22,12 +21,13 @@ type LineItem = {
   key: string;
   inventoryId: string;
   quantity: string;
-  unitPrice: string;
 };
 
 const initialState: SalesFormState = {
   message: "",
 };
+
+const paymentMethodOptions = ["Cash", "Installment", "GCash", "Bank Transfer", "Card", "Other"];
 
 function newLineItem(items: SellableItem[]): LineItem {
   const firstItem = items[0];
@@ -36,13 +36,26 @@ function newLineItem(items: SellableItem[]): LineItem {
     key: crypto.randomUUID(),
     inventoryId: firstItem?.id ?? "",
     quantity: "",
-    unitPrice: firstItem ? String(firstItem.sellingPrice) : "0",
   };
 }
 
 function toNumber(value: string) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function nextInstallmentDateLabel(frequency: string) {
+  const date = new Date();
+
+  if (frequency === "Weekly") date.setDate(date.getDate() + 7);
+  if (frequency === "Monthly") date.setMonth(date.getMonth() + 1);
+  if (frequency === "Yearly") date.setFullYear(date.getFullYear() + 1);
+
+  return new Intl.DateTimeFormat("en-PH", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
 }
 
 function ItemPicker({
@@ -196,7 +209,6 @@ export function SalesOrderForm({
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const confirmedRef = useRef(false);
-  const lastMessageRef = useRef("");
   const router = useRouter();
   const [state, formAction, pending] = useActionState(
     recordSalesOrderAction,
@@ -210,8 +222,8 @@ export function SalesOrderForm({
   const [transactionReference, setTransactionReference] = useState("");
   const [installmentFrequency, setInstallmentFrequency] = useState("Monthly");
   const [installmentAmount, setInstallmentAmount] = useState("");
-  const [installmentDueDate, setInstallmentDueDate] = useState("");
-  const [showConfirm, setShowConfirm] = useState(false);
+  const [initialPaymentMethod, setInitialPaymentMethod] = useState("Cash");
+  const { confirm, confirmationDialog } = useConfirmationDialog();
 
   const itemById = useMemo(
     () => new Map(items.map((item) => [item.id, item])),
@@ -219,7 +231,9 @@ export function SalesOrderForm({
   );
 
   const subtotal = lineItems.reduce(
-    (total, item) => total + toNumber(item.quantity) * toNumber(item.unitPrice),
+    (total, item) =>
+      total +
+      toNumber(item.quantity) * (itemById.get(item.inventoryId)?.sellingPrice ?? 0),
     0,
   );
   const normalizedDiscountCode = discountCode.trim().toUpperCase();
@@ -240,21 +254,17 @@ export function SalesOrderForm({
   useEffect(() => {
     confirmedRef.current = false;
 
-    if (!state.message || state.message === lastMessageRef.current) {
-      return;
-    }
-
-    lastMessageRef.current = state.message;
+    if (!state.message) return;
 
     if (state.receiptId && state.receiptNumber) {
-      notify?.("success", `Success - Receipt ${state.receiptNumber} recorded.`);
+      notify?.("success", `Receipt ${state.receiptNumber} recorded.`);
       onRecorded?.();
       router.refresh();
       return;
     }
 
-    notify?.("error", `Error - ${state.message}`);
-  }, [notify, onRecorded, router, state.message, state.receiptId, state.receiptNumber]);
+    notify?.("error", state.message);
+  }, [notify, onRecorded, router, state]);
 
   function updateLineItem(key: string, patch: Partial<LineItem>) {
     setLineItems((current) =>
@@ -264,11 +274,6 @@ export function SalesOrderForm({
         }
 
         const next = { ...item, ...patch };
-
-        if (patch.inventoryId) {
-          const selectedItem = itemById.get(patch.inventoryId);
-          next.unitPrice = String(selectedItem?.sellingPrice ?? 0);
-        }
 
         return next;
       }),
@@ -327,10 +332,6 @@ export function SalesOrderForm({
       return "Installment amount cannot be greater than the remaining balance.";
     }
 
-    if (paymentMethod === "Installment" && !installmentDueDate) {
-      return "Enter the installment due date.";
-    }
-
     if (paymentMethod === "Other" && !otherPaymentMethod.trim()) {
       return "Enter the other payment method used.";
     }
@@ -350,7 +351,7 @@ export function SalesOrderForm({
     return "";
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     if (confirmedRef.current) {
       confirmedRef.current = false;
       return;
@@ -360,11 +361,19 @@ export function SalesOrderForm({
     const error = validateTransaction();
 
     if (error) {
-      notify?.("error", `Error - ${error}`);
+      notify?.("error", error);
       return;
     }
 
-    setShowConfirm(true);
+    const approved = await confirm({
+      title: "Record this sale?",
+      message: "This will create the receipt and deduct the sold quantities from inventory.",
+      summary: <strong>Total amount: {formatCurrency(total)}</strong>,
+      confirmLabel: "Record sale",
+    });
+    if (!approved) return;
+    confirmedRef.current = true;
+    formRef.current?.requestSubmit();
   }
 
   if (items.length === 0) {
@@ -408,6 +417,12 @@ export function SalesOrderForm({
                   }
                 />
 
+                <input
+                  name="unit_price"
+                  type="hidden"
+                  value={selectedItem?.sellingPrice ?? 0}
+                />
+
                 <label>
                   Quantity
                   <input
@@ -422,28 +437,18 @@ export function SalesOrderForm({
                   />
                 </label>
 
-                <label>
-                  Unit price
-                  <input
-                    min="0"
-                    name="unit_price"
-                    step="0.01"
-                    type="number"
-                    value={lineItem.unitPrice}
-                    onChange={(event) =>
-                      updateLineItem(lineItem.key, { unitPrice: event.target.value })
-                    }
-                  />
-                </label>
-
                 <div className={styles.lineMeta}>
                   <span>
-                    Available:{" "}
+                    Available: {" "}
                     {selectedItem
                       ? formatQuantity(selectedItem.quantity, selectedItem.unit)
-                      : "0"}
+                      : "0 kg"} ({formatCurrency(selectedItem?.sellingPrice ?? 0)}/kg)
                   </span>
-                  <strong>{formatCurrency(toNumber(lineItem.quantity) * toNumber(lineItem.unitPrice))}</strong>
+                  <strong>
+                    {formatCurrency(
+                      toNumber(lineItem.quantity) * (selectedItem?.sellingPrice ?? 0),
+                    )}
+                  </strong>
                 </div>
 
                 <button
@@ -466,6 +471,9 @@ export function SalesOrderForm({
             <div>
               <p>Customer and payment</p>
               <h2>Receipt details</h2>
+              <span className={styles.panelHint}>
+                The buyer name and contact entered here create the sales-linked customer record.
+              </span>
             </div>
           </div>
 
@@ -480,7 +488,7 @@ export function SalesOrderForm({
             <ThemedSelect
               label="Payment method"
               name="payment_method"
-              options={["Cash", "GCash", "Bank Transfer", "Card", "Installment", "Other"]}
+              options={paymentMethodOptions}
               required
               value={paymentMethod}
               onChange={(value) => {
@@ -533,7 +541,7 @@ export function SalesOrderForm({
                     onChange={setInstallmentFrequency}
                   />
                   <label>
-                    Amount per payment
+                    Amount per payment (PHP)
                     <input
                       max={remainingBalance > 0 ? remainingBalance : undefined}
                       min="0.01"
@@ -547,13 +555,19 @@ export function SalesOrderForm({
                     />
                   </label>
                 </div>
-                <CalendarField
-                  label="Next payment due"
-                  name="installment_due_date"
+                <ThemedSelect
+                  label="Initial payment method"
+                  name="initial_payment_method"
+                  options={["Cash", "GCash", "Bank Transfer", "Card", "Other"]}
                   required
-                  value={installmentDueDate}
-                  onChange={setInstallmentDueDate}
+                  value={initialPaymentMethod}
+                  onChange={setInitialPaymentMethod}
                 />
+                <div className={styles.installmentDueHint}>
+                  <span>Next payment due</span>
+                  <strong>{nextInstallmentDateLabel(installmentFrequency)}</strong>
+                  <small>Calculated from the transaction date and payment frequency.</small>
+                </div>
               </>
             ) : null}
             <label>
@@ -563,7 +577,7 @@ export function SalesOrderForm({
           </div>
         </div>
 
-        <div className={styles.panel}>
+        <div className={`${styles.panel} ${styles.summaryPanel}`}>
           <div className={styles.panelHeader}>
             <div>
               <p>Payment summary</p>
@@ -590,7 +604,7 @@ export function SalesOrderForm({
               </p>
             ) : null}
             <label>
-              Amount paid
+              {paymentMethod === "Installment" ? "Initial payment (PHP)" : "Amount paid (PHP)"}
               <input
                 min="0"
                 name="amount_paid"
@@ -604,19 +618,19 @@ export function SalesOrderForm({
 
           <div className={styles.totals}>
             <div>
-              <span>Subtotal</span>
+              <span>Subtotal (PHP)</span>
               <strong>{formatCurrency(subtotal)}</strong>
             </div>
             <div>
-              <span>Discount</span>
+              <span>Discount (PHP)</span>
               <strong>{formatCurrency(discountAmount)}</strong>
             </div>
             <div className={styles.grandTotal}>
-              <span>Total</span>
+              <span>Total (PHP)</span>
               <strong>{formatCurrency(total)}</strong>
             </div>
             <div>
-              <span>Change</span>
+              <span>Change (PHP)</span>
               <strong>{formatCurrency(change)}</strong>
             </div>
           </div>
@@ -627,63 +641,15 @@ export function SalesOrderForm({
               <Receipt size={18} />
             </span>
           </button>
+          {state.message && !state.receiptId ? (
+            <p className={styles.message} data-tone="error" role="alert">
+              {state.message}
+            </p>
+          ) : null}
         </div>
       </section>
 
-      {showConfirm ? (
-        <div className={styles.confirmBackdrop} data-ui-backdrop="true" role="presentation">
-          <div className={styles.confirmModal} role="dialog" aria-modal="true">
-            <button
-              aria-label="Close confirmation"
-              className={styles.confirmClose}
-              type="button"
-              onClick={() => setShowConfirm(false)}
-            >
-              <X size={20} />
-            </button>
-            <div className={styles.confirmIcon}>
-              <ReceiptIcon />
-            </div>
-            <h2>Record this sale?</h2>
-            <p>
-              This will create the receipt and deduct the sold quantities from inventory.
-            </p>
-            <div className={styles.confirmTotals}>
-              <span>Total amount</span>
-              <strong>{formatCurrency(total)}</strong>
-            </div>
-            <div className={styles.confirmActions}>
-              <button type="button" onClick={() => setShowConfirm(false)}>
-                <span>Review</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  confirmedRef.current = true;
-                  setShowConfirm(false);
-                  formRef.current?.requestSubmit();
-                }}
-              >
-                <span>Confirm sale</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {confirmationDialog}
     </form>
-  );
-}
-
-function ReceiptIcon() {
-  return (
-    <svg aria-hidden="true" fill="none" height="24" viewBox="0 0 24 24" width="24">
-      <path
-        d="M6 3h12v18l-2.4-1.3L13.2 21 12 19.7 10.8 21l-2.4-1.3L6 21V3Z"
-        stroke="currentColor"
-        strokeLinejoin="round"
-        strokeWidth="2"
-      />
-      <path d="M9 8h6M9 12h6M9 16h4" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
-    </svg>
   );
 }

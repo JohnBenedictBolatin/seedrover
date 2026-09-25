@@ -9,14 +9,6 @@ function text(formData: FormData, key: string, fallback = "") {
   return String(formData.get(key) ?? fallback).trim();
 }
 
-function parseTags(value: string) {
-  return value
-    .split(",")
-    .map((tag) => tag.trim())
-    .filter(Boolean)
-    .slice(0, 8);
-}
-
 function databaseSetupMessage(error: { message?: string }) {
   const message = error.message ?? "";
 
@@ -24,66 +16,7 @@ function databaseSetupMessage(error: { message?: string }) {
     return "Discounts database is not ready yet. Apply the latest Supabase migration, then try releasing the discount again.";
   }
 
-  if (message.includes("customers")) {
-    return "Customers database is not ready yet. Apply the latest Supabase migration, then try saving the profile again.";
-  }
-
   return message;
-}
-
-export async function saveCustomerProfileAction(formData: FormData) {
-  await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
-
-  const supabase = await createSupabaseServerClient();
-
-  if (!supabase) {
-    throw new Error("Supabase is not configured.");
-  }
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    throw new Error("Sign in before saving customer notes.");
-  }
-
-  const firstName = text(formData, "first_name");
-  const lastName = text(formData, "last_name");
-  const middleInitial = text(formData, "middle_initial");
-  const displayName = [firstName, middleInitial ? `${middleInitial}.` : "", lastName].filter(Boolean).join(" ") || "Walk-in customer";
-  const contactNumber = text(formData, "contact_number", "Not provided");
-  const payload = {
-    customer_key: customerKey(displayName, contactNumber),
-    first_name: firstName || null,
-    last_name: lastName || null,
-    middle_initial: middleInitial || null,
-    contact_number: contactNumber,
-    alternate_contact: text(formData, "alternate_contact") || null,
-    customer_type: text(formData, "customer_type", "Farm Buyer"),
-    tags: parseTags(text(formData, "tags")),
-    notes: text(formData, "notes") || null,
-    location: text(formData, "location") || null,
-    created_by: user.id,
-    updated_by: user.id,
-  };
-
-  const { error } = await supabase
-    .from("customers")
-    .upsert(payload, { onConflict: "customer_key" });
-
-  if (error) {
-    throw new Error(databaseSetupMessage(error));
-  }
-
-  await supabase.from("activity_logs").insert({
-    user_id: user.id,
-    activity: "Customer profile saved",
-    description: `${displayName} customer profile was saved.`,
-    module: "Customers",
-  });
-
-  revalidatePath("/customers");
 }
 
 function parseNumber(value: FormDataEntryValue | null) {

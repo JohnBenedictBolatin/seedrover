@@ -6,7 +6,7 @@ import { useEffect } from "react";
 export function RoverLiveRefresh() {
   const router = useRouter();
   useEffect(() => {
-    const timer = window.setInterval(() => router.refresh(), 2_000);
+    const timer = window.setInterval(() => router.refresh(), 5_000);
     return () => window.clearInterval(timer);
   }, [router]);
   return null;

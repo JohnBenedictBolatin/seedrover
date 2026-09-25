@@ -23,8 +23,10 @@ export async function GET(request: Request) {
   });
   const csv = rowsToCsv([
     [
+      "Entry Type",
       "Receipt Number",
-      "Sale Date",
+      "Receipt Link",
+      "Entry Date",
       "Customer Name",
       "Customer Contact",
       "Payment Method",
@@ -37,10 +39,13 @@ export async function GET(request: Request) {
       "Receipt Subtotal",
       "Discount Amount",
       "Receipt Total",
+      "Payment Received",
       "Status",
     ],
     ...rows.map((row) => [
+      row.entryType,
       row.receiptNumber,
+      row.receiptLink,
       row.saleDate,
       row.customerName,
       row.customerContact,
@@ -51,9 +56,10 @@ export async function GET(request: Request) {
       row.unit,
       row.unitPrice,
       row.lineTotal,
-      row.receiptSubtotal,
-      row.discountAmount,
-      row.receiptTotal,
+      row.receiptSubtotal ?? "",
+      row.discountAmount ?? "",
+      row.receiptTotal ?? "",
+      row.collectionAmount ?? "",
       row.status,
     ]),
   ]);

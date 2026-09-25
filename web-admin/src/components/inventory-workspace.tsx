@@ -33,18 +33,13 @@ import {
   adjustStockAction,
   createInventoryItemAction,
   deleteInventoryItemAction,
-  recordInventorySaleAction,
   stockInAction,
   stockOutAction,
   updateInventoryItemAction,
 } from "@/app/(portal)/inventory/actions";
-import {
-  ActionAlertStack,
-  type ActionAlert,
-  type AlertTone,
-} from "@/components/action-alert-stack";
+import type { AlertTone } from "@/components/action-alert-stack";
 import { useConfirmationDialog } from "@/components/confirmation-dialog";
-import { CalendarField } from "@/components/calendar-field";
+import { useActionFeedback } from "@/components/action-feedback";
 import { FileUploadField } from "@/components/file-upload-field";
 import { formatCurrency, formatDateTime, formatQuantity } from "@/lib/format";
 import type { InventoryItem } from "@/lib/inventory";
@@ -74,13 +69,11 @@ const stockInLocations = [
   "Farm-table Prep",
 ];
 const stockOutReasons = [
-  "Market Distribution",
   "Farm-table Dining",
   "Kitchen Preparation",
   "Spoilage Removal",
   "Staff Allocation",
 ];
-const paymentMethods = ["Cash", "GCash", "Bank Transfer", "Card", "Other"];
 
 type DialogState =
   | { type: "add" }
@@ -200,15 +193,8 @@ export function InventoryWorkspace({ items }: { items: InventoryItem[] }) {
   const [status, setStatus] = useState("All");
   const [sort, setSort] = useState("Name");
   const [dialog, setDialog] = useState<DialogState>(null);
-  const [alerts, setAlerts] = useState<ActionAlert[]>([]);
-
-  function notify(tone: AlertTone, text: string) {
-    const id = Date.now();
-    setAlerts((current) => [...current.slice(-2), { id, tone, text }]);
-    window.setTimeout(() => {
-      setAlerts((current) => current.filter((alert) => alert.id !== id));
-    }, 4200);
-  }
+  const { notify: sendFeedback } = useActionFeedback();
+  const notify = (tone: AlertTone, text: string) => sendFeedback({ tone, text });
 
   const filteredItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -331,12 +317,6 @@ export function InventoryWorkspace({ items }: { items: InventoryItem[] }) {
         items={items}
         notify={notify}
         onClose={() => setDialog(null)}
-      />
-      <ActionAlertStack
-        alerts={alerts}
-        onDismiss={(id) =>
-          setAlerts((current) => current.filter((alert) => alert.id !== id))
-        }
       />
     </>
   );
@@ -633,6 +613,30 @@ function InventoryDialog({
   onClose: () => void;
 }) {
   const [historyPage, setHistoryPage] = useState(1);
+  const historyPageSize = 5;
+  const historyRecords = useMemo(
+    () =>
+      items
+        .flatMap((item) =>
+          item.transactions.map((transaction) => ({ item, transaction })),
+        )
+        .sort(
+          (a, b) =>
+            new Date(b.transaction.createdAt).getTime() -
+            new Date(a.transaction.createdAt).getTime(),
+        ),
+    [items],
+  );
+  const historyPageCount = Math.max(
+    1,
+    Math.ceil(historyRecords.length / historyPageSize),
+  );
+  const currentHistoryPage = Math.min(historyPage, historyPageCount);
+  const visibleHistoryRecords = historyRecords.slice(
+    (currentHistoryPage - 1) * historyPageSize,
+    currentHistoryPage * historyPageSize,
+  );
+
   if (!dialog) {
     return null;
   }
@@ -650,7 +654,7 @@ function InventoryDialog({
 
   return (
     <div className={styles.modalBackdrop} data-ui-backdrop="true" role="presentation">
-      <section className={`${styles.modal} ${dialog.type === "history" ? styles.transactionHistoryModal : ""}`} role="dialog" aria-modal="true" aria-label={title}>
+      <section className={`${styles.modal} ${dialog.type === "history" ? `${styles.transactionHistoryModal} ${styles.inventoryHistoryModal}` : ""}`} role="dialog" aria-modal="true" aria-label={title}>
         <header className={styles.modalHeader}>
           <h3 className={styles.modalTitle}>
             <span className={styles.modalTitleIcon} aria-hidden="true">
@@ -672,7 +676,7 @@ function InventoryDialog({
             action={createInventoryItemAction}
             notify={notify}
             onSuccess={onClose}
-            successMessage="Success - Inventory item added."
+            successMessage="Inventory item added."
           />
         ) : null}
         {dialog.type === "details" ? <DetailsPanel item={dialog.item} /> : null}
@@ -682,7 +686,7 @@ function InventoryDialog({
             item={dialog.item}
             notify={notify}
             onSuccess={onClose}
-            successMessage="Success - Inventory item updated."
+            successMessage="Inventory item updated."
           />
         ) : null}
         {dialog.type === "stock-in" ? (
@@ -707,16 +711,24 @@ function InventoryDialog({
         {dialog.type === "history" ? (
           <div className={styles.inventoryHistoryLedger}>
             <div className={styles.historyPanel}>
-              <div className={styles.historyHeader}><div><h4 className={styles.historyHeading}>Stock movements</h4><p>Stock in, stock out, and adjustments</p></div><strong>{items.reduce((total, item) => total + item.transactions.length, 0)} records</strong></div>
-              {items.flatMap((item) => item.transactions.map((transaction) => ({ item, transaction }))).sort((a, b) => new Date(b.transaction.createdAt).getTime() - new Date(a.transaction.createdAt).getTime()).slice((historyPage - 1) * 8, historyPage * 8).map(({ item, transaction }) => (
+              <div className={styles.historyHeader}><div><h4 className={styles.historyHeading}>Stock movements</h4><p>Stock in, stock out, and adjustments</p></div><strong>{historyRecords.length} records</strong></div>
+              <div className={styles.historyTableHeader} aria-hidden="true">
+                <span>Type</span>
+                <span>Item and quantity</span>
+                <span>Date</span>
+                <span>Notes</span>
+              </div>
+              <div className={styles.inventoryHistoryRecords}>
+              {visibleHistoryRecords.map(({ item, transaction }) => (
                 <div className={styles.historyItem} key={transaction.id}>
                   <div><strong>{transaction.type === "IN" ? "Stock In" : transaction.type === "OUT" ? "Stock Out" : "Adjustment"}</strong><span>{item.itemName} · {transaction.quantity} {item.unit}</span></div>
-                  <div><small>{transaction.source || "Manual"}</small><small>{formatDateTime(transaction.createdAt)}</small></div>
-                  {transaction.remarks ? <p>{transaction.remarks}</p> : null}
+                  <div><small>{formatDateTime(transaction.createdAt)}</small></div>
+                  <p>{transaction.remarks || "—"}</p>
                 </div>
               ))}
-              {items.every((item) => item.transactions.length === 0) ? <p>No inventory movements recorded yet.</p> : null}
-              {items.some((item) => item.transactions.length > 0) ? <div className={styles.historyPagination}><button disabled={historyPage === 1} type="button" onClick={() => setHistoryPage((value) => Math.max(1, value - 1))}><ChevronLeft size={16} /></button><span>Page {historyPage} of {Math.max(1, Math.ceil(items.reduce((total, item) => total + item.transactions.length, 0) / 8))}</span><button disabled={historyPage >= Math.ceil(items.reduce((total, item) => total + item.transactions.length, 0) / 8)} type="button" onClick={() => setHistoryPage((value) => value + 1)}><ChevronRight size={16} /></button></div> : null}
+              {items.every((item) => item.transactions.length === 0) ? <p className={styles.historyEmpty}>No inventory movements recorded yet.</p> : null}
+              </div>
+              {historyRecords.length > 0 ? <div className={styles.historyPagination}><button aria-label="Previous history page" disabled={currentHistoryPage === 1} type="button" onClick={() => setHistoryPage((value) => Math.max(1, value - 1))}><ChevronLeft size={16} /></button><span>Page {currentHistoryPage} of {historyPageCount}</span><button aria-label="Next history page" disabled={currentHistoryPage >= historyPageCount} type="button" onClick={() => setHistoryPage((value) => Math.min(historyPageCount, value + 1))}><ChevronRight size={16} /></button></div> : null}
             </div>
           </div>
         ) : null}
@@ -728,12 +740,16 @@ function InventoryDialog({
 function useActionSubmit({
   action,
   confirmMessage,
+  confirmTitle,
+  confirmLabel,
   notify,
   onSuccess,
   successMessage,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   confirmMessage?: string;
+  confirmTitle?: string;
+  confirmLabel?: string;
   notify: (tone: AlertTone, text: string) => void;
   onSuccess: () => void;
   successMessage: string;
@@ -748,8 +764,9 @@ function useActionSubmit({
 
     if (confirmMessage) {
       const confirmed = await confirm({
+        title: confirmTitle,
         message: confirmMessage,
-        confirmLabel: "Confirm",
+        confirmLabel: confirmLabel ?? "Confirm",
         tone: "danger",
       });
 
@@ -769,7 +786,7 @@ function useActionSubmit({
       } catch (error) {
         notify(
           "error",
-          `Error - ${error instanceof Error ? error.message : "Something went wrong."}`,
+          error instanceof Error ? error.message : "Something went wrong.",
         );
       }
     });
@@ -800,22 +817,28 @@ function InventoryForm({
     event.preventDefault();
     const form = event.currentTarget;
 
-    const confirmed = await confirm({
-      message: item
-        ? "Are you sure you want to save these inventory item changes?"
-        : "Are you sure you want to create this inventory item?",
-      confirmLabel: item ? "Save Item" : "Create Item",
-    });
-
-    if (!confirmed) {
-      return;
+    const formData = new FormData(form);
+    const nextQuantity = Number(formData.get("quantity") ?? item?.quantity);
+    const consequential = !item || nextQuantity !== item.quantity ||
+      String(formData.get("unit") ?? item.unit) !== item.unit ||
+      Number(formData.get("unit_cost") ?? item.unitCost) !== item.unitCost ||
+      Number(formData.get("selling_price") ?? item.sellingPrice) !== item.sellingPrice;
+    if (consequential) {
+      const confirmed = await confirm({
+        title: item ? "Update inventory item?" : "Create inventory item?",
+        message: item
+          ? `This will update ${item.itemName}${nextQuantity !== item.quantity ? ` and change its quantity to ${nextQuantity} ${String(formData.get("unit") ?? item.unit)}` : ""}.`
+          : `This will create ${String(formData.get("item_name") ?? "this item")} with an opening stock of ${nextQuantity} ${String(formData.get("unit") ?? "kg")}.`,
+        confirmLabel: item ? "Save item" : "Create item",
+      });
+      if (!confirmed) return;
     }
 
-    const formData = new FormData(form);
-
     startTransition(async () => {
+      let itemDetailsSaved = false;
       try {
         await action(formData);
+        itemDetailsSaved = true;
 
         if (item) {
           const nextQuantity = Number(formData.get("quantity") ?? item.quantity);
@@ -835,7 +858,9 @@ function InventoryForm({
       } catch (error) {
         notify(
           "error",
-          `Error - ${error instanceof Error ? error.message : "Something went wrong."}`,
+          itemDetailsSaved
+            ? `Inventory item details were saved, but the stock adjustment could not be recorded: ${error instanceof Error ? error.message : "Please review the item and retry the quantity adjustment."}`
+            : error instanceof Error ? error.message : "Something went wrong.",
         );
       }
     });
@@ -848,8 +873,8 @@ function InventoryForm({
 
     const confirmed = await confirm({
       title: "Delete item?",
-      message: `Are you sure you want to permanently delete ${item.itemName}?`,
-      confirmLabel: "Delete Item",
+      message: `Permanently delete ${item.itemName}? This cannot be undone.`,
+      confirmLabel: "Delete item",
       tone: "danger",
     });
 
@@ -865,11 +890,11 @@ function InventoryForm({
         await deleteInventoryItemAction(formData);
         onSuccess();
         router.refresh();
-        notify("success", "Success - Inventory item deleted.");
+        notify("success", "Inventory item deleted.");
       } catch (error) {
         notify(
           "error",
-          `Error - ${error instanceof Error ? error.message : "Something went wrong."}`,
+          error instanceof Error ? error.message : "Something went wrong.",
         );
       }
     });
@@ -879,7 +904,7 @@ function InventoryForm({
     <>
     <form className={styles.formGrid} onSubmit={handleSubmit}>
       {item ? <input name="id" type="hidden" value={item.id} /> : null}
-      <Field label="Item name" name="item_name" placeholder="e.g. Tomato seeds" required defaultValue={item?.itemName} />
+      <Field label="Item name" name="item_name" placeholder="e.g. Tomato seeds" required={!item} defaultValue={item?.itemName} />
       <ThemedSelect
         label="Category"
         name="category"
@@ -893,7 +918,8 @@ function InventoryForm({
           type="number"
           step="0.01"
           min="0"
-          defaultValue={item?.quantity ?? 0}
+          required={!item}
+          defaultValue={item?.quantity ?? ""}
         />
         <ThemedSelect
           label="Unit"
@@ -902,18 +928,19 @@ function InventoryForm({
           defaultValue={item?.unit ?? "kg"}
         />
       </div>
-      <Field label="Minimum stock level" name="minimum_quantity" placeholder="e.g. 25" type="number" step="0.01" min="0" defaultValue={item?.minimumQuantity ?? 0} />
+      <Field label="Minimum stock level" name="minimum_quantity" placeholder="e.g. 25" type="number" step="0.01" min="0" required={!item} defaultValue={item?.minimumQuantity ?? ""} />
       <div className={styles.twoColumn}>
-        <Field label="Unit cost" name="unit_cost" placeholder="e.g. 120.00" type="number" step="0.01" min="0" defaultValue={item?.unitCost ?? ""} />
-        <Field label="Selling price" name="selling_price" placeholder="e.g. 180.00" type="number" step="0.01" min="0" defaultValue={item?.sellingPrice ?? ""} />
+        <Field label="Unit cost (PHP)" name="unit_cost" placeholder="e.g. 120.00" type="number" step="0.01" min="0" required={!item} defaultValue={item?.unitCost ?? ""} />
+        <Field label="Selling price (PHP)" name="selling_price" placeholder="e.g. 180.00" type="number" step="0.01" min="0" required={!item} defaultValue={item?.sellingPrice ?? ""} />
       </div>
-      <Field label="Storage location" name="storage_location" placeholder="e.g. Greenhouse storage" defaultValue={item?.storageLocation ?? "Harvest Bay"} />
+      <Field label="Storage location" name="storage_location" placeholder="e.g. Greenhouse storage" required={!item} defaultValue={item?.storageLocation ?? ""} />
       <FileUploadField
         accept="image/jpeg,image/png,image/webp"
         helperText="JPG, PNG or WEBP"
         label="Stock image"
         name="image"
         prompt={item?.imagePath ? "Choose replacement image" : "Choose stock image"}
+        required={!item}
       />
       <button className={styles.primaryAction} disabled={pending} type="submit">
         <PackagePlus size={17} />
@@ -946,16 +973,12 @@ function MovementForm({
   mode: "in" | "out";
   notify: (tone: AlertTone, text: string) => void;
   onSuccess: () => void;
-  }) {
-    const options = mode === "in" ? stockInLocations : stockOutReasons;
-    const [reason, setReason] = useState(mode === "in" ? stockInLocations[0] : stockOutReasons[0]);
-    const [pending, startTransition] = useTransition();
-    const [paymentMethod, setPaymentMethod] = useState(paymentMethods[0]);
-    const [otherPaymentMethod, setOtherPaymentMethod] = useState("");
-    const localDate = new Date();
-    localDate.setMinutes(localDate.getMinutes() - localDate.getTimezoneOffset());
-    const [saleDate, setSaleDate] = useState(localDate.toISOString().slice(0, 16));
-    const isSale = mode === "out" && reason === "Market Distribution";
+}) {
+  const options = mode === "in" ? stockInLocations : stockOutReasons;
+  const [reason, setReason] = useState(
+    mode === "in" ? stockInLocations[0] : stockOutReasons[0],
+  );
+  const [pending, startTransition] = useTransition();
 
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const router = useRouter();
@@ -964,32 +987,28 @@ function MovementForm({
     event.preventDefault();
     const form = event.currentTarget;
 
+    const formData = new FormData(form);
+    const quantity = String(formData.get("quantity") ?? "");
     const confirmed = await confirm({
-      message: isSale
-        ? `Are you sure you want to record this market distribution sale for ${item.itemName}?`
-        : mode === "in"
-          ? `Are you sure you want to record stock in for ${item.itemName}?`
-          : `Are you sure you want to record stock out for ${item.itemName}?`,
-      confirmLabel: isSale ? "Record Sale" : "Confirm",
+      title: mode === "in" ? "Record stock in?" : "Record stock out?",
+      message: mode === "in"
+        ? `Add ${quantity} ${item.unit} to ${item.itemName}?`
+        : `Deduct ${quantity} ${item.unit} from ${item.itemName} for ${reason}?`,
+      confirmLabel: mode === "in" ? "Add stock" : "Deduct stock",
     });
 
     if (!confirmed) {
       return;
     }
 
-    const formData = new FormData(form);
-
     startTransition(async () => {
       try {
-        if (isSale) {
-          await recordInventorySaleAction(formData);
-          notify("success", "Success - Sale recorded and inventory deducted.");
-        } else if (mode === "in") {
+        if (mode === "in") {
           await stockInAction(formData);
-          notify("success", "Success - Stock quantity added.");
+          notify("success", "Stock quantity added.");
         } else {
           await stockOutAction(formData);
-          notify("success", "Success - Stock quantity deducted.");
+          notify("success", "Stock quantity deducted.");
         }
 
         onSuccess();
@@ -997,7 +1016,7 @@ function MovementForm({
       } catch (error) {
         notify(
           "error",
-          `Error - ${error instanceof Error ? error.message : "Something went wrong."}`,
+          error instanceof Error ? error.message : "Something went wrong.",
         );
       }
     });
@@ -1005,100 +1024,40 @@ function MovementForm({
 
   return (
     <>
-    <form className={styles.formGrid} onSubmit={handleSubmit}>
-      <input name="id" type="hidden" value={item.id} />
-      <ReadOnly label="Item" value={item.itemName} />
-      <ReadOnly label="Available" value={formatQuantity(item.quantity, item.unit)} />
-      <Field
-        label={isSale ? `Quantity sold (${item.unit})` : `Quantity (${item.unit})`}
-        name="quantity"
-        required
-        type="number"
-        step={wholeNumberUnits.has(item.unit) ? "1" : "0.01"}
-        min="0.01"
-      />
-      <ThemedSelect
-        label={mode === "in" ? "Stock in location" : "Reason"}
-        name="reason"
-        options={options}
-        value={reason}
-        onChange={setReason}
-      />
-      {isSale ? (
-        <>
-          <div className={styles.twoColumn}>
-            <Field
-              label="Unit price"
-              name="unit_price"
-              required
-              type="number"
-              step="0.01"
-              min="0"
-              defaultValue={item.sellingPrice ?? 0}
-            />
-            <CalendarField
-              includeTime
-              label="Sale date"
-              name="sale_date"
-              required
-              value={saleDate}
-              onChange={setSaleDate}
-            />
-          </div>
-          <ThemedSelect
-            label="Payment method"
-            name="payment_method"
-            options={paymentMethods}
-            value={paymentMethod}
-            onChange={(value) => {
-              setPaymentMethod(value);
-              if (value !== "Other") {
-                setOtherPaymentMethod("");
-              }
-            }}
-          />
-          {paymentMethod === "Other" ? (
-            <Field
-              label="Other payment method"
-              name="other_payment_method"
-              required
-              placeholder="e.g. Maya, cheque, farm credit"
-              value={otherPaymentMethod}
-              onChange={(event) => setOtherPaymentMethod(event.target.value)}
-            />
-          ) : null}
-          {paymentMethod !== "Cash" ? (
-            <Field
-              label={`${paymentMethod} transaction ID`}
-              name="transaction_reference"
-              required
-              placeholder="e.g. TXN-2026-0012"
-            />
-          ) : null}
-          <Field label="Customer first name" name="customer_first_name" />
-          <Field label="Customer middle initial" name="customer_middle_initial" />
-          <Field label="Customer last name" name="customer_last_name" />
-          <Field label="Sale remarks" name="remarks" defaultValue="Market distribution." />
-        </>
-      ) : (
+      <form className={styles.formGrid} onSubmit={handleSubmit}>
+        <input name="id" type="hidden" value={item.id} />
+        <ReadOnly label="Item" value={item.itemName} />
+        <ReadOnly label="Available" value={formatQuantity(item.quantity, item.unit)} />
+        <Field
+          label={`Quantity (${item.unit})`}
+          name="quantity"
+          required
+          type="number"
+          step={wholeNumberUnits.has(item.unit) ? "1" : "0.01"}
+          min="0.01"
+        />
+        <ThemedSelect
+          label={mode === "in" ? "Stock in location" : "Reason"}
+          name="reason"
+          options={options}
+          value={reason}
+          onChange={setReason}
+        />
         <Field
           label="Remarks"
           name="remarks"
           defaultValue={mode === "in" ? "Harvest received." : "Stock deducted."}
         />
-      )}
-      <button className={styles.primaryAction} disabled={pending} type="submit">
-        {mode === "in" ? (
-          <ArrowUpCircle size={17} />
-        ) : isSale ? (
-          <WalletCards size={17} />
-        ) : (
-          <ArrowDownCircle size={17} />
-        )}
-        <span>{pending ? "Saving..." : isSale ? "Record Sale" : "Confirm"}</span>
-      </button>
-    </form>
-    {confirmationDialog}
+        <button className={styles.primaryAction} disabled={pending} type="submit">
+          {mode === "in" ? (
+            <ArrowUpCircle size={17} />
+          ) : (
+            <ArrowDownCircle size={17} />
+          )}
+          <span>{pending ? "Saving..." : "Confirm"}</span>
+        </button>
+      </form>
+      {confirmationDialog}
     </>
   );
 }
@@ -1114,10 +1073,12 @@ function DeleteForm({
 }) {
   const { confirmationDialog, handleSubmit, pending } = useActionSubmit({
     action: deleteInventoryItemAction,
-    confirmMessage: `Are you sure you want to permanently delete ${item.itemName}?`,
+    confirmTitle: "Delete inventory item?",
+    confirmMessage: `Permanently delete ${item.itemName}? This cannot be undone.`,
+    confirmLabel: "Delete item",
     notify,
     onSuccess,
-    successMessage: "Success - Inventory item deleted.",
+    successMessage: "Inventory item deleted.",
   });
 
   return (
@@ -1164,10 +1125,10 @@ function DetailsPanel({ item }: { item: InventoryItem }) {
             <ReadOnly label="Minimum" value={formatQuantity(item.minimumQuantity, item.unit)} />
             <ReadOnly label="Location" value={item.storageLocation} />
             <ReadOnly label="Updated" value={formatDateTime(item.updatedAt)} />
-            <ReadOnly label="Unit cost" value={item.unitCost === null ? "Not set" : formatCurrency(item.unitCost)} />
-            <ReadOnly label="Sell price" value={item.sellingPrice === null ? "Not set" : formatCurrency(item.sellingPrice)} />
-            <ReadOnly label="Stock value" value={formatCurrency(item.quantity * (item.unitCost ?? 0))} />
-            <ReadOnly label="Est. sales" value={formatCurrency(item.quantity * (item.sellingPrice ?? 0))} />
+            <ReadOnly label="Unit cost (PHP)" value={item.unitCost === null ? "Not set" : formatCurrency(item.unitCost)} />
+            <ReadOnly label="Sell price (PHP)" value={item.sellingPrice === null ? "Not set" : formatCurrency(item.sellingPrice)} />
+            <ReadOnly label="Stock value (PHP)" value={formatCurrency(item.quantity * (item.unitCost ?? 0))} />
+            <ReadOnly label="Est. sales (PHP)" value={formatCurrency(item.quantity * (item.sellingPrice ?? 0))} />
           </div>
         </div>
       </div>

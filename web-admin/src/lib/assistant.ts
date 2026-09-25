@@ -49,9 +49,6 @@ export async function buildWebAssistantContext(profile: AdminProfile): Promise<A
   const recommendationHints: string[] = [];
   const latestSale = sales?.orders[0]
     ? {
-        receipt: sales.orders[0].receiptNumber,
-        customer: sales.orders[0].customerName,
-        paymentMethod: sales.orders[0].paymentMethod,
         totalAmount: sales.orders[0].totalAmount,
         date: sales.orders[0].saleDate,
         status: sales.orders[0].status,
@@ -101,44 +98,42 @@ export async function buildWebAssistantContext(profile: AdminProfile): Promise<A
         }
       : {},
     crops: (crops?.crops ?? []).slice(0, 12).map((crop) => ({
-      id: crop.id,
       name: crop.cropName,
-      manager: crop.managerName,
       status: crop.cropStatus,
       growthStage: crop.growthStage,
       plantingDate: crop.plantingDate,
       estimatedHarvest: crop.estimatedHarvest,
       nextCare: crop.careStatus,
-      notes: crop.maintenanceNotes,
     })),
     stocks: (inventory?.items ?? []).slice(0, 12).map((item) => ({
-      id: item.id,
       name: item.itemName,
       category: item.category,
       quantity: item.quantity,
       unit: item.unit,
       minimumQuantity: item.minimumQuantity,
-      storageLocation: item.storageLocation,
-      unitCost: item.unitCost,
-      sellingPrice: item.sellingPrice,
-      currentStockValue: item.quantity * (item.unitCost ?? 0),
-      estimatedSalesValue: item.quantity * (item.sellingPrice ?? 0),
-      recentTransactions: item.transactions.slice(0, 3),
-      recentSales: item.sales.slice(0, 3),
+      recentTransactions: item.transactions.slice(0, 3).map((transaction) => ({
+        type: transaction.type,
+        quantity: transaction.quantity,
+        createdAt: transaction.createdAt,
+      })),
+      recentSales: item.sales.slice(0, 3).map((sale) => ({
+        quantitySold: sale.quantitySold,
+        totalAmount: sale.totalAmount,
+        saleDate: sale.saleDate,
+        status: sale.status,
+      })),
     })),
     recentActivities: (activity?.logs ?? []).slice(0, 8).map((log) => ({
       title: log.activity,
-      description: log.description,
       module: log.module,
-      user: log.userName,
       timestamp: log.createdAt,
     })),
     farmAnalytics: {
-      currentSalesStatus: {
+      salesOverview: {
         summary:
           !sales || sales.summary.completedSalesCount === 0
-            ? "No completed sales transactions are available in the current web data."
-            : `Current web data has ${sales.summary.completedSalesCount} completed sale(s), totaling PHP ${sales.summary.salesThisMonth.toFixed(
+            ? "No completed sales transactions are available."
+            : `There are ${sales.summary.completedSalesCount} completed sale(s), totaling PHP ${sales.summary.salesThisMonth.toFixed(
                 2,
               )} this month.`,
         salesToday: sales?.summary.salesToday ?? 0,
@@ -148,7 +143,13 @@ export async function buildWebAssistantContext(profile: AdminProfile): Promise<A
         totalDiscountGiven: sales?.summary.totalDiscountGiven ?? 0,
         bestSellingItem: sales?.summary.bestSellingItem ?? "Not available",
         latestSale,
-        recentSales: sales?.orders.slice(0, 5) ?? [],
+        recentSales:
+          sales?.orders.slice(0, 5).map((order) => ({
+            totalAmount: order.totalAmount,
+            date: order.saleDate,
+            status: order.status,
+            source: order.source,
+          })) ?? [],
       },
       salesByDay: sales?.analytics.dailySales ?? [],
       salesByCategory: sales?.analytics.salesByCategory ?? [],
@@ -224,7 +225,7 @@ export async function askRovie({
 function fallbackRovieAnswer(question: string, context: AssistantContext) {
   const normalized = question.toLowerCase();
   const analytics = context.farmAnalytics;
-  const sales = analytics.currentSalesStatus as Record<string, unknown> | undefined;
+  const sales = analytics.salesOverview as Record<string, unknown> | undefined;
   const inventory = analytics.inventorySummary as
     | { totalItems?: number; lowStockItems?: number; inventoryValue?: number }
     | null
@@ -236,7 +237,7 @@ function fallbackRovieAnswer(question: string, context: AssistantContext) {
   const rover = context.rover;
 
   if (normalized.includes("sales") || normalized.includes("sell")) {
-    return `Based on the current web data, sales today are PHP ${Number(
+    return `Sales today are PHP ${Number(
       sales?.salesToday ?? 0,
     ).toFixed(2)} and sales this month are PHP ${Number(
       sales?.salesThisMonth ?? 0,
@@ -246,7 +247,7 @@ function fallbackRovieAnswer(question: string, context: AssistantContext) {
   }
 
   if (normalized.includes("stock") || normalized.includes("inventory")) {
-    return `Based on the current web data, there are ${
+    return `There are ${
       inventory?.totalItems ?? 0
     } inventory item(s), with ${
       inventory?.lowStockItems ?? 0
@@ -256,20 +257,20 @@ function fallbackRovieAnswer(question: string, context: AssistantContext) {
   }
 
   if (normalized.includes("crop") || normalized.includes("plant")) {
-    return `Based on the current web data, there are ${
+    return `There are ${
       cropSummary?.activeCrops ?? 0
     } active crop record(s), ${cropSummary?.needsAttention ?? 0} needing attention, and ${
       cropSummary?.upcomingHarvests ?? 0
     } approaching harvest.`;
   }
 
-  if (normalized.includes("rover") || normalized.includes("battery")) {
-    return `Based on the current web data, rover status is ${String(
+  if (normalized.includes("rover")) {
+    return `Rover status is ${String(
       rover.status ?? "not available",
-    )}. Battery percentage is not measured by the production rover. Current activity: ${String(
+    )}. Current activity: ${String(
       rover.currentActivity ?? "not available",
     )}.`;
   }
 
-  return "Hi, I'm Rovie. Based on the current web data, I can help with SeedRover sales, inventory, crops, rover status, and farm operations. Ask me what you want to check.";
+  return "Hi, I'm Rovie. I can help with SeedRover sales, inventory, crops, rover status, and farm operations. Ask me what you want to check.";
 }

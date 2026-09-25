@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ActionFeedbackProvider } from "@/components/action-feedback";
 
 export const metadata: Metadata = {
   title: "SeedRover Admin",
@@ -27,7 +28,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body>{children}</body>
+      <body><ActionFeedbackProvider>{children}</ActionFeedbackProvider></body>
     </html>
   );
 }

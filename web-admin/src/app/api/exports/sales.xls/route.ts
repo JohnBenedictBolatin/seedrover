@@ -26,9 +26,11 @@ export async function GET(request: Request) {
     status: searchParams.get("status") ?? undefined,
   });
   const html = rowsToExcelHtml("SeedRover Sales", [
-    ["Receipt", "Date", "Customer", "Payment", "Transaction ID", "Item", "Quantity", "Unit Price", "Line Total"],
+    ["Entry Type", "Receipt", "Receipt Link", "Date", "Customer", "Payment", "Transaction ID", "Item", "Quantity", "Unit Price", "Sale Line Total", "Sale Total", "Payment Received", "Status"],
     ...rows.map((row) => [
+      row.entryType,
       row.receiptNumber,
+      row.receiptLink,
       row.saleDate,
       row.customerName,
       row.paymentMethod,
@@ -37,6 +39,9 @@ export async function GET(request: Request) {
       row.quantitySold,
       row.unitPrice,
       row.lineTotal,
+      row.receiptTotal ?? "",
+      row.collectionAmount ?? "",
+      row.status,
     ]),
   ]);
 

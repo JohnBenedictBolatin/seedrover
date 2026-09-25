@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useActionState, useEffect, useState, type FormEvent } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState, type FormEvent } from "react";
 import { Eye, EyeOff, Lock, LogIn, UserRound } from "lucide-react";
 import {
   forgotPasswordAction,
@@ -9,6 +9,8 @@ import {
 } from "@/app/login/actions";
 import styles from "./login-form.module.css";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { useActionFeedback } from "@/components/action-feedback";
+import { useConfirmationDialog } from "@/components/confirmation-dialog";
 
 const initialState: LoginState = {
   message: "",
@@ -25,6 +27,13 @@ export function LoginForm() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [recoveryMessage, setRecoveryMessage] = useState("");
+  const signInAttempt = useRef(0);
+  const { notify } = useActionFeedback();
+  const { confirm, confirmationDialog } = useConfirmationDialog();
+
+  useEffect(() => {
+    if (state.message) notify({ tone: "error", text: state.message, operationId: `sign-in-${signInAttempt.current}` });
+  }, [notify, state]);
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -39,10 +48,12 @@ export function LoginForm() {
     event.preventDefault();
     if (newPassword.length < 8) return setRecoveryMessage("Password must be at least 8 characters.");
     if (newPassword !== confirmPassword) return setRecoveryMessage("Passwords do not match.");
+    if (!await confirm({ title: "Update password?", message: "This will replace the current password for your account.", confirmLabel: "Update password" })) return;
     const supabase = createSupabaseBrowserClient();
-    if (!supabase) return setRecoveryMessage("Password recovery is not configured.");
+    if (!supabase) { setRecoveryMessage("Password recovery is not configured."); notify({ tone: "error", text: "Password recovery is not configured." }); return; }
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     setRecoveryMessage(error?.message ?? "Password updated. You can now sign in.");
+    notify({ tone: error ? "error" : "success", text: error?.message ?? "Password updated. You can now sign in." });
     if (!error) setRecoveryMode(false);
   }
 
@@ -51,6 +62,7 @@ export function LoginForm() {
       <label><span>New password</span><input minLength={8} required type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label>
       <label><span>Confirm new password</span><input minLength={8} required type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} /></label>
       {recoveryMessage ? <p className={styles.resetMessage} role="status">{recoveryMessage}</p> : null}
+      {confirmationDialog}
       <button className={styles.submitButton} type="submit">Update password</button>
     </form>;
   }
@@ -60,12 +72,14 @@ export function LoginForm() {
     startTransition(async () => {
       const message = await forgotPasswordAction(username);
       setResetMessage(message);
+      const failed = message.startsWith("Enter ") || message.startsWith("Too many ") || message.startsWith("Unable to ");
+      notify({ tone: failed ? "error" : "info", text: message });
       setResetPending(false);
     });
   }
 
   return (
-    <form className={styles.form} action={formAction}>
+    <form className={styles.form} action={formAction} onSubmit={() => { signInAttempt.current += 1; }}>
       <label>
         <span>Username</span>
         <div className={styles.inputWrap}>
@@ -132,6 +146,7 @@ export function LoginForm() {
           {state.message}
         </p>
       ) : null}
+      {confirmationDialog}
       <button className={styles.submitButton} type="submit" disabled={pending}>
         <LogIn aria-hidden="true" size={18} />
         <span>{pending ? "Signing in..." : "Log in"}</span>

@@ -1,7 +1,14 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { Loader2, Send, X } from "lucide-react";
+import {
+  ClipboardCheck,
+  CircleHelp,
+  Loader2,
+  Send,
+  Sprout,
+  X,
+} from "lucide-react";
 import styles from "./rovie-assistant.module.css";
 
 type RovieMessage = {
@@ -9,19 +16,92 @@ type RovieMessage = {
   content: string;
 };
 
+function renderAssistantContent(content: string) {
+  return content.split(/(\*\*[\s\S]*?\*\*)/g).map((part, index) => {
+    const isBold = part.startsWith("**") && part.endsWith("**");
+
+    return isBold ? (
+      <strong key={`${part}-${index}`}>{part.slice(2, -2)}</strong>
+    ) : (
+      <span key={`${part}-${index}`}>{part}</span>
+    );
+  });
+}
+
 const welcomeMessage: RovieMessage = {
   role: "assistant",
   content:
     "Hi, I'm Rovie. I can help with SeedRover sales, inventory, crops, rover status, and farm operations from the web console.",
 };
 
-export function RovieAssistant() {
+const suggestions = [
+  { label: "How do I start planting?", icon: Sprout },
+  { label: "What should I check before planting?", icon: ClipboardCheck },
+  { label: "Why is rover control locked?", icon: CircleHelp },
+];
+
+const maxStoredMessages = 20;
+
+function isStoredMessage(value: unknown): value is RovieMessage {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const message = value as Record<string, unknown>;
+
+  return (
+    (message.role === "user" || message.role === "assistant") &&
+    typeof message.content === "string" &&
+    message.content.trim().length > 0 &&
+    message.content.length <= 4000
+  );
+}
+
+function readStoredMessages(storageKey: string) {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const saved = window.localStorage.getItem(storageKey);
+    const parsed = saved ? JSON.parse(saved) : [];
+
+    return Array.isArray(parsed)
+      ? parsed.filter(isStoredMessage).slice(-maxStoredMessages)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+export function RovieAssistant({ profileId }: { profileId: string }) {
   const [open, setOpen] = useState(false);
+  const storageKey = `seedrover-rovie-history:${profileId}`;
   const [messages, setMessages] = useState<RovieMessage[]>([welcomeMessage]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const historyLoadedRef = useRef(false);
+
+  useEffect(() => {
+    if (!historyLoadedRef.current) {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(
+        storageKey,
+        JSON.stringify(
+          messages
+            .filter((message) => message !== welcomeMessage)
+            .slice(-maxStoredMessages),
+        ),
+      );
+    } catch {
+      // The assistant still works when browser storage is unavailable.
+    }
+  }, [messages, storageKey]);
 
   useEffect(() => {
     if (!open) {
@@ -34,10 +114,8 @@ export function RovieAssistant() {
     });
   }, [messages, open]);
 
-  async function sendMessage(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const question = input.trim();
+  async function sendQuestion(rawQuestion: string) {
+    const question = rawQuestion.trim();
 
     if (!question || sending) {
       return;
@@ -55,7 +133,7 @@ export function RovieAssistant() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           question,
-          history: nextMessages,
+          history: nextMessages.slice(-10),
         }),
       });
       const data = await response.json().catch(() => null);
@@ -90,6 +168,20 @@ export function RovieAssistant() {
     }
   }
 
+  async function sendMessage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await sendQuestion(input);
+  }
+
+  function openAssistant() {
+    if (!historyLoadedRef.current) {
+      setMessages([welcomeMessage, ...readStoredMessages(storageKey)]);
+      historyLoadedRef.current = true;
+    }
+
+    setOpen(true);
+  }
+
   return (
     <>
       <button
@@ -98,7 +190,7 @@ export function RovieAssistant() {
         className={styles.floatingButton}
         title="Ask Rovie"
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={openAssistant}
       >
         <img alt="" src="/mascots/assistant.png" />
         <span>Ask Rovie</span>
@@ -128,7 +220,7 @@ export function RovieAssistant() {
                   {message.role === "assistant" ? (
                     <img alt="" className={styles.messageMascot} src="/mascots/assistant.png" />
                   ) : null}
-                  <p>{message.content}</p>
+                  <p>{renderAssistantContent(message.content)}</p>
                 </article>
               ))}
               {sending ? (
@@ -136,17 +228,32 @@ export function RovieAssistant() {
                   <img alt="" className={styles.messageMascot} src="/mascots/thinking.png" />
                   <p className={styles.typing}>
                     <Loader2 size={15} />
-                    Rovie is checking farm data...
+                    Rovie is preparing an answer...
                   </p>
                 </article>
               ) : null}
             </div>
+
+            {messages.length === 1 && !sending ? (
+              <div aria-label="Suggested questions" className={styles.suggestions}>
+                <span>Try asking:</span>
+                <div>
+                  {suggestions.map(({ label, icon: Icon }) => (
+                    <button key={label} type="button" onClick={() => void sendQuestion(label)}>
+                      <Icon aria-hidden="true" size={16} />
+                      <span>{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
             {notice ? <div className={styles.notice}>{notice}</div> : null}
 
             <form className={styles.form} onSubmit={sendMessage}>
               <input
                 aria-label="Ask Rovie"
+                maxLength={2000}
                 placeholder="Ask Rovie about sales, stock, crops..."
                 value={input}
                 onChange={(event) => setInput(event.target.value)}

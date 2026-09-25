@@ -79,31 +79,6 @@ begin
       and existing.remarks = seed.remarks
   );
 
-  insert into public.customers (
-    customer_key,
-    display_name,
-    contact_number,
-    customer_type,
-    tags,
-    notes,
-    location,
-    created_by,
-    updated_by
-  )
-  values
-    ('jason eludo::09171234567', 'Jason Eludo', '09171234567', 'Market Buyer', array['Market Buyer', 'Repeat Buyer'], 'Buys mixed vegetables for stall supply.', 'Public Market', demo_actor, demo_actor),
-    ('maria santos::09181234567', 'Maria Santos', '09181234567', 'Restaurant', array['Priority', 'Wholesale'], 'Restaurant buyer for leafy vegetables.', 'Local Restaurant', demo_actor, demo_actor),
-    ('walk-in customer::not provided', 'Walk-in customer', 'Not provided', 'Retail', array['Walk-in'], 'Default walk-in buyer record.', 'Farm Gate', demo_actor, demo_actor)
-  on conflict (customer_key) do update
-  set
-    display_name = excluded.display_name,
-    contact_number = excluded.contact_number,
-    customer_type = excluded.customer_type,
-    tags = excluded.tags,
-    notes = excluded.notes,
-    location = excluded.location,
-    updated_by = excluded.updated_by;
-
   insert into public.customer_discounts (
     discount_code,
     customer_key,
@@ -284,22 +259,8 @@ begin
       and existing.maintenance_notes = seed.maintenance_notes
   );
 
-  insert into public.sensor_readings (
-    soil_moisture,
-    soil_temperature,
-    humidity,
-    environmental_temperature,
-    recorded_at
-  )
-  values
-    (63.5, 26.2, 74.1, 30.4, now() - interval '3 hours'),
-    (60.8, 26.8, 71.3, 31.2, now() - interval '1 hour')
-  on conflict do nothing;
-
   update public.robot_status
   set
-    battery_level = 86,
-    seed_level = 68,
     rover_status = 'Online',
     wifi_connected = true,
     bluetooth_connected = false,

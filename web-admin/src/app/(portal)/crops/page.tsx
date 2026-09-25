@@ -3,6 +3,7 @@ import { CalendarDays, Sprout, TriangleAlert } from "lucide-react";
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { getCropsDashboard } from "@/lib/crops";
 import { getCropOutcomes } from "@/lib/crop-outcomes";
+import { getPlantingRunsAction } from "./actions";
 import { CountUpValue } from "@/components/count-up-value";
 import { LiveDateTime } from "@/components/live-date-time";
 import { ModuleHeaderIntro } from "@/components/module-header-intro";
@@ -20,9 +21,10 @@ export default async function CropsPage() {
     redirect("/dashboard");
   }
 
-  const [{ crops, summary, weather, error }, { outcomes, error: outcomesError }] = await Promise.all([
+  const [{ crops, summary, error }, { outcomes, error: outcomesError }, plantingRuns] = await Promise.all([
     getCropsDashboard(),
     getCropOutcomes(),
+    getPlantingRunsAction(1),
   ]);
 
   return (
@@ -43,36 +45,38 @@ export default async function CropsPage() {
         </section>
       ) : null}
 
-      <section className={styles.metricGrid} aria-label="Crop summary">
-        <article className={styles.metric}>
-          <div className={styles.metricMeta}>
-            <span className={styles.metricIcon}><Sprout size={20} /></span>
-            <p>Active batches</p>
-          </div>
-          <CountUpValue className="mono" value={summary?.activeCrops ?? 0} />
-        </article>
-        <article className={styles.metric}>
-          <div className={styles.metricMeta}>
-            <span className={styles.metricIcon}><TriangleAlert size={20} /></span>
-            <p>Need attention</p>
-          </div>
-          <CountUpValue className="mono" value={summary?.needsAttention ?? 0} />
-        </article>
-        <article className={styles.metric}>
-          <div className={styles.metricMeta}>
-            <span className={styles.metricIcon}><CalendarDays size={20} /></span>
-            <p>Harvesting soon</p>
-          </div>
-          <CountUpValue className="mono" value={summary?.upcomingHarvests ?? 0} />
-        </article>
-      </section>
-
       <CropsWorkspace
         crops={crops}
-        weather={weather}
         outcomes={outcomes}
         outcomesError={outcomesError}
-      />
+        initialPlantingRuns={plantingRuns.rows}
+        plantingRunsTotal={plantingRuns.total}
+        plantingRunsError={plantingRuns.error}
+      >
+        <section className={styles.metricGrid} aria-label="Crop summary">
+          <article className={styles.metric}>
+            <div className={styles.metricMeta}>
+              <span className={styles.metricIcon}><Sprout size={20} /></span>
+              <p>Active batches</p>
+            </div>
+            <CountUpValue className="mono" value={summary?.activeCrops ?? 0} />
+          </article>
+          <article className={styles.metric}>
+            <div className={styles.metricMeta}>
+              <span className={styles.metricIcon}><TriangleAlert size={20} /></span>
+              <p>Need attention</p>
+            </div>
+            <CountUpValue className="mono" value={summary?.needsAttention ?? 0} />
+          </article>
+          <article className={styles.metric}>
+            <div className={styles.metricMeta}>
+              <span className={styles.metricIcon}><CalendarDays size={20} /></span>
+              <p>Harvesting soon</p>
+            </div>
+            <CountUpValue className="mono" value={summary?.upcomingHarvests ?? 0} />
+          </article>
+        </section>
+      </CropsWorkspace>
     </div>
   );
 }

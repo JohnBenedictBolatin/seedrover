@@ -249,9 +249,13 @@ async function evaluateCrop(
   const criticalStage = stringArray(waterPlan.critical_stages).some((item) => normalize(item) === normalize(stage));
   const waterDue = hoursSinceWatered >= (criticalStage ? 24 : 48) || deficitMm >= 3;
   const tasks = [];
+  const sensorFreshSince = new Date(now.getTime() - 60_000).toISOString();
   const { data: latestSensor } = await admin.from("sensor_readings")
-    .select("calibrated_value,soil_moisture,recorded_at")
-    .eq("crop_id", cropId).order("recorded_at", { ascending: false }).limit(1).maybeSingle();
+    .select("calibrated_value,soil_moisture,recorded_at,provenance_status,soil_moisture_calibrated,calibration_version")
+    .eq("crop_id", cropId).eq("provenance_status", "verified_hardware")
+    .eq("soil_moisture_calibrated", true).not("calibration_version", "is", null)
+    .gte("recorded_at", sensorFreshSince).lte("recorded_at", now.toISOString())
+    .order("recorded_at", { ascending: false }).limit(1).maybeSingle();
   const soilPercent = number(latestSensor?.calibrated_value ?? latestSensor?.soil_moisture);
 
   if (soilPercent !== null && (soilPercent <= 15 || soilPercent >= 95)) {
@@ -381,7 +385,10 @@ async function upsertTask(
     status: string; priority: string; data: Json; forecast: unknown; key: string;
   },
 ) {
-  const { data: existing } = await admin.from("crop_tasks").select("id").eq("deduplication_key", task.key).maybeSingle();
+  const { data: existing } = await admin.from("crop_tasks").select("id,status,priority").eq("deduplication_key", task.key).maybeSingle();
+  if (existing && ["Completed", "Dismissed"].includes(String(existing.status))) {
+    return existing;
+  }
   const { data, error } = await admin.from("crop_tasks").upsert({
     crop_id: crop.id,
     task_type: task.taskType,
@@ -417,19 +424,23 @@ async function notifyRecipients(
     title: task.priority === "Critical" ? `Urgent: ${task.title}` : task.title,
     message: task.recommendation,
     notification_type: "Crop Reminder",
-    action_route: `/crops/${crop.id}?task=${taskId}`,
+    action_route: `/crops?crop=${crop.id}&task=${taskId}`,
   })));
 }
 
 async function sendRoutineDigest(admin: ReturnType<typeof createClient>, now: Date) {
   const localHour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", hour: "2-digit", hour12: false }).format(now));
-  if (localHour !== 6) return;
   const localDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
   const { data: tasks } = await admin.from("crop_tasks")
     .select("id,crop_id,title,priority,crops!inner(assigned_manager)")
     .in("status", ["Due", "Overdue", "Upcoming"]).lte("due_at", new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString());
   if (!tasks?.length) return;
   const { data: admins } = await admin.from("profiles").select("id,roles!inner(role_name)").eq("is_active", true).eq("roles.role_name", "System Administrator");
+  const { data: preferences, error: preferencesError } = await admin
+    .from("crop_notification_preferences")
+    .select("user_id,digest_enabled,digest_hour,quiet_start,quiet_end");
+  if (preferencesError && !preferencesError.message.includes("crop_notification_preferences")) throw preferencesError;
+  const preferenceByUser = new Map((preferences ?? []).map((item) => [String(item.user_id), item]));
   const perRecipient = new Map<string, number>();
   for (const task of tasks) {
     const crop = relation(task.crops);
@@ -437,6 +448,12 @@ async function sendRoutineDigest(admin: ReturnType<typeof createClient>, now: Da
   }
   for (const profile of admins ?? []) perRecipient.set(String(profile.id), tasks.length);
   for (const [recipientId, count] of perRecipient) {
+    const preference = preferenceByUser.get(recipientId);
+    if (preference?.digest_enabled === false) continue;
+    const start = Number(preference?.quiet_start ?? 21);
+    const end = Number(preference?.quiet_end ?? 6);
+    const quiet = start === end ? false : start < end ? localHour >= start && localHour < end : localHour >= start || localHour < end;
+    if (quiet || localHour < Number(preference?.digest_hour ?? 6)) continue;
     const route = `/crops?digest=${localDate}`;
     const { data: existing } = await admin.from("notifications").select("id").eq("recipient_id", recipientId).eq("title", "Today's crop care").eq("action_route", route).maybeSingle();
     if (existing) continue;

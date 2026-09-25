@@ -17,17 +17,8 @@ export type CustomerPurchasedItem = {
 
 export type CustomerSummary = {
   key: string;
-  profileId: string | null;
   name: string;
-  firstName: string;
-  lastName: string;
-  middleInitial: string;
   contact: string;
-  alternateContact: string;
-  location: string;
-  customerType: string;
-  tags: string[];
-  notes: string;
   receiptCount: number;
   totalSpent: number;
   averageSpend: number;
@@ -93,20 +84,6 @@ type MarketSaleRow = {
     | null;
 };
 
-type CustomerProfileRow = {
-  id: string;
-  customer_key: string;
-  first_name: string | null;
-  last_name: string | null;
-  middle_initial: string | null;
-  contact_number: string | null;
-  alternate_contact: string | null;
-  customer_type: string | null;
-  tags: string[] | null;
-  notes: string | null;
-  location: string | null;
-};
-
 type CustomerDiscountRow = {
   id: string;
   discount_code: string;
@@ -138,14 +115,6 @@ export function customerKey(name: string, contact: string) {
   return `${normalizeText(name).toLowerCase()}::${normalizeText(contact).toLowerCase()}`;
 }
 
-function isMissingCustomerTable(error: { message?: string; code?: string } | null | undefined) {
-  return (
-    error?.code === "42P01" ||
-    error?.message?.includes("customers") ||
-    error?.message?.includes("schema cache")
-  );
-}
-
 function isMissingDiscountTable(error: { message?: string; code?: string } | null | undefined) {
   return (
     error?.code === "42P01" ||
@@ -158,38 +127,11 @@ function isMissingPaymentMethodColumn(error: { message?: string } | null | undef
   return error?.message?.includes("sales_transactions.payment_method") ?? false;
 }
 
-function defaultTags(customer: CustomerSummary) {
-  const tags = new Set(customer.tags);
-
-  if (customer.name.toLowerCase().includes("walk-in")) {
-    tags.add("Walk-in");
-  }
-
-  if (customer.receiptCount > 1) {
-    tags.add("Repeat Buyer");
-  }
-
-  if (customer.receipts.some((receipt) => receipt.source === "market")) {
-    tags.add("Market Buyer");
-  }
-
-  return [...tags];
-}
-
 function createCustomer(key: string, name: string, contact: string): CustomerSummary {
   return {
     key,
-    profileId: null,
     name,
-    firstName: "",
-    lastName: "",
-    middleInitial: "",
     contact,
-    alternateContact: "",
-    location: "",
-    customerType: "Farm Buyer",
-    tags: [],
-    notes: "",
     receiptCount: 0,
     totalSpent: 0,
     averageSpend: 0,
@@ -241,11 +183,10 @@ export async function getCustomersDashboard() {
       discounts: [],
       stats: null,
       error: "Supabase is not configured.",
-      profileError: null,
     };
   }
 
-  const [ordersResult, marketResultWithPayment, profilesResult, discountsResult] =
+  const [ordersResult, marketResultWithPayment, discountsResult] =
     await Promise.all([
     supabase
       .from("sales_orders")
@@ -263,12 +204,6 @@ export async function getCustomersDashboard() {
       .eq("status", "Completed")
       .order("sale_date", { ascending: false })
       .returns<MarketSaleRow[]>(),
-    supabase
-      .from("customers")
-      .select(
-        "id, customer_key, first_name, last_name, middle_initial, contact_number, alternate_contact, customer_type, tags, notes, location",
-      )
-      .returns<CustomerProfileRow[]>(),
     supabase
       .from("customer_discounts")
       .select("id, discount_code, customer_name, discount_type, discount_value, released_at, used_at, status")
@@ -293,15 +228,9 @@ export async function getCustomersDashboard() {
       discounts: [],
       stats: null,
       error: ordersResult.error.message,
-      profileError: null,
     };
   }
 
-  const profileError =
-    profilesResult.error && !isMissingCustomerTable(profilesResult.error)
-      ? profilesResult.error.message
-      : null;
-  const profileRows = profilesResult.error ? [] : profilesResult.data ?? [];
   const discounts = discountsResult.error
     ? []
     : (discountsResult.data ?? []).map<CustomerDiscount>((discount) => ({
@@ -314,8 +243,6 @@ export async function getCustomersDashboard() {
         usedAt: discount.used_at,
         status: discount.status,
       }));
-  const profilesByKey = new Map(profileRows.map((profile) => [profile.customer_key, profile]));
-  const profilesById = new Map(profileRows.map((profile) => [profile.id, profile]));
   const customersByKey = new Map<string, CustomerSummary>();
 
   for (const row of ordersResult.data ?? []) {
@@ -323,7 +250,6 @@ export async function getCustomersDashboard() {
     const contact = normalizeText(row.customer_contact || "Not provided");
     const key = row.customer_id ?? customerKey(name, contact);
     const customer = customersByKey.get(key) ?? createCustomer(key, name, contact);
-    if (row.customer_id) customer.profileId = row.customer_id;
     const totalAmount = toNumber(row.total_amount);
 
     addReceipt(
@@ -356,7 +282,6 @@ export async function getCustomersDashboard() {
     const contact = "Not provided";
     const key = row.customer_id ?? customerKey(name, contact);
     const customer = customersByKey.get(key) ?? createCustomer(key, name, contact);
-    if (row.customer_id) customer.profileId = row.customer_id;
     const totalAmount = toNumber(row.total_amount);
     const inventory = firstRelation(row.inventory);
 
@@ -382,31 +307,7 @@ export async function getCustomersDashboard() {
     customersByKey.set(key, customer);
   }
 
-  for (const profile of profileRows) {
-    if (!customersByKey.has(profile.customer_key)) {
-      const name = [profile.first_name, profile.middle_initial ? `${profile.middle_initial}.` : "", profile.last_name].filter(Boolean).join(" ") || "Unnamed customer";
-      customersByKey.set(profile.customer_key, createCustomer(profile.customer_key, name, profile.contact_number ?? "Not provided"));
-    }
-  }
-
   for (const [key, customer] of customersByKey) {
-    const profile = (customer.profileId ? profilesById.get(customer.profileId) : undefined) ?? profilesByKey.get(key);
-
-    if (profile) {
-      customer.profileId = profile.id;
-      customer.name = [profile.first_name, profile.middle_initial ? `${profile.middle_initial}.` : "", profile.last_name].filter(Boolean).join(" ") || customer.name;
-      customer.firstName = profile.first_name ?? "";
-      customer.lastName = profile.last_name ?? "";
-      customer.middleInitial = profile.middle_initial ?? "";
-      customer.contact = profile.contact_number || customer.contact;
-      customer.alternateContact = profile.alternate_contact ?? "";
-      customer.customerType = profile.customer_type ?? "Farm Buyer";
-      customer.tags = profile.tags ?? [];
-      customer.notes = profile.notes ?? "";
-      customer.location = profile.location ?? "";
-    }
-
-    customer.tags = defaultTags(customer);
     customer.purchasedItems.sort((left, right) => right.totalAmount - left.totalAmount);
     customer.receipts.sort(
       (left, right) =>
@@ -446,6 +347,5 @@ export async function getCustomersDashboard() {
       (discountsResult.error && !isMissingDiscountTable(discountsResult.error)
         ? discountsResult.error.message
         : null),
-    profileError,
   };
 }

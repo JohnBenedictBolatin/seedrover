@@ -222,6 +222,66 @@
   padding: 10px 12px;
 }
 
+.suggestions {
+  display: grid;
+  gap: 7px;
+  border-top: 1px solid rgba(var(--green-rgb), 0.14);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  padding: 10px 14px 0;
+}
+
+.suggestions > div {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  padding: 1px 1px 4px;
+}
+
+.suggestions button {
+  display: flex;
+  min-height: 44px;
+  width: 100%;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(var(--green-rgb), 0.2);
+  border-radius: 11px;
+  color: var(--text-secondary);
+  background:
+    linear-gradient(135deg, rgba(var(--green-secondary-rgb), 0.12), rgba(255, 255, 255, 0.025)),
+    var(--surface);
+  cursor: pointer;
+  font: inherit;
+  line-height: 1.35;
+  padding: 7px 9px;
+  text-align: left;
+  text-transform: none;
+  transition:
+    border-color 180ms ease,
+    color 180ms ease,
+    background 180ms ease,
+    transform 180ms ease;
+}
+
+.suggestions button svg {
+  flex: 0 0 auto;
+  color: var(--green-accent);
+}
+
+.suggestions button:hover {
+  border-color: rgba(var(--green-rgb), 0.58);
+  color: var(--text);
+  background:
+    linear-gradient(135deg, rgba(var(--green-secondary-rgb), 0.22), rgba(255, 255, 255, 0.05)),
+    var(--surface);
+  transform: translateY(-1px);
+}
+
+.suggestions button:focus-visible {
+  outline: 2px solid var(--green-accent);
+  outline-offset: 2px;
+}
+
 .form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 46px;
@@ -253,7 +313,7 @@
   place-items: center;
   border: 1px solid rgba(var(--green-rgb), 0.42);
   border-radius: 8px;
-  color: #102006;
+  color: #ffffff;
   background: linear-gradient(135deg, var(--green-accent), var(--green));
   cursor: pointer;
 }
@@ -306,5 +366,13 @@
 
   .modal {
     max-height: calc(100vh - 112px);
+  }
+
+}
+
+@media print {
+  .floatingButton,
+  .chatDock {
+    display: none !important;
   }
 }

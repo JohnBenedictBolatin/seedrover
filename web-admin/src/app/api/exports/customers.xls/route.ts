@@ -23,11 +23,10 @@ export async function GET(request: Request) {
     search: searchParams.get("search") ?? undefined,
   });
   const html = rowsToExcelHtml("SeedRover Customers", [
-    ["Customer", "Contact", "Type", "Receipts", "Total Spent", "Average Spend", "Last Purchase"],
+    ["Customer", "Contact", "Receipts", "Total Spent", "Average Spend", "Last Purchase"],
     ...rows.map((row) => [
       row.name,
       row.contact,
-      row.customerType,
       row.receiptCount,
       row.totalSpent,
       row.averageSpend,

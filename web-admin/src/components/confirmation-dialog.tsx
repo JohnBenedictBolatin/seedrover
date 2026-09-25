@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, CheckCircle2, X } from "lucide-react";
 import styles from "./confirmation-dialog.module.css";
@@ -13,9 +13,11 @@ export type ConfirmationOptions = {
   confirmLabel?: string;
   cancelLabel?: string;
   tone?: ConfirmationTone;
+  summary?: ReactNode;
 };
 
-type PendingConfirmation = Required<ConfirmationOptions> & {
+type PendingConfirmation = Omit<Required<ConfirmationOptions>, "summary"> & {
+  summary?: ReactNode;
   id: number;
 };
 
@@ -39,8 +41,9 @@ export function useConfirmationDialog() {
         title: options.title ?? "Are you sure?",
         message: options.message,
         confirmLabel: options.confirmLabel ?? "Confirm",
-        cancelLabel: options.cancelLabel ?? "Close",
+        cancelLabel: options.cancelLabel ?? "Cancel",
         tone: options.tone ?? "default",
+        summary: options.summary,
       });
     });
   }, []);
@@ -67,14 +70,45 @@ function ConfirmationDialog({
   options: PendingConfirmation;
 }) {
   const isDanger = options.tone === "danger";
+  const dialogRef = useRef<HTMLElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const titleId = `confirmation-title-${options.id}`;
+  const messageId = `confirmation-message-${options.id}`;
+  const summaryId = `confirmation-summary-${options.id}`;
+
+  useEffect(() => {
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    cancelRef.current?.focus();
+    return () => returnFocusRef.current?.focus();
+  }, []);
+
+  function onKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onCancel();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const focusable = dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])');
+    if (!focusable?.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  }
 
   return (
     <div className={styles.backdrop} data-ui-backdrop="true" data-ui-confirmation-backdrop="true" role="presentation">
       <section
-        aria-label={options.title}
+        aria-labelledby={titleId}
+        aria-describedby={options.summary ? `${messageId} ${summaryId}` : messageId}
         aria-modal="true"
         className={styles.modal}
         data-tone={options.tone}
+        onKeyDown={onKeyDown}
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
       >
         <button
@@ -90,11 +124,12 @@ function ConfirmationDialog({
           {isDanger ? <AlertTriangle size={26} /> : <CheckCircle2 size={26} />}
         </div>
 
-        <h2>{options.title}</h2>
-        <p>{options.message}</p>
+        <h2 id={titleId}>{options.title}</h2>
+        <p id={messageId}>{options.message}</p>
+        {options.summary ? <div className={styles.summary} id={summaryId}>{options.summary}</div> : null}
 
         <div className={styles.actions}>
-          <button className={styles.cancelButton} type="button" onClick={onCancel}>
+          <button ref={cancelRef} className={styles.cancelButton} type="button" onClick={onCancel}>
             <span>{options.cancelLabel}</span>
           </button>
           <button

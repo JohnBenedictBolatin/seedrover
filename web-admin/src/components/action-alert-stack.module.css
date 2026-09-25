@@ -1,8 +1,8 @@
 .alertStack {
   position: fixed;
   right: 22px;
-  bottom: 116px;
-  z-index: 2147483600;
+  bottom: calc(116px + env(safe-area-inset-bottom, 0px));
+  z-index: 11001;
   display: grid;
   width: min(380px, calc(100vw - 32px));
   gap: 8px;
@@ -11,7 +11,7 @@
 @media (max-width: 640px) {
   .alertStack {
     right: 14px;
-    bottom: 102px;
+    bottom: calc(102px + env(safe-area-inset-bottom, 0px));
     width: min(360px, calc(100vw - 28px));
   }
 }
@@ -26,7 +26,7 @@
   border-radius: 8px;
   color: #dfffe7;
   background: rgba(25, 90, 38, 0.94);
-  cursor: pointer;
+  cursor: default;
   padding: 12px 14px;
   text-align: left;
   transition:
@@ -59,8 +59,21 @@
 
 .alertCard span {
   font-size: 0.92rem;
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1.35;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.alertCard button {
+  flex: 0 0 auto;
+  border: 0;
+  padding: 2px 6px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-size: 1.25rem;
+  text-transform: none !important;
 }
 
 .alertCard[data-tone="info"] {
@@ -91,4 +104,35 @@
 
 .alertCard[data-tone="error"]:hover {
   background: rgba(128, 34, 30, 0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alertCard {
+    animation: none;
+    transition: none;
+  }
+
+  .alertCard:hover {
+    transform: none;
+  }
+}
+
+:global(html[data-theme="light"]) .alertCard {
+  color: #123c1b;
+  background: #e7f5e9;
+}
+
+:global(html[data-theme="light"]) .alertCard[data-tone="info"] {
+  color: #143a59;
+  background: #e8f2fb;
+}
+
+:global(html[data-theme="light"]) .alertCard[data-tone="warning"] {
+  color: #593d08;
+  background: #fff4d8;
+}
+
+:global(html[data-theme="light"]) .alertCard[data-tone="error"] {
+  color: #641c18;
+  background: #fde9e7;
 }

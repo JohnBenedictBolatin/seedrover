@@ -25,6 +25,8 @@
   box-shadow: var(--shadow);
   font-family: var(--font-inter), Inter, "Segoe UI", Arial, sans-serif;
   animation: confirmIn 180ms ease-out;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
 }
 
 .modal::before {
@@ -100,6 +102,14 @@
   line-height: 1.55;
 }
 
+.summary {
+  margin-top: 18px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 14px;
+  text-align: left;
+}
+
 .actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -113,6 +123,16 @@
   font-family: inherit;
   font-weight: 900;
   cursor: pointer;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+}
+
+.modal button,
+.modal input,
+.modal textarea,
+.modal label {
+  text-transform: none !important;
+  letter-spacing: normal !important;
 }
 
 .cancelButton {
@@ -132,8 +152,9 @@
 }
 
 .dangerButton {
-  border-color: var(--border-soft);
-  color: var(--text-secondary);
+  border-color: rgba(255, 82, 82, 0.5);
+  color: #ff7777;
+  background: rgba(255, 82, 82, 0.1);
 }
 
 .confirmButton span,
@@ -295,9 +316,9 @@
 }
 
 :global(html[data-theme="light"]) .dangerButton {
-  border: 1px solid rgba(18, 60, 27, 0.24);
-  color: #123c1b;
-  background: #ffffff;
+  border: 1px solid rgba(184, 38, 31, 0.38);
+  color: #a51f19;
+  background: #fff5f4;
   box-shadow: none;
 }
 

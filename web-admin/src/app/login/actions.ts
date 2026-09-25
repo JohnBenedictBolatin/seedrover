@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { randomUUID } from "node:crypto";
 import { headers } from "next/headers";
 import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -143,11 +144,10 @@ export async function signInAction(
   }
 
   if (signedIn) {
-    redirect(
-      ["Farm Planting Manager", "Planting Staff"].includes(signedInRole)
-        ? "/crops"
-        : "/dashboard",
-    );
+    const destination = ["Farm Planting Manager", "Planting Staff"].includes(signedInRole)
+      ? "/crops"
+      : "/dashboard";
+    redirect(`${destination}?notice=signed-in&event=${randomUUID()}`);
   }
 
   return { message: "Unable to sign in right now. Please try again." };

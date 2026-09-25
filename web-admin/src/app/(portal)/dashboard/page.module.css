@@ -74,7 +74,6 @@
 .notice,
 .rangePanel,
 .metric,
-.analysisPanel,
 .chartPanel,
 .listPanel {
   border: 1px solid var(--border-soft);
@@ -93,6 +92,38 @@
   color: var(--text-secondary);
 }
 
+.dashboardLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.42fr);
+  grid-template-areas:
+    "overview rail"
+    "charts rail";
+  align-items: start;
+  gap: 24px;
+  min-width: 0;
+}
+
+.dashboardOverview {
+  display: grid;
+  grid-area: overview;
+  gap: 24px;
+  min-width: 0;
+}
+
+.priorityRail {
+  display: grid;
+  grid-area: rail;
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  position: sticky;
+  top: 24px;
+  padding-right: 2px;
+  scrollbar-width: thin;
+}
+
 .rangePanel {
   position: relative;
   display: flex;
@@ -109,9 +140,7 @@
 }
 
 .rangePanel::before,
-.rangePanel::after,
-.analysisPanel::before,
-.analysisPanel::after {
+.rangePanel::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -119,8 +148,7 @@
   pointer-events: none;
 }
 
-.rangePanel::before,
-.analysisPanel::before {
+.rangePanel::before {
   opacity: 0.58;
   background-image:
     radial-gradient(circle, rgba(var(--dashboard-green-spark-rgb), 0.86) 0 1px, transparent 1.5px),
@@ -131,8 +159,7 @@
   animation: quickActionStars 36s linear infinite;
 }
 
-.rangePanel::after,
-.analysisPanel::after {
+.rangePanel::after {
   opacity: 0.46;
   background:
     radial-gradient(circle at 18% 78%, rgba(var(--dashboard-green-rgb), 0.22), transparent 28%),
@@ -208,23 +235,26 @@
 
 .metric {
   display: grid;
-  min-height: 104px;
+  min-height: 84px;
   align-items: center;
   grid-template-columns: minmax(0, 1fr) auto;
   justify-content: space-between;
-  gap: 16px;
-  padding: 18px;
+  gap: 12px;
+  padding: 14px;
 }
 
 .metricMeta {
   display: grid;
-  gap: 8px;
+  min-width: 0;
+  align-content: center;
+  gap: 6px;
 }
 
 .metricIcon {
   display: inline-flex;
-  width: 38px;
-  height: 38px;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
   align-items: center;
   justify-content: center;
   border: 1px solid rgba(var(--dashboard-green-rgb), 0.2);
@@ -238,12 +268,13 @@
   color: var(--text-muted);
   font-size: 0.98rem;
   font-weight: 800;
+  line-height: 1.15;
 }
 
 .metric strong {
   color: var(--text);
   font-family: var(--font-roboto-mono);
-  font-size: clamp(1.55rem, 2vw, 2.12rem);
+  font-size: clamp(1.28rem, 1.65vw, 1.78rem);
   line-height: 1.05;
   text-align: right;
 }
@@ -251,95 +282,15 @@
 .metricValue {
   display: grid;
   justify-items: end;
-  gap: 7px;
   min-width: 0;
-}
-
-.metricSecondary {
-  color: var(--text-secondary);
-  font-family: var(--font-roboto-mono);
-  font-size: 0.72rem;
-  font-weight: 800;
-  line-height: 1.2;
-  text-align: right;
-  white-space: nowrap;
-}
-
-.metricDetailLink {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--green-accent);
-  font-size: .68rem;
-  font-weight: 900;
-  letter-spacing: .04em;
-  text-decoration: none;
-}
-
-.metricDetailLink:hover {
-  color: var(--text);
-}
-
-.analysisPanel {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(220px, 0.35fr) minmax(0, 1fr);
-  align-items: center;
-  gap: 18px;
-  overflow: hidden;
-  isolation: isolate;
-  border-color: rgba(var(--dashboard-green-rgb), 0.18);
-  background:
-    radial-gradient(ellipse at bottom, rgba(38, 72, 43, 0.88) 0%, rgba(31, 38, 32, 0.94) 46%, rgba(25, 25, 25, 0.98) 100%),
-    linear-gradient(180deg, rgba(49, 49, 49, 0.98), rgba(37, 37, 37, 0.96));
-  padding: 18px;
-}
-
-.analysisPanel > div {
-  position: relative;
-  z-index: 1;
-}
-
-.analysisPanel h2 {
-  margin: 0;
-  font-size: 1.28rem;
-}
-
-.analysisList {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  position: relative;
-  z-index: 1;
-}
-
-.analysisList div {
-  display: grid;
-  gap: 6px;
-  border-left: 2px solid rgba(var(--dashboard-green-rgb), 0.32);
-  padding-left: 12px;
-}
-
-.analysisList span {
-  color: var(--text-muted);
-  font-size: 0.72rem;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.analysisList strong {
-  overflow: hidden;
-  color: var(--text);
-  font-size: 0.92rem;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .chartGrid {
   display: grid;
+  grid-area: charts;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
+  min-width: 0;
 }
 
 .chartPanel {
@@ -350,64 +301,11 @@
 }
 
 .chartHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-}
-
-.chartHeaderCopy {
-  min-width: 0;
+  display: block;
 }
 
 .chartHeader h2 {
   font-size: 1.2rem;
-}
-
-.chartHeader p {
-  margin: 8px 0 0;
-  color: var(--text-secondary);
-  font-size: 0.92rem;
-  font-weight: 700;
-}
-
-.chartSummary {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: flex-start;
-  justify-content: flex-end;
-  gap: 18px;
-  max-width: 58%;
-  text-align: right;
-}
-
-.chartSummaryItem {
-  display: grid;
-  min-width: 88px;
-  gap: 4px;
-}
-
-.chartSummaryItem strong {
-  overflow: hidden;
-  color: var(--green-accent);
-  font-family: var(--font-roboto-mono);
-  font-size: clamp(1rem, 1.7vw, 1.45rem);
-  line-height: 1.05;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-:global(html[data-theme="dark"]) .chartSummaryItem strong {
-  color: var(--text);
-}
-
-.chartSummaryItem span {
-  color: var(--text-muted);
-  font-size: 0.64rem;
-  font-weight: 900;
-  letter-spacing: 0.06em;
-  line-height: 1.15;
-  text-transform: uppercase;
 }
 
 .chartBox {
@@ -536,12 +434,6 @@
   font-size: 0.82rem;
 }
 
-.detailGrid {
-  display: grid;
-  grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.1fr);
-  gap: 14px;
-}
-
 .listPanel {
   display: grid;
   align-content: start;
@@ -554,6 +446,11 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 14px;
+}
+
+.activitySectionHeader {
+  align-items: center;
+  gap: 10px;
 }
 
 .panelPill {
@@ -595,8 +492,7 @@
   color: var(--text);
 }
 
-.riskItem span,
-.activityItem p {
+.riskItem span {
   margin: 4px 0 0;
   color: var(--text-muted);
   font-size: 0.82rem;
@@ -634,8 +530,8 @@
 }
 
 .activityItem {
-  grid-template-columns: 42px minmax(0, 1fr) minmax(122px, auto);
-  gap: 14px;
+  grid-template-columns: 42px minmax(0, 1fr) max-content;
+  gap: 12px;
   border-color: var(--history-border);
   background: var(--history-row-surface);
 }
@@ -677,63 +573,51 @@
 }
 
 .activityHeading {
-  display: flex;
+  display: grid;
   min-width: 0;
-  align-items: center;
-  gap: 8px;
+  align-items: start;
+  gap: 3px;
 }
 
 .activityHeading strong {
   font-size: 0.9rem;
+  line-height: 1.18;
 }
 
-.activityHeading span {
-  flex: 0 1 auto;
+.activityLabel {
+  display: block;
+  max-width: 100%;
   overflow: hidden;
-  border: 1px solid var(--history-border);
-  border-radius: 999px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-family: var(--font-roboto-mono);
   font-size: 0.68rem;
   font-weight: 800;
-  padding: 3px 7px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.activityContent > p {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-  font-weight: 700;
-}
-
-.activityMetadata {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-}
-
-.activityMetadata span {
-  position: relative;
-  color: var(--text-muted);
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
-.activityMetadata span:not(:last-child)::after {
-  position: absolute;
-  right: -7px;
-  color: var(--history-border);
-  content: "•";
-}
-
 .activityValue {
+  display: grid;
+  min-width: 0;
+  align-content: center;
+  justify-items: end;
+  gap: 4px;
   text-align: right;
 }
 
 .activityValue strong {
   font-family: var(--font-roboto-mono);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.activityValue p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: nowrap;
 }
 
 .activityItem[data-type="stock-in"] .activityValue strong {
@@ -747,9 +631,8 @@
 .activityPagination {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   gap: 8px;
-  padding-top: 4px;
 }
 
 .activityPagination span {
@@ -799,6 +682,11 @@
   opacity: 0.35;
 }
 
+.activityPagination button:focus-visible {
+  outline: 3px solid var(--green-accent);
+  outline-offset: 2px;
+}
+
 .emptyState {
   display: grid;
   min-height: 160px;
@@ -839,14 +727,25 @@
   }
 }
 
-@media (max-width: 1180px) {
-  .analysisPanel,
-  .analysisList {
-    grid-template-columns: 1fr;
+@media (max-width: 1359px) {
+  .dashboardLayout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "overview"
+      "rail"
+      "charts";
   }
 
-  .chartGrid,
-  .detailGrid {
+  .priorityRail {
+    max-height: none;
+    overflow: visible;
+    position: static;
+    padding-right: 0;
+  }
+}
+
+@media (max-width: 1180px) {
+  .chartGrid {
     grid-template-columns: 1fr;
   }
 }
@@ -856,6 +755,11 @@
   .rangePanel,
   .sectionHeader {
     flex-direction: column;
+  }
+
+  .activitySectionHeader {
+    flex-direction: row;
+    align-items: center;
   }
 
   .liveDateTime {
@@ -868,13 +772,6 @@
 
   .pieChartLayout {
     grid-template-columns: 1fr;
-  }
-
-  .chartSummary {
-    align-self: flex-start;
-    justify-content: flex-start;
-    max-width: 100%;
-    text-align: left;
   }
 
   .pieChartGraphic {
@@ -899,5 +796,9 @@
   .activityItem > div:last-child {
     justify-self: start;
     text-align: left;
+  }
+
+  .activityValue {
+    justify-items: start;
   }
 }

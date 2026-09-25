@@ -2,6 +2,7 @@
 
 import { type ReactNode, useState } from "react";
 import styles from "./report-print-button.module.css";
+import { useActionFeedback } from "@/components/action-feedback";
 
 export function ReportPrintButton({
   children,
@@ -11,6 +12,7 @@ export function ReportPrintButton({
   href: string;
 }) {
   const [printUrl, setPrintUrl] = useState("");
+  const { notify } = useActionFeedback();
 
   function handlePrint() {
     const separator = href.includes("?") ? "&" : "?";
@@ -25,9 +27,18 @@ export function ReportPrintButton({
       const document = frame.contentDocument;
       const reportReady = document?.querySelector('[data-print-ready="true"]');
 
-      if (reportReady || attempts >= 40) {
+      if (reportReady) {
         frame.contentWindow?.focus();
-        frame.contentWindow?.print();
+        try {
+          frame.contentWindow?.print();
+          notify({ tone: "success", text: "Print dialog requested." });
+        } catch {
+          notify({ tone: "error", text: "The report could not be printed. Please try again." });
+        }
+        return;
+      }
+      if (attempts >= 40) {
+        notify({ tone: "error", text: "The report did not finish loading and was not printed." });
         return;
       }
 
@@ -49,6 +60,7 @@ export function ReportPrintButton({
           src={printUrl}
           title="Print report"
           onLoad={(event) => printWhenReady(event.currentTarget)}
+          onError={() => notify({ tone: "error", text: "The report could not be loaded and was not printed." })}
         />
       ) : null}
     </>

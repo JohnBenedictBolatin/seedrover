@@ -1,14 +1,16 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Eye, FileText, Filter, ReceiptText, Search, SlidersHorizontal, Trash2, WalletCards, X } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Eye, FileText, Filter, ReceiptText, Search, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { deleteExpenseAction } from "@/app/(portal)/investments/actions";
-import { ActionAlertStack, type ActionAlert, type AlertTone } from "@/components/action-alert-stack";
+import type { AlertTone } from "@/components/action-alert-stack";
+import { useActionFeedback } from "@/components/action-feedback";
 import { useConfirmationDialog } from "@/components/confirmation-dialog";
 import { CalendarField } from "@/components/calendar-field";
+import uploadStyles from "@/components/file-upload-field.module.css";
 import styles from "@/app/(portal)/investments/page.module.css";
 
 export type InvestmentRecord = {
@@ -67,17 +69,12 @@ export function InvestmentHistory({ records }: { records: InvestmentRecord[] }) 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [category, setCategory] = useState("All");
-  const [expenseType, setExpenseType] = useState("All");
-  const [paymentMethod, setPaymentMethod] = useState("All");
   const [sortBy, setSortBy] = useState("Newest");
-  const [alerts, setAlerts] = useState<ActionAlert[]>([]);
   const [pending, startTransition] = useTransition();
-  const alertIdRef = useRef(0);
+  const { notify: sendFeedback } = useActionFeedback();
   const router = useRouter();
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const categories = ["All", ...new Set(records.map((record) => record.category))];
-  const expenseTypes = ["All", ...new Set(records.map((record) => record.expenseType))];
-  const paymentMethods = ["All", ...new Set(records.map((record) => record.paymentMethod))];
   const filteredRecords = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return records
@@ -86,18 +83,16 @@ export function InvestmentHistory({ records }: { records: InvestmentRecord[] }) 
         return (!normalizedQuery || haystack.includes(normalizedQuery))
           && (!startDate || record.expenseDate >= startDate)
           && (!endDate || record.expenseDate <= endDate)
-          && (category === "All" || record.category === category)
-          && (expenseType === "All" || record.expenseType === expenseType)
-          && (paymentMethod === "All" || record.paymentMethod === paymentMethod);
+          && (category === "All" || record.category === category);
       })
       .sort((left, right) => {
         if (sortBy === "Oldest") return left.expenseDate.localeCompare(right.expenseDate);
         if (sortBy === "Amount: High to low") return right.amount - left.amount;
         if (sortBy === "Amount: Low to high") return left.amount - right.amount;
-        if (sortBy === "Description") return left.description.localeCompare(right.description);
+        if (sortBy === "Item") return left.description.localeCompare(right.description);
         return right.expenseDate.localeCompare(left.expenseDate);
       });
-  }, [category, endDate, expenseType, paymentMethod, query, records, sortBy, startDate]);
+  }, [category, endDate, query, records, sortBy, startDate]);
   const totalPages = Math.max(1, Math.ceil(filteredRecords.length / 8));
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const visibleRecords = filteredRecords.slice((safeCurrentPage - 1) * 8, safeCurrentPage * 8);
@@ -105,16 +100,14 @@ export function InvestmentHistory({ records }: { records: InvestmentRecord[] }) 
   const pageNumbers = Array.from({ length: Math.min(3, totalPages) }, (_, index) => pageStart + index);
 
   function notify(tone: AlertTone, text: string) {
-    const id = ++alertIdRef.current;
-    setAlerts((current) => [...current.slice(-2), { id, tone, text }]);
-    window.setTimeout(() => setAlerts((current) => current.filter((alert) => alert.id !== id)), 4200);
+    sendFeedback({ tone, text });
   }
 
   async function removeRecord(record: InvestmentRecord) {
     const approved = await confirm({
       title: "Remove farm cost?",
-      message: `Are you sure you want to remove ${record.description}? This cannot be undone.`,
-      confirmLabel: "Remove Cost",
+      message: `Remove ${record.description}? This cannot be undone.`,
+      confirmLabel: "Remove cost",
       cancelLabel: "Cancel",
       tone: "danger",
     });
@@ -127,9 +120,9 @@ export function InvestmentHistory({ records }: { records: InvestmentRecord[] }) 
         await deleteExpenseAction(formData);
         setSelected(null);
         router.refresh();
-        notify("success", "Success - Farm cost removed.");
+        notify("success", "Farm cost removed.");
       } catch (error) {
-        notify("error", `Error - ${error instanceof Error ? error.message : "Unable to remove the farm cost."}`);
+        notify("error", error instanceof Error ? error.message : "Unable to remove the farm cost.");
       }
     });
   }
@@ -139,14 +132,12 @@ export function InvestmentHistory({ records }: { records: InvestmentRecord[] }) 
       <div className={styles.filters}>
         <label className={styles.searchBox}>
           <Search size={18} />
-          <input aria-label="Search investments" placeholder="Search description, vendor, reference, crop..." type="search" value={query} onChange={(event) => { setQuery(event.target.value); setCurrentPage(1); }} />
+          <input aria-label="Search investments" placeholder="Search item, vendor, reference, crop..." type="search" value={query} onChange={(event) => { setQuery(event.target.value); setCurrentPage(1); }} />
         </label>
         <CalendarField className={styles.dateField} label="From" value={startDate} onChange={(nextValue) => { setStartDate(nextValue); setCurrentPage(1); }} />
         <CalendarField className={styles.dateField} label="To" value={endDate} onChange={(nextValue) => { setEndDate(nextValue); setCurrentPage(1); }} />
         <FilterSelect icon={<Filter size={17} />} label="Category" options={categories} value={category} onChange={(value) => { setCategory(value); setCurrentPage(1); }} />
-        <FilterSelect icon={<ReceiptText size={17} />} label="Type" options={expenseTypes} value={expenseType} onChange={(value) => { setExpenseType(value); setCurrentPage(1); }} />
-        <FilterSelect icon={<WalletCards size={17} />} label="Payment" options={paymentMethods} value={paymentMethod} onChange={(value) => { setPaymentMethod(value); setCurrentPage(1); }} />
-        <FilterSelect icon={<SlidersHorizontal size={17} />} label="Sort" options={["Newest", "Oldest", "Amount: High to low", "Amount: Low to high", "Description"]} value={sortBy} onChange={(value) => { setSortBy(value); setCurrentPage(1); }} />
+        <FilterSelect icon={<SlidersHorizontal size={17} />} label="Sort" options={["Newest", "Oldest", "Amount: High to low", "Amount: Low to high", "Item"]} value={sortBy} onChange={(value) => { setSortBy(value); setCurrentPage(1); }} />
       </div>
 
       {filteredRecords.length === 0 ? (
@@ -157,15 +148,15 @@ export function InvestmentHistory({ records }: { records: InvestmentRecord[] }) 
       ) : (
         <div className={styles.history}>
           <div className={styles.historyHeader}>
-            <span>Description</span><span>Category</span><span>Vendor</span>
-            <span>Amount</span><span>Date</span><span>Actions</span>
+            <span>Item</span><span>Category</span><span>Vendor</span>
+            <span>Amount (PHP)</span><span>Date</span><span>Actions</span>
           </div>
           {visibleRecords.map((record) => (
             <div className={styles.historyRow} key={record.id}>
-              <strong data-label="Description">{record.description}</strong>
+              <strong data-label="Item">{record.description}</strong>
               <span data-label="Category">{record.category}</span>
               <span data-label="Vendor">{record.vendor ?? "Not recorded"}</span>
-              <span className={styles.amount} data-label="Amount">{money(record.amount)}</span>
+              <span className={styles.amount} data-label="Amount (PHP)">{money(record.amount)}</span>
               <span className={styles.historyDate} data-label="Date">{record.expenseDate}</span>
               <div className={styles.rowActions} data-label="Actions">
                 <button aria-label="View farm cost details" type="button" onClick={() => setSelected(record)}><Eye size={17} /></button>
@@ -186,7 +177,6 @@ export function InvestmentHistory({ records }: { records: InvestmentRecord[] }) 
       )}
 
       {confirmationDialog}
-      <ActionAlertStack alerts={alerts} onDismiss={(id) => setAlerts((current) => current.filter((alert) => alert.id !== id))} />
 
       {selected && typeof document !== "undefined"
         ? createPortal(
@@ -195,16 +185,24 @@ export function InvestmentHistory({ records }: { records: InvestmentRecord[] }) 
                 <header className={styles.modalHeader}>
                   <h3 className={styles.modalTitle}>
                     <span className={styles.modalTitleIcon} aria-hidden="true"><ReceiptText size={18} /></span>
-                    <span>Farm Cost Details</span>
+                    <span>
+                      <small className={styles.detailEyebrow}>Farm cost details</small>
+                      <strong>{selected.description}</strong>
+                    </span>
                   </h3>
                   <button aria-label="Close modal" className={styles.modalCloseButton} type="button" onClick={() => setSelected(null)}><X size={18} /></button>
                 </header>
+                <div className={styles.detailHero}>
+                  <div className={styles.detailHeroInfo}>
+                    <span className={styles.detailHeroLabel}>{selected.category}</span>
+                    <span className={styles.detailHeroMeta}>{selected.expenseType} · {selected.expenseDate}</span>
+                  </div>
+                  <div className={styles.detailHeroAmount}>
+                    <span>Total amount (PHP)</span>
+                    <strong>{money(selected.amount)}</strong>
+                  </div>
+                </div>
                 <dl className={styles.detailGrid}>
-                  <div><dt>Description</dt><dd>{selected.description}</dd></div>
-                  <div><dt>Category</dt><dd>{selected.category}</dd></div>
-                  <div><dt>Cost type</dt><dd>{selected.expenseType}</dd></div>
-                  <div><dt>Total amount</dt><dd>{money(selected.amount)}</dd></div>
-                  <div><dt>Cost date</dt><dd>{selected.expenseDate}</dd></div>
                   <div><dt>Vendor / payee</dt><dd>{selected.vendor ?? "Not recorded"}</dd></div>
                   <div><dt>Payment method</dt><dd>{selected.paymentMethod}</dd></div>
                   <div><dt>Reference number</dt><dd>{selected.referenceNumber ?? "Not recorded"}</dd></div>
@@ -212,19 +210,29 @@ export function InvestmentHistory({ records }: { records: InvestmentRecord[] }) 
                   <div><dt>Related crop</dt><dd>{selected.cropName ?? "None"}</dd></div>
                   <div><dt>Related inventory</dt><dd>{selected.inventoryName ?? "None"}</dd></div>
                   <div><dt>Quantity</dt><dd>{selected.quantity ?? "Not recorded"}</dd></div>
-                  <div><dt>Unit cost</dt><dd>{selected.unitCost === null ? "Not recorded" : money(selected.unitCost)}</dd></div>
+                  <div><dt>Unit cost (PHP)</dt><dd>{selected.unitCost === null ? "Not recorded" : money(selected.unitCost)}</dd></div>
                   <div className={styles.detailNotes}><dt>Notes</dt><dd>{selected.notes ?? "No notes recorded."}</dd></div>
                   <div className={styles.detailReceipt}>
                     <dt>Receipt attachment</dt>
                     <dd>
                       {selected.receiptUrl && selected.receiptKind === "image" ? (
-                        <a className={styles.receiptPreviewLink} href={selected.receiptUrl} target="_blank" rel="noreferrer" title="Open receipt image">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img className={styles.receiptImage} src={selected.receiptUrl} alt={`Receipt for ${selected.description}`} />
-                          <span><ExternalLink size={16} /> OPEN FULL IMAGE</span>
+                        <a className={`${uploadStyles.uploadArea} ${styles.receiptUploadLink}`} href={selected.receiptUrl} target="_blank" rel="noreferrer" title="Open receipt image">
+                          <span className={uploadStyles.icon}><FileText size={20} strokeWidth={1.8} /></span>
+                          <span className={uploadStyles.copy}>
+                            <span className={uploadStyles.fileName}>{selected.receiptFileName ?? "Receipt image"}</span>
+                            <small>Image receipt · opens in new tab</small>
+                          </span>
+                          <span className={uploadStyles.browse}>OPEN</span>
                         </a>
                       ) : selected.receiptUrl && selected.receiptKind === "pdf" ? (
-                        <a className={styles.receiptFileLink} href={selected.receiptUrl} target="_blank" rel="noreferrer"><FileText size={20} /><span>{selected.receiptFileName ?? "Receipt PDF"}</span><ExternalLink size={16} /></a>
+                        <a className={`${uploadStyles.uploadArea} ${styles.receiptUploadLink}`} href={selected.receiptUrl} target="_blank" rel="noreferrer" title="Open receipt PDF">
+                          <span className={uploadStyles.icon}><FileText size={20} strokeWidth={1.8} /></span>
+                          <span className={uploadStyles.copy}>
+                            <span className={uploadStyles.fileName}>{selected.receiptFileName ?? "Receipt PDF"}</span>
+                            <small>PDF receipt · opens in new tab</small>
+                          </span>
+                          <span className={uploadStyles.browse}>OPEN</span>
+                        </a>
                       ) : selected.hasReceipt ? (
                         <span className={styles.receiptUnavailable}>The receipt is stored, but a preview link could not be created.</span>
                       ) : (

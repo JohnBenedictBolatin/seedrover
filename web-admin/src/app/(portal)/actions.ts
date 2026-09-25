@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { randomUUID } from "node:crypto";
 import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -21,11 +22,12 @@ export async function signOutAction() {
       });
     }
 
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+    if (error) return { ok: false, message: "Unable to sign out. Please try again." };
   }
 
   const cookieStore = await cookies();
   cookieStore.delete("seedrover-remember");
 
-  redirect("/login");
+  redirect(`/login?notice=signed-out&event=${randomUUID()}`);
 }

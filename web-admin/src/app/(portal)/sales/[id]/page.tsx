@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { formatCurrency, formatDateTime, formatQuantity } from "@/lib/format";
+import { getInstallmentPlanForSale } from "@/lib/customer-payments";
 import { getSalesReceipt } from "@/lib/sales";
+import { InstallmentSaleSchedule } from "@/components/customer-payments-panel";
 import { PrintButton } from "@/components/print-button";
 import styles from "./page.module.css";
 
@@ -22,7 +24,10 @@ export default async function SalesReceiptPage({
   }
 
   const { id } = await params;
-  const { receipt, error } = await getSalesReceipt(id);
+  const [{ receipt, error }, { plan }] = await Promise.all([
+    getSalesReceipt(id),
+    getInstallmentPlanForSale(id),
+  ]);
 
   if (!receipt) {
     if (error) {
@@ -109,7 +114,7 @@ export default async function SalesReceiptPage({
             <strong>{formatCurrency(receipt.totalAmount)}</strong>
           </div>
           <div>
-            <span>Amount paid</span>
+            <span>Amount paid (PHP)</span>
             <strong>
               {receipt.amountPaid === null
                 ? "Not recorded"
@@ -125,6 +130,8 @@ export default async function SalesReceiptPage({
             </strong>
           </div>
         </section>
+
+        {plan ? <InstallmentSaleSchedule plan={plan} /> : null}
 
         {receipt.remarks ? (
           <section className={styles.remarks}>

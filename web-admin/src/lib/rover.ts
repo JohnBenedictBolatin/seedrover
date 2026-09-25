@@ -1,12 +1,12 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type RoverStatus = {
-  roverStatus: string;
-  wifiConnected: boolean;
-  currentActivity: string;
-  emergencyStop: boolean;
-  lastUpdated: string;
-  heartbeatFresh: boolean;
+  roverStatus: string | null;
+  wifiConnected: boolean | null;
+  currentActivity: string | null;
+  emergencyStop: boolean | null;
+  lastUpdated: string | null;
+  heartbeatFresh: boolean | null;
 };
 
 export type RoverCommand = {
@@ -22,32 +22,33 @@ export type RoverCommand = {
 };
 
 export type RoverSensorReading = {
-  soilMoisture: number;
+  id: string;
+  soilMoisture: number | null;
   soilTemperature: number | null;
   humidity: number | null;
   environmentalTemperature: number | null;
+  soilRaw: number | null;
   recordedAt: string;
-  source: string;
+  source: string | null;
+  provenanceStatus: "verified_hardware" | "unverified" | "simulated" | "demo";
+  soilMoistureCalibrated: boolean | null;
+  calibrationVersion: string | null;
+  firmwareVersion: string | null;
   fresh: boolean;
 };
 
 type RoverStatusRow = {
-  battery_level: number;
-  seed_level: number;
-  rover_status: string;
-  wifi_connected: boolean;
-  bluetooth_connected: boolean;
-  camera_connected: boolean;
-  current_activity: string;
-  speed: number;
-  emergency_stop: boolean;
-  last_updated: string;
+  rover_status: string | null;
+  wifi_connected: boolean | null;
+  current_activity: string | null;
+  emergency_stop: boolean | null;
+  last_updated: string | null;
 };
 
 type RoverCommandRow = {
   id: string;
   command: string;
-  payload: Record<string, unknown>;
+  payload: Record<string, unknown> | null;
   status: string;
   executed_at: string | null;
   created_at: string;
@@ -57,89 +58,125 @@ type RoverCommandRow = {
 };
 
 type SensorReadingRow = {
-  soil_moisture: number;
-  calibrated_value: number | null;
-  soil_temperature: number;
-  humidity: number;
-  environmental_temperature: number;
+  id: string;
+  soil_moisture: number | string | null;
+  soil_raw: number | string | null;
+  calibrated_value: number | string | null;
+  soil_temperature: number | string | null;
+  humidity: number | string | null;
+  environmental_temperature: number | string | null;
   recorded_at: string;
-  source: string;
+  source: string | null;
+  provenance_status: RoverSensorReading["provenanceStatus"] | null;
+  soil_moisture_calibrated: boolean | null;
+  calibration_version: string | null;
+  firmware_version: string | null;
 };
 
 function profileName(row: RoverCommandRow) {
   const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
-  return profile?.full_name ?? "SeedRover user";
+  return profile?.full_name.trim() || "Unavailable";
 }
 
-export async function getRoverMonitor() {
+function nullableNumber(value: number | string | null, minimum = Number.NEGATIVE_INFINITY, maximum = Number.POSITIVE_INFINITY) {
+  if (value === null || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= minimum && number <= maximum ? number : null;
+}
+
+function isFreshTimestamp(value: string | null, maxAgeMs: number) {
+  if (!value) return false;
+  const ageMs = Date.now() - new Date(value).getTime();
+  return Number.isFinite(ageMs) && ageMs >= 0 && ageMs <= maxAgeMs;
+}
+
+export async function getRoverMonitor({ commandLimit = 8 }: { commandLimit?: number } = {}) {
   const supabase = await createSupabaseServerClient();
 
   if (!supabase) {
+    const message = "Supabase is not configured.";
     return {
       status: null,
       commands: [],
       sensors: null,
-      error: "Supabase is not configured.",
+      sensorHistory: [],
+      statusError: message,
+      commandError: message,
+      sensorError: message,
+      // Kept for existing dashboard and assistant consumers.
+      error: message,
     };
   }
 
-  const [
-    { data: statusRows, error: statusError },
-    { data: commandRows },
-    { data: sensorRows },
-  ] =
-    await Promise.all([
-      supabase
-        .from("robot_status")
-        .select(
-          "battery_level, seed_level, rover_status, wifi_connected, bluetooth_connected, camera_connected, current_activity, speed, emergency_stop, last_updated",
-        )
-        .eq("is_active", true)
-        .limit(1)
-        .returns<RoverStatusRow[]>(),
-      supabase
-        .from("robot_commands")
-        .select("id, command, payload, status, executed_at, created_at, acknowledged_at, failure_details, profiles(full_name)")
-        .order("created_at", { ascending: false })
-        .limit(8)
-        .returns<RoverCommandRow[]>(),
-      supabase
-        .from("sensor_readings")
-        .select(
-          "soil_moisture, calibrated_value, soil_temperature, humidity, environmental_temperature, recorded_at, source",
-        )
-        .order("recorded_at", { ascending: false })
-        .limit(1)
-        .returns<SensorReadingRow[]>(),
-    ]);
+  const [statusResult, commandResult, sensorResult] = await Promise.all([
+    supabase
+      .from("robot_status")
+      .select(
+        "rover_status, wifi_connected, current_activity, emergency_stop, last_updated",
+      )
+      .eq("is_active", true)
+      .limit(1)
+      .returns<RoverStatusRow[]>(),
+    supabase
+      .from("robot_commands")
+      .select("id, command, payload, status, executed_at, created_at, acknowledged_at, failure_details, profiles(full_name)")
+      .order("created_at", { ascending: false })
+      .limit(commandLimit)
+      .returns<RoverCommandRow[]>(),
+    supabase
+      .from("sensor_readings")
+      .select(
+        "id, soil_moisture, calibrated_value, soil_raw, soil_temperature, humidity, environmental_temperature, recorded_at, source, provenance_status, soil_moisture_calibrated, calibration_version, firmware_version",
+      )
+      .order("recorded_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(100)
+      .returns<SensorReadingRow[]>(),
+  ]);
 
-  if (statusError) {
+  const statusError = statusResult.error?.message ?? null;
+  const commandError = commandResult.error?.message ?? null;
+  const sensorError = sensorResult.error?.message ?? null;
+  const statusRow = statusError ? null : statusResult.data?.[0];
+  const history = (sensorError ? [] : sensorResult.data ?? []).map<RoverSensorReading>((row) => {
+    const recordedAt = row.recorded_at;
+    const sensorAgeMs = Date.now() - new Date(recordedAt).getTime();
+
     return {
-      status: null,
-      commands: [],
-      sensors: null,
-      error: statusError.message,
+      id: row.id,
+      // A calibrated value takes precedence when present; null remains null,
+      // while a real 0% reading remains exactly zero.
+      soilMoisture: row.soil_moisture_calibrated && row.calibration_version ? nullableNumber(row.calibrated_value ?? row.soil_moisture, 0, 100) : null,
+      soilTemperature: nullableNumber(row.soil_temperature, -55, 125),
+      humidity: nullableNumber(row.humidity, 0, 100),
+      environmentalTemperature: nullableNumber(row.environmental_temperature, -40, 80),
+      soilRaw: nullableNumber(row.soil_raw, 1, 4094),
+      recordedAt,
+      source: row.source?.trim() || null,
+      provenanceStatus: row.provenance_status ?? "unverified",
+      soilMoistureCalibrated: row.soil_moisture_calibrated === false ? false : row.soil_moisture_calibrated === true && Boolean(row.calibration_version) ? true : null,
+      calibrationVersion: row.calibration_version,
+      firmwareVersion: row.firmware_version,
+      fresh: Number.isFinite(sensorAgeMs) && sensorAgeMs >= 0 && sensorAgeMs <= 60_000,
     };
-  }
-
-  const statusRow = statusRows?.[0];
-  const sensorRow = sensorRows?.[0];
-  const heartbeatFresh = statusRow
-    ? Date.now() - new Date(statusRow.last_updated).getTime() <= 9_000
-    : false;
+  });
+  const sensor = history.find((reading) => reading.provenanceStatus === "verified_hardware" && reading.fresh) ?? null;
+  const heartbeatFresh = statusRow?.last_updated
+    ? isFreshTimestamp(statusRow.last_updated, 9_000)
+    : null;
 
   return {
     status: statusRow
       ? {
-          roverStatus: heartbeatFresh ? statusRow.rover_status : "Offline",
-          wifiConnected: heartbeatFresh && statusRow.wifi_connected,
-          currentActivity: heartbeatFresh ? statusRow.current_activity : "No recent heartbeat",
+          roverStatus: heartbeatFresh === false ? "Offline" : statusRow.rover_status?.trim() || null,
+          wifiConnected: statusRow.wifi_connected,
+          currentActivity: statusRow.current_activity?.trim() || null,
           emergencyStop: statusRow.emergency_stop,
           lastUpdated: statusRow.last_updated,
           heartbeatFresh,
         }
       : null,
-    commands: (commandRows ?? []).map<RoverCommand>((row) => ({
+    commands: (commandError ? [] : commandResult.data ?? []).map<RoverCommand>((row) => ({
       id: row.id,
       command: row.command,
       payload: row.payload ?? {},
@@ -150,20 +187,12 @@ export async function getRoverMonitor() {
       acknowledgedAt: row.acknowledged_at,
       failureDetails: row.failure_details,
     })),
-    sensors: sensorRow
-      ? {
-          soilMoisture: Number(sensorRow.calibrated_value ?? sensorRow.soil_moisture),
-          // Hardware planting receipts currently provide soil moisture and one
-          // DS18B20 temperature only. Zero placeholders must not be presented
-          // as real soil-temperature or humidity measurements.
-          soilTemperature: sensorRow.source === "Hardware" ? null : Number(sensorRow.soil_temperature),
-          humidity: sensorRow.source === "Hardware" ? null : Number(sensorRow.humidity),
-          environmentalTemperature: Number(sensorRow.environmental_temperature) || null,
-          recordedAt: sensorRow.recorded_at,
-          source: sensorRow.source,
-          fresh: Date.now() - new Date(sensorRow.recorded_at).getTime() <= 60_000,
-        }
-      : null,
-    error: null,
+    sensors: sensor,
+    sensorHistory: history,
+    statusError,
+    commandError,
+    sensorError,
+    // Preserve the original error field for callers that still depend on it.
+    error: statusError,
   };
 }

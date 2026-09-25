@@ -61,8 +61,9 @@ export async function recordSalesOrderAction(
   _state: SalesFormState,
   formData: FormData,
 ): Promise<SalesFormState> {
+  let adminProfile: Awaited<ReturnType<typeof requireAdminRole>>;
   try {
-    await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
+    adminProfile = await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
   } catch (error) {
     return {
       message:
@@ -126,16 +127,23 @@ export async function recordSalesOrderAction(
     }
   }
 
-  const { data: inventoryUnits } = await supabase
+  const { data: inventoryRows } = await supabase
     .from("inventory")
-    .select("id, unit")
+    .select("id, unit, selling_price")
     .in("id", items.map((item) => item.inventory_id));
-  const unitsById = new Map((inventoryUnits ?? []).map((item) => [item.id, item.unit]));
+  const inventoryById = new Map((inventoryRows ?? []).map((item) => [item.id, item]));
   for (const item of items) {
-    const unit = unitsById.get(item.inventory_id) ?? "kg";
+    const inventory = inventoryById.get(item.inventory_id);
+    if (!inventory) {
+      return { message: "One of the selected inventory items is no longer available." };
+    }
+
+    const unit = inventory.unit ?? "kg";
     if (unit !== "kg") {
       return { message: "Inventory quantities must use kg as the unit." };
     }
+
+    item.unit_price = Number(inventory.selling_price ?? 0);
   }
 
   if (discountCode && !/^[A-Z0-9_-]{3,32}$/.test(discountCode)) {
@@ -157,7 +165,14 @@ export async function recordSalesOrderAction(
   const installmentFrequency = text(formData, "installment_frequency");
   const installmentAmountRaw = text(formData, "installment_amount");
   const installmentAmount = parseNumber(formData.get("installment_amount"));
-  const installmentDueDate = text(formData, "installment_due_date");
+  const amountPaidRaw = text(formData, "amount_paid");
+  const initialPayment = amountPaidRaw ? parseNumber(formData.get("amount_paid")) : null;
+  const initialPaymentMethod = text(formData, "initial_payment_method", "Cash");
+
+  if (initialPayment !== null && initialPayment < 0) {
+    return { message: "Amount paid cannot be negative." };
+  }
+
   if (paymentMethod === "Installment" && !installmentFrequencies.has(installmentFrequency)) {
     return { message: "Select a valid installment payment frequency." };
   }
@@ -166,28 +181,33 @@ export async function recordSalesOrderAction(
     return { message: "Enter an installment amount greater than zero." };
   }
 
-  if (paymentMethod === "Installment" && !installmentDueDate) {
-    return { message: "The next installment payment due date is required." };
+  if (
+    paymentMethod === "Installment" &&
+    !new Set(["Cash", "GCash", "Bank Transfer", "Card", "Other"]).has(initialPaymentMethod)
+  ) {
+    return { message: "Select a valid initial payment method." };
   }
 
   const payload = {
     p_customer_name: customerName,
     p_customer_contact: customerContact,
-    p_payment_method: paymentMethod === "Installment" ? "Other" : paymentMethod,
+    // The legacy sales RPC does not accept Installment yet. Record the sale
+    // through its Cash path, then normalize the saved order below.
+    p_payment_method: paymentMethod === "Installment" ? "Cash" : paymentMethod,
     p_transaction_reference: transactionReference,
-    p_other_payment_method: paymentMethod === "Installment" ? "Installment" : otherPaymentMethod,
+    p_other_payment_method: paymentMethod === "Installment" ? null : otherPaymentMethod,
     p_discount_type: "None",
     p_discount_value: 0,
     p_discount_code: discountCode,
-    p_amount_paid:
-      String(formData.get("amount_paid") ?? "").trim() === ""
-        ? null
-        : parseNumber(formData.get("amount_paid")),
+    // The legacy RPC treats any non-null amount as a full payment. For an
+    // installment sale, save the initial payment after the order is created
+    // so a valid partial payment is not rejected by that legacy check.
+    p_amount_paid: paymentMethod === "Installment" ? null : initialPayment,
     p_remarks: String(formData.get("remarks") ?? ""),
     p_items: items,
   };
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .rpc("record_sales_order", payload)
     .single<{ id: string; receipt_number: string }>();
 
@@ -213,52 +233,77 @@ export async function recordSalesOrderAction(
         .single<{ id: string; receipt_number: string }>();
 
       if (!fallback.error) {
-        revalidatePath("/sales");
-        revalidatePath("/inventory");
-        revalidatePath("/customers");
-        revalidatePath("/dashboard");
-
-        return {
-          message: `Receipt ${fallback.data.receipt_number} recorded.`,
-          receiptId: fallback.data.id,
-          receiptNumber: fallback.data.receipt_number,
-        };
+        data = fallback.data;
+        error = null;
       }
     }
 
-    if (needsDiscountMigration(error.message)) {
+    if (error && needsDiscountMigration(error.message)) {
       return {
         message:
           "Sales database is not fully upgraded yet. Apply the latest Supabase migration before using discount codes or transaction IDs.",
       };
     }
 
-    return { message: error.message };
+    if (error) {
+      return { message: error.message };
+    }
+  }
+
+  if (!data) {
+    return { message: "The sale could not be recorded. Please try again." };
+  }
+
+  if (paymentMethod === "Installment") {
+    const { error: installmentPlanError } = await supabase.rpc(
+      "create_installment_plan",
+      {
+        p_sales_order_id: data.id,
+        p_frequency: installmentFrequency,
+        p_payment_amount: installmentAmount,
+        p_initial_payment: initialPayment ?? 0,
+        p_initial_payment_method: initialPaymentMethod,
+      },
+    );
+
+    if (installmentPlanError) {
+      const { error: rollbackError } = await supabase.rpc("void_sales_record", {
+        p_id: data.id,
+        p_source: "receipt",
+        p_reason: "Installment schedule creation failed; receipt rolled back.",
+      });
+
+      if (
+        installmentPlanError.message.includes("create_installment_plan") ||
+        installmentPlanError.message.includes("schema cache")
+      ) {
+        return {
+          message:
+            rollbackError
+              ? "Installment sales database support is not deployed yet, and the receipt could not be rolled back. Do not retry until the latest Supabase migrations are applied."
+              : "Installment sales database support is not deployed yet. The receipt was rolled back; apply the latest Supabase migrations, then try again.",
+        };
+      }
+
+      return {
+        message: rollbackError
+          ? `The installment schedule could not be created, and the receipt could not be rolled back: ${installmentPlanError.message}`
+          : `The installment schedule could not be created. The receipt was rolled back: ${installmentPlanError.message}`,
+      };
+    }
+
+    await supabase.from("activity_logs").insert({
+      user_id: adminProfile.id,
+      activity: "Installment plan created",
+      description: `${adminProfile.fullName} created an installment plan for receipt ${data.receipt_number}${initialPayment && initialPayment > 0 ? ` with an initial payment of PHP ${initialPayment.toFixed(2)}` : ""}.`,
+      module: "Sales",
+    });
   }
 
   revalidatePath("/sales");
   revalidatePath("/inventory");
   revalidatePath("/customers");
   revalidatePath("/dashboard");
-
-  if (paymentMethod === "Installment") {
-    const { data: order } = await supabase
-      .from("sales_orders")
-      .select("total_amount")
-      .eq("id", data.id)
-      .single<{ total_amount: number | string }>();
-    const balance = Number(order?.total_amount ?? 0) - (payload.p_amount_paid ?? 0);
-    if (balance > 0) {
-      await supabase.from("customer_payments").insert({
-        customer_key: payload.p_customer_name.trim().toLowerCase(),
-        customer_name: payload.p_customer_name.trim() || "Walk-in customer",
-        sale_reference: data.receipt_number,
-        amount: balance,
-        due_date: installmentDueDate,
-        notes: `${installmentFrequency} payments of PHP ${installmentAmount.toFixed(2)}`,
-      });
-    }
-  }
 
   return {
     message: `Receipt ${data.receipt_number} recorded.`,
@@ -268,7 +313,7 @@ export async function recordSalesOrderAction(
 }
 
 export async function voidSalesRecordAction(formData: FormData) {
-  await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
+  const profile = await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
 
   const supabase = await createSupabaseServerClient();
 
@@ -296,6 +341,12 @@ export async function voidSalesRecordAction(formData: FormData) {
     throw new Error("Unknown sales source.");
   }
 
+  const { data: installmentPlan } = await supabase
+    .from("installment_plans")
+    .select("receipt_number")
+    .eq("sales_order_id", id)
+    .maybeSingle<{ receipt_number: string }>();
+
   const { error } = await supabase.rpc("void_sales_record", {
     p_id: id,
     p_source: source,
@@ -305,6 +356,15 @@ export async function voidSalesRecordAction(formData: FormData) {
   if (error) {
     throw new Error(friendlySalesError(error, "Unable to void sale."));
   }
+
+  await supabase.from("activity_logs").insert({
+    user_id: profile.id,
+    activity: installmentPlan ? "Installment plan cancelled" : "Sale voided",
+    description: installmentPlan
+      ? `${profile.fullName} cancelled the installment plan for receipt ${installmentPlan.receipt_number}. Reason: ${reason}`
+      : `${profile.fullName} voided a sale. Reason: ${reason}`,
+    module: "Sales",
+  });
 
   revalidatePath("/sales");
   revalidatePath("/inventory");

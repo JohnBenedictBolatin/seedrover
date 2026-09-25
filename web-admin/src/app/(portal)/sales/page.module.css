@@ -221,6 +221,10 @@
   gap: 14px;
 }
 
+.collectionMetricGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .metric {
   display: grid;
   min-height: 104px;
@@ -523,11 +527,34 @@
   white-space: nowrap;
 }
 
+.receiptCellLink {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--green-accent);
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .dateCell,
 .typeCell,
 .paymentCell {
   color: var(--text-secondary);
   font-weight: 800;
+}
+
+.paymentCell {
+  display: grid;
+  gap: 3px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.paymentCell small {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.25;
 }
 
 .dateCell,
@@ -774,6 +801,13 @@
 
 .salesModal {
   width: min(100%, 980px);
+  scrollbar-width: none;
+}
+
+.salesModal::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .marketDetailModal {
@@ -1388,6 +1422,7 @@
   }
 
   .salesTableRow > strong,
+  .salesTableRow > a,
   .salesTableRow > span,
   .statusCell,
   .tableActions {
@@ -1401,6 +1436,7 @@
   }
 
   .salesTableRow > strong::before,
+  .salesTableRow > a::before,
   .salesTableRow > span::before,
   .statusCell::before,
   .tableActions::before {
@@ -1438,9 +1474,19 @@
   }
 }
 
+@media (max-width: 640px) {
+  .collectionMetricGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 1320px) {
   .metricGrid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .collectionMetricGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .analyticsGrid {
@@ -1453,6 +1499,10 @@
   .analyticsGrid,
   .filters {
     grid-template-columns: 1fr;
+  }
+
+  .collectionMetricGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

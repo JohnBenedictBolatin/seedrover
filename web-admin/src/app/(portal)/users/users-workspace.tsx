@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent, ReactNode } from "react";
-import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useActionState, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   BadgeCheck,
@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { createUserAction, updateUserAction } from "@/app/(portal)/users/actions";
 import { useConfirmationDialog } from "@/components/confirmation-dialog";
+import { useActionFeedback } from "@/components/action-feedback";
 import type { AdminUser, UserRole, UsersSummary } from "@/lib/users";
 import styles from "./page.module.css";
 
@@ -62,7 +63,7 @@ export function UsersWorkspace({ users, roles, summary }: Props) {
   const [page, setPage] = useState(1);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const { notify: sendFeedback } = useActionFeedback();
   const router = useRouter();
 
   const filteredUsers = useMemo(() => {
@@ -104,10 +105,7 @@ export function UsersWorkspace({ users, roles, summary }: Props) {
 
   const farmManagers = users.filter((user) => user.roleName.includes("Manager")).length;
 
-  function notify(message: string) {
-    setToast(message);
-    window.setTimeout(() => setToast(null), 2600);
-  }
+  const notify = useCallback((message: string, tone: "success" | "error" = "success") => sendFeedback({ tone, text: message }), [sendFeedback]);
 
   return (
     <>
@@ -323,7 +321,7 @@ export function UsersWorkspace({ users, roles, summary }: Props) {
             router.refresh();
             notify("User profile updated.");
           }}
-          onError={notify}
+          onError={(message) => notify(message, "error")}
         />
       ) : null}
 
@@ -335,12 +333,6 @@ export function UsersWorkspace({ users, roles, summary }: Props) {
         />
       ) : null}
 
-      {toast ? (
-        <div className={styles.toast} role="alert">
-          <BadgeCheck size={20} />
-          <p>{toast}</p>
-        </div>
-      ) : null}
     </>
   );
 }
@@ -422,16 +414,17 @@ function UserModal({
     event.preventDefault();
     const form = event.currentTarget;
 
-    const confirmed = await confirm({
-      message: `Are you sure you want to save changes for ${user.fullName}?`,
-      confirmLabel: "Save Profile",
-    });
-
-    if (!confirmed) {
-      return;
-    }
-
     const formData = new FormData(form);
+    const roleChanged = String(formData.get("role_id")) !== (currentRole?.id ?? "");
+    const statusChanged = String(formData.get("is_active")) !== String(user.isActive);
+    if (roleChanged || statusChanged) {
+      const confirmed = await confirm({
+        title: "Update account access?",
+        message: `This will change the role or access status for ${user.fullName}.`,
+        confirmLabel: "Update access",
+      });
+      if (!confirmed) return;
+    }
 
     startTransition(async () => {
       try {
@@ -535,7 +528,7 @@ function CreateUserModal({
 }: {
   roles: UserRole[];
   onClose: () => void;
-  onNotify: (message: string) => void;
+  onNotify: (message: string, tone?: "success" | "error") => void;
 }) {
   const [state, formAction, pending] = useActionState(createUserAction, {
     message: "",
@@ -555,7 +548,7 @@ function CreateUserModal({
       return;
     }
 
-    onNotify(state.message);
+    onNotify(state.message, state.success ? "success" : "error");
 
     if (state.success) {
       onClose();
@@ -574,8 +567,9 @@ function CreateUserModal({
     event.preventDefault();
 
     const confirmed = await confirm({
-      message: "Are you sure you want to create this user account?",
-      confirmLabel: "Create Account",
+      title: "Create user account?",
+      message: "This will create a staff account with the selected role and access status.",
+      confirmLabel: "Create account",
     });
 
     if (!confirmed) {

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { PrintButton } from "@/components/print-button";
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { getSalesExportRows } from "@/lib/exports";
-import { formatCurrency, formatDateTime, formatQuantity } from "@/lib/format";
+import { formatCurrency, formatDate, formatDateTime, formatQuantity } from "@/lib/format";
 import styles from "./page.module.css";
 
 export default async function SalesPrintPage({
@@ -42,24 +42,36 @@ export default async function SalesPrintPage({
         <table>
           <thead>
             <tr>
+              <th>Entry type</th>
               <th>Receipt</th>
               <th>Customer</th>
-              <th>Item</th>
+              <th>Item / payment</th>
               <th>Qty</th>
-              <th>Total</th>
+              <th>Reference</th>
+              <th>Sale line</th>
+              <th>Payment received</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row, index) => (
               <tr key={`${row.receiptNumber}-${row.itemName}-${index}`}>
+                <td>{row.entryType}</td>
                 <td>
-                  <strong>{row.receiptNumber}</strong>
-                  <span>{formatDateTime(row.saleDate)}</span>
+                  {row.receiptLink ? (
+                    <Link href={row.receiptLink}><strong>{row.receiptNumber}</strong></Link>
+                  ) : (
+                    <strong>{row.receiptNumber}</strong>
+                  )}
+                  <span>{row.entryKind === "collection" ? formatDate(row.saleDate) : formatDateTime(row.saleDate)}</span>
                 </td>
                 <td>{row.customerName}</td>
                 <td>{row.itemName}</td>
-                <td>{formatQuantity(row.quantitySold, row.unit)}</td>
-                <td>{formatCurrency(row.lineTotal)}</td>
+                <td>{row.entryKind === "sale" ? formatQuantity(row.quantitySold, row.unit) : "-"}</td>
+                <td>{row.transactionReference || "-"}</td>
+                <td>{row.entryKind === "sale" ? formatCurrency(row.lineTotal) : "-"}</td>
+                <td>{row.collectionAmount === null ? "-" : formatCurrency(row.collectionAmount)}</td>
+                <td>{row.status === "Voided" ? "Voided" : row.status === "Recorded" ? "Recorded" : row.status}</td>
               </tr>
             ))}
           </tbody>

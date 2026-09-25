@@ -1397,17 +1397,20 @@
 .inventoryHistoryList .historyItem { grid-template-columns: minmax(110px, 0.7fr) minmax(160px, 1.2fr) minmax(160px, 2fr) minmax(150px, auto); align-items: center; }
 .inventoryHistoryList .historyItem > div { display: contents; }
 .inventoryHistoryList .historyItem > p { grid-column: 3 / -1; }
-.inventoryHistoryLedger { display: grid; gap: 14px; min-width: 0; }
-.inventoryHistoryLedger .historyPanel { display: grid; gap: 14px; padding: 0; border: 0; background: transparent; }
+.inventoryHistoryLedger { display: grid; min-width: 0; min-height: 0; height: 100%; }
+.inventoryHistoryLedger .historyPanel { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 12px; min-height: 0; padding: 0; border: 0; background: transparent; }
 .inventoryHistoryLedger .historyHeader { padding: 0 2px 4px; }
 .inventoryHistoryLedger .historyHeader h4 { font-size: 1.1rem; }
 .inventoryHistoryLedger .historyHeader p { margin-top: 4px; font-size: .82rem; }
-.inventoryHistoryLedger .historyItem { min-height: 72px; grid-template-columns: minmax(105px, .8fr) minmax(170px, 1.3fr) minmax(180px, 2fr) minmax(145px, auto); align-items: center; border-radius: 10px; padding: 12px 14px; }
+.historyTableHeader { display: grid; grid-template-columns: minmax(105px, .8fr) minmax(170px, 1.3fr) minmax(180px, 2fr) minmax(145px, auto); gap: 12px; padding: 0 14px; color: var(--text-muted); font-size: .58rem; font-weight: 700; letter-spacing: .025em; text-transform: none; }
+.inventoryHistoryRecords { display: grid; grid-template-rows: repeat(5, minmax(0, 1fr)); gap: 8px; min-height: 0; overflow: hidden; }
+.inventoryHistoryLedger .historyItem { min-height: 0; grid-template-columns: minmax(105px, .8fr) minmax(170px, 1.3fr) minmax(180px, 2fr) minmax(145px, auto); align-items: center; border-radius: 10px; padding: 10px 14px; }
 .inventoryHistoryLedger .historyItem > div { display: contents; }
-.inventoryHistoryLedger .historyItem > div:first-child strong { color: var(--green-accent); font-size: .8rem; text-transform: uppercase; }
+.inventoryHistoryLedger .historyItem > div:first-child strong { display: inline-flex; width: fit-content; border: 1px solid rgba(var(--green-rgb), .22); border-radius: 999px; color: var(--green-accent); background: rgba(var(--green-secondary-rgb), .1); font-size: .72rem; text-transform: none; padding: 4px 8px; }
 .inventoryHistoryLedger .historyItem > div:first-child span { color: var(--text); font-weight: 700; }
 .inventoryHistoryLedger .historyItem > div:nth-child(2) { color: var(--text-muted); font-size: .78rem; }
-.inventoryHistoryLedger .historyItem > p { grid-column: 3 / 4; margin: 0; overflow-wrap: anywhere; }
+.inventoryHistoryLedger .historyItem > p { grid-column: 4; margin: 0; overflow: hidden; color: var(--text-muted); font-size: .78rem; overflow-wrap: anywhere; text-overflow: ellipsis; white-space: nowrap; }
+.inventoryHistoryLedger .historyEmpty { grid-row: 1 / -1; align-self: center; justify-self: center; padding: 20px; }
 .historyPagination { display: flex; align-items: center; justify-content: center; gap: 14px; padding-top: 8px; }
 .historyPagination button { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 1px solid var(--history-border); border-radius: 7px; color: var(--green-accent); background: transparent; cursor: pointer; }
 .historyPagination button:disabled { opacity: .35; cursor: not-allowed; }
@@ -1424,6 +1427,13 @@
 
 .transactionHistoryModal {
   width: min(100%, 720px);
+}
+
+.inventoryHistoryModal {
+  height: min(760px, calc(100vh - 48px));
+  max-height: min(760px, calc(100vh - 48px));
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
 }
 
 .salesHistoryModal {
@@ -1813,6 +1823,26 @@
   .metricGrid,
   .salesBand {
     grid-template-columns: 1fr;
+  }
+
+  .inventoryHistoryModal {
+    height: min(760px, calc(100vh - 32px));
+    max-height: min(760px, calc(100vh - 32px));
+  }
+
+  .inventoryHistoryLedger .historyItem {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 9px 10px;
+  }
+
+  .inventoryHistoryLedger .historyItem > p {
+    grid-column: 1 / -1;
+  }
+
+  .historyTableHeader {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    padding: 0 10px;
   }
 }
 

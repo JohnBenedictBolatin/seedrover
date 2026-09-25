@@ -1,0 +1,11 @@
+.careTask.careTask { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "details priority" "due action"; align-items: center; gap: 8px 12px; }
+.careTaskDetails { grid-area: details; min-width: 0; }
+.careTaskDetails strong { overflow-wrap: anywhere; }
+.careTaskDetails span { overflow-wrap: anywhere; }
+.careTask[data-priority="Critical"] em { border-color: rgba(255, 87, 87, .24); color: #ff7575; background: rgba(255, 87, 87, .08); }
+.careTask[data-priority="Routine"] em { border-color: rgba(var(--green-rgb), .22); color: var(--green-accent); background: rgba(var(--green-rgb), .08); }
+.careTaskDue { grid-area: due; min-width: 0; color: var(--text-muted); font-size: .78rem; }
+.careTaskOpen { display: inline-grid; width: 36px; height: 36px; grid-area: action; place-items: center; justify-self: end; border: 1px solid var(--border-soft); border-radius: 8px; color: var(--green-accent); background: transparent; cursor: pointer; }
+.careTaskOpen:hover { border-color: rgba(var(--green-rgb), .38); background: rgba(var(--green-rgb), .08); }
+.carePanelPagination :focus-visible, .careTaskOpen:focus-visible { outline: 3px solid var(--green-accent); outline-offset: 2px; }
+.carePanelEmpty { display: grid; min-height: 82px; place-items: center; border: 1px dashed var(--border-soft); border-radius: 8px; color: var(--text-muted); padding: 14px; }

@@ -225,7 +225,6 @@ html[data-theme="light"] [class*="notice"] {
 
 html[data-theme="light"] [class*="tableSection"],
 html[data-theme="light"] [class*="rangePanel"],
-html[data-theme="light"] [class*="analysisPanel"],
 html[data-theme="light"] [class*="quickAction"],
 html[data-theme="light"] [class*="recordsPanel"],
 html[data-theme="light"] [class*="directoryPanel"],
@@ -361,7 +360,6 @@ html[data-theme="light"] [class*="metricIcon"] {
 
 html[data-theme="light"] [class*="quickActions"],
 html[data-theme="light"] [class*="rangePanel"],
-html[data-theme="light"] [class*="analysisPanel"],
 html[data-theme="light"] [class*="salesBand"] > div {
   --background: #1b1b1b;
   --surface: #252525;
@@ -386,14 +384,12 @@ html[data-theme="light"] [class*="salesBand"] > div {
 
 html[data-theme="light"] [class*="quickActions"] *,
 html[data-theme="light"] [class*="rangePanel"] *,
-html[data-theme="light"] [class*="analysisPanel"] *,
 html[data-theme="light"] [class*="salesBand"] > div * {
   color: inherit;
 }
 
 html[data-theme="light"] [class*="quickActions"]::before,
 html[data-theme="light"] [class*="rangePanel"]::before,
-html[data-theme="light"] [class*="analysisPanel"]::before,
 html[data-theme="light"] [class*="salesBand"] > div::before {
   opacity: 0.58 !important;
   background-image:
@@ -404,7 +400,6 @@ html[data-theme="light"] [class*="salesBand"] > div::before {
 
 html[data-theme="light"] [class*="quickActions"]::after,
 html[data-theme="light"] [class*="rangePanel"]::after,
-html[data-theme="light"] [class*="analysisPanel"]::after,
 html[data-theme="light"] [class*="salesBand"] > div::after {
   opacity: 0.36 !important;
   background:
@@ -494,45 +489,133 @@ html[data-theme="light"] select option {
   -webkit-backdrop-filter: var(--dialog-backdrop-filter) !important;
 }
 
-:where([class*="modalBackdrop"]) > :where([class*="modal"]):not([class*="modalHeader"]):not([class*="modalActions"]) {
-  min-width: min(680px, calc(100vw - 40px));
-  padding: 28px;
-}
 
-:where([class*="modal"]):not([class*="modalBackdrop"]) {
+/* Shared dialog sizing and reading scale. The case-insensitive class match
+   also covers names such as discountModal and confirmModal. */
+:is(
+  [data-ui-backdrop="true"] > [role="dialog"],
+  [data-ui-backdrop="true"] > [class*="modal" i],
+  [data-ui-backdrop="true"] > [class*="dialog" i]
+) {
+  box-sizing: border-box;
+  min-width: min(680px, calc(100vw - 40px));
+  max-width: calc(100vw - 40px);
+  max-height: min(90vh, 900px);
+  padding: 28px;
   font-size: 1rem;
 }
 
-:where([class*="modal"]) input,
-:where([class*="modal"]) select,
-:where([class*="modal"]) textarea {
+:is(
+  [data-ui-backdrop="true"] > [role="dialog"],
+  [data-ui-backdrop="true"] > [class*="modal" i],
+  [data-ui-backdrop="true"] > [class*="dialog" i]
+) input,
+:is(
+  [data-ui-backdrop="true"] > [role="dialog"],
+  [data-ui-backdrop="true"] > [class*="modal" i],
+  [data-ui-backdrop="true"] > [class*="dialog" i]
+) select,
+:is(
+  [data-ui-backdrop="true"] > [role="dialog"],
+  [data-ui-backdrop="true"] > [class*="modal" i],
+  [data-ui-backdrop="true"] > [class*="dialog" i]
+) textarea {
   min-height: 48px;
   font-size: 1.05rem;
   font-weight: 500 !important;
   padding: 12px 14px;
 }
 
-:where([class*="modal"]) label,
-:where([class*="modal"]) p,
-:where([class*="modal"]) span {
+:is(
+  [data-ui-backdrop="true"] > [role="dialog"],
+  [data-ui-backdrop="true"] > [class*="modal" i],
+  [data-ui-backdrop="true"] > [class*="dialog" i]
+) label,
+:is(
+  [data-ui-backdrop="true"] > [role="dialog"],
+  [data-ui-backdrop="true"] > [class*="modal" i],
+  [data-ui-backdrop="true"] > [class*="dialog" i]
+) p,
+:is(
+  [data-ui-backdrop="true"] > [role="dialog"],
+  [data-ui-backdrop="true"] > [class*="modal" i],
+  [data-ui-backdrop="true"] > [class*="dialog" i]
+) span {
   font-size: 1.05rem;
   line-height: 1.5;
 }
 
-:where([class*="modal"]) h2,
-:where([class*="modal"]) h3 {
+:is(
+  [data-ui-backdrop="true"] > [role="dialog"],
+  [data-ui-backdrop="true"] > [class*="modal" i],
+  [data-ui-backdrop="true"] > [class*="dialog" i]
+) h2,
+:is(
+  [data-ui-backdrop="true"] > [role="dialog"],
+  [data-ui-backdrop="true"] > [class*="modal" i],
+  [data-ui-backdrop="true"] > [class*="dialog" i]
+) h3 {
   font-size: 1.45rem;
   line-height: 1.25;
 }
 
-:where([class*="modal"]) button {
+:is(
+  [data-ui-backdrop="true"] > [role="dialog"],
+  [data-ui-backdrop="true"] > [class*="modal" i],
+  [data-ui-backdrop="true"] > [class*="dialog" i]
+) button {
   min-height: 48px;
   font-size: 0.92rem;
   text-transform: uppercase;
 }
 
+/* Shared confirmations use sentence case even though other modal actions keep
+   the site-wide uppercase treatment. */
+[data-ui-confirmation-backdrop="true"] > [role="dialog"] button,
+[data-ui-confirmation-backdrop="true"] > [role="dialog"] label,
+[data-ui-confirmation-backdrop="true"] > [role="dialog"] input,
+[data-ui-confirmation-backdrop="true"] > [role="dialog"] textarea {
+  text-transform: none !important;
+  letter-spacing: normal !important;
+}
+
+/* Keep long dialogs scrollable without showing distracting scrollbar chrome.
+   The rule also covers scrollable lists nested inside a modal. */
+:is(
+  [data-ui-backdrop="true"] > [role="dialog"],
+  [data-ui-backdrop="true"] > [class*="modal" i],
+  [data-ui-backdrop="true"] > [class*="dialog" i]
+),
+:is(
+  [data-ui-backdrop="true"] > [role="dialog"],
+  [data-ui-backdrop="true"] > [class*="modal" i],
+  [data-ui-backdrop="true"] > [class*="dialog" i]
+) * {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+:is(
+  [data-ui-backdrop="true"] > [role="dialog"],
+  [data-ui-backdrop="true"] > [class*="modal" i],
+  [data-ui-backdrop="true"] > [class*="dialog" i]
+)::-webkit-scrollbar,
+:is(
+  [data-ui-backdrop="true"] > [role="dialog"],
+  [data-ui-backdrop="true"] > [class*="modal" i],
+  [data-ui-backdrop="true"] > [class*="dialog" i]
+) *::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 @media (max-width: 720px) {
-  :where([class*="modalBackdrop"]) > :where([class*="modal"]):not([class*="modalHeader"]):not([class*="modalActions"]) {
+  :is(
+    [data-ui-backdrop="true"] > [role="dialog"],
+    [data-ui-backdrop="true"] > [class*="modal" i],
+    [data-ui-backdrop="true"] > [class*="dialog" i]
+  ) {
     min-width: 0;
     width: calc(100vw - 24px);
     padding: 20px;
@@ -599,6 +682,13 @@ option,
 ) :where(input, textarea, select, option, button, i, small) {
   letter-spacing: normal !important;
   text-transform: none !important;
+}
+
+/* Action labels use the same uppercase treatment throughout the web admin.
+   Dropdown values and entered form content keep their natural capitalization
+   through the explicit control exceptions above. */
+button {
+  text-transform: uppercase;
 }
 
 /* Required native controls receive the same inline red marker everywhere.

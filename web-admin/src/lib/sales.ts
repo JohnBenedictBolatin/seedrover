@@ -38,12 +38,17 @@ export type RecentSalesOrder = {
   discountAmount?: number;
   totalAmount: number;
   status: string;
-  source?: "receipt" | "market";
+  source?: "receipt" | "market" | "payment";
+  entryLabel?: string;
+  paymentAmount?: number;
+  relatedSaleId?: string;
 };
 
 export type SalesSummary = {
   salesToday: number;
   salesThisMonth: number;
+  collectedToday: number;
+  collectedThisMonth: number;
   transactions: number;
   completedSalesCount: number;
   averageTransactionValue: number;
@@ -96,6 +101,21 @@ export type SalesReceipt = {
   items: SalesReceiptItem[];
 };
 
+export type InstallmentCollectionEvent = {
+  id: string;
+  salesOrderId: string;
+  receiptNumber: string;
+  customerName: string;
+  paymentDate: string;
+  paymentMethod: string;
+  transactionReference: string | null;
+  paymentAmount: number;
+  collectionType: "down_payment" | "installment";
+  installmentNumber: number | null;
+  installmentCount: number;
+  saleStatus: string;
+};
+
 type SellableRow = {
   id: string;
   stock_code: string | null;
@@ -125,6 +145,8 @@ type RecentSalesOrderRow = {
   other_payment_method?: string | null;
   discount_amount?: number | string;
   total_amount: number | string;
+  amount_paid?: number | string | null;
+  change_amount?: number | string | null;
   status: string;
   sales_order_items?: Array<{
     id: string;
@@ -190,6 +212,34 @@ type StandaloneSalesRow = {
     category: string | null;
   }[] | null;
 };
+
+type InstallmentPlanLinkRow = {
+  id: string;
+  sales_order_id: string;
+  receipt_number: string;
+  customer_name: string;
+};
+
+type InstallmentCollectionRow = {
+  id: string;
+  collection_group_id: string;
+  collection_type: "down_payment" | "installment";
+  plan_id: string;
+  schedule_id: string;
+  amount: number | string;
+  payment_date: string;
+  payment_method: string;
+  transaction_reference: string | null;
+  other_payment_method: string | null;
+};
+
+type InstallmentScheduleLinkRow = {
+  id: string;
+  plan_id: string;
+  installment_number: number;
+};
+
+type SalesOrderStatusRow = { id: string; status: string };
 
 function toNumber(value: number | string | null | undefined) {
   if (typeof value === "number") {
@@ -385,6 +435,78 @@ function displayPaymentMethod(method: string | null | undefined, otherMethod?: s
   return method ?? "Not recorded";
 }
 
+export async function getInstallmentCollectionEvents() {
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) return { events: [] as InstallmentCollectionEvent[], error: "Supabase is not configured." };
+
+  const { data: plans, error: plansError } = await supabase
+    .from("installment_plans")
+    .select("id, sales_order_id, receipt_number, customer_name")
+    .returns<InstallmentPlanLinkRow[]>();
+  if (plansError) return { events: [] as InstallmentCollectionEvent[], error: plansError.message };
+  if (!plans?.length) return { events: [] as InstallmentCollectionEvent[], error: null };
+
+  const planIds = plans.map((plan) => plan.id);
+  const saleIds = plans.map((plan) => plan.sales_order_id);
+  const [paymentsResult, schedulesResult, ordersResult] = await Promise.all([
+    supabase
+      .from("installment_payments")
+      .select("id, collection_group_id, collection_type, plan_id, schedule_id, amount, payment_date, payment_method, transaction_reference, other_payment_method")
+      .in("plan_id", planIds)
+      .order("payment_date", { ascending: false })
+      .returns<InstallmentCollectionRow[]>(),
+    supabase
+      .from("installment_schedule")
+      .select("id, plan_id, installment_number")
+      .in("plan_id", planIds)
+      .order("installment_number", { ascending: true })
+      .returns<InstallmentScheduleLinkRow[]>(),
+    supabase
+      .from("sales_orders")
+      .select("id, status")
+      .in("id", saleIds)
+      .returns<SalesOrderStatusRow[]>(),
+  ]);
+  const relatedError = paymentsResult.error ?? schedulesResult.error ?? ordersResult.error;
+  if (relatedError) return { events: [] as InstallmentCollectionEvent[], error: relatedError.message };
+
+  const planById = new Map(plans.map((plan) => [plan.id, plan]));
+  const scheduleById = new Map((schedulesResult.data ?? []).map((schedule) => [schedule.id, schedule]));
+  const scheduleCounts = new Map<string, number>();
+  for (const schedule of schedulesResult.data ?? []) {
+    scheduleCounts.set(schedule.plan_id, (scheduleCounts.get(schedule.plan_id) ?? 0) + 1);
+  }
+  const statusBySale = new Map((ordersResult.data ?? []).map((order) => [order.id, order.status]));
+  const groups = new Map<string, InstallmentCollectionRow[]>();
+  for (const row of paymentsResult.data ?? []) {
+    const groupId = row.collection_group_id || row.id;
+    groups.set(groupId, [...(groups.get(groupId) ?? []), row]);
+  }
+
+  const events = [...groups.entries()].flatMap<InstallmentCollectionEvent>(([id, rows]) => {
+    const first = rows[0];
+    const plan = planById.get(first.plan_id);
+    if (!plan) return [];
+    const schedule = scheduleById.get(first.schedule_id);
+    return [{
+      id,
+      salesOrderId: plan.sales_order_id,
+      receiptNumber: plan.receipt_number,
+      customerName: plan.customer_name || "Walk-in customer",
+      paymentDate: first.payment_date,
+      paymentMethod: displayPaymentMethod(first.payment_method, first.other_payment_method),
+      transactionReference: first.transaction_reference,
+      paymentAmount: rows.reduce((sum, row) => sum + toNumber(row.amount), 0),
+      collectionType: first.collection_type,
+      installmentNumber: first.collection_type === "installment" ? schedule?.installment_number ?? null : null,
+      installmentCount: scheduleCounts.get(first.plan_id) ?? 0,
+      saleStatus: statusBySale.get(plan.sales_order_id) ?? "Completed",
+    }];
+  }).sort((left, right) => new Date(right.paymentDate).getTime() - new Date(left.paymentDate).getTime());
+
+  return { events, error: null };
+}
+
 export async function getSalesWorkspaceData() {
   const supabase = await createSupabaseServerClient();
 
@@ -392,6 +514,8 @@ export async function getSalesWorkspaceData() {
     summary: {
       salesToday: 0,
       salesThisMonth: 0,
+      collectedToday: 0,
+      collectedThisMonth: 0,
       transactions: 0,
       completedSalesCount: 0,
       averageTransactionValue: 0,
@@ -418,7 +542,7 @@ export async function getSalesWorkspaceData() {
     supabase
       .from("sales_orders")
       .select(
-        "id, receipt_number, sale_date, customer_name, customer_contact, payment_method, transaction_reference, other_payment_method, discount_amount, total_amount, status, sales_order_items(id, item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total, inventory(category))",
+        "id, receipt_number, sale_date, customer_name, customer_contact, payment_method, transaction_reference, other_payment_method, discount_amount, total_amount, amount_paid, change_amount, status, sales_order_items(id, item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total, inventory(category))",
       )
       .order("sale_date", { ascending: false })
       .limit(120)
@@ -435,7 +559,7 @@ export async function getSalesWorkspaceData() {
     ? await supabase
         .from("sales_orders")
         .select(
-          "id, receipt_number, sale_date, customer_name, customer_contact, payment_method, discount_amount, total_amount, status, sales_order_items(id, item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total, inventory(category))",
+          "id, receipt_number, sale_date, customer_name, customer_contact, payment_method, discount_amount, total_amount, amount_paid, change_amount, status, sales_order_items(id, item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total, inventory(category))",
         )
         .order("sale_date", { ascending: false })
         .limit(120)
@@ -471,6 +595,8 @@ export async function getSalesWorkspaceData() {
 
   const orderRows = ordersResult.data ?? [];
   const marketRows = marketResult.data ?? [];
+  const collectionsResult = await getInstallmentCollectionEvents();
+  const collectionEvents = collectionsResult.events;
   const today = startOfToday();
   const month = startOfMonth();
   const itemTotals = new Map<string, number>();
@@ -482,6 +608,8 @@ export async function getSalesWorkspaceData() {
   let totalDiscountGiven = 0;
   let salesToday = 0;
   let salesThisMonth = 0;
+  let collectedToday = 0;
+  let collectedThisMonth = 0;
 
   const history: RecentSalesOrder[] = [];
 
@@ -526,8 +654,15 @@ export async function getSalesWorkspaceData() {
     completedTotal += total;
     completedCount += 1;
     totalDiscountGiven += discount;
-    addToMap(paymentTotals, displayPaymentMethod(order.payment_method, order.other_payment_method), total);
     addToMap(dailyTotals, dateKey(order.sale_date), total);
+
+    if (order.payment_method !== "Installment") {
+      const method = displayPaymentMethod(order.payment_method, order.other_payment_method);
+      const collectedAmount = Math.max(toNumber(order.amount_paid ?? total) - toNumber(order.change_amount), 0);
+      addToMap(paymentTotals, method, collectedAmount);
+      if (saleDate >= today) collectedToday += collectedAmount;
+      if (saleDate >= month) collectedThisMonth += collectedAmount;
+    }
 
     if (saleDate >= today) {
       salesToday += total;
@@ -578,18 +713,47 @@ export async function getSalesWorkspaceData() {
 
     completedTotal += total;
     completedCount += 1;
-    addToMap(paymentTotals, displayPaymentMethod(sale.payment_method, sale.other_payment_method), total);
+    const method = displayPaymentMethod(sale.payment_method, sale.other_payment_method);
+    addToMap(paymentTotals, method, total);
     addToMap(dailyTotals, dateKey(sale.sale_date), total);
     addToMap(itemTotals, itemName, total);
     addToMap(categoryTotals, category, total);
 
     if (saleDate >= today) {
       salesToday += total;
+      collectedToday += total;
     }
 
     if (saleDate >= month) {
       salesThisMonth += total;
+      collectedThisMonth += total;
     }
+  }
+
+  for (const event of collectionEvents) {
+    const paymentDate = new Date(`${event.paymentDate}T00:00:00`);
+    const entryLabel = event.collectionType === "down_payment"
+      ? "Down payment"
+      : `Installment (${event.installmentNumber ?? "?"}/${event.installmentCount || "?"})`;
+    history.push({
+      id: event.id,
+      receiptNumber: event.receiptNumber,
+      saleDate: event.paymentDate,
+      customerName: event.customerName,
+      paymentMethod: event.paymentMethod,
+      transactionReference: event.transactionReference,
+      totalAmount: event.paymentAmount,
+      paymentAmount: event.paymentAmount,
+      discountAmount: 0,
+      itemCount: 0,
+      status: event.saleStatus,
+      source: "payment",
+      entryLabel,
+      relatedSaleId: event.salesOrderId,
+    });
+    addToMap(paymentTotals, event.paymentMethod, event.paymentAmount);
+    if (paymentDate >= today) collectedToday += event.paymentAmount;
+    if (paymentDate >= month) collectedThisMonth += event.paymentAmount;
   }
 
   const topItems = topMapEntries(itemTotals, 5);
@@ -598,7 +762,9 @@ export async function getSalesWorkspaceData() {
     summary: {
       salesToday,
       salesThisMonth,
-      transactions: history.length,
+      collectedToday,
+      collectedThisMonth,
+      transactions: orderRows.length + marketRows.length,
       completedSalesCount: completedCount,
       averageTransactionValue: completedCount > 0 ? completedTotal / completedCount : 0,
       bestSellingItem: topItems[0]?.label ?? "No sales yet",
@@ -611,14 +777,14 @@ export async function getSalesWorkspaceData() {
       topItems,
       lowPerformingItems: topMapEntries(itemTotals, 5, true),
       discountImpact: [
-        { label: "Collected", value: completedTotal },
+        { label: "Sales value", value: completedTotal },
         { label: "Discounts", value: totalDiscountGiven },
       ],
     },
     orders: history.sort(
       (a, b) => new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime(),
     ),
-    error: marketResult.error?.message ?? null,
+    error: marketResult.error?.message ?? collectionsResult.error ?? null,
   };
 }
 

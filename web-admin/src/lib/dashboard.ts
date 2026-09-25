@@ -321,6 +321,92 @@ function customerKey(name: string | null | undefined) {
   return normalized;
 }
 
+function buildRecentActivity(
+  orders: SalesOrderRow[],
+  marketSales: MarketSaleRow[],
+  transactions: TransactionRow[],
+) {
+  const recentActivity: DashboardActivity[] = [];
+
+  for (const order of orders) {
+    recentActivity.push({
+      id: order.id,
+      action: "Sale completed",
+      label: order.receipt_number,
+      detail: orderItemSummary(order.sales_order_items),
+      metadata: [
+        order.customer_name ?? "Walk-in customer",
+        order.payment_method || "Payment not recorded",
+        `Recorded by ${firstRelation(order.recorder)?.full_name ?? "Unknown user"}`,
+      ],
+      value: toNumber(order.total_amount).toString(),
+      createdAt: order.sale_date,
+      type: "sale",
+    });
+  }
+
+  for (const sale of marketSales) {
+    const inventory = firstRelation(sale.inventory);
+    const itemName = inventory?.item_name ?? "Market distribution";
+    const paymentMethod = sale.payment_method ?? "Not recorded";
+
+    recentActivity.push({
+      id: sale.id,
+      action: "Sale completed",
+      label: `SR-${sale.id.slice(0, 8).toUpperCase()}`,
+      detail: `Sold ${toNumber(sale.quantity_sold)} ${INVENTORY_UNIT} of ${itemName}`,
+      metadata: [
+        sale.customer_name ?? "Walk-in customer",
+        paymentMethod,
+        `Recorded by ${firstRelation(sale.recorder)?.full_name ?? "Unknown user"}`,
+      ],
+      value: toNumber(sale.total_amount).toString(),
+      createdAt: sale.sale_date,
+      type: "sale",
+    });
+  }
+
+  for (const transaction of transactions) {
+    if (transaction.source === "sale") {
+      continue;
+    }
+
+    const item = firstRelation(transaction.inventory);
+    const performer = firstRelation(transaction.performer)?.full_name ?? "Unknown user";
+    const sourceLabel = transaction.source === "void_sale"
+      ? "Voided sale"
+      : transaction.source === "harvest"
+        ? "Crop harvest"
+        : "Manual entry";
+    const type = transaction.transaction_type === "IN"
+      ? "stock-in"
+      : transaction.transaction_type === "OUT"
+        ? "stock-out"
+        : "stock-adjustment";
+    const quantity = toNumber(transaction.quantity);
+    const value = transaction.transaction_type === "IN"
+      ? `+${quantity} ${INVENTORY_UNIT}`
+      : transaction.transaction_type === "OUT"
+        ? `-${quantity} ${INVENTORY_UNIT}`
+        : `Set to ${quantity} ${INVENTORY_UNIT}`;
+
+    recentActivity.push({
+      id: transaction.id,
+      action: stockActivityDescription(transaction),
+      label: item?.item_name ?? "Inventory item",
+      detail: transaction.remarks?.trim() || "No additional notes",
+      metadata: [sourceLabel, `Recorded by ${performer}`],
+      value: value.trim(),
+      createdAt: transaction.created_at,
+      type,
+    });
+  }
+
+  return recentActivity
+    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
+    .slice(0, 24);
+}
+
 function emptyData(range: DashboardRange, error: string | null): OperationsDashboardData {
   return {
     range,
@@ -408,6 +494,9 @@ export async function getOperationsDashboard(range: DashboardRange) {
     transactionsResult,
     ordersResult,
     marketResultWithPayment,
+    recentTransactionsResult,
+    recentOrdersResult,
+    recentMarketResultWithPayment,
     cropsResult,
     roverResult,
   ] = await Promise.all([
@@ -440,6 +529,28 @@ export async function getOperationsDashboard(range: DashboardRange) {
       .limit(1000)
       .returns<MarketSaleRow[]>(),
     supabase
+      .from("inventory_transactions")
+      .select("id, transaction_type, quantity, remarks, source, created_at, inventory(item_name, unit), performer:profiles!inventory_transactions_performed_by_fkey(full_name)")
+      .order("created_at", { ascending: false })
+      .limit(48)
+      .returns<TransactionRow[]>(),
+    supabase
+      .from("sales_orders")
+      .select(
+        "id, receipt_number, sale_date, customer_name, payment_method, total_amount, status, recorder:profiles!sales_orders_recorded_by_fkey(full_name), sales_order_items(item_name_snapshot, unit_snapshot, quantity_sold, line_total, inventory(category))",
+      )
+      .eq("status", "Completed")
+      .order("sale_date", { ascending: false })
+      .limit(48)
+      .returns<SalesOrderRow[]>(),
+    supabase
+      .from("sales_transactions")
+      .select("id, sale_date, customer_name, payment_method, quantity_sold, total_amount, status, recorder:profiles!sales_transactions_recorded_by_fkey(full_name), inventory(item_name, category, unit)")
+      .eq("status", "Completed")
+      .order("sale_date", { ascending: false })
+      .limit(48)
+      .returns<MarketSaleRow[]>(),
+    supabase
       .from("crops")
       .select("crop_status, growth_stage")
       .returns<CropRow[]>(),
@@ -454,7 +565,16 @@ export async function getOperationsDashboard(range: DashboardRange) {
         .order("sale_date", { ascending: false })
         .limit(1000)
         .returns<MarketSaleRow[]>()
-    : marketResultWithPayment;
+      : marketResultWithPayment;
+  const recentMarketResult = isMissingPaymentMethodColumn(recentMarketResultWithPayment.error)
+    ? await supabase
+        .from("sales_transactions")
+        .select("id, sale_date, customer_name, quantity_sold, total_amount, status, recorder:profiles!sales_transactions_recorded_by_fkey(full_name), inventory(item_name, category, unit)")
+        .eq("status", "Completed")
+        .order("sale_date", { ascending: false })
+        .limit(48)
+        .returns<MarketSaleRow[]>()
+    : recentMarketResultWithPayment;
 
   if (inventoryResult.error) {
     return emptyData(range, inventoryResult.error.message);
@@ -464,6 +584,9 @@ export async function getOperationsDashboard(range: DashboardRange) {
   const orderRows = ordersResult.error ? [] : ordersResult.data ?? [];
   const marketRows = marketResult.error ? [] : marketResult.data ?? [];
   const transactionRows = transactionsResult.error ? [] : transactionsResult.data ?? [];
+  const recentOrderRows = recentOrdersResult.error ? [] : recentOrdersResult.data ?? [];
+  const recentMarketRows = recentMarketResult.error ? [] : recentMarketResult.data ?? [];
+  const recentTransactionRows = recentTransactionsResult.error ? [] : recentTransactionsResult.data ?? [];
   const cropRows = cropsResult.error ? [] : cropsResult.data ?? [];
 
   const stockValueByCategory = new Map<string, number>();
@@ -504,8 +627,6 @@ export async function getOperationsDashboard(range: DashboardRange) {
   let recoveredSales = 0;
   let transactionsInRange = 0;
 
-  const recentActivity: DashboardActivity[] = [];
-
   for (const order of orderRows) {
     if (order.status !== "Completed") {
       continue;
@@ -531,21 +652,6 @@ export async function getOperationsDashboard(range: DashboardRange) {
     if (key) {
       customers.add(key);
     }
-
-    recentActivity.push({
-      id: order.id,
-      action: "Sale completed",
-      label: order.receipt_number,
-      detail: orderItemSummary(items),
-      metadata: [
-        order.customer_name ?? "Walk-in customer",
-        order.payment_method || "Payment not recorded",
-        `Recorded by ${firstRelation(order.recorder)?.full_name ?? "Unknown user"}`,
-      ],
-      value: total.toString(),
-      createdAt: order.sale_date,
-      type: "sale",
-    });
 
     for (const item of items) {
       const category = firstRelation(item.inventory)?.category?.trim() || "Uncategorized";
@@ -586,20 +692,6 @@ export async function getOperationsDashboard(range: DashboardRange) {
       customers.add(key);
     }
 
-    recentActivity.push({
-      id: sale.id,
-      action: "Sale completed",
-      label: `SR-${sale.id.slice(0, 8).toUpperCase()}`,
-      detail: `Sold ${toNumber(sale.quantity_sold)} ${INVENTORY_UNIT} of ${itemName}`,
-      metadata: [
-        sale.customer_name ?? "Walk-in customer",
-        paymentMethod,
-        `Recorded by ${firstRelation(sale.recorder)?.full_name ?? "Unknown user"}`,
-      ],
-      value: total.toString(),
-      createdAt: sale.sale_date,
-      type: "sale",
-    });
   }
 
   const stockMovementMap = new Map<string, StockMovementPoint>();
@@ -624,38 +716,6 @@ export async function getOperationsDashboard(range: DashboardRange) {
 
     stockMovementMap.set(label, current);
 
-    if (transaction.source === "sale") {
-      continue;
-    }
-
-    const item = firstRelation(transaction.inventory);
-    const performer = firstRelation(transaction.performer)?.full_name ?? "Unknown user";
-    const sourceLabel = transaction.source === "void_sale"
-      ? "Voided sale"
-      : transaction.source === "harvest"
-        ? "Crop harvest"
-        : "Manual entry";
-    const type = transaction.transaction_type === "IN"
-      ? "stock-in"
-      : transaction.transaction_type === "OUT"
-        ? "stock-out"
-        : "stock-adjustment";
-    const value = transaction.transaction_type === "IN"
-      ? `+${quantity} ${INVENTORY_UNIT}`
-      : transaction.transaction_type === "OUT"
-        ? `-${quantity} ${INVENTORY_UNIT}`
-        : `Set to ${quantity} ${INVENTORY_UNIT}`;
-
-    recentActivity.push({
-      id: transaction.id,
-      action: stockActivityDescription(transaction),
-      label: item?.item_name ?? "Inventory item",
-      detail: transaction.remarks?.trim() || "No additional notes",
-      metadata: [sourceLabel, `Recorded by ${performer}`],
-      value: value.trim(),
-      createdAt: transaction.created_at,
-      type,
-    });
   }
 
   const cropStatus = new Map<string, number>();
@@ -669,12 +729,14 @@ export async function getOperationsDashboard(range: DashboardRange) {
         { label: "Soil temp", value: roverResult.sensors.soilTemperature },
         { label: "Humidity", value: roverResult.sensors.humidity },
         { label: "Environment", value: roverResult.sensors.environmentalTemperature },
-      ].filter((point): point is DashboardPoint => point.value !== null)
+      ].filter((point): point is DashboardPoint => typeof point.value === "number" && Number.isFinite(point.value))
     : [];
 
-  const sortedRecentActivity = recentActivity
-    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
-    .slice(0, 24);
+  const sortedRecentActivity = buildRecentActivity(
+    recentOrderRows,
+    recentMarketRows,
+    recentTransactionRows,
+  );
   const topItemPoints = rankedPoints(topItems, 6);
   const salesByCategoryPoints = rankedPoints(salesByCategory, 6);
   const paymentPoints = rankedPoints(paymentMethods, 5);

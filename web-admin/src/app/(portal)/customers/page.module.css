@@ -38,8 +38,34 @@
 .paymentField { display: grid; gap: 7px; color: var(--text-muted); font-size: 0.78rem; font-weight: 900; }
 .paymentField input { width: 100%; min-height: 44px; border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text); background: rgba(27, 27, 27, 0.55); padding: 0 12px; }
 .paymentField input:focus { border-color: var(--green-accent); outline: 2px solid rgba(141, 255, 42, 0.12); }
-.paymentPrimaryButton, .paymentMarkButton { min-height: 40px; border: 1px solid rgba(141, 255, 42, 0.35); border-radius: 8px; color: #132313; background: var(--green-accent); font-size: 0.72rem; font-weight: 900; cursor: pointer; padding: 0 14px; white-space: nowrap; }
-.paymentPrimaryButton:hover, .paymentMarkButton:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.paymentPrimaryButton, .paymentMarkButton {
+  position: relative;
+  min-height: 44px;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(141, 255, 42, 0.34);
+  border-radius: 8px;
+  color: #eff8e7;
+  background: linear-gradient(135deg, rgba(83, 209, 30, 0.18), rgba(108, 235, 49, 0.12));
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 900;
+  isolation: isolate;
+  padding: 0 14px;
+  transition: border-color 180ms ease, color 180ms ease, background 180ms ease, transform 180ms ease, box-shadow 220ms ease;
+}
+.paymentPrimaryButton > span, .paymentMarkButton > span { position: relative; z-index: 1; }
+.paymentPrimaryButton::before, .paymentMarkButton::before,
+.paymentPrimaryButton::after, .paymentMarkButton::after { content: ""; position: absolute; z-index: 0; border-radius: 50%; transform: translateX(-50%) scaleY(1) scaleX(1.25); transition: all 0.5s 0.08s cubic-bezier(0.55, 0, 0.1, 1); }
+.paymentPrimaryButton::before, .paymentMarkButton::before { left: 50%; top: 105%; width: 140%; height: 180%; background: rgba(141, 255, 42, 0.12); }
+.paymentPrimaryButton::after, .paymentMarkButton::after { left: 55%; top: 180%; width: 160%; height: 190%; background: linear-gradient(135deg, var(--green-accent), var(--green)); transform: translateX(-50%) scaleY(1) scaleX(1.45); transition-delay: 0.1s; }
+.paymentPrimaryButton:hover:not(:disabled), .paymentMarkButton:hover:not(:disabled) { border-color: rgba(141, 255, 42, 0.68); color: #102006; transform: translateY(-1px); }
+.paymentPrimaryButton:hover:not(:disabled)::before, .paymentMarkButton:hover:not(:disabled)::before { top: -35%; background: rgba(141, 255, 42, 0.4); transform: translateX(-50%) scaleY(1.3) scaleX(0.8); }
+.paymentPrimaryButton:hover:not(:disabled)::after, .paymentMarkButton:hover:not(:disabled)::after { top: -45%; transform: translateX(-50%) scaleY(1.3) scaleX(0.8); }
+.paymentPrimaryButton:active:not(:disabled), .paymentMarkButton:active:not(:disabled) { transform: translateY(0); }
 .paymentTable { display: grid; gap: 8px; overflow-x: auto; }
 .paymentTableHeader, .paymentRow { display: grid; min-width: 780px; grid-template-columns: minmax(200px, 1.35fr) 140px 155px 120px 128px; column-gap: 20px; align-items: center; }
 .paymentTableHeader { color: var(--text-muted); font-size: 0.7rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; padding: 0 14px 4px; }
@@ -58,15 +84,125 @@
 .paymentActionCell { display: flex; justify-content: flex-end; }
 .paymentComplete { color: var(--green-accent); font-size: 0.72rem; font-weight: 900; text-align: right; }
 .paymentEmpty { border: 1px dashed var(--border-soft); border-radius: 8px; color: var(--text-secondary); padding: 24px; text-align: center; }
+.filters.installmentFilters { grid-template-columns: minmax(240px, 1.5fr) repeat(2, minmax(160px, 0.75fr)); }
+.installmentPlans { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.installmentPlanCard { display: grid; gap: 12px; border: 1px solid var(--border-soft); border-radius: 10px; background: rgba(34, 34, 34, 0.72); padding: 14px; }
+.installmentPlanHeader { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 16px; border: 0; color: var(--text); background: transparent; padding: 0; text-align: left; }
+.installmentPlanHeader > span:first-child, .installmentPlanTotals { display: grid; gap: 4px; }
+.installmentPlanHeader small, .installmentScheduleRow small { color: var(--text-muted); font-size: 0.74rem; font-weight: 600; }
+.installmentPlanTotals { justify-items: end; text-align: right; }
+.installmentPlanTotals strong { color: var(--green-accent); font-family: var(--font-roboto-mono); }
+.installmentPlanTotals em, .installmentScheduleRow em { width: max-content; border-radius: 999px; color: var(--warning); background: rgba(255,176,0,0.1); font-size: 0.68rem; font-style: normal; font-weight: 900; padding: 4px 8px; }
+.installmentPlanTotals em[data-status="completed"], .installmentScheduleRow em[data-status="paid"] { color: var(--green-accent); background: rgba(83,209,30,0.1); }
+.installmentScheduleRow em[data-status="partially-paid"] { color: #78b9ff; background: rgba(90,150,255,0.12); }
+.installmentPlanTotals em[data-status="cancelled"], .installmentScheduleRow em[data-status="overdue"] { color: #ff8585; background: rgba(255,87,87,0.1); }
+.installmentProgress { height: 7px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,0.08); }
+.installmentProgress span { display: block; height: 100%; border-radius: inherit; background: var(--green-accent); transition: width 0.2s ease; }
+.installmentPlanMeta { position: relative; z-index: 181; display: flex; flex-wrap: wrap; align-items: center; gap: 18px; color: var(--text-secondary); font-size: 0.78rem; }
+.installmentPlanActions { position: relative; z-index: 181; display: flex; justify-content: flex-end; }
+.installmentPlanActions .installmentExpandButton { margin-left: 0; }
+.installmentExpandButton { position: relative; z-index: 182; display: inline-flex; align-items: center; gap: 6px; margin-left: auto; border: 1px solid var(--border-soft); border-radius: 999px; color: var(--green-accent); background: var(--surface); cursor: pointer; font-size: 0.74rem; font-weight: 900; padding: 6px 10px; }
+.installmentExpandButton:hover { border-color: var(--green-accent); background: rgba(141,255,42,0.08); }
+.installmentScheduleList { display: grid; gap: 8px; border-top: 1px solid var(--border-soft); padding-top: 12px; }
+.installmentTimeline { display: grid; }
+.installmentTimelineItem { position: relative; display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; padding-bottom: 14px; }
+.installmentTimelineItem:last-child { padding-bottom: 0; }
+.installmentTimelineTrack { position: relative; display: flex; justify-content: center; }
+.installmentTimelineItem:not(:last-child) .installmentTimelineTrack::after { content: ""; position: absolute; top: 36px; bottom: -21px; left: 50%; width: 2px; border-radius: 999px; background: var(--border-soft); transform: translateX(-50%); }
+.installmentTimelineItemCompleted:not(:last-child) .installmentTimelineTrack::after { background: var(--green-accent); }
+.installmentTimelinePoint { position: relative; z-index: 1; display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center; margin-top: 7px; border: 2px solid var(--border-soft); border-radius: 50%; color: var(--text-muted); background: var(--surface); font-family: var(--font-roboto-mono); font-size: 0.78rem; font-weight: 900; }
+.installmentTimelineItemCompleted .installmentTimelinePoint { border-color: var(--green-accent); color: #132313; background: var(--green-accent); }
+.installmentTimelineItemCompleted .installmentTimelinePoint svg { color: #ffffff; stroke: #ffffff; }
+.installmentTimelineItem .installmentScheduleRow { min-width: 0; }
+.installmentScheduleRow { display: grid; grid-template-columns: minmax(150px, 1.1fr) minmax(220px, 1.25fr) 140px 132px; gap: 16px; align-items: center; border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text-secondary); font-size: 0.94rem; padding: 14px 16px; }
+.installmentScheduleRow > div { display: grid; gap: 3px; }
+.installmentScheduleRow > div:nth-child(2) { font-family: var(--font-roboto-mono); font-size: 0.92rem; }
+.installmentScheduleRow small { font-size: 0.82rem; }
+.installmentScheduleRow em { font-size: 0.78rem; }
+.installmentScheduleRow > button, .installmentScheduleRow > span { justify-self: stretch; }
+.installmentScheduleRow > .paymentComplete { display: flex; width: 100%; min-height: 40px; align-items: center; justify-content: center; }
+.installmentScheduleRow .paymentMarkButton { width: 100%; font-size: 0.9rem; text-transform: none; }
+.paymentDetailsButton { min-height: 40px; width: 100%; border: 1px solid var(--border-soft); border-radius: 8px; color: var(--green-accent); background: transparent; cursor: pointer; font-size: 0.86rem; font-weight: 900; transition: border-color 180ms ease, color 180ms ease, background 180ms ease, transform 180ms ease; }
+.paymentDetailsButton:hover { border-color: var(--green-accent); color: var(--text); background: rgba(141,255,42,0.1); transform: translateY(-1px); }
+.installmentScheduleRow .paymentMarkButton:disabled { border-color: var(--border-soft); color: var(--text-muted); background: rgba(128, 128, 128, 0.16); cursor: not-allowed; opacity: 0.7; }
+.installmentScheduleRow .paymentMarkButton:disabled::before, .installmentScheduleRow .paymentMarkButton:disabled::after { display: none; }
+.installmentScheduleRow .paymentMarkButton:disabled:hover { filter: none; transform: none; }
+.legacyPaymentSection { display: grid; gap: 12px; border-top: 1px solid var(--border-soft); padding-top: 16px; }
+.legacyPaymentSection h3 { margin: 0; }
+.installmentPaymentModal { display: grid; width: min(100%, 520px); max-height: min(88vh, 760px); gap: 18px; overflow-y: auto; border: 1px solid var(--border-soft); border-radius: 10px; background: var(--surface); box-shadow: var(--shadow); padding: 20px; }
+.installmentScheduleModal { display: grid; width: min(96vw, 1040px); max-height: min(90vh, 900px); gap: 22px; overflow-y: auto; border: 1px solid var(--border-soft); border-radius: 12px; color: var(--text); background: var(--surface); box-shadow: var(--shadow); padding: 28px; }
+.installmentPaymentModal, .installmentScheduleModal, .installmentScheduleModalList { scrollbar-width: none; -ms-overflow-style: none; }
+.installmentPaymentModal::-webkit-scrollbar, .installmentScheduleModal::-webkit-scrollbar, .installmentScheduleModalList::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.installmentModalTitle { display: block; margin: 0; color: var(--text); font-size: 1.2rem; line-height: 1.15; }
+.installmentModalSubtitle { margin: 5px 0 0; color: var(--green-accent); font-size: 0.76rem; font-weight: 900; letter-spacing: 0.06em; text-transform: uppercase; }
+.installmentScheduleModalList { max-height: 55vh; overflow-y: auto; padding-right: 4px; }
+.installmentPaymentSummary { display: flex; justify-content: space-between; gap: 16px; border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text-secondary); font-size: 1rem; padding: 14px 16px; }
+.installmentPaymentSummary strong { color: var(--green-accent); font-family: var(--font-roboto-mono); white-space: nowrap; }
+.installmentPaymentSummary .installmentReceiptNumber { color: var(--text); font-family: inherit; font-weight: 900; }
+.installmentPaymentForm { display: grid; gap: 12px; }
+.installmentPaymentForm label { display: grid; gap: 6px; color: var(--text-secondary); font-size: 0.78rem; font-weight: 900; }
+.installmentPaymentSelectLabel { display: grid; gap: 6px; color: var(--text-secondary); font-size: 0.78rem; font-weight: 900; }
+.installmentRequiredMark { color: var(--danger); }
+.installmentPaymentSelectLabel .themedSelectButton { min-height: 42px; }
+.installmentPaymentForm input, .installmentPaymentForm select, .installmentPaymentForm textarea { width: 100%; border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text); background: rgba(27,27,27,0.55); padding: 10px 12px; }
+.installmentPaymentForm input, .installmentPaymentForm select { min-height: 42px; }
+.installmentPaymentForm textarea { resize: vertical; }
+.installmentPaymentForm input:focus, .installmentPaymentForm select:focus, .installmentPaymentForm textarea:focus { border-color: var(--green-accent); outline: 2px solid rgba(141,255,42,0.12); }
+.installmentPaymentModal .modalActions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 4px; }
+.installmentPaymentModal .modalActions > button:first-child { min-height: 40px; border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text-secondary); background: transparent; cursor: pointer; padding: 0 14px; }
+.installmentDetailsModal { width: min(100%, 820px); max-height: min(90vh, 860px); gap: 24px; padding: 30px; }
+.installmentDetailsModal .modalHeader { gap: 20px; }
+.installmentDetailsModal .modalHeader h3 { margin-top: 2px; font-size: 1.7rem; }
+.installmentDetailsModal .eyebrow { margin-bottom: 8px; font-size: 0.9rem; }
+.installmentDetailsModal .installmentPaymentSummary { min-height: 58px; align-items: center; padding: 16px 18px; font-size: 1.08rem; }
+.installmentDetailsModal .installmentPaymentSummary strong { font-size: 1.08rem; }
+.installmentDetailsSummary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; color: var(--text-secondary); font-size: 0.82rem; }
+.installmentDetailsSummary span { display: grid; gap: 6px; border: 1px solid var(--border-soft); border-radius: 8px; padding: 14px 15px; font-size: 0.92rem; }
+.installmentDetailsSummary strong { color: var(--text); font-family: var(--font-roboto-mono); font-size: 1rem; }
+.installmentPaymentHistory { display: grid; gap: 10px; }
+.installmentPaymentHistory h4 { margin: 0 0 2px; color: var(--text); font-size: 1.08rem; }
+.installmentPaymentHistoryRow { display: grid; grid-template-columns: minmax(180px, 0.7fr) minmax(0, 1.3fr); gap: 20px; border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text-secondary); padding: 16px; }
+.installmentPaymentHistoryRow > div { display: grid; gap: 4px; align-content: start; }
+.installmentPaymentHistoryRow strong { color: var(--green-accent); font-family: var(--font-roboto-mono); font-size: 1.08rem; }
+.installmentPaymentHistoryRow span { font-size: 0.94rem; }
+.installmentPaymentHistoryRow .paymentReference { color: var(--text); font-weight: 800; }
+.installmentPaymentHistoryRow small { color: var(--text-muted); font-size: 0.88rem; line-height: 1.5; }
+.recordedPaymentReceipt { width: 100%; min-height: 54px; margin-top: 4px; cursor: pointer; text-decoration: none; }
 
 :global(html[data-theme="light"]) .paymentPanel { background: rgba(255,255,255,0.86); }
 :global(html[data-theme="light"]) .paymentField input { border-color: rgba(18,60,27,0.22); color: #123c1b; background: #fff; }
 :global(html[data-theme="light"]) .paymentRow { border-color: rgba(18,60,27,0.12); color: rgba(18,60,27,0.72); background: #f9fcf7; }
 :global(html[data-theme="light"]) .paymentRow strong, :global(html[data-theme="light"]) .paymentAmount { color: #123c1b; }
-:global(html[data-theme="light"]) .paymentPrimaryButton, :global(html[data-theme="light"]) .paymentMarkButton { color: #ffffff; }
+:global(html[data-theme="light"]) .paymentPrimaryButton, :global(html[data-theme="light"]) .paymentMarkButton {
+  border-color: rgba(18, 60, 27, 0.34);
+  color: #102006;
+  background: linear-gradient(135deg, rgba(18, 60, 27, 0.06), rgba(83, 209, 30, 0.04));
+}
+:global(html[data-theme="light"]) .paymentPrimaryButton:hover:not(:disabled), :global(html[data-theme="light"]) .paymentMarkButton:hover:not(:disabled) { color: #ffffff; }
+:global(html[data-theme="light"]) .paymentPrimaryButton:disabled, :global(html[data-theme="light"]) .paymentMarkButton:disabled { border-color: rgba(18, 60, 27, 0.18); color: rgba(18, 60, 27, 0.48); background: rgba(18, 60, 27, 0.06); }
+:global(html[data-theme="light"]) .installmentPlanCard { background: #f9fcf7; }
+:global(html[data-theme="light"]) .installmentPaymentForm input, :global(html[data-theme="light"]) .installmentPaymentForm select, :global(html[data-theme="light"]) .installmentPaymentForm textarea { border-color: rgba(18,60,27,0.22); color: #123c1b; background: #fff; }
+:global(html[data-theme="light"]) .installmentScheduleModal { border-color: rgba(18,60,27,0.18); color: #123c1b; background: #fff; }
+:global(html[data-theme="light"]) .installmentScheduleModal .installmentPaymentSummary, :global(html[data-theme="light"]) .installmentScheduleModal .installmentScheduleRow { border-color: rgba(18,60,27,0.14); color: rgba(18,60,27,0.78); background: #fff; }
+:global(html[data-theme="light"]) .installmentScheduleModal .installmentModalTitle { color: #123c1b; }
+:global(html[data-theme="light"]) .installmentScheduleModal .installmentPaymentSummary .installmentReceiptNumber { color: #123c1b; }
+:global(html[data-theme="light"]) .paymentDetailsButton { border-color: rgba(18,60,27,0.22); color: #176b25; }
+:global(html[data-theme="light"]) .paymentDetailsButton:hover { color: #123c1b; background: rgba(83,209,30,0.1); }
+:global(html[data-theme="light"]) .installmentDetailsSummary span, :global(html[data-theme="light"]) .installmentPaymentHistoryRow { border-color: rgba(18,60,27,0.14); background: #fff; }
+:global(html[data-theme="light"]) .installmentDetailsSummary strong, :global(html[data-theme="light"]) .installmentPaymentHistory h4 { color: #123c1b; }
 
 @media (max-width: 1100px) { .paymentForm { grid-template-columns: repeat(2, minmax(0, 1fr)); } .paymentPrimaryButton { width: max-content; } }
 @media (max-width: 720px) {
+  .filters.installmentFilters { grid-template-columns: 1fr; }
+  .installmentPlans { grid-template-columns: 1fr; }
+  .installmentPlanHeader, .installmentPaymentSummary { align-items: flex-start; flex-direction: column; }
+  .installmentPlanTotals { justify-items: start; text-align: left; }
+  .installmentPlanMeta { padding-right: 0; }
+  .installmentExpandButton { margin-left: 0; }
+  .installmentScheduleRow { grid-template-columns: 1fr 1fr; }
+  .installmentScheduleRow em, .installmentScheduleRow button, .installmentScheduleRow > span { justify-self: start; }
+  .installmentDetailsSummary, .installmentPaymentHistoryRow { grid-template-columns: 1fr; }
+  .installmentPaymentModal, .installmentScheduleModal { max-height: 92vh; padding: 16px; }
   .paymentTable { overflow: visible; }
   .paymentTableHeader { display: none; }
   .paymentRow { min-width: 0; grid-template-columns: 1fr 1fr; align-items: start; gap: 12px 16px; padding: 14px; }
@@ -345,6 +481,14 @@
   gap: 14px;
 }
 
+.sectionHint {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
 .exportActions {
   display: flex;
   flex-wrap: wrap;
@@ -566,18 +710,17 @@
 .customerRow {
   display: grid;
   grid-template-columns:
-    minmax(170px, 1.05fr)
-    minmax(200px, 1.15fr)
-    minmax(125px, .72fr)
-    70px
-    135px
-    minmax(190px, 1.05fr)
-    minmax(130px, .78fr)
-    64px;
-  column-gap: 20px;
+    minmax(260px, 1.6fr)
+    minmax(220px, 1.25fr)
+    90px
+    150px
+    minmax(230px, 1.25fr)
+    minmax(170px, 1fr)
+    76px;
+  column-gap: 24px;
   row-gap: 16px;
   align-items: center;
-  min-width: 1240px;
+  min-width: 1340px;
 }
 
 .customerTableHead {
@@ -642,7 +785,6 @@
   white-space: nowrap;
 }
 
-.typeCell,
 .paymentCell {
   min-width: 0;
   overflow: hidden;
@@ -731,12 +873,12 @@
   background: rgba(141, 255, 42, 0.09);
 }
 
-.customerTableHead span:nth-child(4),
-.customerTableHead span:nth-child(8) {
+.customerTableHead span:nth-child(3),
+.customerTableHead span:nth-child(7) {
   text-align: center;
 }
 
-.customerTableHead span:nth-child(5) {
+.customerTableHead span:nth-child(4) {
   justify-self: end;
   text-align: right;
 }
@@ -746,7 +888,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
-  min-width: 1240px;
+  min-width: 1340px;
   padding: 6px 2px 0;
 }
 
@@ -799,6 +941,7 @@
   backdrop-filter: none;
   padding: 24px;
 }
+.secondaryModalBackdrop { z-index: var(--dialog-popover-layer) !important; background: var(--dialog-backdrop-color) !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 
 .modal {
   display: grid;
@@ -841,11 +984,22 @@
   color: var(--text-secondary);
   background: transparent;
   cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    color 180ms ease,
+    background 180ms ease,
+    transform 180ms ease;
 }
 
 .modalHeader button:hover {
+  border-color: rgba(255, 59, 48, 0.34);
   color: var(--danger);
   background: rgba(255, 59, 48, 0.1);
+  transform: translateY(-1px);
+}
+
+.modalHeader button:active {
+  transform: translateY(0);
 }
 
 .detailGrid {
@@ -932,6 +1086,36 @@
 .profileForm {
   display: grid;
   gap: 12px;
+}
+
+.customerInfoNote {
+  display: grid;
+  gap: 5px;
+  border: 1px solid rgba(141, 255, 42, 0.18);
+  border-radius: 8px;
+  background: rgba(141, 255, 42, 0.06);
+  padding: 12px;
+}
+
+.customerInfoNote strong {
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.customerInfoNote span {
+  color: var(--text-secondary);
+  font-weight: 900;
+}
+
+.customerInfoNote small,
+.profileHint {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.profileHint {
+  margin: 2px 0 0;
 }
 
 .profileForm label,
@@ -1022,7 +1206,7 @@
 }
 
 .profileForm button[type="submit"]:hover:not(:disabled),
-.primaryButton:hover {
+.primaryButton:hover:not(:disabled) {
   color: #102006;
   border-color: rgba(141, 255, 42, 0.68);
   box-shadow:
@@ -1032,20 +1216,20 @@
 }
 
 .profileForm button[type="submit"]:hover:not(:disabled)::before,
-.primaryButton:hover::before {
+.primaryButton:hover:not(:disabled)::before {
   top: -35%;
   background: rgba(141, 255, 42, 0.4);
   transform: translateX(-50%) scaleY(1.3) scaleX(0.8);
 }
 
 .profileForm button[type="submit"]:hover:not(:disabled)::after,
-.primaryButton:hover::after {
+.primaryButton:hover:not(:disabled)::after {
   top: -45%;
   transform: translateX(-50%) scaleY(1.3) scaleX(0.8);
 }
 
 .profileForm button[type="submit"]:active:not(:disabled),
-.primaryButton:active {
+.primaryButton:active:not(:disabled) {
   transform: translateY(0);
 }
 
@@ -1253,11 +1437,18 @@
   border: 1px solid var(--border-soft);
   color: var(--text-secondary);
   background: transparent;
+  transition: border-color 180ms ease, color 180ms ease, background 180ms ease, transform 180ms ease;
 }
 
 .secondaryButton:hover {
+  border-color: var(--green-accent);
   color: var(--text);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(141, 255, 42, 0.08);
+  transform: translateY(-1px);
+}
+
+.secondaryButton:active {
+  transform: translateY(0);
 }
 
 .couponCanvas {

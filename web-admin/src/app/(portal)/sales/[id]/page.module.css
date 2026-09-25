@@ -120,6 +120,78 @@
   font-size: 1.35rem;
 }
 
+.installmentSection {
+  display: grid;
+  gap: 14px;
+  border-top: 1px solid #d7d7cd;
+  padding-top: 18px;
+}
+
+.installmentSectionHeader,
+.installmentSummary,
+.installmentScheduleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.installmentSectionHeader > div,
+.installmentSummary {
+  display: grid;
+  gap: 5px;
+}
+
+.installmentSectionHeader span,
+.installmentSummary span {
+  color: #616161;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.installmentSectionHeader em,
+.installmentScheduleRow em {
+  border-radius: 999px;
+  color: #a66c00;
+  background: #fff3d2;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 900;
+  padding: 5px 9px;
+}
+
+.installmentSectionHeader em[data-status="completed"],
+.installmentScheduleRow em[data-status="paid"] {
+  color: #237532;
+  background: #e7f6e8;
+}
+
+.installmentSchedule {
+  display: grid;
+  gap: 7px;
+}
+
+.installmentScheduleRow {
+  border-bottom: 1px solid #d7d7cd;
+  color: #373737;
+  font-size: 0.82rem;
+  padding: 9px 0;
+}
+
+.installmentProgress {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e0e0d8;
+}
+
+.installmentProgress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #2faf3e;
+}
+
 .remarks {
   display: grid;
   gap: 6px;
@@ -141,6 +213,12 @@
 
   .receiptMeta {
     text-align: left;
+  }
+
+  .installmentSectionHeader,
+  .installmentScheduleRow {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 
