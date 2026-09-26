@@ -5,6 +5,7 @@ import type { CropActivityRecord, CropSensorReading } from "@/lib/crops";
 import { INVENTORY_UNIT } from "@/lib/inventory";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAdminRole } from "@/lib/auth";
+import { writeActivityLog } from "@/lib/activity-log";
 
 const CROP_IMAGE_BUCKET = "crop-images";
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -121,23 +122,17 @@ function numberValue(formData: FormData, key: string, fallback = 0) {
 }
 
 async function logCropActivity(
+  supabase: NonNullable<Awaited<ReturnType<typeof createSupabaseServerClient>>>,
   userIdValue: string,
   activity: string,
   description: string,
 ) {
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) return;
-
-  try {
-    await supabase.from("activity_logs").insert({
-      user_id: userIdValue,
-      activity,
-      description,
-      module: "Crops",
-    });
-  } catch {
-    // Activity logging should not block the crop action itself.
-  }
+  await writeActivityLog(supabase, {
+    userId: userIdValue,
+    activity,
+    description,
+    module: "Crops",
+  });
 }
 
 async function uploadCropImage(cropId: string, file: FormDataEntryValue | null) {
@@ -212,6 +207,7 @@ export async function updateCropAction(formData: FormData) {
   }).eq("id", id);
   if (error) throw new Error(error.message);
   await logCropActivity(
+    supabase,
     profile.id,
     "Crop record updated",
     `${profile.fullName} updated the crop record for ${cropName}.`,
@@ -273,13 +269,15 @@ export async function getCropManagersAction() {
 }
 
 export async function assignCropManagerAction(cropId: string, managerId: string) {
-  await requireAdminRole(["System Administrator", "Farm Planting Manager"]);
+  const profile = await requireAdminRole(["System Administrator", "Farm Planting Manager"]);
   const managers = await getCropManagersAction();
-  if (!managers.some((manager) => manager.id === managerId)) throw new Error("Choose an active planting manager or worker.");
+  const manager = managers.find((candidate) => candidate.id === managerId);
+  if (!manager) throw new Error("Choose an active planting manager or worker.");
   const supabase = await createSupabaseServerClient();
   if (!supabase) throw new Error("Supabase is not configured.");
-  const { error } = await supabase.from("crops").update({ assigned_manager: managerId }).eq("id", cropId).in("crop_status", ["Active", "Needs Attention", "Harvest Ready"]);
+  const { data: crop, error } = await supabase.from("crops").update({ assigned_manager: managerId }).eq("id", cropId).in("crop_status", ["Active", "Needs Attention", "Harvest Ready"]).select("crop_name").single();
   if (error) throw new Error(error.message);
+  await logCropActivity(supabase, profile.id, "Crop manager assigned", `${manager.name} was assigned to ${crop.crop_name}.`);
   revalidatePath("/crops");
 }
 
@@ -297,7 +295,7 @@ export async function cropDigestPreferencesAction(values?: { digest_enabled: boo
 }
 
 export async function refreshCropWeatherAction() {
-  await requireAdminRole(["System Administrator", "Farm Planting Manager"]);
+  const profile = await requireAdminRole(["System Administrator", "Farm Planting Manager"]);
 
   const supabase = await createSupabaseServerClient();
   if (!supabase) throw new Error("Supabase is not configured.");
@@ -305,6 +303,12 @@ export async function refreshCropWeatherAction() {
   const { error } = await supabase.functions.invoke("crop-monitor", { body: { weatherOnly: true } });
   if (error) throw new Error(error.message);
 
+  await writeActivityLog(supabase, {
+    userId: profile.id,
+    activity: "Crop weather refreshed",
+    description: `${profile.fullName} refreshed crop weather and monitoring data.`,
+    module: "Crops",
+  });
   revalidatePath("/crops");
 }
 
@@ -420,6 +424,7 @@ export async function deleteCropAction(formData: FormData) {
   const { error } = await supabase.from("crops").delete().eq("id", id);
   if (error) throw new Error(error.message);
   await logCropActivity(
+    supabase,
     profile.id,
     "Crop record deleted",
     `${profile.fullName} deleted ${crop?.crop_name ?? "a crop record"}.`,

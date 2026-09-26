@@ -68,10 +68,10 @@ export async function getActivityDashboard() {
   const summary: ActivitySummary = {
     total: logs.length,
     authentication: logs.filter((log) => log.module === "Authentication").length,
-    salesAndStocks: logs.filter((log) => ["Sales", "Stocks"].includes(log.module))
+    salesAndStocks: logs.filter((log) => ["Sales", "Stocks", "Inventory"].includes(log.module))
       .length,
     system: logs.filter((log) =>
-      ["System", "Users", "Notifications"].includes(log.module),
+      ["System", "Users", "Notifications", "Dashboard"].includes(log.module),
     ).length,
   };
 

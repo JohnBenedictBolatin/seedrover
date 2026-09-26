@@ -347,13 +347,13 @@ function buildRecentActivity(
 
   for (const sale of marketSales) {
     const inventory = firstRelation(sale.inventory);
-    const itemName = inventory?.item_name ?? "Market distribution";
+    const itemName = inventory?.item_name ?? "Legacy inventory sale";
     const paymentMethod = sale.payment_method ?? "Not recorded";
 
     recentActivity.push({
       id: sale.id,
       action: "Sale completed",
-      label: `SR-${sale.id.slice(0, 8).toUpperCase()}`,
+      label: `LEGACY-${sale.id.slice(0, 8).toUpperCase()}`,
       detail: `Sold ${toNumber(sale.quantity_sold)} ${INVENTORY_UNIT} of ${itemName}`,
       metadata: [
         sale.customer_name ?? "Walk-in customer",
@@ -668,7 +668,7 @@ export async function getOperationsDashboard(range: DashboardRange) {
 
     const total = toNumber(sale.total_amount);
     const inventory = firstRelation(sale.inventory);
-    const itemName = inventory?.item_name ?? "Market distribution";
+    const itemName = inventory?.item_name ?? "Legacy inventory sale";
     const category = inventory?.category?.trim() || "Uncategorized";
     const paymentMethod = sale.payment_method ?? "Not recorded";
 

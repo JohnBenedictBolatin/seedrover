@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requireAdminRole } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { writeActivityLog } from "@/lib/activity-log";
 
 const receiptTypes = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
 const paymentMethods = new Set(["Cash", "GCash", "Bank Transfer", "Card", "Other"]);
@@ -70,7 +71,7 @@ export async function createExpenseAction(formData: FormData) {
   });
   if (error) throw new Error(error.message);
 
-  await supabase.from("activity_logs").insert({ user_id: profile.id, activity: "Farm cost recorded", description: `${profile.fullName} recorded ${description} as a ${expenseType.toLowerCase()}.`, module: "Dashboard" });
+  await writeActivityLog(supabase, { userId: profile.id, activity: "Farm cost recorded", description: `${profile.fullName} recorded ${description} as a ${expenseType.toLowerCase()}.`, module: "Dashboard" });
   revalidatePath("/investments");
   revalidatePath("/dashboard");
 }
@@ -86,7 +87,7 @@ export async function deleteExpenseAction(formData: FormData) {
   const { error } = await supabase.from("farm_expenses").delete().eq("id", id);
   if (error) throw new Error(error.message);
   if (expense?.receipt_path) await supabase.storage.from("expense-receipts").remove([expense.receipt_path]);
-  await supabase.from("activity_logs").insert({ user_id: profile.id, activity: "Farm cost removed", description: `${profile.fullName} removed ${expense?.description ?? "a farm cost record"}.`, module: "Dashboard" });
+  await writeActivityLog(supabase, { userId: profile.id, activity: "Farm cost removed", description: `${profile.fullName} removed ${expense?.description ?? "a farm cost record"}.`, module: "Dashboard" });
   revalidatePath("/investments");
   revalidatePath("/dashboard");
 }

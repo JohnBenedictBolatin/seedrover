@@ -289,7 +289,7 @@ export async function getCustomersDashboard() {
       customer,
       {
         id: row.id,
-        receiptNumber: `SR-${row.id.slice(0, 8).toUpperCase()}`,
+        receiptNumber: `LEGACY-${row.id.slice(0, 8).toUpperCase()}`,
         saleDate: row.sale_date,
         paymentMethod: row.payment_method ?? "Not recorded",
         totalAmount,
@@ -297,7 +297,7 @@ export async function getCustomersDashboard() {
       },
       [
         {
-          itemName: inventory?.item_name ?? "Market distribution",
+          itemName: inventory?.item_name ?? "Legacy inventory sale",
           quantity: toNumber(row.quantity_sold),
           totalAmount,
         },

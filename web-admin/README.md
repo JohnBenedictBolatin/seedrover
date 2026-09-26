@@ -82,14 +82,23 @@ Before deploying publicly:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY`
+   - `SITE_URL` (the canonical public web-admin origin, such as `https://farm.example.com`)
    - `OPENAI_API_KEY`, if Rovie uses an external AI provider
 4. In Supabase Auth URL configuration, set:
    - Site URL: your Vercel production URL
    - Redirect URLs:
-     - `https://your-domain.vercel.app/login`
-     - `https://your-domain.vercel.app/dashboard`
+     - the exact `${SITE_URL}/auth/recovery` URL (for example `https://your-domain.vercel.app/auth/recovery`)
+     - the exact `${SITE_URL}/login` URL (for example `https://your-domain.vercel.app/login`)
+     - the exact `${SITE_URL}/dashboard` URL (for example `https://your-domain.vercel.app/dashboard`)
+     - `http://localhost:3000/auth/recovery` for local recovery testing
      - your custom production domain equivalents, if used
 5. Keep `web-admin/.env.local` local only. Do not commit real secrets.
+
+Password recovery uses `SITE_URL` as its redirect origin and returns through
+`/auth/recovery` before opening the dedicated `/reset-password` page. Vercel's
+`VERCEL_URL` is used when `SITE_URL` is unset; local development can use the
+request host. Production reset requests fail safely if neither production
+origin is configured.
 
 ## Build Order
 

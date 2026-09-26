@@ -18,7 +18,9 @@ export function NotificationReadButton({ id, isRead, children }: { id: string; i
       data.set("notification_id", id);
       data.set("is_read", String(!isRead));
       const result = await markNotificationReadAction(data);
-      notify({ tone: result.ok ? result.tone ?? "success" : "error", text: result.message });
+      if (!result.ok || result.tone === "warning") {
+        notify({ tone: result.ok ? "warning" : "error", text: result.message });
+      }
       if (result.ok) router.refresh();
     } catch (error) {
       notify({ tone: "error", text: error instanceof Error ? error.message : "Unable to update the notification." });

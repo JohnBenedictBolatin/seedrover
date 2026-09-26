@@ -29,6 +29,7 @@ import { RovieAssistant } from "./rovie-assistant";
 import styles from "./app-shell.module.css";
 
 const NOTIFICATIONS_PER_PAGE = 5;
+type NotificationFilter = "unread" | "read";
 
 function navGroupsFor(roleName: AdminProfile["roleName"]) {
   const canManageInventory =
@@ -160,15 +161,19 @@ export function AppShell({
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>("unread");
   const [notificationPage, setNotificationPage] = useState(0);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const unreadCount = notificationsSummary?.unread ?? notifications.filter((item) => !item.isRead).length;
+  const unreadNotifications = notifications.filter((item) => !item.isRead);
+  const readNotifications = notifications.filter((item) => item.isRead);
+  const filteredNotifications = notificationFilter === "unread" ? unreadNotifications : readNotifications;
   const lastNotificationPage = Math.max(
     0,
-    Math.ceil(notifications.length / NOTIFICATIONS_PER_PAGE) - 1,
+    Math.ceil(filteredNotifications.length / NOTIFICATIONS_PER_PAGE) - 1,
   );
   const activeNotificationPage = Math.min(notificationPage, lastNotificationPage);
-  const visibleNotifications = notifications.slice(
+  const visibleNotifications = filteredNotifications.slice(
     activeNotificationPage * NOTIFICATIONS_PER_PAGE,
     (activeNotificationPage + 1) * NOTIFICATIONS_PER_PAGE,
   );
@@ -359,18 +364,48 @@ export function AppShell({
                         <X size={16} />
                       </button>
                     </header>
+                    <nav className={styles.notificationTabs} role="tablist" aria-label="Notification status">
+                      <button
+                        aria-selected={notificationFilter === "unread"}
+                        className={notificationFilter === "unread" ? styles.notificationTabActive : styles.notificationTab}
+                        id="notifications-unread-tab"
+                        role="tab"
+                        tabIndex={notificationFilter === "unread" ? 0 : -1}
+                        type="button"
+                        onClick={() => {
+                          setNotificationFilter("unread");
+                          setNotificationPage(0);
+                        }}
+                      >
+                        UNREAD <span>{unreadNotifications.length}</span>
+                      </button>
+                      <button
+                        aria-selected={notificationFilter === "read"}
+                        className={notificationFilter === "read" ? styles.notificationTabActive : styles.notificationTab}
+                        id="notifications-read-tab"
+                        role="tab"
+                        tabIndex={notificationFilter === "read" ? 0 : -1}
+                        type="button"
+                        onClick={() => {
+                          setNotificationFilter("read");
+                          setNotificationPage(0);
+                        }}
+                      >
+                        READ <span>{readNotifications.length}</span>
+                      </button>
+                    </nav>
                     {notificationsError ? (
                       <div className={styles.notificationEmpty}>
                         <strong>Notifications unavailable.</strong>
                         <span>{notificationsError}</span>
                       </div>
                     ) : visibleNotifications.length === 0 ? (
-                      <div className={styles.notificationEmpty}>
-                        <strong>No notifications yet.</strong>
+                      <div className={styles.notificationEmpty} role="tabpanel" aria-labelledby={`notifications-${notificationFilter}-tab`}>
+                        <strong>{notificationFilter === "unread" ? "You’re all caught up." : "No read notifications yet."}</strong>
                       </div>
                     ) : (
                       <>
-                        <div className={styles.notificationList}>
+                        <div className={styles.notificationList} role="tabpanel" aria-labelledby={`notifications-${notificationFilter}-tab`}>
                           {visibleNotifications.map((notification) => (
                           <article
                             data-read={notification.isRead}

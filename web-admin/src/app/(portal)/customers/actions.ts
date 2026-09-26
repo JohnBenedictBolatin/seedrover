@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdminRole } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { customerKey } from "@/lib/customers";
+import { writeActivityLog } from "@/lib/activity-log";
 
 function text(formData: FormData, key: string, fallback = "") {
   return String(formData.get(key) ?? fallback).trim();
@@ -95,8 +96,8 @@ export async function createCustomerDiscountAction(formData: FormData) {
     throw new Error(databaseSetupMessage(error));
   }
 
-  await supabase.from("activity_logs").insert({
-    user_id: user.id,
+  await writeActivityLog(supabase, {
+    userId: user.id,
     activity: "Customer discount released",
     description: `${code} was released for ${customerName}.`,
     module: "Customers",

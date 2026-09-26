@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requireAdminRole } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { writeActivityLog } from "@/lib/activity-log";
 
 const STOCK_IMAGE_BUCKET = "stock-images";
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -70,25 +71,12 @@ async function currentUserId() {
 }
 
 async function logInventoryActivity(
+  supabase: NonNullable<Awaited<ReturnType<typeof createSupabaseServerClient>>>,
   activity: string,
   description: string,
   userId: string | null,
 ) {
-  const supabase = await createSupabaseServerClient();
-  if (!supabase || !userId) {
-    return;
-  }
-
-  try {
-    await supabase.from("activity_logs").insert({
-      user_id: userId,
-      activity,
-      description,
-      module: "Stocks",
-    });
-  } catch {
-    // Activity logging should not block the inventory action itself.
-  }
+  await writeActivityLog(supabase, { userId, activity, description, module: "Stocks" });
 }
 
 async function uploadImage(inventoryId: string, file: FormDataEntryValue | null) {
@@ -235,6 +223,7 @@ export async function createInventoryItemAction(formData: FormData) {
   }
 
   await logInventoryActivity(
+    supabase,
     "Inventory item created",
     `${payload.item_name} was added to the stock list with ${payload.quantity} ${payload.unit}.`,
     userId,
@@ -270,6 +259,7 @@ export async function updateInventoryItemAction(formData: FormData) {
   }
 
   await logInventoryActivity(
+    supabase,
     "Inventory item updated",
     `${inventoryPayload(formData).item_name || "Inventory item"} profile was updated.`,
     userId,
@@ -303,6 +293,7 @@ export async function deleteInventoryItemAction(formData: FormData) {
   }
 
   await logInventoryActivity(
+    supabase,
     "Inventory item deleted",
     `${item?.item_name ?? "Inventory item"} was removed from the stock list.`,
     userId,
@@ -330,49 +321,6 @@ export async function adjustStockAction(formData: FormData) {
   await createMovement(formData, "ADJUSTMENT", quantity);
 }
 
-export async function recordInventorySaleAction(formData: FormData) {
-  await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
-  const inventoryId = requiredText(formData, "id", "Item");
-  const quantity = requiredNumber(formData, "quantity", "Quantity");
-  const unitPrice = requiredNumber(formData, "unit_price", "Unit price");
-  const first = requiredText(formData, "customer_first_name", "First name");
-  const middle = text(formData, "customer_middle_initial").slice(0, 1);
-  const last = requiredText(formData, "customer_last_name", "Last name");
-  const contact = requiredText(formData, "customer_contact", "Contact number");
-  const payment = requiredText(formData, "payment_method", "Payment method");
-  const reference = text(formData, "transaction_reference");
-  const otherPayment = text(formData, "other_payment_method");
-  if (quantity <= 0) throw new Error("Quantity must be greater than zero.");
-  if (unitPrice < 0) throw new Error("Unit price cannot be negative.");
-  if (!["Cash", "GCash", "Bank Transfer", "Card", "Other"].includes(payment)) {
-    throw new Error("Choose a valid payment method.");
-  }
-  if (payment !== "Cash" && !reference) throw new Error("Transaction ID is required for non-cash payments.");
-  if (payment === "Other" && !otherPayment) throw new Error("Other payment method is required.");
-
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) throw new Error("Supabase is not configured.");
-  const customerName = [first, middle ? `${middle}.` : "", last].filter(Boolean).join(" ");
-  const { error } = await supabase.rpc("record_inventory_sale_v2", {
-    p_inventory_id: inventoryId,
-    p_quantity_sold: quantity,
-    p_unit_price: unitPrice,
-    p_sale_date: new Date().toISOString(),
-    p_customer_name: customerName,
-    p_customer_contact: contact,
-    p_remarks: text(formData, "remarks") || null,
-    p_payment_method: payment,
-    p_transaction_reference: reference || null,
-    p_other_payment_method: otherPayment || null,
-  });
-  if (error) throw new Error(error.message);
-  await logInventoryActivity("Sale recorded", `${quantity} kg of ${text(formData, "item_name", "inventory item")} sold to ${customerName}.`, await currentUserId());
-  revalidatePath("/inventory");
-  revalidatePath("/dashboard");
-  revalidatePath("/sales");
-  revalidatePath("/customers");
-}
-
 async function createMovement(
   formData: FormData,
   transactionType: "IN" | "OUT" | "ADJUSTMENT",
@@ -390,11 +338,12 @@ async function createMovement(
   const remarks = text(formData, "remarks", "Inventory updated.");
   const inventoryId = text(formData, "id");
 
-  const { data: movementItem } = await supabase
+  const { data: movementItem, error: movementItemError } = await supabase
     .from("inventory")
     .select("unit")
     .eq("id", inventoryId)
     .single<{ unit: string }>();
+  if (movementItemError) throw new Error(movementItemError.message);
   if (movementItem?.unit !== "kg") {
     throw new Error("Inventory quantities must use kg as the unit. Update this item before stocking it.");
   }
@@ -404,16 +353,18 @@ async function createMovement(
     throw new Error("Sign in before changing inventory.");
   }
 
-  const { error } = await supabase.from("inventory_transactions").insert({
-    inventory_id: inventoryId,
-    transaction_type: transactionType,
-    quantity,
-    remarks: remarks || reason || (transactionType === "IN" ? "Stock received." : transactionType === "OUT" ? "Stock issued." : "Stock adjusted."),
-    source: transactionType === "IN" ? reason : null,
-    performed_by: userId,
+  const { error } = await supabase.rpc("record_inventory_movement", {
+    p_inventory_id: inventoryId,
+    p_transaction_type: transactionType,
+    p_quantity: quantity,
+    p_reason: reason || null,
+    p_remarks: remarks || null,
   });
 
   if (error) {
+    if (error.message.includes("record_inventory_movement") || error.message.includes("schema cache")) {
+      throw new Error("Inventory movement support is not deployed yet. Apply the latest Supabase migration, then try again.");
+    }
     throw new Error(error.message);
   }
 
@@ -424,6 +375,7 @@ async function createMovement(
     .single<{ item_name: string; unit: string }>();
 
   await logInventoryActivity(
+    supabase,
     transactionType === "IN"
       ? "Receive stock recorded"
       : transactionType === "OUT"

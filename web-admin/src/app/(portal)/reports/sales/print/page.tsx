@@ -43,7 +43,7 @@ export default async function SalesPrintPage({
           <thead>
             <tr>
               <th>Entry type</th>
-              <th>Receipt</th>
+              <th>Receipt / reference</th>
               <th>Customer</th>
               <th>Item / payment</th>
               <th>Qty</th>

@@ -24,7 +24,7 @@ export async function GET(request: Request) {
   const csv = rowsToCsv([
     [
       "Entry Type",
-      "Receipt Number",
+      "Receipt / Reference",
       "Receipt Link",
       "Entry Date",
       "Customer Name",

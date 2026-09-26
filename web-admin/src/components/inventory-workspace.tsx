@@ -1,7 +1,7 @@
 "use client";
 
-import type { FormEvent, InputHTMLAttributes, ReactNode } from "react";
-import { useMemo, useRef, useState, useTransition } from "react";
+import type { FormEvent, InputHTMLAttributes, KeyboardEvent, ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Apple,
@@ -27,7 +27,6 @@ import {
   SlidersHorizontal,
   Sprout,
   Trash2,
-  WalletCards,
 } from "lucide-react";
 import {
   adjustStockAction,
@@ -35,7 +34,6 @@ import {
   deleteInventoryItemAction,
   stockInAction,
   stockOutAction,
-  recordInventorySaleAction,
   updateInventoryItemAction,
 } from "@/app/(portal)/inventory/actions";
 import type { AlertTone } from "@/components/action-alert-stack";
@@ -72,7 +70,6 @@ type DialogState =
   | { type: "edit"; item: InventoryItem }
   | { type: "stock-in"; item: InventoryItem }
   | { type: "stock-out"; item: InventoryItem }
-  | { type: "sale"; item: InventoryItem }
   | { type: "delete"; item: InventoryItem }
   | { type: "history" }
   | null;
@@ -179,12 +176,21 @@ function categoryMeta(category: string) {
   return { icon: <Boxes size={22} />, color: "#b4b4b4" };
 }
 
-export function InventoryWorkspace({ items }: { items: InventoryItem[] }) {
+export function InventoryWorkspace({
+  items,
+  initialItemId,
+}: {
+  items: InventoryItem[];
+  initialItemId?: string;
+}) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
   const [status, setStatus] = useState("All");
   const [sort, setSort] = useState("Name");
-  const [dialog, setDialog] = useState<DialogState>(null);
+  const [dialog, setDialog] = useState<DialogState>(() => {
+    const initialItem = items.find((item) => item.id === initialItemId);
+    return initialItem ? { type: "details", item: initialItem } : null;
+  });
   const { notify: sendFeedback } = useActionFeedback();
   const notify = (tone: AlertTone, text: string) => sendFeedback({ tone, text });
 
@@ -611,6 +617,10 @@ function InventoryDialog({
   onAction: (dialog: DialogState) => void;
   onClose: () => void;
 }) {
+  const dialogRef = useRef<HTMLElement>(null);
+  const previousFocus = useRef<HTMLElement | null>(null);
+  const itemId = dialog && "item" in dialog ? dialog.item.id : null;
+  const dialogType = dialog?.type ?? null;
   const [historyPage, setHistoryPage] = useState(1);
   const historyPageSize = 5;
   const historyRecords = useMemo(
@@ -636,31 +646,53 @@ function InventoryDialog({
     currentHistoryPage * historyPageSize,
   );
 
+  useEffect(() => {
+    if (!dialogType) {
+      if (previousFocus.current?.isConnected) previousFocus.current.focus();
+      previousFocus.current = null;
+      return;
+    }
+    if (!previousFocus.current) {
+      previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    }
+    dialogRef.current?.focus();
+  }, [dialogType, itemId]);
+
   if (!dialog) {
     return null;
   }
 
   const modalMeta = {
     add: { title: "Add Item", icon: <PackagePlus size={18} /> },
-    details: { title: "Stock Details", icon: <ClipboardList size={18} /> },
     edit: { title: "Edit item", icon: <Edit3 size={18} /> },
     "stock-in": { title: sharedWorkflowTerms.receiveStock, icon: <ArrowUpCircle size={18} /> },
     "stock-out": { title: sharedWorkflowTerms.issueStock, icon: <ArrowDownCircle size={18} /> },
-    sale: { title: sharedWorkflowTerms.recordSale, icon: <WalletCards size={18} /> },
     delete: { title: "Delete item", icon: <Trash2 size={18} /> },
     history: { title: "Inventory History", icon: <Clock3 size={18} /> },
-  }[dialog.type];
-  const title = modalMeta.title;
+  } as const;
+  const isDetails = dialog.type === "details";
+  const title = isDetails ? "Item Details" : modalMeta[dialog.type].title;
+  const modalIcon = isDetails ? categoryMeta(dialog.item.category).icon : modalMeta[dialog.type].icon;
 
   return (
-    <div className={styles.modalBackdrop} data-ui-backdrop="true" role="presentation">
-      <section className={`${styles.modal} ${dialog.type === "history" ? `${styles.transactionHistoryModal} ${styles.inventoryHistoryModal}` : ""}`} role="dialog" aria-modal="true" aria-label={title}>
+    <div className={styles.modalBackdrop} data-ui-backdrop="true" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section ref={dialogRef} tabIndex={-1} onKeyDown={(event) => {
+        if (event.key === "Escape") { event.stopPropagation(); onClose(); return; }
+        if (event.key !== "Tab" || !dialogRef.current) return;
+        const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])')).filter((element) => element.tabIndex >= 0 && !element.closest("[hidden]"));
+        if (!focusable.length) { event.preventDefault(); return; }
+        const first = focusable[0]; const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }} className={`${styles.modal} ${isDetails ? styles.inventoryDetailsModal : ""} ${dialog.type === "history" ? `${styles.transactionHistoryModal} ${styles.inventoryHistoryModal}` : ""}`} role="dialog" aria-modal="true" aria-label={title}>
         <header className={styles.modalHeader}>
           <h3 className={styles.modalTitle}>
             <span className={styles.modalTitleIcon} aria-hidden="true">
-              {modalMeta.icon}
+              {modalIcon}
             </span>
-            <span>{title}</span>
+            <span className={styles.modalTitleText}>
+              {title}
+            </span>
           </h3>
           <button
             aria-label="Close modal"
@@ -679,7 +711,7 @@ function InventoryDialog({
             successMessage="Inventory item added."
           />
         ) : null}
-        {dialog.type === "details" ? <DetailsPanel item={dialog.item} onAction={onAction} /> : null}
+        {isDetails ? <DetailsPanel item={dialog.item} /> : null}
         {dialog.type === "edit" ? (
           <InventoryForm
             action={updateInventoryItemAction}
@@ -704,9 +736,6 @@ function InventoryDialog({
             notify={notify}
             onSuccess={onClose}
           />
-        ) : null}
-        {dialog.type === "sale" ? (
-          <SaleForm item={dialog.item} notify={notify} onSuccess={onClose} />
         ) : null}
         {dialog.type === "delete" ? (
           <DeleteForm item={dialog.item} notify={notify} onSuccess={onClose} />
@@ -734,6 +763,18 @@ function InventoryDialog({
               {historyRecords.length > 0 ? <div className={styles.historyPagination}><button aria-label="Previous history page" disabled={currentHistoryPage === 1} type="button" onClick={() => setHistoryPage((value) => Math.max(1, value - 1))}><ChevronLeft size={16} /></button><span>Page {currentHistoryPage} of {historyPageCount}</span><button aria-label="Next history page" disabled={currentHistoryPage >= historyPageCount} type="button" onClick={() => setHistoryPage((value) => Math.min(historyPageCount, value + 1))}><ChevronRight size={16} /></button></div> : null}
             </div>
           </div>
+        ) : null}
+        {isDetails ? (
+          <footer className={styles.inventoryDetailsFooter}>
+            <button className={`${styles.primaryAction} ${styles.receiveStockAction}`} type="button" onClick={() => onAction({ type: "stock-in", item: dialog.item })}>
+              <ArrowUpCircle size={18} aria-hidden="true" />
+              <span>{sharedWorkflowTerms.receiveStock}</span>
+            </button>
+            <button className={`${styles.primaryAction} ${styles.issueStockAction}`} type="button" onClick={() => onAction({ type: "stock-out", item: dialog.item })}>
+              <ArrowDownCircle size={18} aria-hidden="true" />
+              <span>{sharedWorkflowTerms.issueStock}</span>
+            </button>
+          </footer>
         ) : null}
       </section>
     </div>
@@ -1107,254 +1148,178 @@ function DeleteForm({
   );
 }
 
-function DetailsPanel({ item, onAction }: { item: InventoryItem; onAction: (dialog: DialogState) => void }) {
-  return (
-    <div className={styles.detailsGrid}>
-      <div className={styles.cardActions}>
-        <button className={styles.primaryAction} type="button" onClick={() => onAction({ type: "sale", item })}>{sharedWorkflowTerms.recordSale}</button>
-        <button className={styles.primaryAction} type="button" onClick={() => onAction({ type: "stock-in", item })}>{sharedWorkflowTerms.receiveStock}</button>
-        <button className={styles.primaryAction} type="button" onClick={() => onAction({ type: "stock-out", item })}>{sharedWorkflowTerms.issueStock}</button>
-      </div>
-      <div className={styles.detailsTop}>
-        <div className={styles.detailHero}>
-          {item.imageUrl ? (
-            <span
-              className={styles.detailImage}
-              style={{ backgroundImage: `url("${item.imageUrl}")` }}
-            />
-          ) : (
-            <ImageIcon size={52} />
-          )}
-        </div>
-        <div className={styles.detailSummary}>
-          <div className={styles.detailTitleBlock}>
-            <span className={styles.itemCode}>{item.stockCode}</span>
-            <div className={styles.detailTitleRow}>
-              <h4>{item.itemName}</h4>
-              <span className={styles.status} data-status={getStockStatus(item)}>
-                {getStockStatus(item)}
-              </span>
-            </div>
-          </div>
-          <div className={styles.detailMetrics}>
-            <ReadOnly label="Quantity" value={formatQuantity(item.quantity, item.unit)} />
-            <ReadOnly label="Minimum" value={formatQuantity(item.minimumQuantity, item.unit)} />
-            <ReadOnly label="Location" value={item.storageLocation} />
-            <ReadOnly label="Updated" value={formatDateTime(item.updatedAt)} />
-            <ReadOnly label="Unit cost (PHP)" value={item.unitCost === null ? "Not set" : formatCurrency(item.unitCost)} />
-            <ReadOnly label="Sell price (PHP)" value={item.sellingPrice === null ? "Not set" : formatCurrency(item.sellingPrice)} />
-            <ReadOnly label="Stock value (PHP)" value={formatCurrency(item.quantity * (item.unitCost ?? 0))} />
-            <ReadOnly label="Est. sales (PHP)" value={formatCurrency(item.quantity * (item.sellingPrice ?? 0))} />
-          </div>
-        </div>
-      </div>
-      <HistoryList item={item} />
-    </div>
-  );
-}
+function DetailsPanel({ item }: { item: InventoryItem }) {
+  const [tab, setTab] = useState<"overview" | "movements" | "sales">("overview");
 
-function SaleForm({ item, notify, onSuccess }: { item: InventoryItem; notify: (tone: AlertTone, text: string) => void; onSuccess: () => void }) {
-  const [quantity, setQuantity] = useState("");
-  const [unitPrice, setUnitPrice] = useState(String(item.sellingPrice ?? 0));
-  const [payment, setPayment] = useState("Cash");
-  const [pending, startTransition] = useTransition();
-  const { confirm, confirmationDialog } = useConfirmationDialog();
-  const router = useRouter();
-  const qty = Number(quantity) || 0;
-  const price = Number(unitPrice) || 0;
-  const total = qty * price;
-  const resulting = item.quantity - qty;
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  function handleTabKeyDown(event: KeyboardEvent<HTMLElement>) {
+    const tabs = ["overview", "movements", "sales"] as const;
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
-    const form = event.currentTarget;
-    const data = new FormData(form);
-    if (qty <= 0 || qty > item.quantity || price < 0) return;
-    const confirmed = await confirm({
-      title: "Review sale",
-      message: `${qty} kg of ${item.itemName} will be sold for ${formatCurrency(total)}. Available stock will change from ${formatQuantity(item.quantity, item.unit)} to ${formatQuantity(resulting, item.unit)}.`,
-      confirmLabel: sharedWorkflowTerms.recordSale,
-    });
-    if (!confirmed) return;
-    startTransition(async () => {
-      try {
-        await recordInventorySaleAction(data);
-        onSuccess();
-        router.refresh();
-        notify("success", "Sale recorded.");
-      } catch (error) {
-        notify("error", error instanceof Error ? error.message : "The sale could not be confirmed. Refresh sales history before trying again.");
-      }
-    });
+    const current = tabs.indexOf(tab);
+    const next = event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? tabs.length - 1
+        : (current + (event.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length;
+    setTab(tabs[next]);
+    requestAnimationFrame(() => document.getElementById(`inventory-tab-${tabs[next]}`)?.focus());
   }
-
-  return <>
-    <form className={styles.formGrid} onSubmit={submit}>
-      <input name="id" type="hidden" value={item.id} />
-      <input name="item_name" type="hidden" value={item.itemName} />
-      <ReadOnly label="Available quantity" value={formatQuantity(item.quantity, item.unit)} />
-      <Field label={`Quantity (${item.unit})`} name="quantity" type="number" min="0.01" max={item.quantity} step="0.01" required value={quantity} onChange={(e) => setQuantity(e.currentTarget.value)} />
-      <Field label="Unit price (PHP)" name="unit_price" type="number" min="0" step="0.01" required value={unitPrice} onChange={(e) => setUnitPrice(e.currentTarget.value)} />
-      <ReadOnly label="Total" value={formatCurrency(total)} />
-      <ReadOnly label="Resulting balance" value={formatQuantity(resulting, item.unit)} />
-      <Field label="First name" name="customer_first_name" required />
-      <Field label="Middle initial (optional)" name="customer_middle_initial" maxLength={1} />
-      <Field label="Last name" name="customer_last_name" required />
-      <Field label="Contact number" name="customer_contact" type="tel" required />
-      <ThemedSelect label="Payment method" name="payment_method" options={[...sharedWorkflowChoices.paymentMethods]} value={payment} onChange={setPayment} />
-      {payment !== "Cash" ? <Field label="Transaction ID" name="transaction_reference" required /> : null}
-      {payment === "Other" ? <Field label="Other payment method" name="other_payment_method" required /> : null}
-      <Field label="Notes (optional)" name="remarks" />
-      <p>Sale date and time: recorded when this sale is submitted.</p>
-      <button className={styles.primaryAction} disabled={pending} type="submit">{pending ? "Recording sale…" : sharedWorkflowTerms.recordSale}</button>
-    </form>
-    {confirmationDialog}
-  </>;
-}
-
-function HistoryList({ item }: { item: InventoryItem }) {
-  const [historyModal, setHistoryModal] = useState<"transactions" | "sales" | null>(null);
 
   return (
     <>
-      <div className={styles.historyGrid}>
-        <div className={styles.historyPanel}>
-          <div className={styles.historyHeader}>
-            <h4 className={styles.historyHeading}>Transaction History</h4>
-            {item.transactions.length > 0 ? (
-              <button
-                aria-label="View full transaction history"
-                className={styles.historyAction}
-                type="button"
-                onClick={() => setHistoryModal("transactions")}
-              >
-                <Clock3 size={19} />
-              </button>
-            ) : null}
+      <nav className={styles.inventoryDetailTabs} role="tablist" aria-label="Inventory item information" onKeyDown={handleTabKeyDown}>
+        <button id="inventory-tab-overview" role="tab" aria-selected={tab === "overview"} aria-controls="inventory-tabpanel-overview" tabIndex={tab === "overview" ? 0 : -1} type="button" onClick={() => setTab("overview")}>OVERVIEW</button>
+        <button id="inventory-tab-movements" role="tab" aria-selected={tab === "movements"} aria-controls="inventory-tabpanel-movements" tabIndex={tab === "movements" ? 0 : -1} type="button" onClick={() => setTab("movements")}>STOCK MOVEMENTS</button>
+        <button id="inventory-tab-sales" role="tab" aria-selected={tab === "sales"} aria-controls="inventory-tabpanel-sales" tabIndex={tab === "sales" ? 0 : -1} type="button" onClick={() => setTab("sales")}>SALES HISTORY</button>
+      </nav>
+      <div className={styles.inventoryDetailsBody}>
+        <div id="inventory-tabpanel-overview" role="tabpanel" aria-labelledby="inventory-tab-overview" hidden={tab !== "overview"}>
+          <div className={styles.inventoryItemIdentity}>
+            <div>
+              <span className={styles.itemCode}>{item.stockCode}</span>
+              <h4>{item.itemName}</h4>
+              <small>{displayCategory(item)}</small>
+            </div>
+            <span className={styles.status} data-status={getStockStatus(item)}>{getStockStatus(item)}</span>
           </div>
-          {item.transactions.length === 0 ? (
-            <p>No stock movements yet.</p>
-          ) : (
-            item.transactions.slice(0, 2).map((transaction) => (
-              <div className={styles.historyItem} key={transaction.id}>
-                <strong>{transaction.type}</strong>
-                <span>{formatQuantity(transaction.quantity, item.unit)}</span>
-                <small>{transaction.remarks}</small>
-                <time>{formatDateTime(transaction.createdAt)}</time>
+          <div className={styles.detailsTop}>
+            <div className={styles.detailHero}>
+              {item.imageUrl ? (
+                <span className={styles.detailImage} style={{ backgroundImage: `url("${item.imageUrl}")` }} />
+              ) : (
+                <ImageIcon size={52} />
+              )}
+            </div>
+            <div className={styles.detailSummary}>
+              <div className={styles.detailMetrics}>
+                <ReadOnly label="Quantity" value={formatQuantity(item.quantity, item.unit)} />
+                <ReadOnly label="Minimum" value={formatQuantity(item.minimumQuantity, item.unit)} />
+                <ReadOnly label="Location" value={item.storageLocation} />
+                <ReadOnly label="Updated" value={formatDateTime(item.updatedAt)} />
+                <ReadOnly label="Unit cost (PHP)" value={item.unitCost === null ? "Not set" : formatCurrency(item.unitCost)} />
+                <ReadOnly label="Sell price (PHP)" value={item.sellingPrice === null ? "Not set" : formatCurrency(item.sellingPrice)} />
+                <ReadOnly label="Stock value (PHP)" value={formatCurrency(item.quantity * (item.unitCost ?? 0))} />
+                <ReadOnly label="Est. sales (PHP)" value={formatCurrency(item.quantity * (item.sellingPrice ?? 0))} />
               </div>
-            ))
-          )}
+            </div>
+          </div>
         </div>
-        <div className={styles.historyPanel}>
-          <div className={styles.historyHeader}>
-            <h4 className={styles.historyHeading}>Sales History</h4>
-            {item.sales.length > 0 ? (
-              <button
-                aria-label="View full sales history"
-                className={styles.historyAction}
-                type="button"
-                onClick={() => setHistoryModal("sales")}
-              >
-                <Clock3 size={19} />
-              </button>
-            ) : null}
-          </div>
-          {item.sales.length === 0 ? (
-            <p>No sale records yet.</p>
-          ) : (
-            item.sales.slice(0, 2).map((sale) => (
-              <div className={styles.historyItem} key={sale.id}>
-                <strong>{formatCurrency(sale.totalAmount)}</strong>
-                <span>{formatQuantity(sale.quantitySold, item.unit)}</span>
-                <small>
-                  {sale.customerName ?? "Walk-in customer"} - {sale.paymentMethod}
-                </small>
-                <time>{formatDateTime(sale.saleDate)}</time>
-              </div>
-            ))
-          )}
+        <div id="inventory-tabpanel-movements" role="tabpanel" aria-labelledby="inventory-tab-movements" hidden={tab !== "movements"}>
+          <InventoryMovementTable key={item.id} item={item} />
+        </div>
+        <div id="inventory-tabpanel-sales" role="tabpanel" aria-labelledby="inventory-tab-sales" hidden={tab !== "sales"}>
+          <InventorySalesTable key={item.id} item={item} />
         </div>
       </div>
-      {historyModal ? (
-        <HistoryModal
-          sales={item.sales}
-          transactions={item.transactions}
-          kind={historyModal}
-          unit={item.unit}
-          onClose={() => setHistoryModal(null)}
-        />
-      ) : null}
     </>
   );
 }
 
-function HistoryModal({
-  kind,
-  onClose,
-  sales,
-  transactions,
-  unit,
-}: {
-  kind: "transactions" | "sales";
-  onClose: () => void;
-  sales: InventoryItem["sales"];
-  transactions: InventoryItem["transactions"];
-  unit: string;
-}) {
-  const isTransactions = kind === "transactions";
+function InventoryMovementTable({ item }: { item: InventoryItem }) {
+  const [page, setPage] = useState(1);
+  const pageSize = 5;
+  const totalPages = Math.max(1, Math.ceil(item.transactions.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = Math.min(Math.max(currentPage - 1, 1), Math.max(totalPages - 2, 1));
+  const pageNumbers = Array.from({ length: Math.min(3, totalPages) }, (_, index) => pageStart + index);
+  const visibleTransactions = item.transactions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   return (
-    <div className={styles.modalBackdrop} data-ui-backdrop="true" role="presentation">
-      <section
-        className={`${styles.modal} ${styles.historyModal} ${isTransactions ? styles.transactionHistoryModal : styles.salesHistoryModal}`}
-        role="dialog"
-        aria-modal="true"
-        aria-label={isTransactions ? "Full transaction history" : "Full sales history"}
-      >
-        <header className={styles.modalHeader}>
-          <h3 className={styles.modalTitle}>
-            <span className={styles.modalTitleIcon} aria-hidden="true">
-              {isTransactions ? <ClipboardList size={18} /> : <WalletCards size={18} />}
-            </span>
-            <span>{isTransactions ? "Full Transaction History" : "Full Sales History"}</span>
-          </h3>
-          <button
-            aria-label="Close modal"
-            className={styles.modalCloseButton}
-            type="button"
-            onClick={onClose}
-          >
-            <X size={18} />
-          </button>
-        </header>
-        <div
-          className={`${styles.historyModalList} ${isTransactions ? styles.transactionHistoryList : styles.salesHistoryList}`}
-        >
-          {isTransactions
-            ? transactions.map((entry) => (
-                <div className={`${styles.historyItem} ${styles.transactionHistoryItem}`} key={entry.id}>
-                  <strong>{entry.type}</strong>
-                  <span>{formatQuantity(entry.quantity, unit)}</span>
-                  <small>{entry.remarks}</small>
-                  <time>{formatDateTime(entry.createdAt)}</time>
-                </div>
-              ))
-            : sales.map((entry) => (
-                <div className={`${styles.historyItem} ${styles.salesHistoryItem}`} key={entry.id}>
-                  <strong>{formatCurrency(entry.totalAmount)}</strong>
-                  <span>{formatQuantity(entry.quantitySold, unit)}</span>
-                  <small>
-                    {entry.customerName ?? "Walk-in customer"} - {entry.paymentMethod}
-                  </small>
-                  <time>{formatDateTime(entry.saleDate)}</time>
-                </div>
-              ))}
+    <section className={styles.itemHistorySection} aria-label="Stock movement history">
+      <div className={styles.itemHistoryHeading}><h4>Stock Movements</h4><span>{item.transactions.length} records</span></div>
+      {item.transactions.length === 0 ? (
+        <div className={styles.itemHistoryEmpty}>No stock movements recorded yet.</div>
+      ) : (
+        <div className={styles.itemHistoryTable} data-kind="movements" role="table" aria-label="Stock movement records">
+          <div className={styles.itemHistoryTableHead} role="row">
+            <span role="columnheader">Movement</span>
+            <span role="columnheader">Quantity</span>
+            <span role="columnheader">Date / time</span>
+            <span role="columnheader">Notes</span>
+          </div>
+          {visibleTransactions.map((transaction) => (
+            <div className={styles.itemHistoryTableRow} role="row" key={transaction.id}>
+              <strong data-label="Movement">{transaction.type === "IN" ? sharedWorkflowTerms.receiveStock : transaction.type === "OUT" ? sharedWorkflowTerms.issueStock : sharedWorkflowTerms.adjustQuantity}</strong>
+              <span data-label="Quantity">{formatQuantity(transaction.quantity, item.unit)}</span>
+              <span data-label="Date / time">{formatDateTime(transaction.createdAt)}</span>
+              <span data-label="Notes">{transaction.remarks || "—"}</span>
+            </div>
+          ))}
         </div>
-      </section>
-    </div>
+      )}
+      <HistoryTablePagination page={currentPage} totalPages={totalPages} pageNumbers={pageNumbers} label="Stock movements pagination" onPageChange={setPage} />
+    </section>
   );
 }
 
+function InventorySalesTable({ item }: { item: InventoryItem }) {
+  const [page, setPage] = useState(1);
+  const pageSize = 5;
+  const totalPages = Math.max(1, Math.ceil(item.sales.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = Math.min(Math.max(currentPage - 1, 1), Math.max(totalPages - 2, 1));
+  const pageNumbers = Array.from({ length: Math.min(3, totalPages) }, (_, index) => pageStart + index);
+  const visibleSales = item.sales.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  return (
+    <section className={styles.itemHistorySection} aria-label="Sales history">
+      <div className={styles.itemHistoryHeading}><h4>Sales History</h4><span>{item.sales.length} records</span></div>
+      {item.sales.length === 0 ? (
+        <div className={styles.itemHistoryEmpty}>No sales recorded for this item yet.</div>
+      ) : (
+        <div className={styles.itemHistoryTable} data-kind="sales" role="table" aria-label="Sales records">
+          <div className={styles.itemHistoryTableHead} role="row">
+            <span role="columnheader">Date / time</span>
+            <span role="columnheader">Customer</span>
+            <span role="columnheader">Quantity</span>
+            <span role="columnheader">Payment</span>
+            <span role="columnheader">Sale total</span>
+            <span role="columnheader">Status</span>
+          </div>
+          {visibleSales.map((sale) => (
+            <div className={styles.itemHistoryTableRow} role="row" key={sale.id}>
+              <span data-label="Date / time">{formatDateTime(sale.saleDate)}</span>
+              <strong data-label="Customer">{sale.customerName ?? "Walk-in customer"}</strong>
+              <span data-label="Quantity">{formatQuantity(sale.quantitySold, item.unit)}</span>
+              <span data-label="Payment">{sale.paymentMethod}</span>
+              <strong data-label="Sale total">{formatCurrency(sale.totalAmount)}</strong>
+              <span data-label="Status"><span className={styles.itemSaleStatus} data-status={sale.status.toLowerCase()}>{sale.status}</span></span>
+            </div>
+          ))}
+        </div>
+      )}
+      <HistoryTablePagination page={currentPage} totalPages={totalPages} pageNumbers={pageNumbers} label="Sales history pagination" onPageChange={setPage} />
+    </section>
+  );
+}
+
+function HistoryTablePagination({
+  page,
+  totalPages,
+  pageNumbers,
+  label,
+  onPageChange,
+}: {
+  page: number;
+  totalPages: number;
+  pageNumbers: number[];
+  label: string;
+  onPageChange: (page: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+
+  return (
+    <nav className={styles.itemHistoryPagination} aria-label={label}>
+      <button aria-label="Previous page" disabled={page === 1} type="button" onClick={() => onPageChange(Math.max(1, page - 1))}><ChevronLeft size={16} /></button>
+      <div className={styles.itemHistoryPageNumbers}>
+        {pageNumbers.map((number) => (
+          <button key={number} type="button" data-active={number === page} aria-current={number === page ? "page" : undefined} aria-label={`Page ${number}`} onClick={() => onPageChange(number)}>{number}</button>
+        ))}
+      </div>
+      <button aria-label="Next page" disabled={page >= totalPages} type="button" onClick={() => onPageChange(Math.min(totalPages, page + 1))}><ChevronRight size={16} /></button>
+    </nav>
+  );
+}
 function Field({
   label,
   name,

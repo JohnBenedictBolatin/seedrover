@@ -482,7 +482,6 @@ function CropDialog({
             notify={notify}
             onCancel={() => onOpen({ type: "details", crop: dialog.crop })}
             onSuccess={() => onOpen({ type: "details", crop: dialog.crop })}
-            successMessage="Crop record updated."
           />
         ) : null}
         {dialog.type === "outcomes" ? <CropOutcomesPanel
@@ -939,14 +938,12 @@ function CropForm({
   notify,
   onCancel,
   onSuccess,
-  successMessage,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   crop: CropItem;
   notify: (tone: AlertTone, text: string) => void;
   onCancel: () => void;
   onSuccess: () => void;
-  successMessage: string;
 }) {
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -962,7 +959,6 @@ function CropForm({
         await action(formData);
         onSuccess();
         router.refresh();
-        notify("success", successMessage);
       } catch (error) {
         notify("error", error instanceof Error ? error.message : "Something went wrong.");
       }

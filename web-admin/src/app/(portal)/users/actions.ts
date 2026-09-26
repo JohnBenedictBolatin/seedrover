@@ -5,6 +5,7 @@ import { randomBytes } from "node:crypto";
 import { requireAdminRole } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { writeActivityLog } from "@/lib/activity-log";
 
 export type CreateUserState = {
   message: string;
@@ -157,8 +158,8 @@ export async function createUserAction(
     };
   }
 
-  await supabase.from("activity_logs").insert({
-    user_id: adminProfile.id,
+  await writeActivityLog(supabase, {
+    userId: adminProfile.id,
     activity: "User Created",
     description: `${fullName} was created as ${role.role_name}.${accessNote ? ` Note: ${accessNote}` : ""}`,
     module: "Users",
@@ -253,8 +254,8 @@ export async function updateUserAction(formData: FormData) {
     throw new Error(updateError.message);
   }
 
-  await supabase.from("activity_logs").insert({
-    user_id: profile.id,
+  await writeActivityLog(supabase, {
+    userId: profile.id,
     activity: "User Updated",
     description: `${fullName} profile updated from the web admin. Role: ${selectedRole.role_name}. Status: ${isActive ? "Active" : "Inactive"}.`,
     module: "Users",

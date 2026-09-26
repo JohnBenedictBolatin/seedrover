@@ -39,7 +39,9 @@ export function ActionAlertStack({
         >
           {alert.tone === "success" ? <CheckCircle2 size={20} /> : alert.tone === "warning" || alert.tone === "error" ? <AlertTriangle size={20} /> : <Info size={20} />}
           <span>{alert.text}</span>
-          <button aria-label="Dismiss message" type="button" onClick={() => onDismiss(alert.id)}><X size={16} /></button>
+          {alert.tone === "error" || alert.tone === "warning" ? (
+            <button aria-label="Dismiss message" type="button" onClick={() => onDismiss(alert.id)}><X size={16} /></button>
+          ) : null}
         </div>
       ))}
     </div>

@@ -16,12 +16,18 @@ const initialState: LoginState = {
   message: "",
 };
 
-export function LoginForm() {
+export function LoginForm({
+  hasRecoveryQueryError,
+  initialResetMessage,
+}: {
+  hasRecoveryQueryError: boolean;
+  initialResetMessage: string;
+}) {
   const [state, formAction, pending] = useActionState(signInAction, initialState);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [username, setUsername] = useState("");
-  const [resetMessage, setResetMessage] = useState("");
+  const [resetMessage, setResetMessage] = useState(initialResetMessage);
   const [resetPending, setResetPending] = useState(false);
   const [recoveryMode, setRecoveryMode] = useState(false);
   const [newPassword, setNewPassword] = useState("");
@@ -38,11 +44,25 @@ export function LoginForm() {
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
     if (!supabase) return;
+
+    const callbackHash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const callbackError = callbackHash.get("error");
+    if (callbackError) {
+      const errorCode = callbackHash.get("error_code");
+      const message = errorCode === "otp_expired"
+        ? "This password reset link has expired or was already used. Request a new link."
+        : "We couldn't verify this password reset link. Request a new link and try again.";
+      queueMicrotask(() => setResetMessage(message));
+    }
+    if (callbackError || hasRecoveryQueryError) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
     const subscription = supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") setRecoveryMode(true);
     });
     return () => subscription.data.subscription.unsubscribe();
-  }, []);
+  }, [hasRecoveryQueryError]);
 
   async function handlePasswordUpdate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -52,9 +72,16 @@ export function LoginForm() {
     const supabase = createSupabaseBrowserClient();
     if (!supabase) { setRecoveryMessage("Password recovery is not configured."); notify({ tone: "error", text: "Password recovery is not configured." }); return; }
     const { error } = await supabase.auth.updateUser({ password: newPassword });
-    setRecoveryMessage(error?.message ?? "Password updated. You can now sign in.");
-    notify({ tone: error ? "error" : "success", text: error?.message ?? "Password updated. You can now sign in." });
-    if (!error) setRecoveryMode(false);
+    if (error) {
+      setRecoveryMessage(error.message);
+      notify({ tone: "error", text: error.message });
+    } else {
+      setRecoveryMessage("");
+      setResetMessage("Password updated. You can now sign in.");
+      setNewPassword("");
+      setConfirmPassword("");
+      setRecoveryMode(false);
+    }
   }
 
   if (recoveryMode) {
@@ -72,8 +99,8 @@ export function LoginForm() {
     startTransition(async () => {
       const message = await forgotPasswordAction(username);
       setResetMessage(message);
-      const failed = message.startsWith("Enter ") || message.startsWith("Too many ") || message.startsWith("Unable to ");
-      notify({ tone: failed ? "error" : "info", text: message });
+      const failed = message.startsWith("Enter ") || message.startsWith("Too many ") || message.startsWith("Unable to ") || message.startsWith("Password reset is not configured");
+      if (failed) notify({ tone: "error", text: message });
       setResetPending(false);
     });
   }

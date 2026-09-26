@@ -769,6 +769,64 @@
   transform: translateY(-1px);
 }
 
+.notificationTabs {
+  display: flex;
+  min-width: 0;
+  gap: 8px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border-soft);
+  scrollbar-width: none;
+}
+
+.notificationTabs::-webkit-scrollbar {
+  display: none;
+}
+
+.notificationTab,
+.notificationTabActive {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid transparent;
+  border-bottom: 2px solid transparent;
+  border-radius: 7px 7px 0 0;
+  color: var(--text-secondary);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 850;
+  padding: 10px 14px;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.notificationTab:hover {
+  color: var(--green-accent);
+}
+
+.notificationTabActive {
+  border-color: var(--border-soft);
+  border-bottom-color: var(--green);
+  color: var(--green-accent);
+  background: var(--surface);
+}
+
+.notificationTab span,
+.notificationTabActive span {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.notificationTab:focus-visible,
+.notificationTabActive:focus-visible {
+  outline: 2px solid var(--green-accent);
+  outline-offset: 2px;
+}
+
 .notificationList {
   display: grid;
   height: min(500px, calc(100vh - 250px));

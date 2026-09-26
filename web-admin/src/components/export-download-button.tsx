@@ -23,7 +23,6 @@ export function ExportDownloadButton({ href, children, className }: { href: stri
       link.download = filename;
       link.click();
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-      notify({ tone: "success", text: "Export ready." });
     } catch (error) {
       notify({ tone: "error", text: error instanceof Error ? error.message : "Unable to prepare the export." });
     } finally { setPending(false); }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   Package,
+  ArrowRight,
   PackageMinus,
   PackagePlus,
   AlertTriangle,
@@ -178,11 +179,21 @@ export function OperationsDashboardWorkspace({ canViewInvestments, isInventoryMa
                       <strong>{item.itemName}</strong>
                       <span>{item.category}</span>
                     </div>
-                    <div>
+                    <div className={styles.riskQuantity} aria-label={`${item.quantity} ${item.unit}`}>
                       <strong>{item.quantity}</strong>
                       <span>{item.unit}</span>
                     </div>
-                    <em>{item.status}</em>
+                    <div className={styles.riskItemAction}>
+                      <em>{item.status}</em>
+                      <Link
+                        aria-label={`Open ${item.itemName} in inventory`}
+                        className={styles.riskItemLink}
+                        href={`/inventory?item=${encodeURIComponent(item.id)}`}
+                        title={`View ${item.itemName}`}
+                      >
+                        <ArrowRight size={17} aria-hidden="true" />
+                      </Link>
+                    </div>
                   </div>
                 ))}
               </div>

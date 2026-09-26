@@ -3,7 +3,24 @@ import { LoginForm } from "@/components/login-form";
 import { LoginThemeSwitch } from "@/components/login-theme-switch";
 import styles from "./page.module.css";
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const params = await searchParams;
+  const recoveryError = typeof params.recovery === "string" ? params.recovery : null;
+  const authError = typeof params.error === "string" ? params.error : null;
+  const authErrorCode = typeof params.error_code === "string" ? params.error_code : null;
+  const hasRecoveryQueryError = recoveryError === "invalid" || Boolean(authError);
+  const initialResetMessage = recoveryError === "invalid"
+    ? "This password reset link could not be verified. Request a new link and open it again."
+    : authError
+      ? authErrorCode === "otp_expired"
+        ? "This password reset link has expired or was already used. Request a new link."
+        : "We couldn't verify this password reset link. Request a new link and try again."
+      : "";
+
   return (
     <main className={styles.page}>
       <div className={styles.background} aria-hidden="true" />
@@ -44,7 +61,7 @@ export default async function LoginPage() {
               </div>
             </div>
 
-            <LoginForm />
+            <LoginForm hasRecoveryQueryError={hasRecoveryQueryError} initialResetMessage={initialResetMessage} />
             </div>
           </div>
         </div>

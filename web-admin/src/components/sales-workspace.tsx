@@ -164,7 +164,7 @@ export function SalesWorkspace({
     const voidReason = voidReasons.current[order.id] ?? "Incorrect sales transaction.";
     const confirmed = await confirm({
       title: "Void this sale?",
-      message: `Void receipt ${order.receiptNumber} and return the sold quantity to inventory?`,
+      message: `${order.source === "market" ? "Void this legacy inventory sale" : `Void receipt ${order.receiptNumber}`} and return the sold quantity to inventory?`,
       summary: <label>Void reason<textarea rows={3} defaultValue={voidReason} onChange={(event) => { voidReasons.current[order.id] = event.target.value; }} /></label>,
       confirmLabel: "Void sale",
       tone: "danger",
@@ -388,7 +388,7 @@ export function SalesWorkspace({
         ) : (
           <div className={styles.salesTable}>
             <div className={styles.salesTableHead}>
-              <span>Receipt</span>
+              <span>Receipt / reference</span>
               <span>Date/Time</span>
               <span>Customer</span>
               <span>Type</span>
@@ -402,14 +402,14 @@ export function SalesWorkspace({
             {paginatedOrders.map((order) => (
               <div className={styles.salesTableRow} key={`${order.source}-${order.id}`}>
                 {order.source === "payment" ? (
-                  <Link className={styles.receiptCellLink} data-label="Receipt" href={`/sales/${order.relatedSaleId ?? order.id}`}>{order.receiptNumber}</Link>
+                  <Link className={styles.receiptCellLink} data-label="Receipt / reference" href={`/sales/${order.relatedSaleId ?? order.id}`}>{order.receiptNumber}</Link>
                 ) : (
-                  <strong className={styles.receiptCell} data-label="Receipt">{order.receiptNumber}</strong>
+                  <strong className={styles.receiptCell} data-label={order.source === "market" ? "Legacy reference" : "Receipt"}>{order.receiptNumber}</strong>
                 )}
                 <span className={styles.dateCell} data-label={order.source === "payment" ? "Collection date" : "Date / time"}>{order.source === "payment" ? formatDate(order.saleDate) : formatDateTime(order.saleDate)}</span>
                 <strong className={styles.customerCell} data-label="Customer">{order.customerName}</strong>
                 <span className={styles.typeCell} data-label="Type">
-                  {order.source === "payment" ? order.entryLabel : order.source === "market" ? "Market distribution" : order.paymentMethod === "Installment" ? "Installment sale" : "Receipt sale"}
+                  {order.source === "payment" ? order.entryLabel : order.source === "market" ? "Legacy inventory sale" : order.paymentMethod === "Installment" ? "Installment sale" : "Receipt sale"}
                 </span>
                 <span className={styles.itemsCell} data-label="Items">{order.source === "payment" ? "-" : order.itemCount ?? 1}</span>
                 <span className={styles.paymentCell} data-label="Payment">
@@ -438,7 +438,7 @@ export function SalesWorkspace({
                     </button>
                   ) : (
                     <button
-                      aria-label="View market distribution details"
+                      aria-label="View legacy inventory sale details"
                       type="button"
                       onClick={() => setSaleDetail(order)}
                     >
@@ -547,13 +547,13 @@ function SalesRecordDetailModal({
 }) {
   const showTransactionReference =
     order.paymentMethod !== "Cash" && Boolean(order.transactionReference);
-  const isMarket = order.source === "market";
+  const isLegacyInventorySale = order.source === "market";
   const items =
-    isMarket
+    isLegacyInventorySale
       ? [
           {
             id: order.id,
-            itemName: order.marketItemName ?? "Market distribution item",
+            itemName: order.marketItemName ?? "Legacy inventory item",
             unit: order.marketItemUnit ?? "unit",
             quantitySold: order.marketQuantitySold ?? 1,
             unitPrice: order.marketUnitPrice ?? order.totalAmount,
@@ -573,9 +573,9 @@ function SalesRecordDetailModal({
         <header className={styles.modalHeader}>
           <h3 className={styles.modalTitle}>
             <span className={styles.modalTitleIcon} aria-hidden="true">
-              {isMarket ? <Package size={18} /> : <Receipt size={18} />}
+              {isLegacyInventorySale ? <Package size={18} /> : <Receipt size={18} />}
             </span>
-            {isMarket ? "Market Distribution Details" : "Receipt Sale Details"}
+            {isLegacyInventorySale ? "Legacy Inventory Sale Details" : "Receipt Sale Details"}
           </h3>
           <button
             aria-label="Close modal"
@@ -589,7 +589,7 @@ function SalesRecordDetailModal({
 
         <div className={styles.marketDetailHero}>
           <div>
-            <span>Reference</span>
+            <span>{isLegacyInventorySale ? "Legacy reference" : "Receipt number"}</span>
             <strong>{order.receiptNumber}</strong>
           </div>
           <span className={styles.statusPill} data-status={order.status.toLowerCase()}>

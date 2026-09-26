@@ -1,9 +1,8 @@
 "use server";
 
-import { redirect } from "next/navigation";
-import { randomUUID } from "node:crypto";
 import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { writeActivityLog } from "@/lib/activity-log";
 
 export async function signOutAction() {
   const supabase = await createSupabaseServerClient();
@@ -14,8 +13,8 @@ export async function signOutAction() {
     } = await supabase.auth.getUser();
 
     if (user) {
-      await supabase.from("activity_logs").insert({
-        user_id: user.id,
+      await writeActivityLog(supabase, {
+        userId: user.id,
         activity: "Web Logout",
         description: "User signed out of the web admin.",
         module: "Authentication",
@@ -29,5 +28,5 @@ export async function signOutAction() {
   const cookieStore = await cookies();
   cookieStore.delete("seedrover-remember");
 
-  redirect(`/login?notice=signed-out&event=${randomUUID()}`);
+  return { ok: true as const };
 }

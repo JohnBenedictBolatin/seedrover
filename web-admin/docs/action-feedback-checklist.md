@@ -13,20 +13,22 @@ must not be styled as success.
 | Sale void | Yes, with receipt, stock restoration, and editable reason. | “Sale voided and inventory restored.” |
 | Discount release | Yes, with recipient and discount code. | “Discount {code} released.” |
 | Installment payment | Yes, with customer, period, amount, and payment method. | “Installment payment recorded.” |
-| Crop edit and routine care | No. | “Crop record updated.” or an action-specific saved message. |
+| Crop edit | No. The updated crop details are shown after save. | None for a routine edit; failures remain actionable. |
+| Crop care and harvest/cancellation | No extra confirmation before recording routine care; harvest/cancellation requires confirmation. | Keep action-specific feedback for recorded care and harvest/cancellation outcomes. |
 | Crop harvest/cancellation | Yes, with batch, weight/destination or cancellation reason. | Harvest receipt plus “{weight} kg harvested from {batch} and added to {destination} inventory.”; cancellation states no inventory was added. |
 | Farm cost create/delete | Yes. | “Farm cost saved/removed.” |
 | User create | Yes. | Server result; failures use error tone. |
-| User role/status change | Yes. Name-only edits save directly. | “User profile updated.” |
-| Notification read/unread | No. | “Notification marked as read/unread.” |
+| User role/status change | Yes. Name-only edits save directly. | No generic profile-update toast; the updated row is the confirmation. |
+| Notification read/unread | No. | No success toast; the read state updates in place. |
 | Notification delete | Yes, danger tone. | “Notification deleted.” |
-| Sign in/out | Sign out only. | One-time “You are signed in/out.” notice after redirect. |
-| Password reset/update | Confirm password replacement only. | Generic reset outcome; password update reports success/error. |
-| Sales/customer export | No. Preserve filters and export filename. | “Export ready.” or an actionable download error. |
-| Report/receipt print | No. | “Print dialog requested.”; report load failures state that printing did not happen. |
+| Sign in/out | Sign out only. | No success notice after redirect. Sign-out failures remain visible. |
+| Password reset/update | Confirm password replacement only. | Show the result inline; errors remain actionable. |
+| Sales/customer export | No. Preserve filters and export filename. | No success toast after download starts; show actionable download errors. |
+| Report/receipt print | No. | No success toast when the browser print dialog opens; keep print/load errors. |
 
-Shared notifications appear at the lower right, use sentence case, and dismiss
-success/info messages after five seconds. Errors remain until dismissed. Shared
-confirmation dialogs use a clear action title, consequence text, Cancel, and an
-explicit action label. Preserve user-entered form data when a confirmation is
-cancelled or a server action fails.
+Shared notifications appear at the lower right and use sentence case. Success
+and informational notices dismiss after five seconds and have no close button;
+warning and error notices remain dismissible. Shared confirmation dialogs use a
+clear action title, consequence text, Cancel, and an explicit action label.
+Preserve user-entered form data when a confirmation is cancelled or a server
+action fails.

@@ -93,6 +93,34 @@ type SaleRow = {
   status: string;
 };
 
+type ReceiptItemSaleRow = {
+  id: string;
+  inventory_id: string;
+  quantity_sold: number | string;
+  unit_price: number | string;
+  line_total: number | string;
+  sales_orders:
+    | {
+        sale_date: string;
+        customer_name: string | null;
+        customer_contact: string | null;
+        payment_method: string;
+        other_payment_method: string | null;
+        remarks: string | null;
+        status: string;
+      }
+    | {
+        sale_date: string;
+        customer_name: string | null;
+        customer_contact: string | null;
+        payment_method: string;
+        other_payment_method: string | null;
+        remarks: string | null;
+        status: string;
+      }[]
+    | null;
+};
+
 type SalesOrderItemSummaryRow = {
   quantity_sold: number | string;
   item_name_snapshot: string;
@@ -104,6 +132,12 @@ type SalesOrderItemSummaryRow = {
         status: string;
       }[]
     | null;
+};
+
+type SalesOrderTotalRow = {
+  total_amount: number | string;
+  sale_date: string;
+  status: string;
 };
 
 type TransactionRow = {
@@ -246,6 +280,33 @@ export async function getInventoryDashboard() {
       : itemSalesResultWithPayment;
 
     itemSaleRows = itemSalesResult.data ?? [];
+
+    const { data: receiptItemRows } = await supabase
+      .from("sales_order_items")
+      .select(
+        "id, inventory_id, quantity_sold, unit_price, line_total, sales_orders!inner(sale_date, customer_name, customer_contact, payment_method, other_payment_method, remarks, status)",
+      )
+      .in("inventory_id", inventoryIds)
+      .returns<ReceiptItemSaleRow[]>();
+
+    for (const row of receiptItemRows ?? []) {
+      const order = firstRelation(row.sales_orders);
+      if (!order) continue;
+      itemSaleRows.push({
+        id: row.id,
+        inventory_id: row.inventory_id,
+        quantity_sold: row.quantity_sold,
+        unit_price: row.unit_price,
+        total_amount: row.line_total,
+        sale_date: order.sale_date,
+        customer_name: order.customer_name,
+        customer_contact: order.customer_contact,
+        payment_method: order.payment_method,
+        other_payment_method: order.other_payment_method,
+        remarks: order.remarks,
+        status: order.status,
+      });
+    }
   }
 
   const transactionsByItem = new Map<string, InventoryTransaction[]>();
@@ -292,6 +353,12 @@ export async function getInventoryDashboard() {
     ]);
   }
 
+  for (const itemSales of salesByItem.values()) {
+    itemSales.sort(
+      (a, b) => new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime(),
+    );
+  }
+
   const items: InventoryItem[] = (inventoryRows ?? []).map((row) => ({
     id: row.id,
     stockCode: row.stock_code ?? "Uncoded",
@@ -333,25 +400,33 @@ export async function getInventoryDashboard() {
     ),
   };
 
-  const [{ data: saleRows }, { data: orderItemRows }] = await Promise.all([
+  const [{ data: saleRows }, { data: orderItemRows }, { data: orderRows }] = await Promise.all([
     supabase
       .from("sales_transactions")
       .select("total_amount, sale_date, status, inventory_id, quantity_sold")
-      .eq("status", "Completed")
+      .order("sale_date", { ascending: false })
+      .limit(120)
       .returns<SaleRow[]>(),
     supabase
       .from("sales_order_items")
       .select("quantity_sold, item_name_snapshot, sales_orders(status)")
       .returns<SalesOrderItemSummaryRow[]>(),
+    supabase
+      .from("sales_orders")
+      .select("total_amount, sale_date, status")
+      .order("sale_date", { ascending: false })
+      .limit(120)
+      .returns<SalesOrderTotalRow[]>(),
   ]);
 
   const salesRows = saleRows ?? [];
+  const completedOrderRows = (orderRows ?? []).filter((order) => order.status === "Completed");
   const todayIso = startOfTodayIso();
   const monthIso = startOfMonthIso();
   const itemTotals = new Map<string, number>();
 
   for (const sale of salesRows) {
-    if (!sale.inventory_id) {
+    if (sale.status !== "Completed" || !sale.inventory_id) {
       continue;
     }
 
@@ -384,13 +459,13 @@ export async function getInventoryDashboard() {
     [...itemTotals.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "No sales yet";
 
   const sales: SalesSummary = {
-    salesToday: salesRows
-      .filter((sale) => sale.sale_date >= todayIso)
+    salesToday: [...salesRows, ...completedOrderRows]
+      .filter((sale) => sale.status === "Completed" && sale.sale_date >= todayIso)
       .reduce((total, sale) => total + toNumber(sale.total_amount), 0),
-    salesThisMonth: salesRows
-      .filter((sale) => sale.sale_date >= monthIso)
+    salesThisMonth: [...salesRows, ...completedOrderRows]
+      .filter((sale) => sale.status === "Completed" && sale.sale_date >= monthIso)
       .reduce((total, sale) => total + toNumber(sale.total_amount), 0),
-    completedTransactions: salesRows.length,
+    completedTransactions: salesRows.filter((sale) => sale.status === "Completed").length + completedOrderRows.length,
     bestSellingItem,
   };
 

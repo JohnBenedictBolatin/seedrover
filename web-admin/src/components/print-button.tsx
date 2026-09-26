@@ -7,7 +7,7 @@ export function PrintButton() {
   const { notify } = useActionFeedback();
   return (
     <button className={styles.button} type="button" onClick={() => {
-      try { window.print(); notify({ tone: "success", text: "Print dialog requested." }); }
+      try { window.print(); }
       catch { notify({ tone: "error", text: "Unable to open the print dialog." }); }
     }}>
       Print receipt

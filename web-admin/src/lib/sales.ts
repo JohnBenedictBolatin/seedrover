@@ -684,14 +684,14 @@ export async function getSalesWorkspaceData() {
     const isCompleted = sale.status === "Completed";
     const saleDate = new Date(sale.sale_date);
     const inventory = firstRelation(sale.inventory);
-    const itemName = inventory?.item_name ?? "Market distribution";
-    const category = inventory?.category ?? "Market Distribution";
+    const itemName = inventory?.item_name ?? "Legacy inventory sale";
+    const category = inventory?.category ?? "Uncategorized";
 
     history.push({
       id: sale.id,
-      receiptNumber: `SR-${sale.id.slice(0, 8).toUpperCase()}`,
+      receiptNumber: `LEGACY-${sale.id.slice(0, 8).toUpperCase()}`,
       saleDate: sale.sale_date,
-      customerName: sale.customer_name ?? "Market distribution",
+      customerName: sale.customer_name ?? "Legacy inventory sale",
       paymentMethod: displayPaymentMethod(sale.payment_method, sale.other_payment_method),
       transactionReference: sale.transaction_reference ?? null,
       otherPaymentMethod: sale.other_payment_method ?? null,

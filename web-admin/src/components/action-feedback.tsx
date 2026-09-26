@@ -2,14 +2,12 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { usePathname } from "next/navigation";
 import { ActionAlertStack, type ActionAlert, type AlertTone } from "./action-alert-stack";
 
 type FeedbackInput = { tone: AlertTone; text: string; operationId?: string };
 const FeedbackContext = createContext<{ notify: (input: FeedbackInput) => void } | null>(null);
 
 export function ActionFeedbackProvider({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
   const [alerts, setAlerts] = useState<ActionAlert[]>([]);
   const timers = useRef(new Map<number, number>());
   const operations = useRef(new Map<string, number>());
@@ -51,21 +49,6 @@ export function ActionFeedbackProvider({ children }: { children: ReactNode }) {
     if (alert && (alert.tone === "success" || alert.tone === "info") && !timers.current.has(id)) scheduleDismiss(id);
   }, [alerts, scheduleDismiss]);
   useEffect(() => () => { for (const timer of timers.current.values()) window.clearTimeout(timer); }, []);
-  useEffect(() => {
-    const url = new URL(window.location.href);
-    const notice = url.searchParams.get("notice");
-    const eventId = url.searchParams.get("event");
-    const messages: Record<string, string> = { "signed-in": "You are signed in.", "signed-out": "You are signed out." };
-    if (!notice || !eventId || !/^[0-9a-f-]{36}$/i.test(eventId) || !messages[notice]) return;
-    const consumedKey = `seedrover-notice:${eventId}`;
-    if (!sessionStorage.getItem(consumedKey)) {
-      sessionStorage.setItem(consumedKey, "1");
-      queueMicrotask(() => notify({ tone: "success", text: messages[notice], operationId: consumedKey }));
-    }
-    url.searchParams.delete("notice");
-    url.searchParams.delete("event");
-    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
-  }, [notify, pathname]);
   return <FeedbackContext.Provider value={{ notify }}>
     {children}
     {typeof document !== "undefined" ? createPortal(<ActionAlertStack alerts={alerts} onDismiss={dismiss} onPause={pause} />, document.body) : null}

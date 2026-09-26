@@ -31,7 +31,6 @@ export function ReportPrintButton({
         frame.contentWindow?.focus();
         try {
           frame.contentWindow?.print();
-          notify({ tone: "success", text: "Print dialog requested." });
         } catch {
           notify({ tone: "error", text: "The report could not be printed. Please try again." });
         }

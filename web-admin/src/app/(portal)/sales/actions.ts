@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdminRole } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { writeActivityLog } from "@/lib/activity-log";
 
 export type SalesFormState = {
   message: string;
@@ -254,6 +255,15 @@ export async function recordSalesOrderAction(
     return { message: "The sale could not be recorded. Please try again." };
   }
 
+  if (discountCode) {
+    await writeActivityLog(supabase, {
+      userId: adminProfile.id,
+      activity: "Discount applied",
+      description: `${discountCode} was applied to receipt ${data.receipt_number} for ${customerName}.`,
+      module: "Sales",
+    });
+  }
+
   if (paymentMethod === "Installment") {
     const { error: installmentPlanError } = await supabase.rpc(
       "create_installment_plan",
@@ -292,8 +302,8 @@ export async function recordSalesOrderAction(
       };
     }
 
-    await supabase.from("activity_logs").insert({
-      user_id: adminProfile.id,
+    await writeActivityLog(supabase, {
+      userId: adminProfile.id,
       activity: "Installment plan created",
       description: `${adminProfile.fullName} created an installment plan for receipt ${data.receipt_number}${initialPayment && initialPayment > 0 ? ` with an initial payment of PHP ${initialPayment.toFixed(2)}` : ""}.`,
       module: "Sales",
@@ -313,7 +323,7 @@ export async function recordSalesOrderAction(
 }
 
 export async function voidSalesRecordAction(formData: FormData) {
-  const profile = await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
+  await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
 
   const supabase = await createSupabaseServerClient();
 
@@ -341,12 +351,6 @@ export async function voidSalesRecordAction(formData: FormData) {
     throw new Error("Unknown sales source.");
   }
 
-  const { data: installmentPlan } = await supabase
-    .from("installment_plans")
-    .select("receipt_number")
-    .eq("sales_order_id", id)
-    .maybeSingle<{ receipt_number: string }>();
-
   const { error } = await supabase.rpc("void_sales_record", {
     p_id: id,
     p_source: source,
@@ -356,15 +360,6 @@ export async function voidSalesRecordAction(formData: FormData) {
   if (error) {
     throw new Error(friendlySalesError(error, "Unable to void sale."));
   }
-
-  await supabase.from("activity_logs").insert({
-    user_id: profile.id,
-    activity: installmentPlan ? "Installment plan cancelled" : "Sale voided",
-    description: installmentPlan
-      ? `${profile.fullName} cancelled the installment plan for receipt ${installmentPlan.receipt_number}. Reason: ${reason}`
-      : `${profile.fullName} voided a sale. Reason: ${reason}`,
-    module: "Sales",
-  });
 
   revalidatePath("/sales");
   revalidatePath("/inventory");

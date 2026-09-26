@@ -8,7 +8,11 @@ import { LiveDateTime } from "@/components/live-date-time";
 import { ModuleHeaderIntro } from "@/components/module-header-intro";
 import styles from "./page.module.css";
 
-export default async function InventoryPage() {
+type InventoryPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function InventoryPage({ searchParams }: InventoryPageProps) {
   const profile = await getCurrentAdminProfile();
 
   if (!profile) {
@@ -20,6 +24,9 @@ export default async function InventoryPage() {
   }
 
   const { items, summary, sales, error } = await getInventoryDashboard();
+  const params = await searchParams;
+  const itemParam = params?.item;
+  const initialItemId = Array.isArray(itemParam) ? itemParam[0] : itemParam;
 
   return (
     <div className={styles.page}>
@@ -99,7 +106,7 @@ export default async function InventoryPage() {
         </article>
       </section>
 
-      <InventoryWorkspace items={items} />
+      <InventoryWorkspace initialItemId={initialItemId} items={items} />
     </div>
   );
 }

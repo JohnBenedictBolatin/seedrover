@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     status: searchParams.get("status") ?? undefined,
   });
   const html = rowsToExcelHtml("SeedRover Sales", [
-    ["Entry Type", "Receipt", "Receipt Link", "Date", "Customer", "Payment", "Transaction ID", "Item", "Quantity", "Unit Price", "Sale Line Total", "Sale Total", "Payment Received", "Status"],
+    ["Entry Type", "Receipt / Reference", "Receipt Link", "Date", "Customer", "Payment", "Transaction ID", "Item", "Quantity", "Unit Price", "Sale Line Total", "Sale Total", "Payment Received", "Status"],
     ...rows.map((row) => [
       row.entryType,
       row.receiptNumber,
