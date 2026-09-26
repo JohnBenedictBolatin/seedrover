@@ -12,14 +12,17 @@ export default async function LoginPage({
   const recoveryError = typeof params.recovery === "string" ? params.recovery : null;
   const authError = typeof params.error === "string" ? params.error : null;
   const authErrorCode = typeof params.error_code === "string" ? params.error_code : null;
+  const passwordUpdated = params.passwordUpdated === "1";
   const hasRecoveryQueryError = recoveryError === "invalid" || Boolean(authError);
-  const initialResetMessage = recoveryError === "invalid"
-    ? "This password reset link could not be verified. Request a new link and open it again."
-    : authError
-      ? authErrorCode === "otp_expired"
-        ? "This password reset link has expired or was already used. Request a new link."
-        : "We couldn't verify this password reset link. Request a new link and try again."
-      : "";
+  const initialResetMessage = passwordUpdated
+    ? "Password changed successfully. You can now sign in with your new password."
+    : recoveryError === "invalid"
+      ? "This password reset link could not be verified. Request a new link and open it again."
+      : authError
+        ? authErrorCode === "otp_expired"
+          ? "This password reset link has expired or was already used. Request a new link."
+          : "We couldn't verify this password reset link. Request a new link and try again."
+        : "";
 
   return (
     <main className={styles.page}>

@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState } from "react";
-import Link from "next/link";
 import { Lock } from "lucide-react";
 import {
   updateRecoveredPasswordAction,
@@ -9,24 +8,13 @@ import {
 } from "./actions";
 import styles from "@/components/login-form.module.css";
 
-const initialState: PasswordUpdateState = { message: "", success: false };
+const initialState: PasswordUpdateState = { message: "" };
 
 export function ResetPasswordForm() {
   const [state, formAction, pending] = useActionState(
     updateRecoveredPasswordAction,
     initialState,
   );
-
-  if (state.success) {
-    return (
-      <div className={styles.form}>
-        <p className={styles.resetMessage} role="status">{state.message}</p>
-        <Link className={styles.submitButton} href="/login">
-          Return to sign in
-        </Link>
-      </div>
-    );
-  }
 
   return (
     <form action={formAction} className={styles.form}>
