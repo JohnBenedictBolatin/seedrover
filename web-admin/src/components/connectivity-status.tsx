@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, CloudOff } from "lucide-react";
+import { CheckCircle2, CloudOff } from "lucide-react";
 import styles from "./connectivity-status.module.css";
 
-type ConnectionState = "connected" | "reconnecting" | "restored";
+type ConnectionState = "connected" | "offline" | "reconnecting" | "restored";
 
 export function ConnectivityStatus({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<ConnectionState>("connected");
@@ -22,7 +22,7 @@ export function ConnectivityStatus({ children }: { children: React.ReactNode }) 
 
     const check = async () => {
       if (!navigator.onLine) {
-        update("reconnecting");
+        update("offline");
         return;
       }
       if (checkingRef.current) return;
@@ -34,7 +34,7 @@ export function ConnectivityStatus({ children }: { children: React.ReactNode }) 
         });
         if (!response.ok) throw new Error("Backend unavailable");
         if (!active) return;
-        if (stateRef.current === "reconnecting") {
+        if (stateRef.current === "offline" || stateRef.current === "reconnecting") {
           update("restored");
           window.clearTimeout(restoredTimer);
           restoredTimer = window.setTimeout(() => update("connected"), 3500);
@@ -48,7 +48,7 @@ export function ConnectivityStatus({ children }: { children: React.ReactNode }) 
       }
     };
 
-    const handleOffline = () => update("reconnecting");
+    const handleOffline = () => update("offline");
     const handleOnline = () => void check();
     void check();
     const interval = window.setInterval(() => void check(), 20000);
@@ -67,10 +67,16 @@ export function ConnectivityStatus({ children }: { children: React.ReactNode }) 
   return <>
     {state !== "connected" ? (
       <div className={styles.banner} data-state={state} role="status" aria-live="polite">
-        {state === "restored" ? <CheckCircle2 size={18} aria-hidden="true" /> : state === "reconnecting" ? <CloudOff size={18} aria-hidden="true" /> : <AlertTriangle size={18} aria-hidden="true" />}
+        {state === "restored" ? (
+          <CheckCircle2 size={18} aria-hidden="true" />
+        ) : (
+          <CloudOff size={18} aria-hidden="true" />
+        )}
         <span>{state === "restored"
           ? "Connection restored. Refreshing data is safe."
-          : "Reconnecting to SeedRover. Changes cannot be saved while the connection is unavailable. If a transaction was interrupted, check its record before submitting it again."}</span>
+          : state === "offline"
+            ? "No internet connection. Reconnect to an internet network to save web changes. If a transaction was interrupted, check its record before retrying."
+            : "SeedRover web services are temporarily unavailable. Changes cannot be saved right now. If a transaction was interrupted, check its record before retrying."}</span>
       </div>
     ) : null}
     {children}

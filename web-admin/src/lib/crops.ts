@@ -44,6 +44,7 @@ export type CropSummary = {
 };
 
 export type CropWeatherStatus = {
+  source: "WeatherAPI" | "Unavailable";
   currentCondition: string;
   temperatureC: number | null;
   rainChancePercent: number | null;
@@ -109,7 +110,58 @@ type CropRow = {
 type SensorRow = { crop_id: string; calibrated_value: number | null; soil_moisture: number | null; recorded_at: string; source: string | null; provenance_status: CropSensorReading["provenanceStatus"] | null; soil_moisture_calibrated: boolean | null; calibration_version: string | null };
 type TaskRow = CropTask;
 type SeedImageRow = { profile_key: string; image_path: string };
-type WeatherRow = { provider: string; precipitation_probability: number | null; temperature_c: number | null; condition: string | null; raw_payload: Record<string, unknown> | null; fetched_at: string };
+export async function getWeatherApiForecast(): Promise<CropWeatherStatus | null> {
+  const apiKey = process.env.WEATHERAPI_API_KEY?.trim();
+  if (!apiKey) return null;
+
+  const url = new URL("https://api.weatherapi.com/v1/forecast.json");
+  url.searchParams.set("key", apiKey);
+  url.searchParams.set("q", "13.634597,123.330082");
+  url.searchParams.set("days", "2");
+  url.searchParams.set("aqi", "no");
+  url.searchParams.set("alerts", "no");
+
+  try {
+    const response = await fetch(url, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) return null;
+
+    const payload = await response.json() as {
+      current?: {
+        condition?: { text?: unknown };
+        temp_c?: unknown;
+        last_updated_epoch?: unknown;
+      };
+      forecast?: {
+        forecastday?: { hour?: { time_epoch?: unknown; chance_of_rain?: unknown; precip_mm?: unknown }[] }[];
+      };
+    };
+    const current = payload.current;
+    const now = Math.floor(Date.now() / 1000);
+    const hours = (payload.forecast?.forecastday ?? []).flatMap((day) => day.hour ?? [])
+      .filter((hour) => typeof hour.time_epoch === "number" && hour.time_epoch >= now - 3600 && hour.time_epoch <= now + 24 * 3600);
+    const rainChances = hours.map((hour) => hour.chance_of_rain).filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+    const nextRain = hours.find((hour) =>
+      (typeof hour.precip_mm === "number" && hour.precip_mm > 0.1) ||
+      (typeof hour.chance_of_rain === "number" && hour.chance_of_rain >= 50),
+    );
+    const updatedEpoch = typeof current?.last_updated_epoch === "number" ? current.last_updated_epoch : now;
+
+    return {
+      source: "WeatherAPI",
+      currentCondition: typeof current?.condition?.text === "string" ? current.condition.text : "Weather unavailable",
+      temperatureC: typeof current?.temp_c === "number" && Number.isFinite(current.temp_c) ? current.temp_c : null,
+      rainChancePercent: rainChances.length ? Math.max(...rainChances) : null,
+      nextRainWindow: typeof nextRain?.time_epoch === "number" ? new Date(nextRain.time_epoch * 1000).toISOString() : null,
+      fetchedAt: new Date(updatedEpoch * 1000).toISOString(),
+      needsRefresh: false,
+    };
+  } catch {
+    return null;
+  }
+}
 
 function validSensorNumber(value: number | null, minimum: number, maximum: number) {
   return value != null && Number.isFinite(value) && value >= minimum && value <= maximum ? value : null;
@@ -186,16 +238,16 @@ export async function getCropsDashboard() {
     ? { data: [] as { id: string; target_drop_cycles: number | null; completed_drop_cycles: number | null; field_label: string | null }[] }
     : await supabase.from("planting_logs").select("id, target_drop_cycles, completed_drop_cycles, field_label").in("id", plantingLogIds);
   const plantingLogs = new Map((plantingLogData ?? []).map((row) => [row.id, row]));
-  const [{ data: sensorData }, { data: taskData, error: taskError }, { data: weatherData }, { data: seedImageData }, { data: activityData }] = await Promise.all([
+  const [{ data: sensorData }, { data: taskData, error: taskError }, { data: seedImageData }, { data: activityData }, liveWeather] = await Promise.all([
     cropIds.length === 0
       ? Promise.resolve({ data: [] as SensorRow[] })
       : supabase.from("sensor_readings").select("crop_id, calibrated_value, soil_moisture, recorded_at, source, provenance_status, soil_moisture_calibrated, calibration_version").in("crop_id", cropIds).order("recorded_at", { ascending: false }).returns<SensorRow[]>(),
     cropIds.length === 0
       ? Promise.resolve({ data: [] as TaskRow[], error: null })
       : supabase.from("crop_tasks").select("id, crop_id, task_type, status, title, recommendation, due_at, priority").in("crop_id", cropIds).in("status", ["Upcoming", "Due", "Overdue", "Postponed"]).order("due_at", { ascending: true }).returns<TaskRow[]>(),
-    supabase.from("weather_forecasts").select("provider, precipitation_probability, temperature_c, condition, raw_payload, fetched_at").order("fetched_at", { ascending: false }).limit(2).returns<WeatherRow[]>(),
     supabase.from("crop_profile_images").select("profile_key, image_path").returns<SeedImageRow[]>(),
     supabase.from("crop_activities").select("crop_id, activity_type, performed_at").order("performed_at", { ascending: false }),
+    getWeatherApiForecast(),
   ]);
   const rank = (priority: string) => priority === "Critical" ? 0 : priority === "Important" ? 1 : 2;
   taskData?.sort((a, b) => rank(a.priority) - rank(b.priority) || a.due_at.localeCompare(b.due_at));
@@ -261,16 +313,14 @@ export async function getCropsDashboard() {
   const pendingTasks = taskData ?? [];
   const now = new Date();
   const soon = new Date(now.getTime() + 14 * 86400000);
-  const openMeteo = (weatherData ?? []).find((row) => row.provider === "Open-Meteo");
-  const rawSummary = openMeteo?.raw_payload?.summary as Record<string, unknown> | undefined;
-  const nextRainAt = typeof rawSummary?.nextRainAt === "string" ? rawSummary.nextRainAt : null;
-  const weather: CropWeatherStatus = {
-    currentCondition: openMeteo?.condition ?? "Weather unavailable",
-    temperatureC: openMeteo?.temperature_c ?? null,
-    rainChancePercent: openMeteo?.precipitation_probability ?? null,
-    nextRainWindow: nextRainAt,
-    fetchedAt: openMeteo?.fetched_at ?? null,
-    needsRefresh: typeof rawSummary?.currentCondition !== "string",
+  const weather: CropWeatherStatus = liveWeather ?? {
+    source: "Unavailable",
+    currentCondition: "Weather unavailable",
+    temperatureC: null,
+    rainChancePercent: null,
+    nextRainWindow: null,
+    fetchedAt: null,
+    needsRefresh: true,
   };
 
   const activeCropIds = new Set(

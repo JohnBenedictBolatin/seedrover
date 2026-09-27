@@ -540,7 +540,6 @@ function CreateUserModal({
   });
   const confirmedRef = useRef(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [useCustomPassword, setUseCustomPassword] = useState(false);
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const router = useRouter();
   const roleOptions = [{ value: "", label: "Choose a role" }, ...roles.map((role) => ({
@@ -555,7 +554,10 @@ function CreateUserModal({
 
     onNotify(state.message, state.success ? "success" : "error");
 
-    if (state.success) router.refresh();
+    if (state.success) {
+      onClose();
+      router.refresh();
+    }
   }, [onClose, onNotify, router, state]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -580,10 +582,6 @@ function CreateUserModal({
 
     confirmedRef.current = true;
     form.requestSubmit();
-  }
-
-  if (state.success && state.temporaryPassword) {
-    return <div className={styles.modalBackdrop} data-ui-backdrop="true"><section className={styles.modal} role="dialog" aria-modal="true" aria-label="Temporary password"><div className={styles.modalHeader}><h2>Account created</h2></div><p>{state.fullName} can sign in with this temporary password and should change it after signing in.</p><label>Temporary password<input readOnly type={showPassword ? "text" : "password"} value={state.temporaryPassword} /></label><div className={styles.formActions}><button type="button" onClick={() => setShowPassword((value) => !value)}>{showPassword ? "Hide password" : "Reveal password"}</button><button type="button" onClick={async () => { try { await navigator.clipboard.writeText(state.temporaryPassword!); onNotify("Temporary password copied.", "success"); } catch { onNotify("Clipboard access is unavailable. Reveal the password to copy it manually.", "error"); } }}>Copy password</button><button className={styles.primaryActionButton} type="button" onClick={() => { onClose(); router.refresh(); }}>Done</button></div></section></div>;
   }
 
   return (
@@ -611,7 +609,7 @@ function CreateUserModal({
           <div>
             <strong>Secure account creation</strong>
             <span>
-              This creates a Supabase Auth account and links it to a SeedRover role.
+              Set the initial password for this account. The user can change it later with Forgot password.
             </span>
           </div>
         </div>
@@ -653,8 +651,25 @@ function CreateUserModal({
               <ContactNumberInput autoComplete="tel-national" name="contact_number" placeholder="e.g. 09123456789" />
             </span>
           </label>
-          <label><input checked={useCustomPassword} type="checkbox" onChange={(event) => setUseCustomPassword(event.currentTarget.checked)} /> Enter a custom temporary password</label>
-          {useCustomPassword ? <label className={styles.passwordLabel}>Temporary password *<input minLength={8} name="temporary_password" placeholder="At least 8 characters" required type={showPassword ? "text" : "password"} /><button aria-label={showPassword ? "Hide temporary password" : "Show temporary password"} className={styles.passwordToggle} type="button" onClick={() => setShowPassword((current) => !current)}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></label> : null}
+          <label className={styles.passwordLabel}>
+            Initial password <span aria-hidden="true" style={{ color: "#b42318" }}>*</span>
+            <input
+              autoComplete="new-password"
+              minLength={8}
+              name="initial_password"
+              placeholder="At least 8 characters"
+              required
+              type={showPassword ? "text" : "password"}
+            />
+            <button
+              aria-label={showPassword ? "Hide initial password" : "Show initial password"}
+              className={styles.passwordToggle}
+              type="button"
+              onClick={() => setShowPassword((current) => !current)}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </label>
           <label>
             Role
             <ThemedSelect

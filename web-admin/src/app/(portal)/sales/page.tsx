@@ -60,6 +60,10 @@ export default async function SalesPage() {
       ) : null}
 
       <SalesWorkspace
+        canVoidSales={[
+          "System Administrator",
+          "Farm Inventory Manager",
+        ].includes(profile.roleName)}
         customers={customerData.customers}
         discounts={discountData.discounts}
         items={items}

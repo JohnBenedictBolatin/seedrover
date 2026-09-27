@@ -21,6 +21,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     redirect("/crops");
   }
 
+  if (profile.roleName === "Inventory Staff") {
+    redirect("/inventory");
+  }
+
   const params = await searchParams;
   const range = normalizeDashboardRange(params?.range);
   const data = await getOperationsDashboard(range);

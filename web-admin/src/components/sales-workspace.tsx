@@ -43,6 +43,7 @@ import { CalendarField } from "@/components/calendar-field";
 import styles from "@/app/(portal)/sales/page.module.css";
 
 type SalesWorkspaceProps = {
+  canVoidSales: boolean;
   customers: ExistingSaleCustomer[];
   discounts: ReleasedDiscount[];
   items: SellableItem[];
@@ -132,6 +133,7 @@ function FilterSelect({
 }
 
 export function SalesWorkspace({
+  canVoidSales,
   customers,
   discounts,
   items,
@@ -448,7 +450,9 @@ export function SalesWorkspace({
                       <Eye size={17} />
                     </button>
                   )}
-                  {order.source !== "payment" && order.status === "Completed" ? (
+                  {canVoidSales &&
+                  order.source !== "payment" &&
+                  order.status === "Completed" ? (
                     <button
                       aria-label="Void sale"
                       type="button"

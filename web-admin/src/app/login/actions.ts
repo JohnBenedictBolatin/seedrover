@@ -191,7 +191,9 @@ export async function signInAction(
   if (signedIn) {
     const destination = ["Farm Planting Manager", "Planting Staff"].includes(signedInRole)
       ? "/crops"
-      : "/dashboard";
+      : signedInRole === "Inventory Staff"
+        ? "/inventory"
+        : "/dashboard";
     redirect(destination);
   }
 

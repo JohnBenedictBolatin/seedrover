@@ -43,9 +43,11 @@ function navGroupsFor(roleName: AdminProfile["roleName"]) {
   const isAdmin = roleName === "System Administrator";
   const isPlantingOnly =
     roleName === "Farm Planting Manager" || roleName === "Planting Staff";
+  const canViewDashboard =
+    roleName === "System Administrator" || roleName === "Farm Inventory Manager";
 
   return [
-    !isPlantingOnly
+    canViewDashboard && !isPlantingOnly
       ? {
           label: "Overview",
           items: [{ label: "Dashboard", href: "/dashboard" }],

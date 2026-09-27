@@ -18,11 +18,13 @@
   transform: translateX(-50%);
 }
 
-.banner[data-state="reconnecting"] {
+.banner[data-state="reconnecting"],
+.banner[data-state="offline"] {
   border-color: rgba(245, 158, 11, 0.48);
 }
 
-.banner[data-state="reconnecting"] svg {
+.banner[data-state="reconnecting"] svg,
+.banner[data-state="offline"] svg {
   flex: 0 0 auto;
   color: #f59e0b;
 }

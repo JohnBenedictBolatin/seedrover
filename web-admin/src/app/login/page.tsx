@@ -13,6 +13,7 @@ export default async function LoginPage({
   const authError = typeof params.error === "string" ? params.error : null;
   const authErrorCode = typeof params.error_code === "string" ? params.error_code : null;
   const passwordUpdated = params.passwordUpdated === "1";
+  const mobileRecoveryRequest = params.reset === "1";
   const hasRecoveryQueryError = recoveryError === "invalid" || Boolean(authError);
   const initialResetMessage = passwordUpdated
     ? "Password changed successfully. You can now sign in with your new password."
@@ -22,7 +23,9 @@ export default async function LoginPage({
         ? authErrorCode === "otp_expired"
           ? "This password reset link has expired or was already used. Request a new link."
           : "We couldn't verify this password reset link. Request a new link and try again."
-        : "";
+        : mobileRecoveryRequest
+          ? "Enter your username, then choose Forgot password to request a reset link."
+          : "";
 
   return (
     <main className={styles.page}>

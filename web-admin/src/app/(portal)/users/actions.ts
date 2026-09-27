@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { randomBytes } from "node:crypto";
 import { requireAdminRole } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -11,8 +10,6 @@ import { normalizeContactNumber } from "@/lib/contact-number.mjs";
 export type CreateUserState = {
   message: string;
   success: boolean;
-  temporaryPassword?: string;
-  fullName?: string;
 };
 
 function text(formData: FormData, key: string, fallback = "") {
@@ -49,14 +46,13 @@ export async function createUserAction(
     .join(" ");
   const username = normalizeUsername(text(formData, "username"));
   const email = text(formData, "email").toLowerCase();
-  const suppliedPassword = String(formData.get("temporary_password") ?? "");
-  const password = suppliedPassword || `Sr!${randomBytes(12).toString("base64url")}A7`;
+  const password = String(formData.get("initial_password") ?? "");
   let contactNumber: string | null;
   const roleId = text(formData, "role_id");
   const isActive = text(formData, "is_active", "true") === "true";
   const accessNote = text(formData, "access_note");
 
-  if (!firstName || !lastName || !username || !email || !roleId) {
+  if (!firstName || !lastName || !username || !email || !roleId || !password) {
     return { message: "Complete all required account fields.", success: false };
   }
 
@@ -79,7 +75,7 @@ export async function createUserAction(
 
   if (password.length < 8) {
     return {
-      message: "Temporary password must be at least 8 characters.",
+      message: "Initial password must be at least 8 characters.",
       success: false,
     };
   }
@@ -178,10 +174,8 @@ export async function createUserAction(
   revalidatePath("/users");
 
   return {
-    message: `${fullName} account created. Share the temporary password securely and ask them to change it after signing in.`,
+    message: `${fullName} account created. They can change their password later using Forgot password.`,
     success: true,
-    temporaryPassword: password,
-    fullName,
   };
 }
 

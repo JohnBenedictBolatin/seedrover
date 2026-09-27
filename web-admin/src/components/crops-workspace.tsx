@@ -30,7 +30,7 @@ import {
   X,
   CircleSlash2,
 } from "lucide-react";
-import type { CropActivityRecord, CropItem, CropSensorReading } from "@/lib/crops";
+import type { CropActivityRecord, CropItem, CropSensorReading, CropWeatherStatus } from "@/lib/crops";
 import type { CropOutcome } from "@/lib/crop-outcomes";
 import type { PlantingRunHistoryRow } from "@/app/(portal)/crops/actions";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -71,6 +71,7 @@ type ModalState =
 export function CropsWorkspace({
   children,
   crops,
+  weather,
   outcomes,
   outcomesError,
   initialPlantingRuns,
@@ -79,6 +80,7 @@ export function CropsWorkspace({
 }: {
   children: ReactNode;
   crops: CropItem[];
+  weather: CropWeatherStatus | null;
   outcomes: CropOutcome[];
   outcomesError: string | null;
   initialPlantingRuns: PlantingRunHistoryRow[];
@@ -182,6 +184,7 @@ export function CropsWorkspace({
         </section>
 
         <aside className={styles.cropCareSidebar} aria-label="Today's crop care">
+          <FarmForecast weather={weather} />
           <TodaysCare crops={crops} onOpen={(crop, task) => setModal({ type: "activity", crop, task })} />
         </aside>
 
@@ -250,6 +253,66 @@ export function CropsWorkspace({
       />
     </>
   );
+}
+
+function FarmForecast({ weather }: { weather: CropWeatherStatus | null }) {
+  const isAvailable = Boolean(weather && weather.currentCondition !== "Weather unavailable");
+  const weatherTone = getWeatherTone(weather?.currentCondition ?? "");
+  const nextRain = weather?.nextRainWindow ? formatDateTime(weather.nextRainWindow) : null;
+  const conditionContext = weather ? explainWeatherCondition(weather.currentCondition) : "Weather details are not available right now.";
+
+  return (
+    <section className={styles.farmForecastCard} aria-label="Isarog Farm weather forecast" data-available={isAvailable}>
+      <div className={styles.farmForecastHeader}>
+        <span className={styles.farmForecastIcon} data-weather={weatherTone} aria-hidden="true">
+          {weatherTone === "clear" ? <Sun size={22} /> : weatherTone === "rain" || weatherTone === "storm" ? <Droplets size={22} /> : <Cloud size={22} />}
+        </span>
+        <div>
+          <span className={styles.farmForecastEyebrow}>Isarog Farm forecast</span>
+          <strong>{isAvailable ? weather?.currentCondition : "Forecast unavailable"}</strong>
+          <p className={styles.farmForecastContext}>{conditionContext}</p>
+        </div>
+      </div>
+      <div className={styles.farmForecastMetrics}>
+        <div>
+          <span>Temperature</span>
+          <strong>{weather?.temperatureC == null ? "N/A" : `${Math.round(weather.temperatureC)}°C`}</strong>
+        </div>
+        <div>
+          <span>Rain chance</span>
+          <strong>{weather?.rainChancePercent == null ? "N/A" : `${Math.round(weather.rainChancePercent)}%`}</strong>
+        </div>
+      </div>
+      <p className={styles.farmForecastRain}>
+        <Droplets size={15} aria-hidden="true" />
+        <span>{nextRain ? `Next rain window · ${nextRain}` : isAvailable ? "No rain window is expected in the next 24 hours" : "A forecast will appear when weather data is available"}</span>
+      </p>
+      {weather?.source === "WeatherAPI" ? (
+        <a className={styles.farmForecastAttribution} href="https://www.weatherapi.com/" target="_blank" rel="noreferrer">Weather data by WeatherAPI.com</a>
+      ) : null}
+    </section>
+  );
+}
+
+function getWeatherTone(condition: string): "clear" | "cloudy" | "rain" | "storm" | "unknown" {
+  const normalized = condition.toLowerCase();
+  if (!normalized || normalized === "weather unavailable") return "unknown";
+  if (normalized.includes("thunder")) return "storm";
+  if (["rain", "drizzle", "shower", "snow", "sleet", "ice"].some((word) => normalized.includes(word))) return "rain";
+  if (["sun", "clear"].some((word) => normalized.includes(word))) return "clear";
+  return "cloudy";
+}
+
+function explainWeatherCondition(condition: string) {
+  const normalized = condition.toLowerCase();
+  if (normalized.includes("overcast")) return "Clouds cover nearly all the sky. That does not necessarily mean rain.";
+  if (normalized.includes("cloud")) return "Clouds are present, but that does not necessarily mean rain.";
+  if (normalized.includes("thunder")) return "Thunderstorms may bring lightning and sudden rain.";
+  if (normalized.includes("drizzle")) return "Light rain is falling or expected.";
+  if (normalized.includes("rain")) return "Rain is falling or expected around the farm.";
+  if (normalized.includes("fog") || normalized.includes("mist")) return "Fine droplets in the air may reduce visibility.";
+  if (normalized.includes("sun") || normalized.includes("clear")) return "Mostly clear skies, with little or no cloud cover.";
+  return "This describes the current sky; check the rain chance below for expected precipitation.";
 }
 
 function CropGroup({

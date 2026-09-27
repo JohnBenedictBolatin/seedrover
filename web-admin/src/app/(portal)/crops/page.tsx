@@ -21,7 +21,7 @@ export default async function CropsPage() {
     redirect("/dashboard");
   }
 
-  const [{ crops, summary, error }, { outcomes, error: outcomesError }, plantingRuns] = await Promise.all([
+  const [{ crops, summary, weather, error }, { outcomes, error: outcomesError }, plantingRuns] = await Promise.all([
     getCropsDashboard(),
     getCropOutcomes(),
     getPlantingRunsAction(1),
@@ -47,6 +47,7 @@ export default async function CropsPage() {
 
       <CropsWorkspace
         crops={crops}
+        weather={weather}
         outcomes={outcomes}
         outcomesError={outcomesError}
         initialPlantingRuns={plantingRuns.rows}

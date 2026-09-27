@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdminRole } from "@/lib/auth";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { writeActivityLog } from "@/lib/activity-log";
 import { normalizeContactNumber } from "@/lib/contact-number.mjs";
@@ -331,11 +332,15 @@ export async function recordSalesOrderAction(
     );
 
     if (installmentPlanError) {
-      const { error: rollbackError } = await supabase.rpc("void_sales_record", {
-        p_id: data.id,
-        p_source: "receipt",
-        p_reason: "Installment schedule creation failed; receipt rolled back.",
-      });
+      const adminSupabase = createSupabaseAdminClient();
+      const rollbackResult = adminSupabase
+        ? await adminSupabase.rpc("rollback_failed_installment_sale", {
+            p_id: data.id,
+            p_actor_id: adminProfile.id,
+            p_reason: "Installment schedule creation failed; receipt rolled back.",
+        })
+        : { error: new Error("The server-side rollback service is not configured.") };
+      const rollbackError = rollbackResult.error;
 
       if (
         installmentPlanError.message.includes("create_installment_plan") ||
@@ -377,7 +382,17 @@ export async function recordSalesOrderAction(
 }
 
 export async function voidSalesRecordAction(formData: FormData) {
-  await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
+  const profile = await requireAdminRole([
+    "System Administrator",
+    "Farm Inventory Manager",
+  ]);
+  if (
+    !["System Administrator", "Farm Inventory Manager"].includes(
+      profile.roleName,
+    )
+  ) {
+    throw new Error("Only an administrator or inventory manager can void sales.");
+  }
 
   const supabase = await createSupabaseServerClient();
 

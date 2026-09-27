@@ -657,6 +657,70 @@
   gap: 12px;
 }
 
+.farmForecastCard {
+  position: relative;
+  display: grid;
+  gap: 14px;
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid rgba(141, 255, 42, .2);
+  border-radius: 8px;
+  background: radial-gradient(ellipse at 18% 100%, rgba(38, 72, 43, .88), transparent 58%), linear-gradient(155deg, rgba(35, 43, 36, .98), rgba(25, 25, 25, .98));
+  box-shadow: 0 16px 34px rgba(0, 0, 0, .16);
+  padding: 17px 18px 15px;
+}
+
+.farmForecastCard::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(214, 255, 177, .72) 0 1px, transparent 1.5px), radial-gradient(circle, rgba(141, 255, 42, .42) 0 1.5px, transparent 2px);
+  background-position: 0 0, 22px 18px;
+  background-size: 58px 58px, 96px 96px;
+  content: "";
+  opacity: .34;
+  pointer-events: none;
+}
+
+.farmForecastCard[data-available="false"] { border-color: var(--border-soft); }
+.farmForecastHeader { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.farmForecastHeader > div { display: grid; gap: 4px; min-width: 0; }
+.farmForecastIcon { display: grid; width: 44px; height: 44px; flex: 0 0 auto; place-items: center; border: 1px solid rgba(141, 255, 42, .24); border-radius: 8px; background: rgba(141, 255, 42, .1); color: var(--accent); }
+.farmForecastIcon[data-weather="clear"] { border-color: rgba(255, 201, 87, .42); background: rgba(255, 201, 87, .15); color: #ffd166; }
+.farmForecastIcon[data-weather="cloudy"] { border-color: rgba(197, 216, 237, .35); background: rgba(197, 216, 237, .12); color: #c5d8ed; }
+.farmForecastIcon[data-weather="rain"] { border-color: rgba(95, 190, 255, .4); background: rgba(95, 190, 255, .15); color: #70c7ff; }
+.farmForecastIcon[data-weather="storm"] { border-color: rgba(255, 167, 112, .42); background: rgba(255, 167, 112, .15); color: #ffb078; }
+.farmForecastEyebrow { color: var(--text-muted); font-size: .76rem; font-weight: 750; letter-spacing: .09em; text-transform: uppercase; }
+.farmForecastHeader strong { overflow: hidden; color: var(--text-primary); font-size: 1.12rem; text-overflow: ellipsis; white-space: nowrap; }
+.farmForecastContext { margin: 0; color: var(--text-secondary); font-size: .9rem; line-height: 1.45; }
+.farmForecastMetrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.farmForecastMetrics > div { display: grid; gap: 3px; border: 1px solid rgba(255, 255, 255, .08); border-radius: 7px; background: rgba(0, 0, 0, .16); padding: 10px 11px; }
+.farmForecastMetrics span { color: var(--text-muted); font-size: .82rem; }
+.farmForecastMetrics strong { color: var(--text-primary); font-size: 1.4rem; font-variant-numeric: tabular-nums; }
+.farmForecastRain { display: flex; align-items: flex-start; gap: 8px; margin: 0; color: var(--text-secondary); font-size: .88rem; line-height: 1.45; }
+.farmForecastRain svg { flex: 0 0 auto; margin-top: 1px; color: var(--accent); }
+.farmForecastAttribution { width: fit-content; color: var(--text-muted); font-size: .74rem; text-decoration: underline; text-underline-offset: 2px; }
+.farmForecastAttribution:hover { color: var(--text-primary); }
+
+:global(html[data-theme="light"]) .farmForecastCard { border-color: rgba(214, 255, 177, .42); background: radial-gradient(ellipse at 18% 100%, rgba(38, 72, 43, .8), transparent 58%), linear-gradient(155deg, #1f4e2c, #183d24); }
+:global(html[data-theme="light"]) .farmForecastCard[data-available="false"] { border-color: rgba(18, 60, 27, .3); }
+:global(html[data-theme="light"]) .farmForecastMetrics > div { border-color: rgba(255, 255, 255, .14); background: rgba(0, 0, 0, .13); }
+:global(html[data-theme="light"]) .farmForecastEyebrow,
+:global(html[data-theme="light"]) .farmForecastMetrics span,
+:global(html[data-theme="light"]) .farmForecastUpdated { color: rgba(255, 255, 255, .78); }
+:global(html[data-theme="light"]) .farmForecastHeader strong,
+:global(html[data-theme="light"]) .farmForecastMetrics strong,
+:global(html[data-theme="light"]) .farmForecastRain,
+:global(html[data-theme="light"]) .farmForecastContext { color: #fff; }
+:global(html[data-theme="light"]) .farmForecastIcon[data-weather="unknown"] { border-color: rgba(214, 255, 177, .4); background: rgba(214, 255, 177, .14); color: #d6ffb1; }
+:global(html[data-theme="light"]) .farmForecastIcon[data-weather="clear"] { border-color: rgba(255, 218, 132, .5); background: rgba(255, 218, 132, .18); color: #ffe09a; }
+:global(html[data-theme="light"]) .farmForecastIcon[data-weather="cloudy"] { border-color: rgba(221, 233, 245, .4); background: rgba(221, 233, 245, .15); color: #e0ebf7; }
+:global(html[data-theme="light"]) .farmForecastIcon[data-weather="rain"] { border-color: rgba(131, 204, 255, .48); background: rgba(131, 204, 255, .16); color: #9bd7ff; }
+:global(html[data-theme="light"]) .farmForecastIcon[data-weather="storm"] { border-color: rgba(255, 183, 134, .48); background: rgba(255, 183, 134, .16); color: #ffc092; }
+:global(html[data-theme="light"]) .farmForecastRain svg { color: #d6ffb1; }
+:global(html[data-theme="light"]) .farmForecastAttribution,
+:global(html[data-theme="light"]) .farmForecastAttribution:hover { color: rgba(255, 255, 255, .8); }
+
 @media (max-width: 900px) {
   .cropDashboardLayout .cropQuickActionArea {
     align-items: flex-start;
