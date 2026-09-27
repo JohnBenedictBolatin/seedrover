@@ -110,6 +110,17 @@
   text-align: left;
 }
 
+.summary label {
+  display: grid;
+  gap: 8px;
+  text-align: left;
+}
+
+.summary textarea {
+  box-sizing: border-box;
+  width: 100%;
+}
+
 .actions {
   display: grid;
   grid-template-columns: 1fr 1fr;

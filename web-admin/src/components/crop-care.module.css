@@ -2,6 +2,7 @@
 .careTaskDetails { grid-area: details; min-width: 0; }
 .careTaskDetails strong { overflow-wrap: anywhere; }
 .careTaskDetails span { overflow-wrap: anywhere; }
+.harvestUnavailableHint { color: var(--text-muted); font-size: .78rem; }
 .careTask[data-priority="Critical"] em { border-color: rgba(255, 87, 87, .24); color: #ff7575; background: rgba(255, 87, 87, .08); }
 .careTask[data-priority="Routine"] em { border-color: rgba(var(--green-rgb), .22); color: var(--green-accent); background: rgba(var(--green-rgb), .08); }
 .careTaskDue { grid-area: due; min-width: 0; color: var(--text-muted); font-size: .78rem; }

@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Check, ChevronDown, X, TrendingUp } from "lucide-react";
 import { createExpenseAction } from "@/app/(portal)/investments/actions";
 import type { AlertTone } from "@/components/action-alert-stack";
+import { NumericInput } from "@/components/constrained-inputs";
 import { useActionFeedback } from "@/components/action-feedback";
 import { useConfirmationDialog } from "@/components/confirmation-dialog";
 import { CalendarField } from "@/components/calendar-field";
@@ -117,9 +118,9 @@ export function InvestmentsWorkspace() {
               <label><span>Item</span><input name="description" required placeholder="e.g. Fertilizer" /></label>
               <div className={styles.modalColumns}><RecordCostSelect label="Category" name="category" options={["Resources", "Equipment", "Labor", "Utilities", "Transport", "Other"]} defaultValue="Resources" required /><RecordCostSelect defaultValue="Capital investment" label="Cost type" name="expense_type" options={["Capital investment", "Operating expense"]} required /></div>
               <div className={styles.modalColumns}><label>Vendor / payee<input name="vendor" placeholder="e.g. AgriSupply Trading" /></label><RecordCostSelect defaultValue="Cash" label="Payment method" name="payment_method" options={["Cash", "GCash", "Bank Transfer", "Card", "Other"]} required /></div>
-              <div className={styles.modalColumns}><label><span>Amount (PHP)</span><input name="amount" min="0.01" placeholder="e.g. 2500.00" required step="0.01" type="number" /></label><CalendarField label="Expense date" name="expense_date" required /></div>
+              <div className={styles.modalColumns}><label><span>Amount (PHP)</span><NumericInput name="amount" min="0.01" placeholder="e.g. 2500.00" required step="0.01" /></label><CalendarField label="Expense date" name="expense_date" required /></div>
               <label>Receipt / reference number<input name="reference_number" placeholder="e.g. INV-2026-0042" /></label>
-              <FileUploadField accept="image/jpeg,image/png,image/webp,application/pdf" helperText="JPG, PNG, WEBP or PDF" kind="document" label="Receipt image or PDF" name="receipt" prompt="Choose receipt file" />
+              <FileUploadField accept="image/jpeg,image/png,image/webp,application/pdf" helperText="JPG, PNG, WEBP or PDF · up to 5 MB" kind="document" label="Receipt image or PDF" name="receipt" prompt="Choose receipt file" />
               <label>Notes<textarea name="notes" placeholder="e.g. Supplies for the upcoming planting cycle" rows={3} /></label>
               <div className={styles.modalActions}><button className={styles.modalCancel} disabled={pending} type="button" onClick={closeModal}>CANCEL</button><button className={styles.primaryAction} disabled={pending} type="submit"><span>{pending ? "SAVING..." : "SAVE COST"}</span></button></div>
             </form>

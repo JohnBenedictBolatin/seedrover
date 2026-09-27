@@ -35,6 +35,8 @@ export type RecentSalesOrder = {
   marketQuantitySold?: number;
   marketUnitPrice?: number;
   marketRemarks?: string;
+  remarks?: string | null;
+  voidReason?: string | null;
   discountAmount?: number;
   totalAmount: number;
   status: string;
@@ -147,6 +149,8 @@ type RecentSalesOrderRow = {
   total_amount: number | string;
   amount_paid?: number | string | null;
   change_amount?: number | string | null;
+  remarks?: string | null;
+  void_reason?: string | null;
   status: string;
   sales_order_items?: Array<{
     id: string;
@@ -197,6 +201,7 @@ type StandaloneSalesRow = {
   payment_method?: string | null;
   transaction_reference?: string | null;
   other_payment_method?: string | null;
+  void_reason?: string | null;
   quantity_sold: number | string;
   unit_price: number | string;
   total_amount: number | string;
@@ -542,14 +547,14 @@ export async function getSalesWorkspaceData() {
     supabase
       .from("sales_orders")
       .select(
-        "id, receipt_number, sale_date, customer_name, customer_contact, payment_method, transaction_reference, other_payment_method, discount_amount, total_amount, amount_paid, change_amount, status, sales_order_items(id, item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total, inventory(category))",
+        "id, receipt_number, sale_date, customer_name, customer_contact, payment_method, transaction_reference, other_payment_method, discount_amount, total_amount, amount_paid, change_amount, remarks, void_reason, status, sales_order_items(id, item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total, inventory(category))",
       )
       .order("sale_date", { ascending: false })
       .limit(120)
       .returns<RecentSalesOrderRow[]>(),
     supabase
       .from("sales_transactions")
-      .select("id, sale_date, customer_name, payment_method, transaction_reference, other_payment_method, quantity_sold, unit_price, total_amount, remarks, status, inventory(item_name, unit, category)")
+      .select("id, sale_date, customer_name, payment_method, transaction_reference, other_payment_method, quantity_sold, unit_price, total_amount, remarks, void_reason, status, inventory(item_name, unit, category)")
       .order("sale_date", { ascending: false })
       .limit(120)
       .returns<StandaloneSalesRow[]>(),
@@ -559,7 +564,7 @@ export async function getSalesWorkspaceData() {
     ? await supabase
         .from("sales_orders")
         .select(
-          "id, receipt_number, sale_date, customer_name, customer_contact, payment_method, discount_amount, total_amount, amount_paid, change_amount, status, sales_order_items(id, item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total, inventory(category))",
+          "id, receipt_number, sale_date, customer_name, customer_contact, payment_method, discount_amount, total_amount, amount_paid, change_amount, remarks, void_reason, status, sales_order_items(id, item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total, inventory(category))",
         )
         .order("sale_date", { ascending: false })
         .limit(120)
@@ -569,21 +574,21 @@ export async function getSalesWorkspaceData() {
   const marketResult = isMissingPaymentMethodColumn(marketResultWithPayment.error)
     ? await supabase
         .from("sales_transactions")
-        .select("id, sale_date, customer_name, quantity_sold, unit_price, total_amount, remarks, status, inventory(item_name, unit, category)")
+        .select("id, sale_date, customer_name, quantity_sold, unit_price, total_amount, remarks, void_reason, status, inventory(item_name, unit, category)")
         .order("sale_date", { ascending: false })
         .limit(120)
         .returns<StandaloneSalesRow[]>()
     : isMissingTransactionReferenceColumn(marketResultWithPayment.error)
       ? await supabase
           .from("sales_transactions")
-          .select("id, sale_date, customer_name, payment_method, quantity_sold, unit_price, total_amount, remarks, status, inventory(item_name, unit, category)")
+          .select("id, sale_date, customer_name, payment_method, quantity_sold, unit_price, total_amount, remarks, void_reason, status, inventory(item_name, unit, category)")
           .order("sale_date", { ascending: false })
           .limit(120)
           .returns<StandaloneSalesRow[]>()
       : isMissingOtherPaymentMethodColumn(marketResultWithPayment.error)
         ? await supabase
             .from("sales_transactions")
-            .select("id, sale_date, customer_name, payment_method, transaction_reference, quantity_sold, unit_price, total_amount, remarks, status, inventory(item_name, unit, category)")
+            .select("id, sale_date, customer_name, payment_method, transaction_reference, quantity_sold, unit_price, total_amount, remarks, void_reason, status, inventory(item_name, unit, category)")
             .order("sale_date", { ascending: false })
             .limit(120)
             .returns<StandaloneSalesRow[]>()
@@ -626,6 +631,8 @@ export async function getSalesWorkspaceData() {
       saleDate: order.sale_date,
       customerName: order.customer_name ?? "Walk-in customer",
       customerContact: order.customer_contact ?? "",
+      remarks: order.remarks,
+      voidReason: order.void_reason,
       paymentMethod: displayPaymentMethod(order.payment_method, order.other_payment_method),
       transactionReference: order.transaction_reference ?? null,
       otherPaymentMethod: order.other_payment_method ?? null,
@@ -701,6 +708,8 @@ export async function getSalesWorkspaceData() {
       marketQuantitySold: toNumber(sale.quantity_sold),
       marketUnitPrice: toNumber(sale.unit_price),
       marketRemarks: sale.remarks ?? "",
+      remarks: sale.remarks ?? "",
+      voidReason: sale.void_reason,
       discountAmount: 0,
       totalAmount: total,
       status: sale.status,

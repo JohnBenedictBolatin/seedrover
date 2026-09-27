@@ -480,6 +480,7 @@ html[data-theme="light"] select option {
   --dialog-backdrop-filter: none;
   --dialog-layer: 2147483000;
   --dialog-popover-layer: 2147483500;
+  --dialog-alert-layer: 2147483600;
 }
 
 :where([data-ui-backdrop="true"], [class*="modalBackdrop"], [class*="confirmBackdrop"]) {
@@ -921,6 +922,28 @@ html[data-theme="light"] [class*="confirmActions"] button:last-child:hover:not(:
   color: #ffffff !important;
   background: #ffffff !important;
   box-shadow: 0 14px 28px rgba(18, 60, 27, 0.16) !important;
+}
+
+html[data-theme="light"] [class*="issueStockAction"]:not(:disabled) {
+  border: 2px solid rgba(154, 52, 18, 0.78) !important;
+  color: #9a3412 !important;
+  background: #fff7ed !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="light"] [class*="issueStockAction"]:not(:disabled)::before {
+  background: rgba(194, 65, 12, 0.14) !important;
+}
+
+html[data-theme="light"] [class*="issueStockAction"]:not(:disabled)::after {
+  background: linear-gradient(135deg, #c2410c 0%, #9a3412 100%) !important;
+}
+
+html[data-theme="light"] [class*="issueStockAction"]:hover:not(:disabled) {
+  border-color: rgba(154, 52, 18, 0.95) !important;
+  color: #fff7ed !important;
+  background: #fff7ed !important;
+  box-shadow: 0 14px 28px rgba(154, 52, 18, 0.24) !important;
 }
 
 html[data-theme="light"] [class*="dangerAction"]:not(:disabled),

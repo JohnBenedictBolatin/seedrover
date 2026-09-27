@@ -12,8 +12,11 @@ import {
 } from "lucide-react";
 import { recordSalesOrderAction, type SalesFormState } from "@/app/(portal)/sales/actions";
 import type { AlertTone } from "@/components/action-alert-stack";
+import { ContactNumberInput, NumericInput } from "@/components/constrained-inputs";
 import { useConfirmationDialog } from "@/components/confirmation-dialog";
 import { formatCurrency, formatQuantity } from "@/lib/format";
+import { isContactNumber } from "@/lib/contact-number.mjs";
+import type { ExistingSaleCustomer } from "@/lib/customers";
 import type { ReleasedDiscount, SellableItem } from "@/lib/sales";
 import styles from "./sales-order-form.module.css";
 
@@ -197,11 +200,13 @@ function ThemedSelect({
 }
 
 export function SalesOrderForm({
+  customers,
   discounts,
   items,
   notify,
   onRecorded,
 }: {
+  customers: ExistingSaleCustomer[];
   discounts: ReleasedDiscount[];
   items: SellableItem[];
   notify?: (tone: AlertTone, text: string) => void;
@@ -223,11 +228,20 @@ export function SalesOrderForm({
   const [installmentFrequency, setInstallmentFrequency] = useState("Monthly");
   const [installmentAmount, setInstallmentAmount] = useState("");
   const [initialPaymentMethod, setInitialPaymentMethod] = useState("Cash");
+  const [customerMode, setCustomerMode] = useState<"new" | "existing">("new");
+  const [selectedCustomerKey, setSelectedCustomerKey] = useState("");
   const { confirm, confirmationDialog } = useConfirmationDialog();
 
   const itemById = useMemo(
     () => new Map(items.map((item) => [item.id, item])),
     [items],
+  );
+  const selectableCustomers = useMemo(
+    () => customers.filter((customer) => isContactNumber(customer.contact)),
+    [customers],
+  );
+  const selectedCustomer = selectableCustomers.find(
+    (customer) => customer.key === selectedCustomerKey,
   );
 
   const subtotal = lineItems.reduce(
@@ -387,6 +401,7 @@ export function SalesOrderForm({
 
   return (
     <form ref={formRef} className={styles.form} action={formAction} onSubmit={handleSubmit}>
+      <input name="customer_mode" type="hidden" value={customerMode} />
       <section className={styles.panel}>
         <div className={styles.panelHeader}>
           <div>
@@ -425,11 +440,10 @@ export function SalesOrderForm({
 
                 <label>
                   Quantity
-                  <input
+                  <NumericInput
                     min="0.01"
                     name="quantity"
                     step="0.01"
-                    type="number"
                     value={lineItem.quantity}
                     onChange={(event) =>
                       updateLineItem(lineItem.key, { quantity: event.target.value })
@@ -472,19 +486,72 @@ export function SalesOrderForm({
               <p>Customer and payment</p>
               <h2>Receipt details</h2>
               <span className={styles.panelHint}>
-                The buyer name and contact entered here create the sales-linked customer record.
+                Select a saved customer to add this receipt to their purchase history, or enter a new buyer.
               </span>
             </div>
           </div>
 
           <div className={styles.fields}>
-            <label>First name<input name="customer_first_name" placeholder="e.g. Juan" required type="text" /></label>
-            <label>Middle initial<input name="customer_middle_initial" placeholder="e.g. D" maxLength={1} type="text" /></label>
-            <label>Last name<input name="customer_last_name" placeholder="e.g. Cruz" required type="text" /></label>
-            <label>
-              Customer contact
-              <input name="customer_contact" placeholder="e.g. 0917 123 4567" required type="text" />
-            </label>
+            <div className={styles.customerMode} aria-label="Customer type" role="group">
+              <button
+                aria-pressed={customerMode === "new"}
+                className={customerMode === "new" ? styles.customerModeActive : ""}
+                type="button"
+                onClick={() => setCustomerMode("new")}
+              >
+                New customer
+              </button>
+              <button
+                aria-pressed={customerMode === "existing"}
+                className={customerMode === "existing" ? styles.customerModeActive : ""}
+                type="button"
+                onClick={() => setCustomerMode("existing")}
+              >
+                Existing customer
+              </button>
+            </div>
+            {customerMode === "new" ? (
+              <>
+                <label>First name<input name="customer_first_name" placeholder="e.g. Juan" required type="text" /></label>
+                <label>Middle initial<input name="customer_middle_initial" placeholder="e.g. D" maxLength={1} type="text" /></label>
+                <label>Last name<input name="customer_last_name" placeholder="e.g. Cruz" required type="text" /></label>
+                <label>
+                  Customer contact
+                  <ContactNumberInput autoComplete="tel-national" name="customer_contact" placeholder="e.g. 09171234567" required />
+                </label>
+              </>
+            ) : (
+              <>
+                <input name="existing_customer_key" type="hidden" value={selectedCustomer?.key ?? ""} />
+                <input name="existing_customer_name" type="hidden" value={selectedCustomer?.name ?? ""} />
+                <input name="customer_contact" type="hidden" value={selectedCustomer?.contact ?? ""} />
+                <label>
+                  Select customer
+                  <select
+                    required
+                    value={selectedCustomerKey}
+                    onChange={(event) => setSelectedCustomerKey(event.target.value)}
+                  >
+                    <option value="">Choose a customer</option>
+                    {selectableCustomers.map((customer) => (
+                      <option key={customer.key} value={customer.key}>
+                        {customer.name} · {customer.contact}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {selectableCustomers.length === 0 ? (
+                  <p className={styles.customerPickerHint}>
+                    No saved customer with a valid contact number is available. Choose New customer to enter receipt details.
+                  </p>
+                ) : null}
+                {selectedCustomer ? (
+                  <p className={styles.customerPickerHint}>
+                    This receipt will be recorded for {selectedCustomer.name} and included in their customer history.
+                  </p>
+                ) : null}
+              </>
+            )}
             <ThemedSelect
               label="Payment method"
               name="payment_method"
@@ -542,14 +609,13 @@ export function SalesOrderForm({
                   />
                   <label>
                     Amount per payment (PHP)
-                    <input
+                    <NumericInput
                       max={remainingBalance > 0 ? remainingBalance : undefined}
                       min="0.01"
                       name="installment_amount"
                       placeholder="e.g. 2500.00"
                       required
                       step="0.01"
-                      type="number"
                       value={installmentAmount}
                       onChange={(event) => setInstallmentAmount(event.target.value)}
                     />
@@ -605,11 +671,10 @@ export function SalesOrderForm({
             ) : null}
             <label>
               {paymentMethod === "Installment" ? "Initial payment (PHP)" : "Amount paid (PHP)"}
-              <input
+              <NumericInput
                 min="0"
                 name="amount_paid"
                 step="0.01"
-                type="number"
                 value={amountPaid}
                 onChange={(event) => setAmountPaid(event.target.value)}
               />

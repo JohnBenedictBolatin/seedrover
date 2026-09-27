@@ -99,7 +99,7 @@
 .installmentProgress { height: 7px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,0.08); }
 .installmentProgress span { display: block; height: 100%; border-radius: inherit; background: var(--green-accent); transition: width 0.2s ease; }
 .installmentPlanMeta { position: relative; z-index: 181; display: flex; flex-wrap: wrap; align-items: center; gap: 18px; color: var(--text-secondary); font-size: 0.78rem; }
-.installmentPlanActions { position: relative; z-index: 181; display: flex; justify-content: flex-end; }
+.installmentPlanActions { position: relative; z-index: 181; display: flex; justify-content: flex-start; }
 .installmentPlanActions .installmentExpandButton { margin-left: 0; }
 .installmentExpandButton { position: relative; z-index: 182; display: inline-flex; align-items: center; gap: 6px; margin-left: auto; border: 1px solid var(--border-soft); border-radius: 999px; color: var(--green-accent); background: var(--surface); cursor: pointer; font-size: 0.74rem; font-weight: 900; padding: 6px 10px; }
 .installmentExpandButton:hover { border-color: var(--green-accent); background: rgba(141,255,42,0.08); }

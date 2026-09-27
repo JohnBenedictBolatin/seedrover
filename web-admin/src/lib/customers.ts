@@ -28,6 +28,12 @@ export type CustomerSummary = {
   receipts: CustomerReceipt[];
 };
 
+export type ExistingSaleCustomer = {
+  key: string;
+  name: string;
+  contact: string;
+};
+
 export type CustomerStats = {
   totalCustomers: number;
   repeatCustomers: number;
@@ -113,6 +119,49 @@ function normalizeText(value: string) {
 
 export function customerKey(name: string, contact: string) {
   return `${normalizeText(name).toLowerCase()}::${normalizeText(contact).toLowerCase()}`;
+}
+
+export async function getExistingSaleCustomers() {
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) {
+    return { customers: [] as ExistingSaleCustomer[], error: "Supabase is not configured." };
+  }
+
+  const [ordersResult, marketResult] = await Promise.all([
+    supabase
+      .from("sales_orders")
+      .select("customer_id, customer_name, customer_contact")
+      .eq("status", "Completed")
+      .order("sale_date", { ascending: false })
+      .returns<Array<Pick<SalesOrderRow, "customer_id" | "customer_name" | "customer_contact">>>(),
+    supabase
+      .from("sales_transactions")
+      .select("customer_id, customer_name, customer_contact")
+      .eq("status", "Completed")
+      .order("sale_date", { ascending: false })
+      .returns<Array<{ customer_id: string | null; customer_name: string | null; customer_contact: string | null }>>(),
+  ]);
+
+  if (ordersResult.error) {
+    return { customers: [] as ExistingSaleCustomer[], error: ordersResult.error.message };
+  }
+  if (marketResult.error) {
+    return { customers: [] as ExistingSaleCustomer[], error: marketResult.error.message };
+  }
+
+  const customers = new Map<string, ExistingSaleCustomer>();
+  for (const row of [...(ordersResult.data ?? []), ...(marketResult.data ?? [])]) {
+    const name = normalizeText(row.customer_name ?? "");
+    if (!name) continue;
+    const contact = normalizeText(row.customer_contact || "Not provided");
+    const key = row.customer_id ?? customerKey(name, contact);
+    if (!customers.has(key)) customers.set(key, { key, name, contact });
+  }
+
+  return {
+    customers: Array.from(customers.values()).sort((left, right) => left.name.localeCompare(right.name)),
+    error: null,
+  };
 }
 
 function isMissingDiscountTable(error: { message?: string; code?: string } | null | undefined) {

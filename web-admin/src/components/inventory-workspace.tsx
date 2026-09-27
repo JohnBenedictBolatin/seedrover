@@ -37,6 +37,7 @@ import {
   updateInventoryItemAction,
 } from "@/app/(portal)/inventory/actions";
 import type { AlertTone } from "@/components/action-alert-stack";
+import { NumericInput } from "@/components/constrained-inputs";
 import { useConfirmationDialog } from "@/components/confirmation-dialog";
 import { useActionFeedback } from "@/components/action-feedback";
 import { FileUploadField } from "@/components/file-upload-field";
@@ -753,7 +754,7 @@ function InventoryDialog({
               <div className={styles.inventoryHistoryRecords}>
               {visibleHistoryRecords.map(({ item, transaction }) => (
                 <div className={styles.historyItem} key={transaction.id}>
-                  <div><strong>{transaction.type === "IN" ? sharedWorkflowTerms.receiveStock : transaction.type === "OUT" ? sharedWorkflowTerms.issueStock : sharedWorkflowTerms.adjustQuantity}</strong><span>{item.itemName} · {transaction.quantity} {item.unit}</span></div>
+                  <div><strong data-type={transaction.type}>{transaction.type === "IN" ? sharedWorkflowTerms.receiveStock : transaction.type === "OUT" ? sharedWorkflowTerms.issueStock : sharedWorkflowTerms.adjustQuantity}</strong><span>{item.itemName} · {transaction.quantity} {item.unit}</span></div>
                   <div><small>{formatDateTime(transaction.createdAt)}</small></div>
                   <p>{transaction.remarks || "—"}</p>
                 </div>
@@ -981,7 +982,7 @@ function InventoryForm({
       <Field label={`${sharedWorkflowTerms.itemNotes} (optional)`} name="notes" defaultValue={item?.notes ?? ""} />
       <FileUploadField
         accept="image/jpeg,image/png,image/webp"
-        helperText="JPG, PNG or WEBP"
+        helperText="JPG, PNG or WEBP · up to 5 MB"
         label="Stock image"
         name="image"
         prompt={item?.imagePath ? "Choose replacement image" : "Choose stock image"}
@@ -1331,7 +1332,7 @@ function Field({
   return (
     <label>
       <span>{label}</span>
-      <input name={name} {...props} />
+      {props.type === "number" ? <NumericInput name={name} {...props} /> : <input name={name} {...props} />}
     </label>
   );
 }

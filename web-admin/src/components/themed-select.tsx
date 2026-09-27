@@ -6,6 +6,7 @@ import styles from "@/app/(portal)/crops/page.module.css";
 
 type ThemedSelectProps = {
   defaultValue?: string;
+  disabledOptions?: string[];
   icon?: ReactNode;
   label: string;
   name?: string;
@@ -19,6 +20,7 @@ type ThemedSelectProps = {
 
 export function ThemedSelect({
   defaultValue,
+  disabledOptions = [],
   icon,
   label,
   name,
@@ -57,10 +59,14 @@ export function ThemedSelect({
       {open ? <div className={styles.themedSelectMenu}>
         {options.map((option) => {
           const selected = option === selectedValue;
+          const disabled = disabledOptions.includes(option);
           return (
             <button
               className={styles.themedSelectOption}
+              disabled={disabled}
               data-selected={selected ? "true" : "false"}
+              data-disabled={disabled ? "true" : "false"}
+              title={disabled ? `${option} is available after the crop reaches Harvest Ready.` : undefined}
               key={option}
               type="button"
               onMouseDown={(event) => event.preventDefault()}

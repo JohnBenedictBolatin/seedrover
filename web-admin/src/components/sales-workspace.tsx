@@ -31,6 +31,7 @@ import type {
   SalesSummary,
   SellableItem,
 } from "@/lib/sales";
+import type { ExistingSaleCustomer } from "@/lib/customers";
 import { CountUpValue } from "@/components/count-up-value";
 import type { AlertTone } from "@/components/action-alert-stack";
 import { useActionFeedback } from "@/components/action-feedback";
@@ -42,6 +43,7 @@ import { CalendarField } from "@/components/calendar-field";
 import styles from "@/app/(portal)/sales/page.module.css";
 
 type SalesWorkspaceProps = {
+  customers: ExistingSaleCustomer[];
   discounts: ReleasedDiscount[];
   items: SellableItem[];
   orders: RecentSalesOrder[];
@@ -130,6 +132,7 @@ function FilterSelect({
 }
 
 export function SalesWorkspace({
+  customers,
   discounts,
   items,
   orders,
@@ -524,6 +527,7 @@ export function SalesWorkspace({
               </button>
             </header>
             <SalesOrderForm
+              customers={customers}
               discounts={discounts}
               items={items}
               notify={notify}
@@ -548,6 +552,9 @@ function SalesRecordDetailModal({
   const showTransactionReference =
     order.paymentMethod !== "Cash" && Boolean(order.transactionReference);
   const isLegacyInventorySale = order.source === "market";
+  const remarks = isLegacyInventorySale
+    ? order.marketRemarks
+    : order.remarks;
   const items =
     isLegacyInventorySale
       ? [
@@ -639,10 +646,16 @@ function SalesRecordDetailModal({
           )}
         </section>
 
-        {order.marketRemarks ? (
+        {order.status === "Voided" && order.voidReason?.trim() ? (
+          <section className={styles.marketRemarks}>
+            <span>Void reason</span>
+            <p>{order.voidReason}</p>
+          </section>
+        ) : null}
+        {remarks?.trim() ? (
           <section className={styles.marketRemarks}>
             <span>Remarks</span>
-            <p>{order.marketRemarks}</p>
+            <p>{remarks}</p>
           </section>
         ) : null}
       </section>

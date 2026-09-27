@@ -319,6 +319,41 @@
   gap: 12px;
 }
 
+.customerMode {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  background: var(--surface);
+  padding: 4px;
+}
+
+.customerMode button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: transparent;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.customerMode .customerModeActive {
+  color: var(--text);
+  background: rgba(141, 255, 42, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(141, 255, 42, 0.24);
+}
+
+.customerPickerHint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
 .installmentTermsGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

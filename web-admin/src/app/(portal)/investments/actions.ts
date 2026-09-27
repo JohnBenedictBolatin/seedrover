@@ -3,8 +3,10 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requireAdminRole } from "@/lib/auth";
+import { MAX_UPLOAD_SIZE_BYTES } from "@/lib/upload-limits";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { writeActivityLog } from "@/lib/activity-log";
+import { parseDatabaseDecimal } from "@/lib/field-validation.mjs";
 
 const receiptTypes = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
 const paymentMethods = new Set(["Cash", "GCash", "Bank Transfer", "Card", "Other"]);
@@ -14,8 +16,8 @@ function text(formData: FormData, key: string) { return String(formData.get(key)
 function optionalNumber(formData: FormData, key: string) {
   const raw = text(formData, key);
   if (!raw) return null;
-  const value = Number(raw);
-  if (!Number.isFinite(value) || value < 0) throw new Error(`${key.replaceAll("_", " ")} must be a non-negative number.`);
+  const value = parseDatabaseDecimal(raw, key.replaceAll("_", " "));
+  if (value < 0) throw new Error(`${key.replaceAll("_", " ")} must be a non-negative number.`);
   return value;
 }
 
@@ -40,7 +42,7 @@ export async function createExpenseAction(formData: FormData) {
   let receiptPath: string | null = null;
   const receipt = formData.get("receipt");
   if (receipt instanceof File && receipt.size > 0) {
-    if (receipt.size > 5 * 1024 * 1024) throw new Error("Receipt must be 5MB or smaller.");
+    if (receipt.size > MAX_UPLOAD_SIZE_BYTES) throw new Error("Receipt must be 5MB or smaller.");
     if (!receiptTypes.has(receipt.type)) throw new Error("Receipt must be a JPG, PNG, WebP, or PDF file.");
     const extension = receipt.name.split(".").pop()?.toLowerCase() || "bin";
     receiptPath = `${id}/${Date.now()}-receipt.${extension}`;

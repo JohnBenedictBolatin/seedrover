@@ -31,8 +31,6 @@ export function SensorHistoryTable({ readings }: { readings: RoverSensorReading[
               <th scope="col">Soil temp (°C)</th>
               <th scope="col">Air temp (°C)</th>
               <th scope="col">Humidity (%)</th>
-              <th scope="col">Source</th>
-              <th scope="col">Trust</th>
             </tr>
           </thead>
           <tbody>
@@ -46,11 +44,6 @@ export function SensorHistoryTable({ readings }: { readings: RoverSensorReading[
                 <SensorValue label="Soil temp (°C)" value={reading.soilTemperature} unit="°C" />
                 <SensorValue label="Air temp (°C)" value={reading.environmentalTemperature} unit="°C" />
                 <SensorValue label="Humidity (%)" value={reading.humidity} unit="%" />
-                <td data-label="Source">{reading.source || "Unavailable"}</td>
-                <td data-label="Trust">
-                  {reading.provenanceStatus === "verified_hardware" ? "Verified hardware" : reading.provenanceStatus === "demo" ? "Demo" : reading.provenanceStatus === "simulated" ? "Simulated" : "Unverified"} · {reading.fresh ? "Fresh" : "Stale"}
-                  {reading.soilMoistureCalibrated === true ? ` · calibration ${reading.calibrationVersion ?? "version unavailable"}` : reading.soilMoistureCalibrated === false ? " · moisture % unavailable, probe not calibrated" : " · moisture calibration status unavailable"}
-                </td>
               </tr>
             ))}
           </tbody>

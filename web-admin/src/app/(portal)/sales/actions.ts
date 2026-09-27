@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { requireAdminRole } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { writeActivityLog } from "@/lib/activity-log";
+import { normalizeContactNumber } from "@/lib/contact-number.mjs";
+import { parseDatabaseDecimal } from "@/lib/field-validation.mjs";
 
 export type SalesFormState = {
   message: string;
@@ -20,9 +22,8 @@ type SubmittedItem = {
 const paymentMethods = new Set(["Cash", "GCash", "Bank Transfer", "Card", "Installment", "Other"]);
 const installmentFrequencies = new Set(["Weekly", "Monthly", "Yearly"]);
 
-function parseNumber(value: FormDataEntryValue | null) {
-  const parsed = Number(String(value ?? "").trim());
-  return Number.isFinite(parsed) ? parsed : 0;
+function parseNumber(value: FormDataEntryValue | null, label: string) {
+  return parseDatabaseDecimal(value, label);
 }
 
 function text(formData: FormData, key: string, fallback = "") {
@@ -84,34 +85,77 @@ export async function recordSalesOrderAction(
   const quantities = formData.getAll("quantity");
   const unitPrices = formData.getAll("unit_price");
 
-  const items: SubmittedItem[] = inventoryIds
-    .map((inventoryId, index) => ({
+  let items: SubmittedItem[];
+  try {
+    items = inventoryIds.map((inventoryId, index) => ({
       inventory_id: inventoryId,
-      quantity: parseNumber(quantities[index] ?? null),
-      unit_price: parseNumber(unitPrices[index] ?? null),
-    }))
-    .filter((item) => item.inventory_id && item.quantity > 0);
+      quantity: parseNumber(quantities[index] ?? null, "Quantity"),
+      unit_price: parseNumber(unitPrices[index] ?? null, "Unit price"),
+    }));
+  } catch (error) {
+    return { message: error instanceof Error ? error.message : "Enter valid sale quantities." };
+  }
+  items = items.filter((item) => item.inventory_id && item.quantity > 0);
 
   if (items.length === 0) {
     return { message: "Add at least one item with a valid quantity." };
   }
 
   const discountCode = text(formData, "discount_code").toUpperCase();
-  const customerFirstName = text(formData, "customer_first_name");
-  const customerMiddleInitial = text(formData, "customer_middle_initial").replace(/[^a-z]/gi, "").slice(0, 1).toUpperCase();
-  const customerLastName = text(formData, "customer_last_name");
-  const customerName = [customerFirstName, customerMiddleInitial ? `${customerMiddleInitial}.` : "", customerLastName].filter(Boolean).join(" ");
-  const customerContact = text(formData, "customer_contact");
+  const customerMode = text(formData, "customer_mode", "new");
+  if (customerMode !== "new" && customerMode !== "existing") {
+    return { message: "Select whether this is a new or existing customer." };
+  }
+  const customerName = customerMode === "existing"
+    ? text(formData, "existing_customer_name")
+    : [
+        text(formData, "customer_first_name"),
+        text(formData, "customer_middle_initial").replace(/[^a-z]/gi, "").slice(0, 1).toUpperCase(),
+        text(formData, "customer_last_name"),
+      ].filter(Boolean).join(" ");
+  const submittedCustomerContact = text(formData, "customer_contact");
+  let customerContact: string;
+  try {
+    customerContact = normalizeContactNumber(submittedCustomerContact, { required: true })!;
+  } catch (error) {
+    return { message: error instanceof Error ? error.message : "Enter an 11-digit contact number." };
+  }
+  if (customerMode === "existing") {
+    const customerKey = text(formData, "existing_customer_key");
+    if (!customerKey || !customerName) {
+      return { message: "Select an existing customer for this receipt." };
+    }
+    const [orderMatch, marketMatch] = await Promise.all([
+      supabase
+        .from("sales_orders")
+        .select("customer_name")
+        .eq("status", "Completed")
+        .eq("customer_contact", submittedCustomerContact)
+        .returns<Array<{ customer_name: string | null }>>(),
+      supabase
+        .from("sales_transactions")
+        .select("customer_name")
+        .eq("status", "Completed")
+        .eq("customer_contact", submittedCustomerContact)
+        .returns<Array<{ customer_name: string | null }>>(),
+    ]);
+    if (orderMatch.error || marketMatch.error) {
+      return { message: orderMatch.error?.message ?? marketMatch.error?.message ?? "Unable to verify the selected customer." };
+    }
+    const normalizedName = customerName.toLowerCase().replace(/\s+/g, " ").trim();
+    const wasCustomerSoldTo = [...(orderMatch.data ?? []), ...(marketMatch.data ?? [])].some(
+      (record) => record.customer_name?.toLowerCase().replace(/\s+/g, " ").trim() === normalizedName,
+    );
+    if (!wasCustomerSoldTo) {
+      return { message: "The selected customer is no longer available. Refresh the page and select them again." };
+    }
+  }
   const paymentMethod = text(formData, "payment_method", "Cash");
   const transactionReference = text(formData, "transaction_reference");
   const otherPaymentMethod = text(formData, "other_payment_method");
 
   if (!customerName) {
     return { message: "Customer name is required." };
-  }
-
-  if (!customerContact) {
-    return { message: "Customer contact is required." };
   }
 
   if (!paymentMethods.has(paymentMethod)) {
@@ -165,9 +209,19 @@ export async function recordSalesOrderAction(
 
   const installmentFrequency = text(formData, "installment_frequency");
   const installmentAmountRaw = text(formData, "installment_amount");
-  const installmentAmount = parseNumber(formData.get("installment_amount"));
   const amountPaidRaw = text(formData, "amount_paid");
-  const initialPayment = amountPaidRaw ? parseNumber(formData.get("amount_paid")) : null;
+  let installmentAmount = 0;
+  let initialPayment: number | null;
+  try {
+    installmentAmount = installmentAmountRaw
+      ? parseNumber(formData.get("installment_amount"), "Installment amount")
+      : 0;
+    initialPayment = amountPaidRaw
+      ? parseNumber(formData.get("amount_paid"), "Amount paid")
+      : null;
+  } catch (error) {
+    return { message: error instanceof Error ? error.message : "Enter valid payment amounts." };
+  }
   const initialPaymentMethod = text(formData, "initial_payment_method", "Cash");
 
   if (initialPayment !== null && initialPayment < 0) {

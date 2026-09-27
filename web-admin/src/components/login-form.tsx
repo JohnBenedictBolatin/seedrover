@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useActionState, useEffect, useRef, useState, type FormEvent } from "react";
+import { startTransition, useActionState, useEffect, useState, type FormEvent } from "react";
 import { Eye, EyeOff, Lock, LogIn, UserRound } from "lucide-react";
 import {
   forgotPasswordAction,
@@ -9,7 +9,6 @@ import {
 } from "@/app/login/actions";
 import styles from "./login-form.module.css";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
-import { useActionFeedback } from "@/components/action-feedback";
 import { useConfirmationDialog } from "@/components/confirmation-dialog";
 
 const initialState: LoginState = {
@@ -33,13 +32,7 @@ export function LoginForm({
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [recoveryMessage, setRecoveryMessage] = useState("");
-  const signInAttempt = useRef(0);
-  const { notify } = useActionFeedback();
   const { confirm, confirmationDialog } = useConfirmationDialog();
-
-  useEffect(() => {
-    if (state.message) notify({ tone: "error", text: state.message, operationId: `sign-in-${signInAttempt.current}` });
-  }, [notify, state]);
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -70,11 +63,10 @@ export function LoginForm({
     if (newPassword !== confirmPassword) return setRecoveryMessage("Passwords do not match.");
     if (!await confirm({ title: "Update password?", message: "This will replace the current password for your account.", confirmLabel: "Update password" })) return;
     const supabase = createSupabaseBrowserClient();
-    if (!supabase) { setRecoveryMessage("Password recovery is not configured."); notify({ tone: "error", text: "Password recovery is not configured." }); return; }
+    if (!supabase) { setRecoveryMessage("Password recovery is not configured."); return; }
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) {
       setRecoveryMessage(error.message);
-      notify({ tone: "error", text: error.message });
     } else {
       setRecoveryMessage("");
       setResetMessage("Password updated. You can now sign in.");
@@ -99,14 +91,12 @@ export function LoginForm({
     startTransition(async () => {
       const message = await forgotPasswordAction(username);
       setResetMessage(message);
-      const failed = message.startsWith("Enter ") || message.startsWith("Too many ") || message.startsWith("Unable to ") || message.startsWith("Password reset is not configured");
-      if (failed) notify({ tone: "error", text: message });
       setResetPending(false);
     });
   }
 
   return (
-    <form className={styles.form} action={formAction} onSubmit={() => { signInAttempt.current += 1; }}>
+    <form className={styles.form} action={formAction}>
       <label>
         <span>Username</span>
         <div className={styles.inputWrap}>

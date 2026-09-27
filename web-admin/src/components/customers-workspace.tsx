@@ -3,6 +3,7 @@
 import { type ReactNode, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { NumericInput } from "@/components/constrained-inputs";
 import {
   BadgePercent,
   Check,
@@ -40,7 +41,7 @@ type CustomersWorkspaceProps = {
   stats: CustomerStats | null;
 };
 
-const CUSTOMER_ROWS_PER_PAGE = 8;
+const CUSTOMER_ROWS_PER_PAGE = 5;
 const GENERAL_DISCOUNT_CUSTOMER = "No specific customer";
 
 function todayInputValue(offsetDays = 0) {
@@ -719,11 +720,11 @@ function CreateDiscountModal({
 
             <label>
               Value (PHP or %)
-              <input
+              <NumericInput
                 min="0.01"
                 name="discount_value"
                 required
-                type="number"
+                step="0.01"
                 value={discountValue}
                 onChange={(event) => setDiscountValue(event.target.value)}
               />

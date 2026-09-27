@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { NumericInput } from "@/components/constrained-inputs";
 import { CalendarField } from "@/components/calendar-field";
 import { FileUploadField } from "@/components/file-upload-field";
 import { ThemedSelect } from "@/components/themed-select";
@@ -19,6 +20,14 @@ type Activity = keyof typeof actions;
 export function taskActivity(task?: CropTask): Activity {
   return task?.task_type === "Water" ? "Watered" : task?.task_type === "Fertilize" ? "Fertilized" : task?.task_type === "Transplant" ? "Transplanted" : "Inspected";
 }
+
+function hasReachedHarvestReady(crop: CropItem) {
+  if (crop.cropStatus === "Harvest Ready") return true;
+  const harvestReadyIndex = crop.stages.findIndex((stage) => stage === "Harvest Ready");
+  const currentIndex = crop.stages.findIndex((stage) => stage === crop.growthStage);
+  return harvestReadyIndex >= 0 && currentIndex >= harvestReadyIndex;
+}
+
 const localTime = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
 
 export function TodaysCare({ crops, onOpen }: { crops: CropItem[]; onOpen: (crop: CropItem, task?: CropTask) => void }) {
@@ -50,7 +59,7 @@ export function TodaysCare({ crops, onOpen }: { crops: CropItem[]; onOpen: (crop
             <article key={task.id} className={`${dashboardStyles.riskItem} ${styles.careTask}`} data-priority={task.priority}>
               <div className={styles.careTaskDetails}>
                 <strong>{task.title}</strong>
-                <span>{crop.cropName} Â· {crop.batchCode}</span>
+                <span>{crop.cropName} - {crop.batchCode}</span>
               </div>
               <em>{task.priority}</em>
               <div className={styles.careTaskDue}>
@@ -80,7 +89,12 @@ export function TodaysCare({ crops, onOpen }: { crops: CropItem[]; onOpen: (crop
 export function CropCareForm({ crop, task, initialActivity, onCancel, onSuccess, notify }: {
   crop: CropItem; task?: CropTask; initialActivity?: Activity; onCancel: () => void; onSuccess: () => void; notify: (tone: "success" | "error", message: string) => void;
 }) {
-  const [activity, setActivity] = useState<Activity>(initialActivity ?? taskActivity(task));
+  const canHarvest = hasReachedHarvestReady(crop);
+  const [activity, setActivity] = useState<Activity>(
+    initialActivity === "Harvested" && !canHarvest
+      ? taskActivity(task)
+      : initialActivity ?? taskActivity(task),
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [quantity, setQuantity] = useState("");
@@ -89,7 +103,6 @@ export function CropCareForm({ crop, task, initialActivity, onCancel, onSuccess,
   const [observation, setObservation] = useState("");
   const [unit, setUnit] = useState(() => typeof window === "undefined" ? "liters" : localStorage.getItem(`crop-unit:${initialActivity ?? taskActivity(task)}`) ?? "liters");
   const [destination, setDestination] = useState<{ id: string; name: string } | null>(null);
-  const [receipt, setReceipt] = useState(false);
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const payload = useRef<FormData | null>(null);
   const submission = useRef("");
@@ -111,10 +124,10 @@ export function CropCareForm({ crop, task, initialActivity, onCancel, onSuccess,
       localStorage.setItem(`crop-unit:${activity}`, unit);
       router.refresh();
       if (activity === "Harvested") {
-        setReceipt(true);
         notify("success", `${quantity} kg harvested from ${crop.batchCode} and added to ${destination?.name} inventory.`);
       }
-      else { notify("success", activity === "Not Harvested" ? "Batch closed without harvest. No inventory was added." : `${actions[activity]} saved. The crop journal and care tasks are updated.`); onSuccess(); }
+      else notify("success", activity === "Not Harvested" ? "Batch closed without harvest. No inventory was added." : `${actions[activity]} saved. The crop journal and care tasks are updated.`);
+      onSuccess();
     } catch (e) {
       const message = e instanceof Error ? e.message : "Unable to save. Your entries are still here; retry when connected.";
       setError(message);
@@ -124,6 +137,10 @@ export function CropCareForm({ crop, task, initialActivity, onCancel, onSuccess,
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (activity === "Harvested" && !canHarvest) {
+      setError("Harvesting is available after the crop reaches Harvest Ready.");
+      return;
+    }
     if (activity === "Stage Observed" && !observedStage) {
       setError("Select the growth stage you observed before saving.");
       return;
@@ -154,11 +171,6 @@ export function CropCareForm({ crop, task, initialActivity, onCancel, onSuccess,
   const activityOptions = (Object.keys(actions) as Activity[]).filter((value) => initialActivity === "Not Harvested"
     ? value === "Not Harvested"
     : value !== "Not Harvested" && (value !== "Transplanted" || crop.cropName.toLowerCase() === "calamansi") && (!task || value === taskActivity(task)));
-  if (receipt) return <section className={cropStyles.activityFormSection} role="status">
-    <div className={cropStyles.activityFormIntro}><span>HARVEST COMPLETE</span><div><h4>{crop.cropName}</h4><strong>{crop.batchCode}</strong></div></div>
-    <p><strong>{quantity} kg</strong> added to {destination?.name} inventory. This batch is closed.</p>
-    <div className={cropStyles.modalFooterActions}><a className={cropStyles.secondaryAction} href="/inventory">View inventory</a><button className={cropStyles.primaryAction} type="button" onClick={onSuccess}><span>View batch journal</span></button></div>
-  </section>;
   return <form className={`${cropStyles.formGrid} ${cropStyles.activityForm}`} onSubmit={submit}>
     <div className={cropStyles.activityFormIntro}>
       <span>{activity === "Not Harvested" ? "CLOSE WITHOUT HARVEST" : "CROP DETAILS"}</span>
@@ -167,13 +179,14 @@ export function CropCareForm({ crop, task, initialActivity, onCancel, onSuccess,
     <input type="hidden" name="id" value={crop.id} />
     <input type="hidden" name="task_id" value={task?.id ?? ""} />
     <input type="hidden" name="activity" value={activity} />
-    {activityOptions.length > 1 && <ThemedSelect label="Activity" required options={activityOptions.map((value) => actions[value])} value={actions[activity]} onChange={(value) => {
+    {activityOptions.length > 1 && <ThemedSelect label="Activity" required options={activityOptions.map((value) => actions[value])} disabledOptions={!canHarvest ? [actions.Harvested] : []} value={actions[activity]} onChange={(value) => {
       const selected = activityOptions.find((option) => actions[option] === value);
       if (selected) { setActivity(selected); setError(""); }
     }} />}
+    {activityOptions.includes("Harvested") && !canHarvest ? <small className={cropStyles.harvestUnavailableHint}>Harvest batch becomes available when this crop reaches Harvest Ready.</small> : null}
     <CalendarField className={cropStyles.activityFormWide} includeTime label={sharedWorkflowTerms.dateAndTime} min={`${crop.plantingDate}T00:00`} max={localTime()} name="performed_at" required value={performedAt} onChange={setPerformedAt} disabled={busy} />
     {(["Watered", "Fertilized", "Harvested"] as Activity[]).includes(activity) ? <div className={cropStyles.twoColumn}>
-      <label className={activity === "Harvested" ? cropStyles.activityFormWide : undefined}><span>{activity === "Harvested" ? "Total batch weight (kg)" : "Amount"}</span><input name="quantity" type="number" min="0.01" step="0.01" required value={quantity} onChange={(event) => setQuantity(event.target.value)} disabled={busy} /></label>
+    <label className={activity === "Harvested" ? cropStyles.activityFormWide : undefined}><span>{activity === "Harvested" ? "Total batch weight (kg)" : "Amount"}</span><NumericInput name="quantity" min="0.01" step="0.01" required value={quantity} onChange={(event) => setQuantity(event.target.value)} disabled={busy} /></label>
       {activity === "Harvested" ? <input name="unit" type="hidden" value="kg" /> : <label><span>Unit</span><input name="unit" required value={unit} onChange={(event) => setUnit(event.target.value)} disabled={busy} /></label>}
     </div> : null}
     {activity === "Harvested" ? <div className={`${cropStyles.notesPanel} ${cropStyles.activityFormWide}`}><span>Inventory destination</span><p>{destination?.name ?? "Checking inventory..."}</p></div> : null}

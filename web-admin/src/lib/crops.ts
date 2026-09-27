@@ -22,6 +22,8 @@ export type CropItem = {
   imagePath: string | null;
   imageUrl: string | null;
   fieldLabel: string;
+  plantingTargetDrops: number | null;
+  plantingCompletedDrops: number | null;
   harvestWindowStart: string | null;
   harvestWindowEnd: string | null;
   expectedStage: string;
@@ -96,6 +98,8 @@ type CropRow = {
   crop_profile_key?: string | null;
   profiles: { full_name: string } | { full_name: string }[] | null;
   field_label?: string | null;
+  planting_log_id?: string | null;
+  completed_drop_cycles?: number | null;
   harvest_window_start?: string | null;
   harvest_window_end?: string | null;
   expected_stage?: string | null;
@@ -118,6 +122,10 @@ function managerName(row: CropRow) {
 
 function fallbackBatchCode(id: string) {
   return `CRP-LEGACY-${id.replaceAll("-", "").slice(0, 8).toUpperCase()}`;
+}
+
+function displayGrowthStage(stage: string) {
+  return stage === "First Harvest" ? "Harvest Ready" : stage;
 }
 
 function isMissingCropMonitoringSchema(error: { code?: string; message?: string }) {
@@ -144,7 +152,7 @@ export async function getCropsDashboard() {
   let { data, error } = await supabase
     .from("crops")
     .select(
-      "id, batch_code, crop_name, planting_date, estimated_harvest, growth_stage, maintenance_notes, image_path, crop_status, crop_profile_key, field_label, harvest_window_start, harvest_window_end, expected_stage, current_care_status, assigned_manager, harvested_at, forecast_confidence, crop_profiles(stage_plan), profiles(full_name)",
+      "id, batch_code, crop_name, planting_date, estimated_harvest, growth_stage, maintenance_notes, image_path, crop_status, crop_profile_key, field_label, planting_log_id, completed_drop_cycles, harvest_window_start, harvest_window_end, expected_stage, current_care_status, assigned_manager, harvested_at, forecast_confidence, crop_profiles(stage_plan), profiles(full_name)",
     )
     .order("planting_date", { ascending: false })
     .returns<CropRow[]>();
@@ -173,6 +181,11 @@ export async function getCropsDashboard() {
   }
 
   const cropIds = (data ?? []).map((row) => row.id);
+  const plantingLogIds = [...new Set((data ?? []).map((row) => row.planting_log_id).filter((id): id is string => Boolean(id)))];
+  const { data: plantingLogData } = plantingLogIds.length === 0
+    ? { data: [] as { id: string; target_drop_cycles: number | null; completed_drop_cycles: number | null; field_label: string | null }[] }
+    : await supabase.from("planting_logs").select("id, target_drop_cycles, completed_drop_cycles, field_label").in("id", plantingLogIds);
+  const plantingLogs = new Map((plantingLogData ?? []).map((row) => [row.id, row]));
   const [{ data: sensorData }, { data: taskData, error: taskError }, { data: weatherData }, { data: seedImageData }, { data: activityData }] = await Promise.all([
     cropIds.length === 0
       ? Promise.resolve({ data: [] as SensorRow[] })
@@ -197,12 +210,18 @@ export async function getCropsDashboard() {
   const crops: CropItem[] = (data ?? []).map((row) => {
     const sensor = latestSensor.get(row.id);
     const task = nextTask.get(row.id);
+    const plantingLog = row.planting_log_id ? plantingLogs.get(row.planting_log_id) : undefined;
     const seedKey = row.crop_profile_key ?? row.crop_name.toLowerCase();
     const imagePath = row.image_path ?? seedImages.get(seedKey) ?? null;
     return {
       id: row.id,
       managerId: row.assigned_manager ?? null,
-      stages: [...new Set([...(row.crop_profiles?.stage_plan ?? []).map((stage) => stage.stage), "Harvest Ready"])].filter((stage) => !["Completed", "Repeated Harvest"].includes(stage)),
+      stages: [
+        ...new Set((row.crop_profiles?.stage_plan ?? [])
+          .map((stage) => displayGrowthStage(stage.stage))
+          .filter((stage) => !["Completed", "Repeated Harvest", "Harvest Ready"].includes(stage))),
+        "Harvest Ready",
+      ],
       tasks: (taskData ?? []).filter((task) => task.crop_id === row.id),
       forecastConfidence: row.forecast_confidence ?? "Unavailable",
       harvestedAt: row.harvested_at ?? null,
@@ -213,7 +232,7 @@ export async function getCropsDashboard() {
       managerName: managerName(row),
       plantingDate: row.planting_date,
       estimatedHarvest: row.estimated_harvest,
-      growthStage: row.growth_stage,
+      growthStage: displayGrowthStage(row.growth_stage),
       cropStatus: row.crop_status,
       maintenanceNotes: row.maintenance_notes ?? "No notes recorded.",
       imagePath,
@@ -222,7 +241,9 @@ export async function getCropsDashboard() {
           ? null
           : supabase.storage.from("crop-images").getPublicUrl(imagePath).data
               .publicUrl,
-      fieldLabel: row.field_label ?? "Field not labeled",
+      fieldLabel: plantingLog?.field_label ?? row.field_label ?? "Field not labeled",
+      plantingTargetDrops: plantingLog?.target_drop_cycles ?? null,
+      plantingCompletedDrops: plantingLog?.completed_drop_cycles ?? row.completed_drop_cycles ?? null,
       harvestWindowStart: row.harvest_window_start ?? null,
       harvestWindowEnd: row.harvest_window_end ?? null,
       expectedStage: row.expected_stage ?? row.growth_stage,

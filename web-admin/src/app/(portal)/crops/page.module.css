@@ -2088,6 +2088,13 @@
   background: rgba(255, 255, 255, 0.06);
 }
 
+.themedSelectOption:disabled {
+  color: var(--text-muted);
+  background: transparent;
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .themedSelectOption[data-selected="true"] {
   color: var(--text);
   background: rgba(255, 255, 255, 0.1);
@@ -2274,6 +2281,16 @@
   margin: 4px 0 0;
   color: var(--text);
   font-size: 1rem;
+}
+
+.cropCardId {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-roboto-mono);
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .itemCode {
@@ -3182,6 +3199,17 @@
   line-height: 1.45;
 }
 
+.growthStageRow .growthHarvestAction,
+.growthStageRow .growthHarvestHint {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+.growthStageRow .growthHarvestHint {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
 .cropProgressHeader {
   display: flex;
   align-items: center;
@@ -3521,11 +3549,16 @@
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 10px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 8px;
-  background: rgba(0, 0, 0, 0.1);
+  color: #fff;
   padding: 10px;
 }
+
+.sensorValueCard[data-tone="moisture"] { background: linear-gradient(135deg, #1769aa, #124b7b); }
+.sensorValueCard[data-tone="soil"] { background: linear-gradient(135deg, #367b4f, #205638); }
+.sensorValueCard[data-tone="air"] { background: linear-gradient(135deg, #9a5b14, #74400d); }
+.sensorValueCard[data-tone="humidity"] { background: linear-gradient(135deg, #76538f, #503569); }
 
 .sensorValueCard > span {
   display: inline-flex;
@@ -3533,10 +3566,10 @@
   height: 34px;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(65, 215, 91, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 8px;
-  color: var(--success);
-  background: rgba(65, 215, 91, 0.08);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .sensorValueCard > div {
@@ -3545,12 +3578,12 @@
 }
 
 .sensorValueCard small {
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.86);
   font-size: 0.7rem;
 }
 
 .sensorValueCard strong {
-  color: var(--text);
+  color: #fff;
   font-family: var(--font-roboto-mono);
   font-size: 1rem;
 }
@@ -3558,10 +3591,9 @@
 .sensorHistoryTable {
   --sensor-history-columns:
     minmax(180px, 1.35fr)
-    repeat(4, minmax(88px, .66fr))
-    minmax(120px, .85fr);
+    repeat(4, minmax(88px, .66fr));
   display: grid;
-  min-width: 760px;
+  min-width: 660px;
   gap: 7px;
 }
 
@@ -3575,7 +3607,7 @@
 
 .sensorHistoryHeader {
   color: var(--text-muted);
-  font-size: 0.68rem;
+  font-size: 0.78rem;
   font-weight: 900;
   padding: 0 10px 2px;
   text-transform: uppercase;
@@ -3593,7 +3625,7 @@
   color: var(--text-secondary);
   background: var(--history-row-surface);
   font-family: var(--font-roboto-mono);
-  font-size: 0.76rem;
+  font-size: 0.98rem;
   padding: 8px 10px;
 }
 
@@ -3914,6 +3946,12 @@
   background: rgba(18, 60, 27, 0.08);
 }
 
+:global(html[data-theme="light"]) .themedSelectOption:disabled,
+:global(html[data-theme="light"]) .themedSelectOption:disabled:hover {
+  color: var(--text-muted);
+  background: transparent;
+}
+
 :global(html[data-theme="light"]) .themedSelectOption[data-selected="true"] {
   color: #123c1b;
   background: rgba(18, 60, 27, 0.12);
@@ -4037,7 +4075,6 @@
 :global(html[data-theme="light"]) .activityFormSectionTitle strong,
 :global(html[data-theme="light"]) .sensorHistoryIntro h4,
 :global(html[data-theme="light"]) .sensorSectionHeading h5,
-:global(html[data-theme="light"]) .sensorValueCard strong,
 :global(html[data-theme="light"]) .sensorHistoryRow time,
 :global(html[data-theme="light"]) .sensorEmptyState strong {
   color: #123c1b;
@@ -4051,12 +4088,10 @@
 
 :global(html[data-theme="light"]) .activityFormSectionTitle small,
 :global(html[data-theme="light"]) .sensorSectionHeading time,
-:global(html[data-theme="light"]) .sensorValueCard small,
 :global(html[data-theme="light"]) .sensorHistoryHeader {
   color: rgba(18, 60, 27, 0.66);
 }
 
-:global(html[data-theme="light"]) .sensorValueCard,
 :global(html[data-theme="light"]) .sensorHistoryRow,
 :global(html[data-theme="light"]) .activityHistoryCard,
 :global(html[data-theme="light"]) .activityHistoryMeta span,
@@ -4453,6 +4488,7 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px 12px;
     padding: 12px;
+    font-size: 0.95rem;
   }
 
   .sensorHistoryRow time {
@@ -4541,7 +4577,7 @@
   width: min(82vw, 292px);
   min-width: min(82vw, 292px);
   min-height: 0;
-  grid-template-rows: auto auto auto auto 1fr;
+  grid-template-rows: auto auto auto 1fr;
   align-content: start;
   gap: 10px;
   padding: 12px;
@@ -4560,6 +4596,13 @@
 
 .cardTitleRow {
   align-items: center;
+}
+
+.cropCardIdentity {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+  min-width: 0;
 }
 
 .cardFacts dd {
@@ -4586,35 +4629,11 @@
   font-size: 0.65rem;
 }
 
-.cropNextCare {
-  display: grid;
-  min-width: 0;
-  gap: 4px;
-  align-content: start;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  background: var(--surface-raised, rgba(255, 255, 255, 0.035));
-  padding: 9px 10px;
-}
-
-.cropNextCare > span,
 .detailEyebrow {
   color: var(--green-accent);
   font-size: 0.72rem;
   font-weight: 900;
   letter-spacing: 0.045em;
-}
-
-.cropNextCare strong {
-  color: var(--text);
-  font-size: 0.94rem;
-  line-height: 1.32;
-  overflow-wrap: anywhere;
-}
-
-.cropNextCare small {
-  color: var(--text-muted);
-  font-size: 0.78rem;
 }
 
 .iconAction[data-tone="stock-in"] {
@@ -4689,8 +4708,20 @@
   overflow-wrap: anywhere;
 }
 
+.cropModalNameRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .cropWorkspaceModal .cropModalIdentity {
   font-size: 0.92rem;
+}
+
+.cropModalIdentity strong {
+  color: var(--text);
+  font-weight: 850;
 }
 
 .cropWorkspaceModal .modalTitle > .status {
@@ -4792,7 +4823,7 @@
 .detailImagePanel,
 .detailImagePanel img {
   min-height: 260px;
-  max-height: 360px;
+  max-height: none;
 }
 
 .detailSummary {
@@ -4820,8 +4851,16 @@
 }
 
 .detailMetrics {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 10px;
+}
+
+.detailMetrics .readOnly:nth-child(-n + 3) {
+  grid-column: span 2;
+}
+
+.detailMetrics .readOnly:nth-child(n + 4) {
+  grid-column: span 3;
 }
 
 .detailMetrics .readOnly {
@@ -4926,12 +4965,12 @@
 
 .sensorHistoryRow,
 .sensorHistoryHeader {
-  grid-template-columns: minmax(150px, 1.3fr) repeat(4, minmax(90px, 0.8fr)) minmax(100px, 0.8fr);
+  grid-template-columns: minmax(150px, 1.3fr) repeat(4, minmax(90px, 0.8fr));
   gap: 12px;
 }
 
 .sensorHistoryRow {
-  font-size: 0.9rem;
+  font-size: 1rem;
 }
 
 .growthJourneyIntro {
@@ -5454,7 +5493,6 @@
   margin: -8px 0 0;
 }
 
-:global(html[data-theme="light"]) .cropNextCare,
 :global(html[data-theme="light"]) .rowPlantingExample {
   background: var(--surface);
 }
@@ -5595,6 +5633,10 @@
   .detailMetrics,
   .sensorSummaryGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .detailMetrics .readOnly {
+    grid-column: span 1;
   }
 
   .detailsTop {
@@ -5939,6 +5981,27 @@
   .plantingRowSvg {
     min-width: 460px;
   }
+}
+
+/* Let the crop overview size to its content instead of scrolling inside the dialog. */
+.cropWorkspaceModal[data-crop-tab="overview"] {
+  width: min(1120px, calc(100vw - 48px));
+  height: auto;
+  max-height: none;
+  grid-template-rows: auto auto auto auto;
+  overflow: visible;
+}
+
+.cropWorkspaceModal[data-crop-tab="overview"] > .modalBody {
+  min-height: auto;
+  overflow: visible;
+  overscroll-behavior: auto;
+}
+
+.cropWorkspaceModal .cropModalNameRow > .status {
+  flex: 0 0 auto;
+  margin: 0;
+  font-size: 0.8rem;
 }
 
 /* Keep all crop filters together after legacy responsive toolbar rules. */

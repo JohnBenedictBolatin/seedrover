@@ -3,6 +3,7 @@
 import type { FormEvent, ReactNode } from "react";
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { ContactNumberInput } from "@/components/constrained-inputs";
 import {
   BadgeCheck,
   ChevronDown,
@@ -486,7 +487,7 @@ function UserModal({
           </label>
           <label>
             Contact number
-            <input name="contact_number" defaultValue={user.contactNumber} inputMode="tel" />
+            <ContactNumberInput autoComplete="tel-national" name="contact_number" defaultValue={user.contactNumber} />
           </label>
           <label>
             Role
@@ -649,7 +650,7 @@ function CreateUserModal({
             Contact number
             <span className={styles.inputWithIcon}>
               <Phone size={16} />
-              <input name="contact_number" placeholder="e.g. 0912 345 6789" />
+              <ContactNumberInput autoComplete="tel-national" name="contact_number" placeholder="e.g. 09123456789" />
             </span>
           </label>
           <label><input checked={useCustomPassword} type="checkbox" onChange={(event) => setUseCustomPassword(event.currentTarget.checked)} /> Enter a custom temporary password</label>

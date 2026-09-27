@@ -6,6 +6,7 @@ import { requireAdminRole } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { writeActivityLog } from "@/lib/activity-log";
+import { normalizeContactNumber } from "@/lib/contact-number.mjs";
 
 export type CreateUserState = {
   message: string;
@@ -50,13 +51,22 @@ export async function createUserAction(
   const email = text(formData, "email").toLowerCase();
   const suppliedPassword = String(formData.get("temporary_password") ?? "");
   const password = suppliedPassword || `Sr!${randomBytes(12).toString("base64url")}A7`;
-  const contactNumber = text(formData, "contact_number");
+  let contactNumber: string | null;
   const roleId = text(formData, "role_id");
   const isActive = text(formData, "is_active", "true") === "true";
   const accessNote = text(formData, "access_note");
 
   if (!firstName || !lastName || !username || !email || !roleId) {
     return { message: "Complete all required account fields.", success: false };
+  }
+
+  try {
+    contactNumber = normalizeContactNumber(text(formData, "contact_number"));
+  } catch (error) {
+    return {
+      message: error instanceof Error ? error.message : "Enter an 11-digit contact number.",
+      success: false,
+    };
   }
 
   if (!/^[a-z0-9_]{3,32}$/.test(username)) {
@@ -185,10 +195,16 @@ export async function updateUserAction(formData: FormData) {
   const fullName = [firstName, middleInitial ? `${middleInitial}.` : "", lastName].filter(Boolean).join(" ");
   const roleId = String(formData.get("role_id") ?? "");
   const isActive = String(formData.get("is_active") ?? "false") === "true";
-  const contactNumber = String(formData.get("contact_number") ?? "").trim();
+  let contactNumber: string | null;
 
   if (!userId || !fullName || !roleId) {
     throw new Error("Complete all required user profile fields.");
+  }
+
+  try {
+    contactNumber = normalizeContactNumber(String(formData.get("contact_number") ?? ""));
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : "Enter an 11-digit contact number.");
   }
 
   if (userId === profile.id && !isActive) {

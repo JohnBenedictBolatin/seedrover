@@ -5,10 +5,11 @@ import type { CropActivityRecord, CropSensorReading } from "@/lib/crops";
 import { INVENTORY_UNIT } from "@/lib/inventory";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAdminRole } from "@/lib/auth";
+import { MAX_UPLOAD_SIZE_BYTES } from "@/lib/upload-limits";
 import { writeActivityLog } from "@/lib/activity-log";
+import { parseDatabaseDecimal } from "@/lib/field-validation.mjs";
 
 const CROP_IMAGE_BUCKET = "crop-images";
-const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 export type PlantingRunHistoryRow = {
@@ -117,8 +118,8 @@ function text(formData: FormData, key: string, fallback = "") {
 }
 
 function numberValue(formData: FormData, key: string, fallback = 0) {
-  const value = Number(formData.get(key) ?? fallback);
-  return Number.isFinite(value) ? value : fallback;
+  const raw = text(formData, key);
+  return raw ? parseDatabaseDecimal(raw, key.replaceAll("_", " ")) : fallback;
 }
 
 async function logCropActivity(
@@ -140,7 +141,7 @@ async function uploadCropImage(cropId: string, file: FormDataEntryValue | null) 
     return null;
   }
 
-  if (file.size > MAX_IMAGE_SIZE_BYTES) {
+  if (file.size > MAX_UPLOAD_SIZE_BYTES) {
     throw new Error("Crop image must be 5MB or smaller.");
   }
 
@@ -230,7 +231,7 @@ export async function cropMaintenanceAction(formData: FormData) {
   if (photoFiles.length && activity !== "Stage Observed") throw new Error("Growth photos can only be attached to an observed growth stage.");
   const photos: string[] = [];
   for (const [index, file] of photoFiles.entries()) {
-    if (file.size > MAX_IMAGE_SIZE_BYTES || !ALLOWED_IMAGE_TYPES.has(file.type)) throw new Error("Photos must be JPG, PNG or WebP, up to 5 MB each.");
+    if (file.size > MAX_UPLOAD_SIZE_BYTES || !ALLOWED_IMAGE_TYPES.has(file.type)) throw new Error("Photos must be JPG, PNG or WebP, up to 5 MB each.");
     const path = `${profile.id}/${cropId}/${submissionId}-${index}.${file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg"}`;
     const { error } = await supabase.storage.from("crop-journal").upload(path, file, { contentType: file.type });
     if (error && !/already exists|duplicate/i.test(error.message)) throw new Error(error.message);
@@ -404,7 +405,7 @@ export async function getCropActivityHistoryAction(cropId: string) {
       unit: activity.activity_type === "Harvested" ? INVENTORY_UNIT : activity.unit,
       material: activity.material,
       notes: activity.notes,
-      observedStage: activity.observed_stage,
+      observedStage: activity.observed_stage === "First Harvest" ? "Harvest Ready" : activity.observed_stage,
       source: activity.source,
     };
   }));

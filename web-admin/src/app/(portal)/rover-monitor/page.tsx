@@ -1,13 +1,4 @@
-import {
-  Activity,
-  Clock3,
-  Droplets,
-  Radio,
-  ShieldAlert,
-  Sun,
-  Thermometer,
-  Wifi,
-} from "lucide-react";
+import { Droplets, Sun, Thermometer } from "lucide-react";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { LiveDateTime } from "@/components/live-date-time";
@@ -31,7 +22,7 @@ export default async function RoverMonitorPage() {
     redirect("/dashboard");
   }
 
-  const { status, commands, sensors, sensorHistory, statusError, commandError, sensorError } =
+  const { commands, sensors, sensorHistory, commandError, sensorError } =
     await getRoverMonitor({ commandLimit: 100 });
 
   return (
@@ -48,43 +39,13 @@ export default async function RoverMonitorPage() {
         </div>
       </header>
 
-      <section className={styles.statusPanel} aria-label="Rover status summary">
-        {statusError ? <DataError title="Rover status is unavailable." message={statusError} /> : null}
-        <div className={styles.statusGrid}>
-          <StatusSummary icon={<Radio size={17} />} label="Rover status">
-            {status?.roverStatus ?? "Unavailable"}
-          </StatusSummary>
-          <StatusSummary icon={<Activity size={17} />} label="Cloud heartbeat">
-            {status?.heartbeatFresh == null ? "Unavailable" : status.heartbeatFresh ? "Current" : "Stale"}
-          </StatusSummary>
-          <StatusSummary icon={<Wifi size={17} />} label="Wi-Fi">
-            {reportedValue(
-              status?.wifiConnected == null ? null : status.wifiConnected ? "Connected" : "Disconnected",
-              status?.heartbeatFresh,
-            )}
-          </StatusSummary>
-          <StatusSummary icon={<ShieldAlert size={17} />} label="Emergency stop">
-            {reportedValue(
-              status?.emergencyStop == null ? null : status.emergencyStop ? "Active" : "Inactive",
-              status?.heartbeatFresh,
-            )}
-          </StatusSummary>
-          <StatusSummary icon={<Activity size={17} />} label="Current activity">
-            {reportedValue(status?.currentActivity ?? null, status?.heartbeatFresh)}
-          </StatusSummary>
-          <StatusSummary icon={<Clock3 size={17} />} label="Last update">
-            {status?.lastUpdated ? formatDateTime(status.lastUpdated) : "Unavailable"}
-          </StatusSummary>
-        </div>
-      </section>
-
       <section className={styles.monitorGrid} aria-label="Rover monitoring details">
         <article className={styles.panel}>
           <PanelTitle title="Sensor readings" icon={<Droplets size={18} />} />
           {sensorError ? <DataError title="Sensor readings could not be loaded." message={sensorError} /> : null}
           <LatestSensors history={sensorHistory} sensors={sensors} />
           <p className={styles.latestMeta}>
-            {sensors ? `Verified hardware · ${sensors.source || "Source unavailable"} · ${formatDateTime(sensors.recordedAt)} · ${sensors.fresh ? "Fresh" : "Stale"} · ${sensors.soilMoistureCalibrated === true ? `moisture calibration ${sensors.calibrationVersion ?? "version unavailable"}` : sensors.soilMoistureCalibrated === false ? "moisture % unavailable · probe not calibrated" : "moisture calibration status unavailable"}` : "No fresh, verified hardware reading is available."}
+            {sensors ? `Verified hardware · ${sensors.source || "Source unavailable"} · ${formatDateTime(sensors.recordedAt)} · ${sensors.fresh ? "Fresh" : "Stale"} · ${sensors.soilMoistureCalibrated === true ? `moisture calibration ${sensors.calibrationVersion ?? "version unavailable"}` : sensors.soilMoistureCalibrated === false ? "moisture % unavailable · probe not calibrated" : "moisture calibration status unavailable"}` : "No verified hardware reading is available."}
           </p>
           <div className={styles.historySection}>
             <div className={styles.historyHeading}>
@@ -106,26 +67,6 @@ export default async function RoverMonitorPage() {
           <RoverCommandHistory commands={commands} error={commandError} />
         </aside>
       </section>
-    </div>
-  );
-}
-
-function StatusSummary({
-  children,
-  icon,
-  label,
-}: {
-  children: ReactNode;
-  icon: ReactNode;
-  label: string;
-}) {
-  return (
-    <div className={styles.statusSummary}>
-      <span className={styles.statusIcon}>{icon}</span>
-      <div>
-        <span>{label}</span>
-        <strong>{children}</strong>
-      </div>
     </div>
   );
 }
@@ -166,7 +107,10 @@ function LatestSensors({
     { label: "Humidity", field: "humidity", value: sensors?.humidity ?? null, unit: "%", tone: "humidity", icon: <Droplets size={19} /> },
   ];
   const recentHistory = history
-    .filter((reading) => reading.provenanceStatus === "verified_hardware" && reading.fresh)
+    // Sparklines summarize saved readings, including older samples. Freshness
+    // applies to the live value badge; filtering by it here hid the charts as
+    // soon as the rover stopped sending data for a minute.
+    .filter((reading) => reading.provenanceStatus === "verified_hardware")
     .slice(0, 12)
     .reverse();
 
@@ -265,11 +209,6 @@ function DataError({ title, message }: { title: string; message: string }) {
 
 function EmptyState({ title }: { title: string }) {
   return <div className={styles.emptyState}>{title}</div>;
-}
-
-function reportedValue(value: string | null, heartbeatFresh: boolean | null | undefined) {
-  if (value == null || value.length === 0) return "Unavailable";
-  return heartbeatFresh === false ? `${value} · last reported` : value;
 }
 
 function formatSensorValue(value: number) {

@@ -3,8 +3,10 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requireAdminRole } from "@/lib/auth";
+import { MAX_UPLOAD_SIZE_BYTES } from "@/lib/upload-limits";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { writeActivityLog } from "@/lib/activity-log";
+import { parseDatabaseDecimal } from "@/lib/field-validation.mjs";
 
 function text(formData: FormData, key: string, fallback = "") {
   return String(formData.get(key) ?? fallback).trim();
@@ -18,8 +20,8 @@ export async function createCustomerPaymentAction(formData: FormData) {
   if (!supabase) throw new Error("Supabase is not configured.");
 
   const customerName = text(formData, "customer_name");
-  const amount = Number(formData.get("amount"));
-  if (!customerName || !Number.isFinite(amount) || amount <= 0) {
+  const amount = parseDatabaseDecimal(formData.get("amount"), "Amount");
+  if (!customerName || amount <= 0) {
     throw new Error("Customer name and a positive amount are required.");
   }
 
@@ -69,14 +71,14 @@ export async function recordInstallmentPaymentAction(formData: FormData) {
   if (!supabase) throw new Error("Supabase is not configured.");
 
   const scheduleId = text(formData, "schedule_id");
-  const amount = Number(formData.get("amount"));
+  const amount = parseDatabaseDecimal(formData.get("amount"), "Amount");
   const paymentDate = text(formData, "payment_date");
   const paymentMethod = text(formData, "payment_method", "Cash");
   const transactionReference = text(formData, "transaction_reference") || null;
   const otherPaymentMethod = text(formData, "other_payment_method") || null;
   const notes = text(formData, "notes") || null;
 
-  if (!scheduleId || !Number.isFinite(amount) || amount <= 0 || !paymentDate) {
+  if (!scheduleId || amount <= 0 || !paymentDate) {
     throw new Error("The installment period, amount, and payment date are required.");
   }
 
@@ -101,7 +103,7 @@ export async function recordInstallmentPaymentAction(formData: FormData) {
   let receiptPath: string | null = null;
   const receipt = formData.get("receipt");
   if (receipt instanceof File && receipt.size > 0) {
-    if (receipt.size > 5 * 1024 * 1024) throw new Error("Receipt must be 5MB or smaller.");
+    if (receipt.size > MAX_UPLOAD_SIZE_BYTES) throw new Error("Receipt must be 5MB or smaller.");
     if (!receiptTypes.has(receipt.type)) throw new Error("Receipt must be a JPG, PNG, WebP, or PDF file.");
     const extension = receipt.name.split(".").pop()?.toLowerCase() || "bin";
     receiptPath = `${scheduleId}/${randomUUID()}-receipt.${extension}`;

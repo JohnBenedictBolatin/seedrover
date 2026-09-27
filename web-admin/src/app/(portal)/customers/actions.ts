@@ -5,6 +5,8 @@ import { requireAdminRole } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { customerKey } from "@/lib/customers";
 import { writeActivityLog } from "@/lib/activity-log";
+import { normalizeContactNumber } from "@/lib/contact-number.mjs";
+import { parseDatabaseDecimal } from "@/lib/field-validation.mjs";
 
 function text(formData: FormData, key: string, fallback = "") {
   return String(formData.get(key) ?? fallback).trim();
@@ -21,8 +23,7 @@ function databaseSetupMessage(error: { message?: string }) {
 }
 
 function parseNumber(value: FormDataEntryValue | null) {
-  const parsed = Number(String(value ?? "").trim());
-  return Number.isFinite(parsed) ? parsed : 0;
+  return parseDatabaseDecimal(value, "Discount value");
 }
 
 export async function createCustomerDiscountAction(formData: FormData) {
@@ -43,7 +44,10 @@ export async function createCustomerDiscountAction(formData: FormData) {
   }
 
   const customerName = text(formData, "customer_name");
-  const customerContact = text(formData, "customer_contact", "Not provided");
+  const customerContact = normalizeContactNumber(
+    text(formData, "customer_contact", "Not provided") || "Not provided",
+    { allowLegacy: true },
+  ) ?? "Not provided";
   const code = text(formData, "discount_code").toUpperCase();
   const discountType = text(formData, "discount_type", "Percent");
   const discountValue = parseNumber(formData.get("discount_value"));

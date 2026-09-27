@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentAdminProfile } from "@/lib/auth";
+import { getExistingSaleCustomers } from "@/lib/customers";
 import { getReleasedDiscounts, getSalesWorkspaceData, getSellableInventory } from "@/lib/sales";
 import { LiveDateTime } from "@/components/live-date-time";
 import { ModuleHeaderIntro } from "@/components/module-header-intro";
@@ -17,10 +18,11 @@ export default async function SalesPage() {
     redirect("/dashboard");
   }
 
-  const [{ items, error }, salesData, discountData] = await Promise.all([
+  const [{ items, error }, salesData, discountData, customerData] = await Promise.all([
     getSellableInventory(),
     getSalesWorkspaceData(),
     getReleasedDiscounts(),
+    getExistingSaleCustomers(),
   ]);
 
   return (
@@ -58,6 +60,7 @@ export default async function SalesPage() {
       ) : null}
 
       <SalesWorkspace
+        customers={customerData.customers}
         discounts={discountData.discounts}
         items={items}
         orders={salesData.orders}

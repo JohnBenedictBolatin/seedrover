@@ -66,7 +66,6 @@
   font-weight: 900;
 }
 
-.statusPanel,
 .panel {
   min-width: 0;
   border: 1px solid var(--border-soft);
@@ -75,29 +74,6 @@
   padding: 18px;
 }
 
-.statusPanel {
-  display: grid;
-  gap: 14px;
-}
-
-.statusGrid {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.statusSummary {
-  display: flex;
-  min-width: 0;
-  align-items: flex-start;
-  gap: 10px;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
-  padding: 12px;
-}
-
-.statusIcon,
 .panelHeader h2 span,
 .sensorIcon {
   display: inline-flex;
@@ -112,24 +88,10 @@
   background: rgba(83, 209, 30, 0.08);
 }
 
-.statusSummary > div {
-  display: grid;
-  min-width: 0;
-  gap: 5px;
-}
-
-.statusSummary > div > span,
 .sensorMetric small {
   color: var(--text-muted);
   font-size: 0.86rem;
   font-weight: 800;
-}
-
-.statusSummary strong {
-  overflow-wrap: anywhere;
-  color: var(--text);
-  font-size: 1rem;
-  line-height: 1.4;
 }
 
 .monitorGrid {
@@ -358,7 +320,7 @@
   border-collapse: collapse;
   table-layout: fixed;
   color: var(--text-secondary);
-  font-size: 0.9rem;
+  font-size: 1rem;
 }
 
 .sensorTable th,
@@ -374,7 +336,7 @@
 .sensorTable th {
   color: var(--text-muted);
   background: rgba(255, 255, 255, 0.035);
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   font-weight: 900;
 }
 
@@ -387,7 +349,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-.sensorTable td:not(:first-child):not(:last-child) {
+.sensorTable td:not(:first-child) {
   font-family: var(--font-roboto-mono);
   font-variant-numeric: tabular-nums;
 }
@@ -578,7 +540,6 @@
   font-size: 0.96rem;
 }
 
-:global(html[data-theme="light"]) .statusPanel,
 :global(html[data-theme="light"]) .panel {
   border-color: rgba(18, 60, 27, 0.18);
   color: #123c1b;
@@ -586,7 +547,6 @@
   box-shadow: 0 10px 24px rgba(18, 60, 27, 0.06);
 }
 
-:global(html[data-theme="light"]) .statusSummary,
 :global(html[data-theme="light"]) .sensorMetric,
 :global(html[data-theme="light"]) .commandItem,
 :global(html[data-theme="light"]) .emptyState {
@@ -594,7 +554,6 @@
   background: #f9fcf7;
 }
 
-:global(html[data-theme="light"]) .statusSummary strong,
 :global(html[data-theme="light"]) .sensorMetric strong,
 :global(html[data-theme="light"]) .panelHeader h2,
 :global(html[data-theme="light"]) .historyHeading h3,
@@ -602,7 +561,6 @@
   color: #123c1b;
 }
 
-:global(html[data-theme="light"]) .statusIcon,
 :global(html[data-theme="light"]) .panelHeader h2 span,
 :global(html[data-theme="light"]) .sensorIcon {
   border-color: rgba(18, 60, 27, 0.22);
@@ -703,10 +661,6 @@
 }
 
 @media (max-width: 1250px) {
-  .statusGrid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
   .monitorGrid {
     grid-template-columns: minmax(0, 1.7fr) minmax(260px, 0.9fr);
   }
@@ -735,13 +689,8 @@
     text-align: left;
   }
 
-  .statusPanel,
   .panel {
     padding: 14px;
-  }
-
-  .statusGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .commandList {
@@ -790,7 +739,7 @@
     border: 0;
     color: var(--text-secondary);
     font-family: inherit;
-    font-size: 0.88rem;
+    font-size: 0.96rem;
     padding: 2px;
   }
 
@@ -798,12 +747,11 @@
     content: attr(data-label);
     color: var(--text-muted);
     font-family: inherit;
-    font-size: 0.78rem;
+    font-size: 0.84rem;
     font-weight: 850;
   }
 
-  .sensorTable td:first-child,
-  .sensorTable td:last-child {
+  .sensorTable td:first-child {
     grid-column: 1 / -1;
   }
 
@@ -814,10 +762,6 @@
 }
 
 @media (max-width: 520px) {
-  .statusGrid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .sensorMetrics {
     grid-template-columns: minmax(0, 1fr);
   }

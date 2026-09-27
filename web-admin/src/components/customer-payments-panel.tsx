@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, FileText, Filter, Search, X } from "lucide-react";
 import { recordInstallmentPaymentAction } from "@/app/(portal)/customers/payments-actions";
 import type { AlertTone } from "@/components/action-alert-stack";
+import { NumericInput } from "@/components/constrained-inputs";
 import { useActionFeedback } from "@/components/action-feedback";
 import { useConfirmationDialog } from "@/components/confirmation-dialog";
 import { CalendarField } from "@/components/calendar-field";
@@ -401,12 +402,12 @@ function InstallmentPaymentModal({
         <div className={styles.installmentPaymentSummary}><span>{plan.customerName} · Due {formatDate(schedule.dueDate)}</span><strong>{formatCurrency(schedule.remainingAmount)} remaining</strong></div>
         <form className={styles.installmentPaymentForm} onSubmit={handleSubmit}>
           <input name="schedule_id" type="hidden" value={schedule.id} /><input name="sales_order_id" type="hidden" value={plan.salesOrderId} />
-          <label>Amount received (PHP)<input max={schedule.remainingAmount} min="0.01" name="amount" required step="0.01" type="number" /></label>
+          <label>Amount received (PHP)<NumericInput max={schedule.remainingAmount} min="0.01" name="amount" required step="0.01" /></label>
           <CalendarField defaultValue={today} label="Payment date" max={today} name="payment_date" required />
           <InstallmentPaymentSelect label="Payment method" name="payment_method" options={["Cash", "GCash", "Bank Transfer", "Card", "Other"]} required value={paymentMethod} onChange={(value) => { setPaymentMethod(value); if (value === "Cash") setTransactionReference(""); if (value !== "Other") setOtherPaymentMethod(""); }} />
           {paymentMethod !== "Cash" ? <label>Transaction ID<input name="transaction_reference" placeholder="e.g. TXN-2026-0012" required type="text" value={transactionReference} onChange={(event) => setTransactionReference(event.target.value)} /></label> : null}
           {paymentMethod === "Other" ? <label>Other payment method<input name="other_payment_method" placeholder="e.g. Maya, cheque, farm credit" required type="text" value={otherPaymentMethod} onChange={(event) => setOtherPaymentMethod(event.target.value)} /></label> : null}
-          <FileUploadField accept="image/jpeg,image/png,image/webp,application/pdf" helperText="JPG, PNG, WEBP or PDF · up to 5MB" kind="document" label="Receipt (optional)" name="receipt" prompt="Choose receipt file" />
+          <FileUploadField accept="image/jpeg,image/png,image/webp,application/pdf" helperText="JPG, PNG, WEBP or PDF · up to 5 MB" kind="document" label="Receipt (optional)" name="receipt" prompt="Choose receipt file" />
           <label>Notes (optional)<textarea name="notes" placeholder="Add a collection note if needed" rows={3} /></label>
           <div className={styles.modalActions}><button className={styles.secondaryButton} disabled={pending} type="button" onClick={onClose}>Cancel</button><button className={styles.paymentPrimaryButton} disabled={pending} type="submit"><span>{pending ? "Recording..." : "Record payment"}</span></button></div>
         </form>

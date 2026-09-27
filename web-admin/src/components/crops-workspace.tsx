@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition, type FormEvent, type InputHTMLAttributes, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { NumericInput } from "@/components/constrained-inputs";
 import Image from "next/image";
 import {
   Check,
   ClipboardCheck,
   Apple,
   CalendarDays,
+  Cloud,
   ChevronLeft,
   ChevronRight,
   Database,
@@ -18,11 +20,13 @@ import {
   History,
   BookOpenCheck,
   Leaf,
+  MapPin,
   Search,
   SlidersHorizontal,
   Sprout,
   Sun,
   Thermometer,
+  UserRound,
   X,
   CircleSlash2,
 } from "lucide-react";
@@ -57,7 +61,7 @@ function displayCropStatus(status: string) {
 
 type ModalState =
   | { type: "details"; crop: CropItem }
-  | { type: "activity"; crop: CropItem; task?: CropItem["tasks"][number]; activity?: "Not Harvested" }
+  | { type: "activity"; crop: CropItem; task?: CropItem["tasks"][number]; activity?: "Harvested" | "Not Harvested" }
   | { type: "edit"; crop: CropItem }
   | { type: "not-harvested"; crop: CropItem }
   | { type: "outcomes" }
@@ -120,7 +124,7 @@ export function CropsWorkspace({
           (managerFilter === "All managers" || crop.managerName === managerFilter) &&
           (normalizedQuery.length === 0 || haystack.includes(normalizedQuery)) &&
           (status === "All"
-            ? !["Completed", "Not Harvested"].includes(displayCropStatus(crop.cropStatus))
+            ? !["Completed", "Cancelled", "Not Harvested"].includes(crop.cropStatus)
             : displayCropStatus(crop.cropStatus) === status)
         );
       })
@@ -303,13 +307,12 @@ function CropCard({
         )}
       </div>
       <div className={styles.cardTitleRow}>
-        <div>
-          <span className={styles.itemCode}>{crop.batchCode}</span>
-          <h4>{crop.cropName}</h4>
+        <div className={styles.cropCardIdentity}>
+          <h4 className={styles.cropCardId}>{crop.batchCode}</h4>
+          <span className={styles.status} data-status={crop.cropStatus}>
+            {displayCropStatus(crop.cropStatus)}
+          </span>
         </div>
-        <span className={styles.status} data-status={crop.cropStatus}>
-          {displayCropStatus(crop.cropStatus)}
-        </span>
       </div>
       <dl className={styles.cardFacts}>
         <div>
@@ -325,11 +328,6 @@ function CropCard({
           <dd>{formatDate(crop.plantingDate)}</dd>
         </div>
       </dl>
-      <div className={styles.cropNextCare}>
-        <span>NEXT CARE</span>
-        <strong>{crop.nextCareTask ?? crop.careStatus}</strong>
-        {crop.nextCareDueAt ? <small>Due {formatDate(crop.nextCareDueAt)}</small> : null}
-      </div>
       <div className={styles.cardActions}>
         <button
           aria-label={`View details for ${crop.cropName}, ${crop.batchCode}`}
@@ -403,8 +401,8 @@ function CropDialog({
   }
 
   const modalMeta = {
-    details: { title: dialog.type === "details" ? dialog.crop.cropName : "Crop Details", icon: <Leaf size={18} /> },
-    activity: { title: dialog.type === "activity" && dialog.activity === "Not Harvested" ? sharedWorkflowTerms.closeWithoutHarvest : "Record care", icon: <ClipboardCheck size={18} /> },
+    details: { title: dialog.type === "details" ? dialog.crop.batchCode : "Crop Details", icon: <Leaf size={18} /> },
+    activity: { title: dialog.type === "activity" && dialog.activity === "Not Harvested" ? sharedWorkflowTerms.closeWithoutHarvest : dialog.type === "activity" && dialog.activity === "Harvested" ? "Harvest batch" : "Record care", icon: <ClipboardCheck size={18} /> },
     edit: { title: "Edit Crop", icon: <Edit3 size={18} /> },
     "not-harvested": { title: sharedWorkflowTerms.closeWithoutHarvest, icon: <CircleSlash2 size={18} /> },
     outcomes: { title: "Crop History", icon: <History size={18} /> },
@@ -421,14 +419,19 @@ function CropDialog({
         const first = focusable[0]; const last = focusable[focusable.length - 1];
         if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-      }} className={`${styles.modal} ${dialog.type === "details" ? styles.cropWorkspaceModal : ""} ${dialog.type === "outcomes" ? historyStyles.dialog : ""} ${dialog.type === "planting-guide" ? styles.plantingGuideModal : ""}`} role="dialog" aria-modal="true" aria-label={modalMeta.title}>
+      }} data-crop-tab={dialog.type === "details" ? cropTab : undefined} className={`${styles.modal} ${dialog.type === "details" ? styles.cropWorkspaceModal : ""} ${dialog.type === "outcomes" ? historyStyles.dialog : ""} ${dialog.type === "planting-guide" ? styles.plantingGuideModal : ""}`} role="dialog" aria-modal="true" aria-label={dialog.type === "details" ? `Crop details for ${dialog.crop.cropName}, ID ${dialog.crop.batchCode}` : modalMeta.title}>
         <header className={styles.modalHeader}>
           <h3 className={styles.modalTitle}>
             <span className={styles.modalTitleIcon} aria-hidden="true">
               {modalMeta.icon}
             </span>
-            <span className={styles.cropModalTitleText}>{modalMeta.title}{dialog.type === "details" ? <small className={styles.cropModalIdentity}>{dialog.crop.fieldLabel} · {dialog.crop.batchCode}</small> : null}</span>
-            {dialog.type === "details" ? <span className={styles.status} data-status={dialog.crop.cropStatus}>{displayCropStatus(dialog.crop.cropStatus)}</span> : null}
+            <span className={styles.cropModalTitleText}>
+              <span className={dialog.type === "details" ? styles.cropModalNameRow : undefined}>
+                {modalMeta.title}
+                {dialog.type === "details" ? <span className={styles.status} data-status={dialog.crop.cropStatus}>{displayCropStatus(dialog.crop.cropStatus)}</span> : null}
+              </span>
+              {dialog.type === "details" ? <small className={styles.cropModalIdentity}>{dialog.crop.cropName}</small> : null}
+            </span>
           </h3>
           <button aria-label="Close modal" className={styles.modalCloseButton} type="button" onClick={onClose}>
             <X size={18} />
@@ -450,7 +453,7 @@ function CropDialog({
         {dialog.type === "details" ? <div className={styles.modalBody}>
           {visitedCropTabs.has("overview") ? <div hidden={cropTab !== "overview"} id="crop-tabpanel" role="tabpanel" aria-labelledby="crop-tab-overview"><CropDetails crop={dialog.crop} /></div> : null}
           {visitedCropTabs.has("sensors") ? <div hidden={cropTab !== "sensors"} id="crop-tabpanel-sensors" role="tabpanel" aria-labelledby="crop-tab-sensors"><CropSensorHistoryPanel key={`${dialog.crop.id}-${cropDataVersion}`} crop={dialog.crop} /></div> : null}
-          {visitedCropTabs.has("growth") ? <div hidden={cropTab !== "growth"} id="crop-tabpanel-growth" role="tabpanel" aria-labelledby="crop-tab-growth"><CropGrowthJourneyPanel key={`${dialog.crop.id}-${cropDataVersion}`} crop={dialog.crop} /></div> : null}
+          {visitedCropTabs.has("growth") ? <div hidden={cropTab !== "growth"} id="crop-tabpanel-growth" role="tabpanel" aria-labelledby="crop-tab-growth"><CropGrowthJourneyPanel key={`${dialog.crop.id}-${cropDataVersion}`} crop={dialog.crop} onRecordHarvest={() => onOpen({ type: "activity", crop: dialog.crop, activity: "Harvested" })} /></div> : null}
           {visitedCropTabs.has("activity") ? <div hidden={cropTab !== "activity"} id="crop-tabpanel-activity" role="tabpanel" aria-labelledby="crop-tab-activity"><CropActivityHistoryPanel key={`${dialog.crop.id}-${cropDataVersion}`} crop={dialog.crop} /></div> : null}
         </div> : null}
         {dialog.type === "details" ? <div className={`${styles.cropWorkspaceFooter} ${styles.modalFooterActions}`}>
@@ -471,7 +474,7 @@ function CropDialog({
             onSuccess={() => {
               setCropDataVersion((version) => version + 1);
               onCropTabChange("overview");
-              onOpen({ type: "details", crop: dialog.crop });
+              onClose();
             }}
           />
         ) : null}
@@ -530,12 +533,19 @@ function CropDetails({ crop }: { crop: CropItem }) {
             <ReadOnly icon={<CalendarDays size={18} />} label="Planted" value={formatDate(crop.plantingDate)} />
             <ReadOnly icon={<Sprout size={18} />} label="Observed stage" value={crop.growthStage} />
             <ReadOnly
+              icon={<UserRound size={18} />}
+              label="Planted by"
+              value={crop.managerName || "Unassigned"}
+            />
+            <ReadOnly
+              icon={<MapPin size={18} />}
+              label="Planting location"
+              value={crop.fieldLabel || "Not recorded"}
+            />
+            <ReadOnly
               icon={<Droplets size={18} />}
-              label="Latest soil check"
-              value={crop.latestSoilPercent !== null ? `${crop.latestSoilPercent.toFixed(0)}%` : "Unavailable"}
-              detail={crop.latestSoilAt == null
-                ? "No fresh verified hardware reading"
-                : `${crop.latestSoilSource ?? "Source unavailable"} · ${formatDateTime(crop.latestSoilAt)} · Fresh · ${crop.latestSoilCalibrated === true ? `calibration ${crop.latestSoilCalibrationVersion ?? "version unavailable"}` : crop.latestSoilCalibrated === false ? "probe not calibrated" : "calibration status unavailable"}`}
+              label="Planting drops (rover cycles)"
+              value={formatPlantingDrops(crop.plantingCompletedDrops, crop.plantingTargetDrops)}
             />
           </div>
         </div>
@@ -572,14 +582,24 @@ function CropDetails({ crop }: { crop: CropItem }) {
   );
 }
 
-function CropGrowthJourneyPanel({ crop }: { crop: CropItem }) {
+function formatPlantingDrops(completed: number | null, target: number | null) {
+  if (completed == null && target == null) return "Not recorded";
+  if (completed == null) return `${target} planned cycles`;
+  if (target == null) return `${completed} completed cycles`;
+  return `${completed} of ${target} cycles`;
+}
+
+function CropGrowthJourneyPanel({ crop, onRecordHarvest }: { crop: CropItem; onRecordHarvest: () => void }) {
   const [activities, setActivities] = useState<CropActivityRecord[]>([]);
   const [expandedPhotoStages, setExpandedPhotoStages] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const currentStageIndex = crop.cropStatus === "Cancelled"
+  const harvestReadyIndex = stageIndex("Harvest Ready", crop.stages);
+  const currentStageIndex = ["Completed", "Cancelled", "Not Harvested"].includes(crop.cropStatus)
     ? -1
-    : stageIndex(crop.growthStage, crop.stages);
+    : crop.cropStatus === "Harvest Ready" && harvestReadyIndex >= 0
+      ? harvestReadyIndex
+      : stageIndex(crop.growthStage, crop.stages);
   const stages = crop.stages;
   const activityByStage = useMemo(() => {
     const byStage = new Map<string, CropActivityRecord>();
@@ -642,6 +662,7 @@ function CropGrowthJourneyPanel({ crop }: { crop: CropItem }) {
             const photosExpanded = expandedPhotoStages.has(normalizeStage(stage));
             const observed = Boolean(activity);
             const current = index === currentStageIndex;
+            const canRecordHarvest = current && normalizeStage(stage) === "harvest ready" && !["Completed", "Cancelled", "Not Harvested"].includes(crop.cropStatus);
 
             return (
               <div className={`${styles.growthTimelineItem} ${observed ? styles.growthTimelineItemCompleted : ""} ${current ? styles.growthTimelineItemCurrent : ""}`} key={stage}>
@@ -681,6 +702,15 @@ function CropGrowthJourneyPanel({ crop }: { crop: CropItem }) {
                         </a>
                       ))}
                     </div>
+                  ) : null}
+                  {canRecordHarvest ? (
+                    <>
+                      <button className={`${styles.secondaryAction} ${styles.growthHarvestAction}`} type="button" onClick={onRecordHarvest}>
+                        <Apple size={16} aria-hidden="true" />
+                        <span>Record harvest</span>
+                      </button>
+                      <small className={styles.growthHarvestHint}>The saved harvest is added to inventory and closes this batch.</small>
+                    </>
                   ) : null}
                 </div>
               </div>
@@ -840,7 +870,7 @@ function CropSensorHistoryPanel({ crop }: { crop: CropItem }) {
     };
   }, [crop.id]);
 
-  const latest = readings.find((reading) => reading.provenanceStatus === "verified_hardware" && reading.fresh);
+  const latest = readings.find((reading) => reading.provenanceStatus === "verified_hardware");
   const visibleReadings = readings.slice((page - 1) * pageSize, page * pageSize);
   const totalPages = Math.max(1, Math.ceil(readings.length / pageSize));
 
@@ -865,13 +895,13 @@ function CropSensorHistoryPanel({ crop }: { crop: CropItem }) {
               <div>
                 <h5>Latest sensor check</h5>
               </div>
-              <time>{latest.source} · {formatDateTime(latest.recordedAt)} · Fresh · {latest.soilMoistureCalibrated === true ? `Moisture calibration ${latest.calibrationVersion ?? "version unavailable"}` : latest.soilMoistureCalibrated === false ? "Moisture % unavailable: probe not calibrated" : "Moisture calibration status unavailable"}</time>
+              <time>{latest.source} · {formatDateTime(latest.recordedAt)} · {latest.fresh ? "Fresh" : "Stale"} · {latest.soilMoistureCalibrated === true ? `Moisture calibration ${latest.calibrationVersion ?? "version unavailable"}` : latest.soilMoistureCalibrated === false ? "Moisture % unavailable: probe not calibrated" : "Moisture calibration status unavailable"}</time>
             </div>
             <div className={styles.sensorSummaryGrid}>
-              <SensorValue icon={<Droplets size={19} />} label="Soil moisture" unit="%" value={latest.soilMoisture} />
-              <SensorValue icon={<Thermometer size={19} />} label="Soil temperature" unit="°C" value={latest.soilTemperature} />
-              <SensorValue icon={<Sun size={19} />} label="Air temperature" unit="°C" value={latest.environmentalTemperature} />
-              <SensorValue icon={<Droplets size={19} />} label="Humidity" unit="%" value={latest.humidity} />
+              <SensorValue tone="moisture" icon={<Droplets size={19} />} label="Soil moisture" unit="%" value={latest.soilMoisture} />
+              <SensorValue tone="soil" icon={<Thermometer size={19} />} label="Soil temperature" unit="°C" value={latest.soilTemperature} />
+              <SensorValue tone="air" icon={<Sun size={19} />} label="Air temperature" unit="°C" value={latest.environmentalTemperature} />
+              <SensorValue tone="humidity" icon={<Cloud size={19} />} label="Humidity" unit="%" value={latest.humidity} />
             </div>
           </section>
           <section className={styles.sensorHistorySection}>
@@ -882,7 +912,7 @@ function CropSensorHistoryPanel({ crop }: { crop: CropItem }) {
             </div>
             <div className={styles.sensorHistoryTable}>
               <div className={styles.sensorHistoryHeader} aria-hidden="true">
-                <span>Recorded</span><span>Soil</span><span>Soil temp</span><span>Air temp</span><span>Humidity</span><span>Source / trust</span>
+                <span>Recorded</span><span>Soil</span><span>Soil temp</span><span>Air temp</span><span>Humidity</span>
               </div>
               {visibleReadings.map((reading) => (
                 <div className={styles.sensorHistoryRow} key={reading.id}>
@@ -891,7 +921,6 @@ function CropSensorHistoryPanel({ crop }: { crop: CropItem }) {
                   <span data-label="Soil temp">{formatSensorValue(reading.soilTemperature, "°C")}</span>
                   <span data-label="Air temp">{formatSensorValue(reading.environmentalTemperature, "°C")}</span>
                   <span data-label="Humidity">{formatSensorValue(reading.humidity, "%")}</span>
-                  <span data-label="Source / trust">{reading.source} · {reading.provenanceStatus === "verified_hardware" ? "Verified hardware" : reading.provenanceStatus === "demo" ? "Demo" : reading.provenanceStatus === "simulated" ? "Simulated" : "Unverified"} · {reading.fresh ? "Fresh" : "Stale"}{reading.soilMoistureCalibrated === true ? ` · calibrated ${reading.calibrationVersion ?? "version unavailable"}` : reading.soilMoistureCalibrated === false ? " · moisture % unavailable, uncalibrated" : " · calibration status unavailable"}</span>
                 </div>
               ))}
             </div>
@@ -904,9 +933,9 @@ function CropSensorHistoryPanel({ crop }: { crop: CropItem }) {
   );
 }
 
-function SensorValue({ icon, label, unit, value }: { icon: ReactNode; label: string; unit: string; value: number | null }) {
+function SensorValue({ icon, label, tone, unit, value }: { icon: ReactNode; label: string; tone: "moisture" | "soil" | "air" | "humidity"; unit: string; value: number | null }) {
   return (
-    <div className={styles.sensorValueCard}>
+    <div className={styles.sensorValueCard} data-tone={tone}>
       <span>{icon}</span>
       <div>
         <small>{label}</small>
@@ -989,7 +1018,7 @@ function CropForm({
       </label>
       <FileUploadField
         accept="image/jpeg,image/png,image/webp"
-        helperText="JPG, PNG or WEBP"
+        helperText="JPG, PNG or WEBP · up to 5 MB"
         label="Crop image"
         name="image"
         prompt={crop?.imagePath ? "Choose replacement image" : "Choose crop image"}
@@ -1271,7 +1300,7 @@ function Field({
   return (
     <label>
       <span>{label}</span>
-      <input name={name} {...props} />
+      {props.type === "number" ? <NumericInput name={name} {...props} /> : <input name={name} {...props} />}
     </label>
   );
 }

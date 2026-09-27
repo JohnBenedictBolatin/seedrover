@@ -3,11 +3,12 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requireAdminRole } from "@/lib/auth";
+import { MAX_UPLOAD_SIZE_BYTES } from "@/lib/upload-limits";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { writeActivityLog } from "@/lib/activity-log";
+import { parseDatabaseDecimal } from "@/lib/field-validation.mjs";
 
 const STOCK_IMAGE_BUCKET = "stock-images";
-const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 function text(formData: FormData, key: string, fallback = "") {
@@ -28,19 +29,13 @@ function requiredNumber(formData: FormData, key: string, label: string) {
     throw new Error(`${label} is required.`);
   }
 
-  const value = Number(raw);
-  if (!Number.isFinite(value)) {
-    throw new Error(`${label} must be a valid number.`);
-  }
-  return value;
+  return parseDatabaseDecimal(raw, label);
 }
 
 function numberValue(formData: FormData, key: string, fallback = 0) {
   const raw = text(formData, key);
   if (!raw) return fallback;
-  const value = Number(raw);
-  if (!Number.isFinite(value)) throw new Error(`${key.replaceAll("_", " ")} must be a valid number.`);
-  return value;
+  return parseDatabaseDecimal(raw, key.replaceAll("_", " "));
 }
 
 function optionalNumber(formData: FormData, key: string) {
@@ -49,9 +44,7 @@ function optionalNumber(formData: FormData, key: string) {
     return null;
   }
 
-  const value = Number(raw);
-  if (!Number.isFinite(value)) throw new Error(`${key.replaceAll("_", " ")} must be a valid number.`);
-  return value;
+  return parseDatabaseDecimal(raw, key.replaceAll("_", " "));
 }
 
 function validateQuantity(value: number, unit: string, label: string, allowZero = true) {
@@ -84,7 +77,7 @@ async function uploadImage(inventoryId: string, file: FormDataEntryValue | null)
     return null;
   }
 
-  if (file.size > MAX_IMAGE_SIZE_BYTES) {
+  if (file.size > MAX_UPLOAD_SIZE_BYTES) {
     throw new Error("Stock image must be 5MB or smaller.");
   }
 

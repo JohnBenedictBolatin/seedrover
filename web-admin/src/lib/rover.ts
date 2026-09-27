@@ -160,7 +160,9 @@ export async function getRoverMonitor({ commandLimit = 8 }: { commandLimit?: num
       fresh: Number.isFinite(sensorAgeMs) && sensorAgeMs >= 0 && sensorAgeMs <= 60_000,
     };
   });
-  const sensor = history.find((reading) => reading.provenanceStatus === "verified_hardware" && reading.fresh) ?? null;
+  // Keep the most recent trusted values visible after they age out. The page
+  // labels them stale; filtering here made the latest cards disappear entirely.
+  const sensor = history.find((reading) => reading.provenanceStatus === "verified_hardware") ?? null;
   const heartbeatFresh = statusRow?.last_updated
     ? isFreshTimestamp(statusRow.last_updated, 9_000)
     : null;
