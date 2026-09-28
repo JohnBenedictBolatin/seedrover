@@ -7,6 +7,7 @@ import {
   type PasswordUpdateState,
 } from "./actions";
 import styles from "@/components/login-form.module.css";
+import { PendingActionLabel } from "@/components/pending-action-label";
 
 const initialState: PasswordUpdateState = { message: "" };
 
@@ -36,7 +37,7 @@ export function ResetPasswordForm() {
         <p className={styles.message} role="alert">{state.message}</p>
       ) : null}
       <button className={styles.submitButton} disabled={pending} type="submit">
-        {pending ? "Updating password…" : "Update password"}
+        <PendingActionLabel pending={pending} pendingText="Updating password…">Update password</PendingActionLabel>
       </button>
     </form>
   );

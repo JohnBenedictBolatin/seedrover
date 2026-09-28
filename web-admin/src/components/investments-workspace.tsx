@@ -11,6 +11,7 @@ import { NumericInput } from "@/components/constrained-inputs";
 import { useActionFeedback } from "@/components/action-feedback";
 import { useConfirmationDialog } from "@/components/confirmation-dialog";
 import { CalendarField } from "@/components/calendar-field";
+import { PendingActionLabel } from "@/components/pending-action-label";
 import { FileUploadField } from "@/components/file-upload-field";
 import styles from "@/app/(portal)/investments/page.module.css";
 import quickActionStyles from "@/app/(portal)/sales/page.module.css";
@@ -122,7 +123,7 @@ export function InvestmentsWorkspace() {
               <label>Receipt / reference number<input name="reference_number" placeholder="e.g. INV-2026-0042" /></label>
               <FileUploadField accept="image/jpeg,image/png,image/webp,application/pdf" helperText="JPG, PNG, WEBP or PDF · up to 5 MB" kind="document" label="Receipt image or PDF" name="receipt" prompt="Choose receipt file" />
               <label>Notes<textarea name="notes" placeholder="e.g. Supplies for the upcoming planting cycle" rows={3} /></label>
-              <div className={styles.modalActions}><button className={styles.modalCancel} disabled={pending} type="button" onClick={closeModal}>CANCEL</button><button className={styles.primaryAction} disabled={pending} type="submit"><span>{pending ? "SAVING..." : "SAVE COST"}</span></button></div>
+              <div className={styles.modalActions}><button className={styles.modalCancel} disabled={pending} type="button" onClick={closeModal}>CANCEL</button><button className={styles.primaryAction} disabled={pending} type="submit"><PendingActionLabel pending={pending} pendingText="Saving cost...">SAVE COST</PendingActionLabel></button></div>
             </form>
             {confirmationDialog}
           </section>

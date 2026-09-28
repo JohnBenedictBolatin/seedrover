@@ -357,7 +357,54 @@
 .installmentTermsGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
   gap: 12px;
+}
+
+.installmentTermsGrid > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.installmentTermsGrid input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.installmentInitialGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
+  gap: 12px;
+}
+
+.installmentInitialGrid > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.installmentInitialGrid input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.installmentInitialGrid p {
+  grid-column: 1 / -1;
+  margin: -4px 0 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.installmentAmountHint {
+  display: block;
+  margin-top: 5px;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  line-height: 1.4;
 }
 
 .installmentDueHint {
@@ -548,7 +595,6 @@
 .form textarea {
   min-height: 96px;
   padding-top: 12px;
-  resize: vertical;
 }
 
 .form input:focus,
@@ -1158,8 +1204,12 @@
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 760px) {
   .installmentTermsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .installmentInitialGrid {
     grid-template-columns: 1fr;
   }
 }

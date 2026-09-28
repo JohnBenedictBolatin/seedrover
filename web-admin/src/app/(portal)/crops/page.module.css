@@ -2999,7 +2999,6 @@
 
 .formGrid textarea {
   min-height: 92px;
-  resize: vertical;
   padding: 12px;
 }
 

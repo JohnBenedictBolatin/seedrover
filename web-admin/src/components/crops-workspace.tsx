@@ -38,6 +38,7 @@ import { sharedWorkflowTerms } from "@/lib/shared-workflow-terms";
 import type { AlertTone } from "@/components/action-alert-stack";
 import { useActionFeedback } from "@/components/action-feedback";
 import { CalendarField } from "@/components/calendar-field";
+import { PendingActionLabel } from "@/components/pending-action-label";
 import { FileUploadField } from "@/components/file-upload-field";
 import { ThemedSelect } from "@/components/themed-select";
 import {
@@ -57,6 +58,11 @@ const sortOptions = ["Newest", "Name", "Harvest Soon"];
 
 function displayCropStatus(status: string) {
   return status === "Cancelled" ? sharedWorkflowTerms.closedWithoutHarvest : status;
+}
+
+function localDateInputValue() {
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 type ModalState =
@@ -1069,7 +1075,7 @@ function CropForm({
           required
           defaultValue={crop.plantingDate}
         />
-        <CalendarField label="Estimated harvest" name="estimated_harvest" defaultValue={crop?.estimatedHarvest ?? ""} />
+        <CalendarField label="Estimated harvest" min={localDateInputValue()} name="estimated_harvest" defaultValue={crop?.estimatedHarvest ?? ""} />
       </div>
       <div className={styles.twoColumn}>
         <ThemedSelect label="Growth stage" name="growth_stage" options={crop?.stages ?? []} defaultValue={crop?.growthStage ?? "Seeded"} />
@@ -1090,7 +1096,7 @@ function CropForm({
         <button className={styles.secondaryAction} disabled={pending} type="button" onClick={onCancel}>CANCEL</button>
         <button className={styles.primaryAction} disabled={pending} type="submit">
           <Sprout size={17} />
-          <span>{pending ? "SAVING..." : "SAVE CHANGES"}</span>
+          <PendingActionLabel pending={pending} pendingText="Saving changes...">SAVE CHANGES</PendingActionLabel>
         </button>
       </div>
     </form>

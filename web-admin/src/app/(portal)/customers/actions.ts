@@ -74,11 +74,14 @@ export async function createCustomerDiscountAction(formData: FormData) {
   }
 
   if (validUntil) {
-    const expiry = new Date(`${validUntil}T23:59:59`);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
 
-    if (Number.isNaN(expiry.getTime()) || expiry < today) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(validUntil) || validUntil < today) {
       throw new Error("Discount validity date cannot be in the past.");
     }
   }

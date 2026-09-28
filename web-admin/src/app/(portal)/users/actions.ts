@@ -91,31 +91,44 @@ export async function createUserAction(
     };
   }
 
-  const [
-    { data: role },
-    { data: existingUsername },
-    { data: existingEmail },
-  ] = await Promise.all([
+  const [roleResult, usernameResult, emailResult] = await Promise.all([
     supabase.from("roles").select("id, role_name").eq("id", roleId).single(),
     supabase
       .from("profiles")
       .select("id")
       .eq("username", username)
+      .limit(1)
       .maybeSingle(),
     supabase
       .from("profiles")
       .select("id")
       .eq("email", email)
+      .limit(1)
       .maybeSingle(),
   ]);
+
+  const role = roleResult.data;
+  const existingUsername = usernameResult.data;
+  const existingEmail = emailResult.data;
 
   if (!role) {
     return { message: "Selected role was not found.", success: false };
   }
 
-  if (existingUsername || existingEmail) {
+  if (usernameResult.error || emailResult.error) {
     return {
-      message: "A user with that username or email already exists.",
+      message: "Unable to check for duplicate account details. Please retry once.",
+      success: false,
+    };
+  }
+
+  const duplicateDetails = [
+    existingUsername ? "username" : "",
+    existingEmail ? "email address" : "",
+  ].filter(Boolean);
+  if (duplicateDetails.length > 0) {
+    return {
+      message: `That ${duplicateDetails.join(" and ")} already exists. Use different account details.`,
       success: false,
     };
   }
@@ -134,7 +147,9 @@ export async function createUserAction(
 
   if (createError || !createdAuthUser.user) {
     return {
-      message: createError?.message ?? "Unable to create the auth user.",
+      message: createError?.message.toLowerCase().includes("already") || createError?.message.toLowerCase().includes("registered")
+        ? "That email address already belongs to an account. Use a different email address."
+        : createError?.message ?? "Unable to create the auth user.",
       success: false,
     };
   }
@@ -159,7 +174,9 @@ export async function createUserAction(
     await adminSupabase.auth.admin.deleteUser(userId);
 
     return {
-      message: profileError.message,
+      message: profileError.code === "23505"
+        ? "That username or email address already belongs to an account. Use different account details."
+        : profileError.message,
       success: false,
     };
   }

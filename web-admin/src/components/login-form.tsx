@@ -10,6 +10,7 @@ import {
 import styles from "./login-form.module.css";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { useConfirmationDialog } from "@/components/confirmation-dialog";
+import { PendingActionLabel } from "@/components/pending-action-label";
 
 const initialState: LoginState = {
   message: "",
@@ -18,9 +19,11 @@ const initialState: LoginState = {
 export function LoginForm({
   hasRecoveryQueryError,
   initialResetMessage,
+  initialSessionMessage,
 }: {
   hasRecoveryQueryError: boolean;
   initialResetMessage: string;
+  initialSessionMessage: string;
 }) {
   const [state, formAction, pending] = useActionState(signInAction, initialState);
   const [showPassword, setShowPassword] = useState(false);
@@ -158,6 +161,11 @@ export function LoginForm({
           {resetMessage}
         </p>
       ) : null}
+      {initialSessionMessage ? (
+        <p className={styles.message} role="status">
+          {initialSessionMessage}
+        </p>
+      ) : null}
       {state.message ? (
         <p className={styles.message} role="status">
           {state.message}
@@ -166,7 +174,7 @@ export function LoginForm({
       {confirmationDialog}
       <button className={styles.submitButton} type="submit" disabled={pending}>
         <LogIn aria-hidden="true" size={18} />
-        <span>{pending ? "Signing in..." : "Log in"}</span>
+        <PendingActionLabel pending={pending} pendingText="Signing in...">Log in</PendingActionLabel>
       </button>
     </form>
   );

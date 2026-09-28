@@ -27,6 +27,7 @@ import {
 import type { AlertTone } from "@/components/action-alert-stack";
 import { useActionFeedback } from "@/components/action-feedback";
 import { useConfirmationDialog } from "@/components/confirmation-dialog";
+import { PendingActionLabel } from "@/components/pending-action-label";
 import { ReportPrintButton } from "@/components/report-print-button";
 import { ExportDownloadButton } from "@/components/export-download-button";
 import { formatCurrency, formatDateTime, formatQuantity } from "@/lib/format";
@@ -597,8 +598,8 @@ function CreateDiscountModal({
 }) {
   const customerOptions = [GENERAL_DISCOUNT_CUSTOMER, ...customers.map((customer) => customer.name)];
   const [customerName, setCustomerName] = useState(GENERAL_DISCOUNT_CUSTOMER);
-  const [discountType, setDiscountType] = useState("Percent");
-  const [discountValue, setDiscountValue] = useState("0");
+  const [discountType, setDiscountType] = useState("Choose discount type");
+  const [discountValue, setDiscountValue] = useState("");
   const [validUntil, setValidUntil] = useState("");
   const [notes, setNotes] = useState("");
   const [coupon, setCoupon] = useState<{
@@ -713,26 +714,33 @@ function CreateDiscountModal({
             <FormSelect
               label="Discount type"
               name="discount_type"
-              options={["Percent", "Amount"]}
+              options={["Choose discount type", "Percent", "Amount"]}
               value={discountType}
-              onChange={setDiscountType}
+              onChange={(value) => {
+                setDiscountType(value);
+                setDiscountValue("");
+              }}
             />
 
-            <label>
-              Value (PHP or %)
-              <NumericInput
-                min="0.01"
-                name="discount_value"
-                required
-                step="0.01"
-                value={discountValue}
-                onChange={(event) => setDiscountValue(event.target.value)}
-              />
-            </label>
+            {discountType === "Percent" || discountType === "Amount" ? (
+              <label>
+                {discountType === "Percent" ? "Discount percent (%)" : "Discount amount (PHP)"}
+                <NumericInput
+                  max={discountType === "Percent" ? "100" : undefined}
+                  min="0.01"
+                  name="discount_value"
+                  required
+                  step="0.01"
+                  value={discountValue}
+                  onChange={(event) => setDiscountValue(event.target.value)}
+                />
+              </label>
+            ) : null}
 
             <CalendarField
               label="Valid until (optional)"
               name="valid_until"
+              min={todayInputValue()}
               value={validUntil}
               onChange={setValidUntil}
             />
@@ -752,7 +760,7 @@ function CreateDiscountModal({
               <button className={styles.secondaryButton} type="button" onClick={onClose}>
                 <span>Close</span>
               </button>
-              <button className={styles.primaryButton} type="submit">
+              <button className={styles.primaryButton} disabled={!canCreateDiscount} type="submit">
                 <span>Create Discount</span>
               </button>
             </div>
@@ -783,7 +791,9 @@ function CreateDiscountModal({
               type="button"
               onClick={handleReleaseDiscount}
             >
-              <span>{releasedCode === coupon.code ? "Released" : pending ? "Releasing..." : "Release discount"}</span>
+              <PendingActionLabel pending={pending} pendingText="Releasing discount...">
+                {releasedCode === coupon.code ? "Released" : "Release discount"}
+              </PendingActionLabel>
             </button>
           </div>
         </section>

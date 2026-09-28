@@ -44,6 +44,8 @@ export type RecentSalesOrder = {
   entryLabel?: string;
   paymentAmount?: number;
   relatedSaleId?: string;
+  amountPaid?: number;
+  installmentStatus?: "Active" | "Completed" | "Cancelled";
 };
 
 export type SalesSummary = {
@@ -161,6 +163,11 @@ type RecentSalesOrderRow = {
     line_total: number | string;
     inventory?: { category: string | null } | { category: string | null }[] | null;
   }>;
+};
+
+type InstallmentPlanStatusRow = {
+  sales_order_id: string;
+  status: "Active" | "Completed" | "Cancelled";
 };
 
 type SalesReceiptItemRow = {
@@ -600,6 +607,16 @@ export async function getSalesWorkspaceData() {
 
   const orderRows = ordersResult.data ?? [];
   const marketRows = marketResult.data ?? [];
+  const installmentStatusesResult = orderRows.length
+    ? await supabase
+        .from("installment_plans")
+        .select("sales_order_id, status")
+        .in("sales_order_id", orderRows.map((order) => order.id))
+        .returns<InstallmentPlanStatusRow[]>()
+    : { data: [] as InstallmentPlanStatusRow[], error: null };
+  const installmentStatusBySale = new Map(
+    (installmentStatusesResult.data ?? []).map((plan) => [plan.sales_order_id, plan.status]),
+  );
   const collectionsResult = await getInstallmentCollectionEvents();
   const collectionEvents = collectionsResult.events;
   const today = startOfToday();
@@ -650,7 +667,12 @@ export async function getSalesWorkspaceData() {
       })),
       discountAmount: discount,
       totalAmount: total,
+      amountPaid: toNumber(order.amount_paid),
       status: order.status,
+      installmentStatus:
+        order.payment_method === "Installment"
+          ? installmentStatusBySale.get(order.id) ?? "Active"
+          : undefined,
       source: "receipt",
     });
 

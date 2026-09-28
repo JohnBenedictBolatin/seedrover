@@ -101,6 +101,9 @@ export async function recordSalesOrderAction(
   if (items.length === 0) {
     return { message: "Add at least one item with a valid quantity." };
   }
+  if (new Set(items.map((item) => item.inventory_id)).size !== items.length) {
+    return { message: "Choose each inventory item only once in a sale." };
+  }
 
   const discountCode = text(formData, "discount_code").toUpperCase();
   const customerMode = text(formData, "customer_mode", "new");
@@ -154,6 +157,7 @@ export async function recordSalesOrderAction(
   const paymentMethod = text(formData, "payment_method", "Cash");
   const transactionReference = text(formData, "transaction_reference");
   const otherPaymentMethod = text(formData, "other_payment_method");
+  const initialPaymentReference = text(formData, "initial_payment_transaction_reference");
 
   if (!customerName) {
     return { message: "Customer name is required." };
@@ -161,6 +165,27 @@ export async function recordSalesOrderAction(
 
   if (!paymentMethods.has(paymentMethod)) {
     return { message: "Select a valid payment method." };
+  }
+
+  if (paymentMethod === "Installment") {
+    const { data: activePlans, error: activePlansError } = await supabase
+      .from("installment_plans")
+      .select("customer_contact")
+      .eq("status", "Active");
+    if (activePlansError) {
+      return { message: activePlansError.message || "Unable to verify the customer's active installment plans." };
+    }
+    const hasPendingPlan = (activePlans ?? []).some((plan) => {
+      if (!plan.customer_contact) return false;
+      try {
+        return normalizeContactNumber(plan.customer_contact, { required: true }) === customerContact;
+      } catch {
+        return false;
+      }
+    });
+    if (hasPendingPlan) {
+      return { message: "This customer still has an active installment. Complete or cancel it before creating another installment sale." };
+    }
   }
 
   for (const item of items) {
@@ -192,8 +217,27 @@ export async function recordSalesOrderAction(
     item.unit_price = Number(inventory.selling_price ?? 0);
   }
 
+  let expectedSaleTotal = items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
+
   if (discountCode && !/^[A-Z0-9_-]{3,32}$/.test(discountCode)) {
     return { message: "Discount code format is invalid." };
+  }
+
+  if (discountCode) {
+    const { data: discount, error: discountError } = await supabase
+      .from("customer_discounts")
+      .select("discount_type, discount_value")
+      .eq("discount_code", discountCode)
+      .eq("status", "Released")
+      .maybeSingle();
+    if (discountError) return { message: discountError.message };
+    if (discount) {
+      const value = Number(discount.discount_value);
+      const amount = discount.discount_type === "Amount"
+        ? Math.min(value, expectedSaleTotal)
+        : expectedSaleTotal * Math.min(value, 100) / 100;
+      expectedSaleTotal = Math.max(expectedSaleTotal - amount, 0);
+    }
   }
 
   if (paymentMethod === "Other" && !otherPaymentMethod) {
@@ -201,21 +245,17 @@ export async function recordSalesOrderAction(
   }
 
   if (paymentMethod !== "Cash" && !transactionReference) {
-    if (paymentMethod === "Installment") {
-      // Installment plans do not require a payment transaction reference.
-    } else {
-    return { message: "Transaction ID is required for non-cash sales." };
-    }
+    if (paymentMethod !== "Installment") return { message: "Transaction ID is required for non-cash sales." };
   }
 
   const installmentFrequency = text(formData, "installment_frequency");
-  const installmentAmountRaw = text(formData, "installment_amount");
+  const installmentCountRaw = text(formData, "installment_count");
   const amountPaidRaw = text(formData, "amount_paid");
-  let installmentAmount = 0;
+  let installmentCount = 0;
   let initialPayment: number | null;
   try {
-    installmentAmount = installmentAmountRaw
-      ? parseNumber(formData.get("installment_amount"), "Installment amount")
+    installmentCount = installmentCountRaw
+      ? parseNumber(formData.get("installment_count"), "Number of payments")
       : 0;
     initialPayment = amountPaidRaw
       ? parseNumber(formData.get("amount_paid"), "Amount paid")
@@ -229,12 +269,24 @@ export async function recordSalesOrderAction(
     return { message: "Amount paid cannot be negative." };
   }
 
+  if (paymentMethod === "Installment" && initialPayment !== null && initialPayment >= expectedSaleTotal) {
+    return { message: "Initial payment must be less than the sale total so a balance remains." };
+  }
+
+  if (paymentMethod !== "Cash" && initialPayment !== null && initialPayment > expectedSaleTotal) {
+    return { message: "Non-cash payment cannot exceed the sale total." };
+  }
+
+  if (paymentMethod === "Installment" && initialPayment === null) {
+    return { message: "Enter the initial payment amount, or enter 0 if none is collected." };
+  }
+
   if (paymentMethod === "Installment" && !installmentFrequencies.has(installmentFrequency)) {
     return { message: "Select a valid installment payment frequency." };
   }
 
-  if (paymentMethod === "Installment" && (!installmentAmountRaw || installmentAmount <= 0)) {
-    return { message: "Enter an installment amount greater than zero." };
+  if (paymentMethod === "Installment" && (!Number.isInteger(installmentCount) || installmentCount < 1 || installmentCount > 120)) {
+    return { message: "Enter a number of payments between 1 and 120." };
   }
 
   if (
@@ -242,6 +294,10 @@ export async function recordSalesOrderAction(
     !new Set(["Cash", "GCash", "Bank Transfer", "Card", "Other"]).has(initialPaymentMethod)
   ) {
     return { message: "Select a valid initial payment method." };
+  }
+
+  if (paymentMethod === "Installment" && (initialPayment ?? 0) > 0 && initialPaymentMethod !== "Cash" && !initialPaymentReference) {
+    return { message: "Enter the transaction ID for the non-cash initial payment." };
   }
 
   const payload = {
@@ -321,13 +377,14 @@ export async function recordSalesOrderAction(
 
   if (paymentMethod === "Installment") {
     const { error: installmentPlanError } = await supabase.rpc(
-      "create_installment_plan",
+      "create_installment_plan_with_details",
       {
         p_sales_order_id: data.id,
         p_frequency: installmentFrequency,
-        p_payment_amount: installmentAmount,
+        p_installment_count: installmentCount,
         p_initial_payment: initialPayment ?? 0,
         p_initial_payment_method: initialPaymentMethod,
+        p_initial_payment_transaction_reference: initialPaymentReference || null,
       },
     );
 

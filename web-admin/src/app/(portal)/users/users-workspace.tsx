@@ -27,6 +27,7 @@ import {
 import { createUserAction, updateUserAction } from "@/app/(portal)/users/actions";
 import { useConfirmationDialog } from "@/components/confirmation-dialog";
 import { useActionFeedback } from "@/components/action-feedback";
+import { PendingActionLabel } from "@/components/pending-action-label";
 import type { AdminUser, UserRole, UsersSummary } from "@/lib/users";
 import styles from "./page.module.css";
 
@@ -66,6 +67,7 @@ export function UsersWorkspace({ users, roles, summary }: Props) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const { notify: sendFeedback } = useActionFeedback();
   const router = useRouter();
+  const closeCreateModal = useCallback(() => setShowCreateModal(false), []);
 
   const filteredUsers = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -328,7 +330,7 @@ export function UsersWorkspace({ users, roles, summary }: Props) {
       {showCreateModal ? (
         <CreateUserModal
           roles={roles}
-          onClose={() => setShowCreateModal(false)}
+          onClose={closeCreateModal}
           onNotify={notify}
         />
       ) : null}
@@ -515,7 +517,7 @@ function UserModal({
           </label>
           <div className={styles.formActions}>
             <button className={styles.primaryActionButton} disabled={pending} type="submit">
-              <span>{pending ? "Saving..." : "Save Profile"}</span>
+              <PendingActionLabel pending={pending} pendingText="Saving profile...">Save Profile</PendingActionLabel>
             </button>
           </div>
         </form>
@@ -539,6 +541,7 @@ function CreateUserModal({
     success: false,
   });
   const confirmedRef = useRef(false);
+  const handledStateRef = useRef<typeof state | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const router = useRouter();
@@ -548,9 +551,11 @@ function CreateUserModal({
   }))];
 
   useEffect(() => {
-    if (!state.message) {
+    if (!state.message || handledStateRef.current === state) {
       return;
     }
+
+    handledStateRef.current = state;
 
     onNotify(state.message, state.success ? "success" : "error");
 
@@ -598,6 +603,7 @@ function CreateUserModal({
             className={styles.closeButton}
             type="button"
             aria-label="Close create user modal"
+            disabled={pending}
             onClick={onClose}
           >
             <X size={20} />
@@ -698,7 +704,7 @@ function CreateUserModal({
 
           <div className={styles.formActions}>
             <button className={styles.primaryActionButton} disabled={pending} type="submit">
-              <span>{pending ? "Creating..." : "Create Account"}</span>
+              <PendingActionLabel pending={pending} pendingText="Creating account...">Create Account</PendingActionLabel>
             </button>
           </div>
         </form>

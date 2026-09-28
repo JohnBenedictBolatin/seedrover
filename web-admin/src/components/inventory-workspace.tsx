@@ -40,6 +40,7 @@ import type { AlertTone } from "@/components/action-alert-stack";
 import { NumericInput } from "@/components/constrained-inputs";
 import { useConfirmationDialog } from "@/components/confirmation-dialog";
 import { useActionFeedback } from "@/components/action-feedback";
+import { PendingActionLabel } from "@/components/pending-action-label";
 import { FileUploadField } from "@/components/file-upload-field";
 import { formatCurrency, formatDateTime, formatQuantity } from "@/lib/format";
 import { sharedWorkflowChoices, sharedWorkflowTerms } from "@/lib/shared-workflow-terms";
@@ -990,7 +991,7 @@ function InventoryForm({
       />
       <button className={styles.primaryAction} disabled={pending} type="submit">
         <PackagePlus size={17} />
-        <span>{pending ? "Saving..." : "Save Item"}</span>
+        <PendingActionLabel pending={pending} pendingText="Saving item...">Save Item</PendingActionLabel>
       </button>
       {item ? (
         <button
@@ -1000,7 +1001,7 @@ function InventoryForm({
           onClick={handleDelete}
         >
           <Trash2 size={17} />
-          <span>{deletePending ? "Deleting..." : "Delete Item"}</span>
+          <PendingActionLabel pending={deletePending} pendingText="Deleting item...">Delete Item</PendingActionLabel>
         </button>
       ) : null}
     </form>
@@ -1107,7 +1108,9 @@ function MovementForm({
           ) : (
             <ArrowDownCircle size={17} />
           )}
-          <span>{pending ? "Saving..." : mode === "in" ? sharedWorkflowTerms.receiveStock : sharedWorkflowTerms.issueStock}</span>
+          <PendingActionLabel pending={pending} pendingText="Saving stock movement...">
+            {mode === "in" ? sharedWorkflowTerms.receiveStock : sharedWorkflowTerms.issueStock}
+          </PendingActionLabel>
         </button>
       </form>
       {confirmationDialog}
@@ -1141,7 +1144,7 @@ function DeleteForm({
       <p className={styles.warningText}>Delete {item.itemName}? This cannot be undone.</p>
       <button className={styles.dangerAction} disabled={pending} type="submit">
         <Trash2 size={17} />
-        <span>{pending ? "Deleting..." : "Delete item"}</span>
+        <PendingActionLabel pending={pending} pendingText="Deleting item...">Delete item</PendingActionLabel>
       </button>
     </form>
     {confirmationDialog}

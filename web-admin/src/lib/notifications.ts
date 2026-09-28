@@ -148,8 +148,7 @@ export async function getNotificationsDashboard(profile?: AdminProfile) {
     .sort(
       (left, right) =>
         new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
-    )
-    .slice(0, 80);
+    );
 
   const summary: NotificationsSummary = {
     total: combinedNotifications.length,

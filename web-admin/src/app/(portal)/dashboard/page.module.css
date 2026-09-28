@@ -71,6 +71,84 @@
   font-weight: 900;
 }
 
+.plantingMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.plantingMetricLabel {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.plantingMetricLabel svg { color: var(--green-accent); }
+
+.plantingDashboardGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.plantingPanel {
+  display: grid;
+  align-content: start;
+  gap: 20px;
+  min-width: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface-overlay);
+  padding: 20px;
+}
+
+.plantingPanelHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.plantingPanelHeader h2,
+.plantingPanelHeader p { margin: 0; }
+.plantingPanelHeader h2 { font-size: 1.12rem; }
+.plantingPanelHeader p { margin-top: 5px; color: var(--text-muted); font-size: 0.82rem; }
+.plantingPanelHeader a { flex: 0 0 auto; color: var(--green-accent); font-size: 0.8rem; font-weight: 850; text-decoration: none; }
+
+.stageChart,
+.careCropList {
+  display: grid;
+  gap: 15px;
+  margin: 0;
+  padding: 0;
+}
+
+.stageBarRow {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.7fr) minmax(0, 1.5fr) 24px;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+}
+
+.stageBarRow > div { height: 10px; overflow: hidden; border-radius: 999px; background: rgba(var(--dashboard-green-rgb), 0.1); }
+.stageBarRow i { display: block; height: 100%; min-width: 5px; border-radius: inherit; background: linear-gradient(90deg, var(--green-secondary), var(--green-accent)); }
+.stageBarRow b { color: var(--text); text-align: right; }
+.careCropList { list-style: none; gap: 0; }
+.careCropList li { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--border-soft); padding: 12px 0; }
+.careCropList li:first-child { border-top: 0; padding-top: 0; }
+.careCropList li div { display: grid; gap: 4px; min-width: 0; }
+.careCropList strong { color: var(--text); font-size: 0.9rem; }
+.careCropList span,
+.careCropList small,
+.plantingEmpty { color: var(--text-muted); font-size: 0.8rem; }
+.careCropList small { max-width: 45%; text-align: right; }
+.plantingEmpty { margin: 0; }
+
 .notice,
 .rangePanel,
 .metric,
@@ -805,6 +883,13 @@
 }
 
 @media (max-width: 760px) {
+  .plantingMetrics,
+  .plantingDashboardGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .plantingPanel { padding: 16px; }
+
   .header,
   .rangePanel,
   .sectionHeader {

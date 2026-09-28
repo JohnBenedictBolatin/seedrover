@@ -14,6 +14,7 @@ export default async function LoginPage({
   const authErrorCode = typeof params.error_code === "string" ? params.error_code : null;
   const passwordUpdated = params.passwordUpdated === "1";
   const mobileRecoveryRequest = params.reset === "1";
+  const sessionEnded = params.session === "ended";
   const hasRecoveryQueryError = recoveryError === "invalid" || Boolean(authError);
   const initialResetMessage = passwordUpdated
     ? "Password changed successfully. You can now sign in with your new password."
@@ -67,7 +68,13 @@ export default async function LoginPage({
               </div>
             </div>
 
-            <LoginForm hasRecoveryQueryError={hasRecoveryQueryError} initialResetMessage={initialResetMessage} />
+            <LoginForm
+              hasRecoveryQueryError={hasRecoveryQueryError}
+              initialResetMessage={initialResetMessage}
+              initialSessionMessage={sessionEnded
+                ? "Your session ended. Your account may have been signed in on another device. Sign in again to continue."
+                : ""}
+            />
             </div>
           </div>
         </div>

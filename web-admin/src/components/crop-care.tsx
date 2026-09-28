@@ -8,6 +8,7 @@ import { CalendarField } from "@/components/calendar-field";
 import { FileUploadField } from "@/components/file-upload-field";
 import { ThemedSelect } from "@/components/themed-select";
 import { useConfirmationDialog } from "@/components/confirmation-dialog";
+import { PendingActionLabel } from "@/components/pending-action-label";
 import { sharedWorkflowTerms } from "@/lib/shared-workflow-terms";
 import type { CropItem, CropTask } from "@/lib/crops";
 import { cropMaintenanceAction, getHarvestDestinationAction } from "@/app/(portal)/crops/actions";
@@ -107,6 +108,12 @@ export function CropCareForm({ crop, task, initialActivity, onCancel, onSuccess,
   const payload = useRef<FormData | null>(null);
   const submission = useRef("");
   const router = useRouter();
+  const currentStageIndex = crop.stages.findIndex((stage) =>
+    stage.trim().toLowerCase() === crop.growthStage.trim().toLowerCase(),
+  );
+  const observedStageOptions = currentStageIndex >= 0
+    ? crop.stages.slice(currentStageIndex)
+    : [];
   useEffect(() => { submission.current = crypto.randomUUID(); }, []);
   useEffect(() => {
     queueMicrotask(() => setUnit(localStorage.getItem(`crop-unit:${activity}`) ?? (activity === "Watered" ? "liters" : "grams")));
@@ -143,6 +150,10 @@ export function CropCareForm({ crop, task, initialActivity, onCancel, onSuccess,
     }
     if (activity === "Stage Observed" && !observedStage) {
       setError("Select the growth stage you observed before saving.");
+      return;
+    }
+    if (activity === "Stage Observed" && !observedStageOptions.includes(observedStage)) {
+      setError("Choose the current stage or a later stage for this crop.");
       return;
     }
     if (activity === "Inspected" && !observation) {
@@ -192,14 +203,17 @@ export function CropCareForm({ crop, task, initialActivity, onCancel, onSuccess,
     {activity === "Harvested" ? <div className={`${cropStyles.notesPanel} ${cropStyles.activityFormWide}`}><span>Inventory destination</span><p>{destination?.name ?? "Checking inventory..."}</p></div> : null}
     {activity === "Fertilized" ? <label className={cropStyles.activityFormWide}><span>Fertilizer used</span><input name="material" required disabled={busy} /></label> : null}
     {activity === "Inspected" ? <ThemedSelect label="Observation" name="material" options={["Looks normal", "Issue noticed"]} placeholder="Choose an observation" required value={observation} onChange={(value) => { setObservation(value); setError(""); }} /> : null}
-    {activity === "Stage Observed" ? <ThemedSelect label="Observed growth stage" name="observed_stage" options={crop.stages} required value={observedStage} onChange={(value) => { setObservedStage(value); setError(""); }} /> : null}
+    {activity === "Stage Observed" ? observedStageOptions.length
+      ? <ThemedSelect label="Observed growth stage" name="observed_stage" options={observedStageOptions} required value={observedStage} onChange={(value) => { setObservedStage(value); setError(""); }} />
+      : <p className={cropStyles.carePanelEmpty}>There are no later growth stages configured for this crop.</p>
+      : null}
     {activity === "Transplanted" ? <label className={cropStyles.activityFormWide}><span>Transplanted to</span><input name="material" required disabled={busy} /></label> : null}
     <label><span>{activity === "Not Harvested" ? "Reason for closure" : "Notes (optional)"}</span><textarea name="notes" required={activity === "Not Harvested"} disabled={busy} /></label>
     {activity === "Stage Observed" ? <FileUploadField accept="image/jpeg,image/png,image/webp" disabled={busy} helperText="JPG, PNG or WEBP - up to 5 MB each" label="Growth photos (optional)" multiple name="photos" prompt="Choose growth photos" /> : null}
     {error && <div role="alert" className={cropStyles.sensorErrorState}>{error}</div>}
     <div className={cropStyles.modalFooterActions}>
       <button className={cropStyles.secondaryAction} type="button" disabled={busy} onClick={onCancel}>CANCEL</button>
-      <button className={cropStyles.primaryAction} type="submit" disabled={busy || (activity === "Harvested" && !destination)}><span>{busy ? "SAVING..." : activity === "Harvested" ? "REVIEW HARVEST" : activity === "Not Harvested" ? "REVIEW CLOSURE" : `SAVE ${actions[activity].toUpperCase()}`}</span></button>
+      <button className={cropStyles.primaryAction} type="submit" disabled={busy || (activity === "Harvested" && !destination) || (activity === "Stage Observed" && !observedStageOptions.length)}><PendingActionLabel pending={busy} pendingText="Saving crop activity...">{activity === "Harvested" ? "REVIEW HARVEST" : activity === "Not Harvested" ? "REVIEW CLOSURE" : `SAVE ${actions[activity].toUpperCase()}`}</PendingActionLabel></button>
     </div>
     {confirmationDialog}
   </form>;

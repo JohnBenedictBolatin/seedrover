@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { deleteNotificationAction, markNotificationReadAction } from "@/app/(portal)/notifications/actions";
 import { useActionFeedback } from "@/components/action-feedback";
 import { useConfirmationDialog } from "@/components/confirmation-dialog";
+import { PendingActionLabel } from "@/components/pending-action-label";
 
 export function NotificationReadButton({ id, isRead, children }: { id: string; isRead: boolean; children: ReactNode }) {
   const [pending, setPending] = useState(false);
@@ -25,7 +26,7 @@ export function NotificationReadButton({ id, isRead, children }: { id: string; i
     } catch (error) {
       notify({ tone: "error", text: error instanceof Error ? error.message : "Unable to update the notification." });
     } finally { setPending(false); }
-  }}>{children}</button>;
+  }}><PendingActionLabel pending={pending} pendingText="Updating...">{children}</PendingActionLabel></button>;
 }
 
 export function NotificationDeleteButton({ id, className, children }: { id: string; className?: string; children: ReactNode }) {
@@ -48,7 +49,7 @@ export function NotificationDeleteButton({ id, className, children }: { id: stri
       } catch (error) {
         notify({ tone: "error", text: error instanceof Error ? error.message : "Unable to delete the notification." });
       } finally { setPending(false); }
-    }}>{children}</button>
+    }}><PendingActionLabel pending={pending} pendingText="Deleting...">{children}</PendingActionLabel></button>
     {confirmationDialog}
   </>;
 }

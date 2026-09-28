@@ -10,6 +10,7 @@ import { NumericInput } from "@/components/constrained-inputs";
 import { useActionFeedback } from "@/components/action-feedback";
 import { useConfirmationDialog } from "@/components/confirmation-dialog";
 import { CalendarField } from "@/components/calendar-field";
+import { PendingActionLabel } from "@/components/pending-action-label";
 import { FileUploadField } from "@/components/file-upload-field";
 import uploadStyles from "@/components/file-upload-field.module.css";
 import type { InstallmentPlan, InstallmentSchedule } from "@/lib/customer-payments";
@@ -409,7 +410,7 @@ function InstallmentPaymentModal({
           {paymentMethod === "Other" ? <label>Other payment method<input name="other_payment_method" placeholder="e.g. Maya, cheque, farm credit" required type="text" value={otherPaymentMethod} onChange={(event) => setOtherPaymentMethod(event.target.value)} /></label> : null}
           <FileUploadField accept="image/jpeg,image/png,image/webp,application/pdf" helperText="JPG, PNG, WEBP or PDF · up to 5 MB" kind="document" label="Receipt (optional)" name="receipt" prompt="Choose receipt file" />
           <label>Notes (optional)<textarea name="notes" placeholder="Add a collection note if needed" rows={3} /></label>
-          <div className={styles.modalActions}><button className={styles.secondaryButton} disabled={pending} type="button" onClick={onClose}>Cancel</button><button className={styles.paymentPrimaryButton} disabled={pending} type="submit"><span>{pending ? "Recording..." : "Record payment"}</span></button></div>
+          <div className={styles.modalActions}><button className={styles.secondaryButton} disabled={pending} type="button" onClick={onClose}>Cancel</button><button className={styles.paymentPrimaryButton} disabled={pending} type="submit"><PendingActionLabel pending={pending} pendingText="Recording payment...">Record payment</PendingActionLabel></button></div>
         </form>
       </section>
       {confirmationDialog}

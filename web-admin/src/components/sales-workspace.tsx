@@ -69,6 +69,16 @@ function matchesDateRange(order: RecentSalesOrder, start: string, end: string) {
   return time >= startTime && time <= endTime;
 }
 
+function displayedSaleStatus(order: RecentSalesOrder) {
+  if (order.status !== "Completed" || order.paymentMethod !== "Installment") {
+    return order.status;
+  }
+
+  if (order.installmentStatus === "Completed") return "Paid";
+  if (order.installmentStatus === "Cancelled") return "Cancelled";
+  return "Ongoing";
+}
+
 function FilterSelect({
   icon,
   label,
@@ -206,7 +216,7 @@ export function SalesWorkspace({
         order.marketItemName ?? "",
         order.paymentMethod,
         order.entryLabel ?? "",
-        order.status,
+        displayedSaleStatus(order),
       ]
         .join(" ")
         .toLowerCase();
@@ -214,7 +224,7 @@ export function SalesWorkspace({
       return (
         (!normalized || haystack.includes(normalized)) &&
         (payment === "All" || order.paymentMethod === payment) &&
-        (status === "All" || order.status === status) &&
+        (status === "All" || displayedSaleStatus(order) === status) &&
         matchesDateRange(order, startDate, endDate)
       );
     });
@@ -236,7 +246,7 @@ export function SalesWorkspace({
   const pageNumbers = Array.from({ length: Math.min(3, totalPages) }, (_, index) => pageStart + index);
 
   const paymentOptions = ["All", ...new Set(orders.map((order) => order.paymentMethod))];
-  const statusOptions = ["All", ...new Set(orders.map((order) => order.status))];
+  const statusOptions = ["All", ...new Set(orders.map(displayedSaleStatus))];
   const exportParams = new URLSearchParams();
 
   if (startDate) {
@@ -419,13 +429,16 @@ export function SalesWorkspace({
                 <span className={styles.itemsCell} data-label="Items">{order.source === "payment" ? "-" : order.itemCount ?? 1}</span>
                 <span className={styles.paymentCell} data-label="Payment">
                   {order.paymentMethod}
+                  {order.source === "receipt" && order.paymentMethod === "Installment" ? (
+                    <small>Paid {formatCurrency(order.amountPaid ?? 0)} / {formatCurrency(order.totalAmount)}</small>
+                  ) : null}
                   {order.source === "payment" && order.transactionReference ? <small>Ref: {order.transactionReference}</small> : null}
                 </span>
                 <span className={styles.discountCell} data-label="Discount">{order.source === "payment" ? "-" : formatCurrency(order.discountAmount ?? 0)}</span>
                 <strong className={styles.totalCell} data-label={order.source === "payment" ? "Collected" : "Sale total"}>{formatCurrency(order.source === "payment" ? order.paymentAmount ?? 0 : order.totalAmount)}</strong>
                 <div className={styles.statusCell} data-label="Status">
-                  <span className={styles.statusPill} data-status={order.status.toLowerCase()}>
-                    {order.source === "payment" && order.status === "Voided" ? "Sale voided" : order.source === "payment" ? "Recorded" : order.status}
+                  <span className={styles.statusPill} data-status={displayedSaleStatus(order).toLowerCase()}>
+                    {order.source === "payment" && order.status === "Voided" ? "Sale voided" : order.source === "payment" ? "Recorded" : displayedSaleStatus(order)}
                   </span>
                 </div>
                 <div className={styles.tableActions} data-label="Actions">
@@ -603,8 +616,8 @@ function SalesRecordDetailModal({
             <span>{isLegacyInventorySale ? "Legacy reference" : "Receipt number"}</span>
             <strong>{order.receiptNumber}</strong>
           </div>
-          <span className={styles.statusPill} data-status={order.status.toLowerCase()}>
-            {order.status}
+          <span className={styles.statusPill} data-status={displayedSaleStatus(order).toLowerCase()}>
+            {displayedSaleStatus(order)}
           </span>
         </div>
 
@@ -615,6 +628,12 @@ function SalesRecordDetailModal({
             <ReadOnlyDetail label="Contact" value={order.customerContact} />
           ) : null}
           <ReadOnlyDetail label="Payment method" value={order.paymentMethod} />
+          {order.paymentMethod === "Installment" ? (
+            <>
+              <ReadOnlyDetail label="Paid to date" value={formatCurrency(order.amountPaid ?? 0)} />
+              <ReadOnlyDetail label="Remaining balance" value={formatCurrency(Math.max(order.totalAmount - (order.amountPaid ?? 0), 0))} />
+            </>
+          ) : null}
           {showTransactionReference ? (
             <ReadOnlyDetail
               icon={<Hash size={16} />}

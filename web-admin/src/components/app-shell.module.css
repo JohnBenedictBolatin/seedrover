@@ -684,16 +684,18 @@
   top: 28px;
   right: auto;
   z-index: 1200;
-  width: min(520px, calc(100vw - 40px));
+  width: min(460px, calc(100vw - 40px));
   pointer-events: none;
   transform: translateZ(0);
 }
 
 .notificationPopover {
   display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   width: 100%;
-  max-height: min(640px, calc(100vh - 126px));
-  gap: 12px;
+  max-height: min(580px, calc(100vh - 126px));
+  min-height: 0;
+  gap: 10px;
   overflow: hidden;
   border: 1px solid var(--border-soft);
   border-radius: 18px;
@@ -703,7 +705,7 @@
   box-shadow:
     0 24px 80px rgba(0, 0, 0, 0.42),
     0 0 0 1px rgba(255, 255, 255, 0.02);
-  padding: 18px;
+  padding: 14px;
   pointer-events: auto;
   animation: notificationWindowIn 180ms ease-out;
 }
@@ -829,9 +831,9 @@
 
 .notificationList {
   display: grid;
-  height: min(500px, calc(100vh - 250px));
-  max-height: min(500px, calc(100vh - 250px));
-  gap: 10px;
+  min-height: 0;
+  max-height: min(440px, calc(100vh - 260px));
+  gap: 8px;
   overflow-y: auto;
   padding-right: 2px;
   scrollbar-width: none;
@@ -890,14 +892,15 @@
 .notificationList article {
   position: relative;
   display: grid;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
   border: 1px solid rgba(var(--green-rgb), 0.18);
   border-radius: 14px;
   background:
     linear-gradient(135deg, rgba(var(--green-secondary-rgb), 0.1), rgba(255, 255, 255, 0.025)),
     var(--surface-overlay);
   cursor: pointer;
-  padding: 14px 15px;
+  padding: 10px 12px;
   transition:
     border-color 180ms ease,
     background 180ms ease,
@@ -922,11 +925,14 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
+  min-width: 0;
 }
 
 .notificationList article strong {
   color: var(--text);
-  font-size: 1rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.92rem;
 }
 
 .notificationList article span {
@@ -967,7 +973,8 @@
 .notificationList article p {
   margin: 0;
   color: var(--text-secondary);
-  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+  font-size: 0.82rem;
   line-height: 1.45;
 }
 

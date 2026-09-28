@@ -130,6 +130,10 @@ textarea {
   font: inherit;
 }
 
+textarea {
+  resize: none;
+}
+
 button,
 a {
   -webkit-tap-highlight-color: transparent;
@@ -690,6 +694,27 @@ option,
    through the explicit control exceptions above. */
 button {
   text-transform: uppercase;
+}
+
+.pendingActionLabel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+}
+
+.pendingActionSpinner {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: pendingActionSpin 0.7s linear infinite;
+}
+
+@keyframes pendingActionSpin {
+  to { transform: rotate(360deg); }
 }
 
 /* Required native controls receive the same inline red marker everywhere.

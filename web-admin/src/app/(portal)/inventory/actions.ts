@@ -212,6 +212,28 @@ export async function createInventoryItemAction(formData: FormData) {
     .single();
 
   if (error) {
+    // The database trigger is the final duplicate guard. Translate its error
+    // (and any duplicate-name constraint error from a deployed schema) into
+    // the same message used by the form's pre-insert check.
+    const duplicateMessage = "An inventory item with this name already exists.";
+    const errorText = `${error.message} ${error.details ?? ""} ${error.hint ?? ""}`;
+    const likelyNameConflict = /already exists/i.test(errorText) ||
+      (error.code === "23505" && /inventory.*name|name.*inventory/i.test(errorText));
+    if (likelyNameConflict) {
+      throw new Error(duplicateMessage);
+    }
+
+    // Recheck after an insert failure to catch a duplicate that was added
+    // concurrently or was not visible in the initial paginated read.
+    const { data: currentItems } = await supabase
+      .from("inventory")
+      .select("id, item_name");
+    if ((currentItems ?? []).some(
+      (item) => item.item_name.trim().toLocaleLowerCase() === normalizedName,
+    )) {
+      throw new Error(duplicateMessage);
+    }
+
     throw new Error(error.message);
   }
 

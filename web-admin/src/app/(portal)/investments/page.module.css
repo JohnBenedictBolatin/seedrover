@@ -223,7 +223,7 @@
 .modalSelectField > span > b { color: var(--danger, #ff3b30); }
 .modalSelectButton { grid-template-columns: minmax(0,1fr) auto; }
 .modalForm input, .modalForm select { min-height: 44px; border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text); background: rgba(27,27,27,.55); padding: 0 12px; }
-.modalForm textarea { border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text); background: rgba(27,27,27,.55); resize: vertical; padding: 12px; }
+.modalForm textarea { border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text); background: rgba(27,27,27,.55); padding: 12px; }
 .modalActions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
 .modalCancel { min-height: 44px; border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text-secondary); background: transparent; font-weight: 900; cursor: pointer; }
 :global(html[data-theme="light"]) .modal { --surface: #fff; }

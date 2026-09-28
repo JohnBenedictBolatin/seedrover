@@ -110,7 +110,7 @@ type CropActivityRow = {
   notes: string | null;
   observed_stage: string | null;
   source: string;
-  performer: { full_name: string } | { full_name: string }[] | null;
+  performed_by: string | null;
 };
 
 function text(formData: FormData, key: string, fallback = "") {
@@ -372,7 +372,7 @@ export async function getCropActivityHistoryAction(cropId: string) {
   const { data, error } = await supabase
     .from("crop_activities")
     .select(
-      "id, activity_type, performed_at, quantity, unit, material, notes, observed_stage, source, performer:profiles!crop_activities_performed_by_fkey(full_name)",
+      "id, activity_type, performed_at, quantity, unit, material, notes, observed_stage, source, performed_by",
     )
     .eq("crop_id", cropId)
     .order("performed_at", { ascending: false })
@@ -385,6 +385,15 @@ export async function getCropActivityHistoryAction(cropId: string) {
     throw new Error(error.message);
   }
 
+  const performerIds = [...new Set((data ?? []).map((activity) => activity.performed_by).filter((id): id is string => Boolean(id)))];
+  const { data: performerRows } = performerIds.length
+    ? await supabase.rpc("crop_performer_names", { p_performer_ids: performerIds })
+    : { data: [] };
+  const performerNames = new Map(
+    ((performerRows ?? []) as { performer_id: string; full_name: string | null }[])
+      .map((performer) => [performer.performer_id, performer.full_name]),
+  );
+
   return Promise.all((data ?? []).map(async (activity): Promise<CropActivityRecord> => {
     const { data: attachments, error: photoError } = await supabase.from("crop_activity_photos").select("path").eq("activity_id", activity.id);
     const missingPhotoTable = photoError?.message.includes("crop_activity_photos") === true;
@@ -394,13 +403,12 @@ export async function getCropActivityHistoryAction(cropId: string) {
       if (error) throw new Error(error.message);
       return { path, url: signed.signedUrl };
     }));
-    const performer = Array.isArray(activity.performer) ? activity.performer[0] : activity.performer;
     return {
       id: activity.id,
       photos,
       activityType: activity.activity_type,
       performedAt: activity.performed_at,
-      performedBy: performer?.full_name ?? (activity.source === "Rover" ? "SeedRover" : "Unknown user"),
+      performedBy: (activity.performed_by ? performerNames.get(activity.performed_by) : null) ?? (activity.source === "Rover" ? "SeedRover" : "Former user"),
       quantity: activity.quantity === null ? null : Number(activity.quantity),
       unit: activity.activity_type === "Harvested" ? INVENTORY_UNIT : activity.unit,
       material: activity.material,
