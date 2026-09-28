@@ -14,7 +14,6 @@
     "generate:shared-workflows": "node ../scripts/generate_shared_workflows.mjs",
     "check:shared-workflows": "node ../scripts/generate_shared_workflows.mjs --check",
     "test:input-contract": "node --test src/lib/contact-number.test.mjs",
-    "test:installment-schedule": "node --test src/lib/installment-schedule.test.mjs",
     "check:tracked-secrets": "node scripts/check-tracked-secrets.mjs"
   },
   "dependencies": {

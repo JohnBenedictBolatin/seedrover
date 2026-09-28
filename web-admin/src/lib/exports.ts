@@ -1,7 +1,6 @@
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { getCustomersDashboard } from "@/lib/customers";
 import { INVENTORY_UNIT } from "@/lib/inventory";
-import { getInstallmentCollectionEvents } from "@/lib/sales";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type ExportInventoryRow = {
@@ -365,7 +364,7 @@ export async function getSalesExportRows(filters: SalesExportFilters = {}) {
   const orderRows = (ordersResult.data ?? []).flatMap<ExportSalesRow>((order) =>
     order.sales_order_items.map((item, itemIndex) => ({
       entryKind: "sale",
-      entryType: order.payment_method === "Installment" ? "Installment sale" : "Sale",
+      entryType: "Receipt sale",
       receiptNumber: order.receipt_number,
       receiptLink: `/sales/${order.id}`,
       saleDate: order.sale_date,
@@ -381,7 +380,7 @@ export async function getSalesExportRows(filters: SalesExportFilters = {}) {
       receiptSubtotal: itemIndex === 0 ? toNumber(order.subtotal) : null,
       discountAmount: itemIndex === 0 ? toNumber(order.discount_amount) : null,
       receiptTotal: itemIndex === 0 ? toNumber(order.total_amount) : null,
-      collectionAmount: itemIndex === 0 && order.payment_method !== "Installment"
+      collectionAmount: itemIndex === 0
         ? Math.max(toNumber(order.amount_paid ?? order.total_amount) - toNumber(order.change_amount), 0)
         : null,
       status: order.status,
@@ -415,41 +414,7 @@ export async function getSalesExportRows(filters: SalesExportFilters = {}) {
     };
   });
 
-  const collectionResult = await getInstallmentCollectionEvents();
-  if (collectionResult.error) throw new Error(`Installment payment records could not be loaded: ${collectionResult.error}`);
-  const collectionRows = collectionResult.events
-    .filter((event) => {
-      if (filters.start && event.paymentDate < filters.start) return false;
-      if (filters.end && event.paymentDate > filters.end) return false;
-      if (filters.payment && filters.payment !== "All" && event.paymentMethod !== filters.payment) return false;
-      if (filters.status && filters.status !== "All" && event.saleStatus !== filters.status) return false;
-      return true;
-    })
-    .map<ExportSalesRow>((event) => ({
-      entryKind: "collection",
-      entryType: event.isReversal
-        ? "Payment reversal"
-        : event.collectionType === "down_payment" ? "Initial payment" : "Installment payment",
-      receiptNumber: event.receiptNumber,
-      receiptLink: `/sales/payments/${event.paymentReceiptId}`,
-      saleDate: event.paymentDate,
-      customerName: event.customerName,
-      customerContact: "",
-      paymentMethod: event.paymentMethod,
-      transactionReference: event.transactionReference ?? "",
-      itemName: event.isReversal ? `Reversal: ${event.reversalReason ?? ""}` : event.collectionType === "down_payment" ? "Initial payment" : "Installment payment",
-      quantitySold: 0,
-      unit: INVENTORY_UNIT,
-      unitPrice: 0,
-      lineTotal: 0,
-      receiptSubtotal: null,
-      discountAmount: null,
-      receiptTotal: null,
-      collectionAmount: event.paymentAmount,
-      status: event.isReversal ? "Reversed" : event.saleStatus === "Voided" ? "Sale voided" : "Recorded",
-    }));
-
-  return [...orderRows, ...marketRows, ...collectionRows]
+  return [...orderRows, ...marketRows]
     .filter((row) => !filters.type || filters.type === "All" || row.entryType === filters.type)
     .sort(
     (left, right) => new Date(right.saleDate).getTime() - new Date(left.saleDate).getTime(),

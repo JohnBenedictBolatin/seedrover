@@ -31,7 +31,7 @@ export default async function SalesPage() {
           <ModuleHeaderIntro mascot="sales">
             <p className={styles.eyebrow}>Operations</p>
             <h1>Sales</h1>
-            <p>Receipts, payments, installments, and voided sales.</p>
+            <p>Receipts and voided sales.</p>
           </ModuleHeaderIntro>
         <div className={styles.liveDateTime}>
           <LiveDateTime />

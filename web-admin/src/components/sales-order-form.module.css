@@ -385,84 +385,6 @@
   width: fit-content;
 }
 
-.installmentTermsGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  min-width: 0;
-  gap: 12px;
-}
-
-.installmentTermsGrid > * {
-  min-width: 0;
-  max-width: 100%;
-}
-
-.installmentTermsGrid input {
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-.installmentInitialGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  min-width: 0;
-  gap: 12px;
-}
-
-.installmentInitialGrid > * {
-  min-width: 0;
-  max-width: 100%;
-}
-
-.installmentInitialGrid input {
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-.installmentInitialGrid p {
-  grid-column: 1 / -1;
-  margin: -4px 0 0;
-  color: var(--text-muted);
-  font-size: 0.78rem;
-}
-
-.installmentAmountHint {
-  display: block;
-  margin-top: 5px;
-  color: var(--text-muted);
-  font-size: 0.74rem;
-  line-height: 1.4;
-}
-
-.installmentDueHint {
-  display: grid;
-  gap: 5px;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  color: var(--text-muted);
-  padding: 11px 12px;
-}
-
-.installmentDueHint span {
-  font-size: 0.72rem;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.installmentDueHint strong {
-  color: var(--text);
-  font-size: 0.94rem;
-}
-
-.installmentDueHint small {
-  font-size: 0.72rem;
-  line-height: 1.4;
-}
-
 .themedSelectLabel {
   position: relative;
 }
@@ -1235,12 +1157,3 @@
   }
 }
 
-@media (max-width: 760px) {
-  .installmentTermsGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .installmentInitialGrid {
-    grid-template-columns: 1fr;
-  }
-}

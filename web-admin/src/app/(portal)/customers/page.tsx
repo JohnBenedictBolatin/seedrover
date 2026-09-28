@@ -1,9 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { getCustomersDashboard } from "@/lib/customers";
-import { getInstallmentPlans } from "@/lib/customer-payments";
 import { CustomersWorkspace } from "@/components/customers-workspace";
-import { CustomerPaymentsPanel } from "@/components/customer-payments-panel";
 import { LiveDateTime } from "@/components/live-date-time";
 import { ModuleHeaderIntro } from "@/components/module-header-intro";
 import styles from "./page.module.css";
@@ -19,10 +17,7 @@ export default async function CustomersPage() {
     redirect("/dashboard");
   }
 
-  const [{ customers, discounts, stats, error }, installmentData] = await Promise.all([
-    getCustomersDashboard(),
-    getInstallmentPlans(),
-  ]);
+  const { customers, discounts, stats, error } = await getCustomersDashboard();
 
   return (
     <div className={styles.page}>
@@ -45,8 +40,6 @@ export default async function CustomersPage() {
       ) : null}
 
       <CustomersWorkspace customers={customers} discounts={discounts} stats={stats} />
-      <CustomerPaymentsPanel plans={installmentData.plans} />
-      {installmentData.error ? <section className={styles.notice}><strong>Installment schedules are unavailable.</strong><span>{installmentData.error}</span></section> : null}
     </div>
   );
 }

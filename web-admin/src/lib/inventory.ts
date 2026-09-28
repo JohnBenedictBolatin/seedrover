@@ -1,4 +1,9 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  startOfBusinessDay,
+  startOfBusinessMonth,
+  startOfNextBusinessMonth,
+} from "@/lib/business-time";
 
 export const INVENTORY_UNIT = "kg" as const;
 
@@ -158,6 +163,23 @@ function toNumber(value: number | string | null | undefined) {
   return Number(value ?? 0);
 }
 
+async function fetchAllPages<T>(
+  fetchPage: (from: number, to: number) => PromiseLike<{
+    data: T[] | null;
+    error: { message: string } | null;
+  }>,
+) {
+  const rows: T[] = [];
+  const pageSize = 500;
+  for (let from = 0;; from += pageSize) {
+    const { data, error } = await fetchPage(from, from + pageSize - 1);
+    if (error) throw new Error(error.message);
+    const page = data ?? [];
+    rows.push(...page);
+    if (page.length < pageSize) return rows;
+  }
+}
+
 function firstRelation<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -179,16 +201,11 @@ function displayPaymentMethod(method: string | null | undefined, otherMethod?: s
 }
 
 function startOfTodayIso() {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  return date.toISOString();
+  return startOfBusinessDay().toISOString();
 }
 
 function startOfMonthIso() {
-  const date = new Date();
-  date.setDate(1);
-  date.setHours(0, 0, 0, 0);
-  return date.toISOString();
+  return startOfBusinessMonth().toISOString();
 }
 
 export function stockStatus(item: InventoryItem) {
@@ -400,29 +417,30 @@ export async function getInventoryDashboard() {
     ),
   };
 
-  const [{ data: saleRows }, { data: orderItemRows }, { data: orderRows }] = await Promise.all([
-    supabase
+  const [salesRows, orderItemRows, completedOrderRows] = await Promise.all([
+    fetchAllPages<SaleRow>((from, to) => supabase
       .from("sales_transactions")
       .select("total_amount, sale_date, status, inventory_id, quantity_sold")
       .order("sale_date", { ascending: false })
-      .limit(120)
-      .returns<SaleRow[]>(),
-    supabase
+      .range(from, to)
+      .returns<SaleRow[]>()),
+    fetchAllPages<SalesOrderItemSummaryRow>((from, to) => supabase
       .from("sales_order_items")
       .select("quantity_sold, item_name_snapshot, sales_orders(status)")
-      .returns<SalesOrderItemSummaryRow[]>(),
-    supabase
+      .range(from, to)
+      .returns<SalesOrderItemSummaryRow[]>()),
+    fetchAllPages<SalesOrderTotalRow>((from, to) => supabase
       .from("sales_orders")
       .select("total_amount, sale_date, status")
       .order("sale_date", { ascending: false })
-      .limit(120)
-      .returns<SalesOrderTotalRow[]>(),
+      .range(from, to)
+      .returns<SalesOrderTotalRow[]>()),
   ]);
 
-  const salesRows = saleRows ?? [];
-  const completedOrderRows = (orderRows ?? []).filter((order) => order.status === "Completed");
   const todayIso = startOfTodayIso();
   const monthIso = startOfMonthIso();
+  const tomorrowIso = new Date(startOfBusinessDay().getTime() + 24 * 60 * 60 * 1000).toISOString();
+  const nextMonthIso = startOfNextBusinessMonth().toISOString();
   const itemTotals = new Map<string, number>();
 
   for (const sale of salesRows) {
@@ -460,10 +478,10 @@ export async function getInventoryDashboard() {
 
   const sales: SalesSummary = {
     salesToday: [...salesRows, ...completedOrderRows]
-      .filter((sale) => sale.status === "Completed" && sale.sale_date >= todayIso)
+      .filter((sale) => sale.status === "Completed" && sale.sale_date >= todayIso && sale.sale_date < tomorrowIso)
       .reduce((total, sale) => total + toNumber(sale.total_amount), 0),
     salesThisMonth: [...salesRows, ...completedOrderRows]
-      .filter((sale) => sale.status === "Completed" && sale.sale_date >= monthIso)
+      .filter((sale) => sale.status === "Completed" && sale.sale_date >= monthIso && sale.sale_date < nextMonthIso)
       .reduce((total, sale) => total + toNumber(sale.total_amount), 0),
     completedTransactions: salesRows.filter((sale) => sale.status === "Completed").length + completedOrderRows.length,
     bestSellingItem,

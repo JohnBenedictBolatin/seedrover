@@ -2,9 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { formatCurrency, formatDateTime, formatQuantity } from "@/lib/format";
-import { getInstallmentPlanForSale } from "@/lib/customer-payments";
 import { getSalesReceipt } from "@/lib/sales";
-import { InstallmentSaleSchedule } from "@/components/customer-payments-panel";
 import { PrintButton } from "@/components/print-button";
 import styles from "./page.module.css";
 
@@ -24,10 +22,7 @@ export default async function SalesReceiptPage({
   }
 
   const { id } = await params;
-  const [{ receipt, error }, { plan }] = await Promise.all([
-    getSalesReceipt(id),
-    getInstallmentPlanForSale(id),
-  ]);
+  const { receipt, error } = await getSalesReceipt(id);
 
   if (!receipt) {
     if (error) {
@@ -53,7 +48,7 @@ export default async function SalesReceiptPage({
           <div className={styles.receiptMeta}>
             <strong>{receipt.receiptNumber}</strong>
             <span>{formatDateTime(receipt.saleDate)}</span>
-            <span>{plan ? plan.status === "Completed" ? "Fully paid" : plan.status === "Cancelled" ? "Cancelled" : "Partially paid" : receipt.status}</span>
+            <span>{receipt.status}</span>
           </div>
         </header>
 
@@ -121,7 +116,6 @@ export default async function SalesReceiptPage({
                 : formatCurrency(receipt.amountPaid)}
             </strong>
           </div>
-          {plan ? <div><span>Outstanding balance</span><strong>{formatCurrency(plan.remainingAmount)}</strong></div> : null}
           <div>
             <span>Change</span>
             <strong>
@@ -131,8 +125,6 @@ export default async function SalesReceiptPage({
             </strong>
           </div>
         </section>
-
-        {plan ? <InstallmentSaleSchedule plan={plan} /> : null}
 
         {receipt.remarks ? (
           <section className={styles.remarks}>

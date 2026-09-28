@@ -1,5 +1,10 @@
 import { INVENTORY_UNIT } from "@/lib/inventory";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  startOfBusinessDay,
+  startOfBusinessMonth,
+  startOfNextBusinessMonth,
+} from "@/lib/business-time";
 
 export type SellableItem = {
   id: string;
@@ -40,14 +45,8 @@ export type RecentSalesOrder = {
   discountAmount?: number;
   totalAmount: number;
   status: string;
-  source?: "receipt" | "market" | "payment" | "reversal";
-  entryLabel?: string;
-  paymentAmount?: number;
-  relatedSaleId?: string;
+  source?: "receipt" | "market";
   amountPaid?: number;
-  installmentStatus?: "Active" | "Completed" | "Cancelled";
-  paymentReceiptId?: string;
-  reversalReason?: string | null;
 };
 
 export type SalesSummary = {
@@ -107,25 +106,6 @@ export type SalesReceipt = {
   items: SalesReceiptItem[];
 };
 
-export type InstallmentCollectionEvent = {
-  id: string;
-  paymentReceiptId: string;
-  salesOrderId: string;
-  receiptNumber: string;
-  saleReceiptNumber: string;
-  customerName: string;
-  paymentDate: string;
-  paymentMethod: string;
-  transactionReference: string | null;
-  paymentAmount: number;
-  collectionType: "down_payment" | "installment";
-  installmentNumber: number | null;
-  installmentCount: number;
-  saleStatus: string;
-  isReversal: boolean;
-  reversalReason: string | null;
-};
-
 type SellableRow = {
   id: string;
   stock_code: string | null;
@@ -169,11 +149,6 @@ type RecentSalesOrderRow = {
     line_total: number | string;
     inventory?: { category: string | null } | { category: string | null }[] | null;
   }>;
-};
-
-type InstallmentPlanStatusRow = {
-  sales_order_id: string;
-  status: "Active" | "Completed" | "Cancelled";
 };
 
 type SalesReceiptItemRow = {
@@ -229,32 +204,6 @@ type StandaloneSalesRow = {
     unit?: string | null;
     category: string | null;
   }[] | null;
-};
-
-type InstallmentPlanLinkRow = {
-  id: string;
-  sales_order_id: string;
-  receipt_number: string;
-  customer_name: string;
-};
-
-type InstallmentCollectionRow = {
-  id: string;
-  collection_group_id: string;
-  collection_type: "down_payment" | "installment";
-  plan_id: string;
-  schedule_id: string;
-  amount: number | string;
-  payment_date: string;
-  payment_method: string;
-  transaction_reference: string | null;
-  other_payment_method: string | null;
-};
-
-type InstallmentScheduleLinkRow = {
-  id: string;
-  plan_id: string;
-  installment_number: number;
 };
 
 type SalesOrderStatusRow = { id: string; status: string };
@@ -409,16 +358,11 @@ export async function getRecentSalesOrders() {
 }
 
 function startOfToday() {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  return date;
+  return startOfBusinessDay();
 }
 
 function startOfMonth() {
-  const date = new Date();
-  date.setDate(1);
-  date.setHours(0, 0, 0, 0);
-  return date;
+  return startOfBusinessMonth();
 }
 
 function dateKey(value: string) {
@@ -468,70 +412,6 @@ function displayPaymentMethod(method: string | null | undefined, otherMethod?: s
   }
 
   return method ?? "Not recorded";
-}
-
-function manilaDate(timestamp: string) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Manila",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date(timestamp));
-  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")}`;
-}
-
-export async function getInstallmentCollectionEvents() {
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) return { events: [] as InstallmentCollectionEvent[], error: "Supabase is not configured." };
-  const collectionResult = await fetchAllPages((from, to) => supabase
-    .from("installment_collections")
-    .select("id, receipt_number, sales_order_id, plan_id, collection_type, amount, payment_date, payment_method, transaction_reference, other_payment_method, installment_plans(customer_name, receipt_number), sales_orders(status)")
-    .order("payment_date", { ascending: false })
-    .range(from, to));
-  const collections = collectionResult.data;
-  const error = collectionResult.error;
-  if (error) return { events: [] as InstallmentCollectionEvent[], error: error.message };
-  if (!collections?.length) return { events: [] as InstallmentCollectionEvent[], error: null };
-  const ids = collections.map((collection) => collection.id);
-  const reversals = [] as Array<{ id: string; collection_id: string; receipt_number: string; reason: string; balance_after: number | string; reversed_at: string }>;
-  for (let index = 0; index < ids.length; index += 500) {
-    const { data, error: reversalsError } = await supabase
-      .from("installment_collection_reversals")
-      .select("id, collection_id, receipt_number, reason, balance_after, reversed_at")
-      .in("collection_id", ids.slice(index, index + 500));
-    if (reversalsError) return { events: [] as InstallmentCollectionEvent[], error: reversalsError.message };
-    reversals.push(...((data ?? []) as typeof reversals));
-  }
-  const reversalByCollection = new Map((reversals ?? []).map((reversal) => [reversal.collection_id, reversal]));
-  const events = collections.flatMap<InstallmentCollectionEvent>((raw) => {
-    const row = raw as unknown as {
-      id: string; receipt_number: string; sales_order_id: string; plan_id: string;
-      collection_type: "down_payment" | "installment"; amount: number | string; payment_date: string;
-      payment_method: string; transaction_reference: string | null; other_payment_method: string | null;
-      installment_plans: { customer_name: string; receipt_number: string } | { customer_name: string; receipt_number: string }[] | null;
-      sales_orders: { status: string } | { status: string }[] | null;
-    };
-    const plan = Array.isArray(row.installment_plans) ? row.installment_plans[0] : row.installment_plans;
-    const sale = Array.isArray(row.sales_orders) ? row.sales_orders[0] : row.sales_orders;
-    const base: InstallmentCollectionEvent = {
-      id: row.id, paymentReceiptId: row.id, salesOrderId: row.sales_order_id,
-      receiptNumber: row.receipt_number, saleReceiptNumber: plan?.receipt_number ?? "Purchase",
-      customerName: plan?.customer_name ?? "Customer", paymentDate: row.payment_date,
-      paymentMethod: displayPaymentMethod(row.payment_method, row.other_payment_method),
-      transactionReference: row.transaction_reference, paymentAmount: toNumber(row.amount),
-      collectionType: row.collection_type, installmentNumber: null, installmentCount: 0,
-      saleStatus: sale?.status ?? "Completed", isReversal: false, reversalReason: null,
-    };
-    const reversal = reversalByCollection.get(row.id);
-    if (!reversal) return [base];
-    return [base, {
-      ...base, id: reversal.id, receiptNumber: reversal.receipt_number,
-      paymentDate: manilaDate(reversal.reversed_at), paymentAmount: -base.paymentAmount,
-      paymentMethod: "Reversal", isReversal: true, reversalReason: reversal.reason,
-    }];
-  }).sort((left, right) => new Date(right.paymentDate).getTime() - new Date(left.paymentDate).getTime());
-  return { events, error: null };
 }
 
 export async function getSalesWorkspaceData() {
@@ -622,23 +502,10 @@ export async function getSalesWorkspaceData() {
 
   const orderRows = ordersResult.data ?? [];
   const marketRows = marketResult.data ?? [];
-  const installmentStatusesResult = orderRows.length
-    ? await fetchAllPages<InstallmentPlanStatusRow>((from, to) => supabase
-        .from("installment_plans")
-        .select("sales_order_id, status")
-        .range(from, to)
-        .returns<InstallmentPlanStatusRow[]>())
-    : { data: [] as InstallmentPlanStatusRow[], error: null as { message: string } | null };
-  const installmentStatusBySale = new Map(
-    (installmentStatusesResult.data ?? []).map((plan) => [plan.sales_order_id, plan.status]),
-  );
-  if (installmentStatusesResult.error) {
-    return { ...empty, error: installmentStatusesResult.error.message };
-  }
-  const collectionsResult = await getInstallmentCollectionEvents();
-  const collectionEvents = collectionsResult.events;
   const today = startOfToday();
+  const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
   const month = startOfMonth();
+  const nextMonth = startOfNextBusinessMonth();
   const itemTotals = new Map<string, number>();
   const categoryTotals = new Map<string, number>();
   const paymentTotals = new Map<string, number>();
@@ -687,10 +554,6 @@ export async function getSalesWorkspaceData() {
       totalAmount: total,
       amountPaid: toNumber(order.amount_paid),
       status: order.status,
-      installmentStatus:
-        order.payment_method === "Installment"
-          ? installmentStatusBySale.get(order.id) ?? "Active"
-          : undefined,
       source: "receipt",
     });
 
@@ -703,19 +566,17 @@ export async function getSalesWorkspaceData() {
     totalDiscountGiven += discount;
     addToMap(dailyTotals, dateKey(order.sale_date), total);
 
-    if (order.payment_method !== "Installment") {
-      const method = displayPaymentMethod(order.payment_method, order.other_payment_method);
-      const collectedAmount = Math.max(toNumber(order.amount_paid ?? total) - toNumber(order.change_amount), 0);
-      addToMap(paymentTotals, method, collectedAmount);
-      if (saleDate >= today) collectedToday += collectedAmount;
-      if (saleDate >= month) collectedThisMonth += collectedAmount;
-    }
+    const method = displayPaymentMethod(order.payment_method, order.other_payment_method);
+    const collectedAmount = Math.max(toNumber(order.amount_paid ?? total) - toNumber(order.change_amount), 0);
+    addToMap(paymentTotals, method, collectedAmount);
+    if (saleDate >= today && saleDate < tomorrow) collectedToday += collectedAmount;
+    if (saleDate >= month && saleDate < nextMonth) collectedThisMonth += collectedAmount;
 
-    if (saleDate >= today) {
+    if (saleDate >= today && saleDate < tomorrow) {
       salesToday += total;
     }
 
-    if (saleDate >= month) {
+    if (saleDate >= month && saleDate < nextMonth) {
       salesThisMonth += total;
     }
 
@@ -768,43 +629,15 @@ export async function getSalesWorkspaceData() {
     addToMap(itemTotals, itemName, total);
     addToMap(categoryTotals, category, total);
 
-    if (saleDate >= today) {
+    if (saleDate >= today && saleDate < tomorrow) {
       salesToday += total;
       collectedToday += total;
     }
 
-    if (saleDate >= month) {
+    if (saleDate >= month && saleDate < nextMonth) {
       salesThisMonth += total;
       collectedThisMonth += total;
     }
-  }
-
-  for (const event of collectionEvents) {
-    const paymentDate = new Date(`${event.paymentDate}T00:00:00`);
-    const entryLabel = event.isReversal
-      ? `Payment reversal · ${event.reversalReason ?? ""}`
-      : event.collectionType === "down_payment" ? "Initial payment" : "Installment payment";
-    history.push({
-      id: event.id,
-      receiptNumber: event.receiptNumber,
-      saleDate: event.paymentDate,
-      customerName: event.customerName,
-      paymentMethod: event.paymentMethod,
-      transactionReference: event.transactionReference,
-      totalAmount: event.paymentAmount,
-      paymentAmount: event.paymentAmount,
-      discountAmount: 0,
-      itemCount: 0,
-      status: event.saleStatus,
-      source: event.isReversal ? "reversal" : "payment",
-      entryLabel,
-      relatedSaleId: event.salesOrderId,
-      paymentReceiptId: event.paymentReceiptId,
-      reversalReason: event.reversalReason,
-    });
-    addToMap(paymentTotals, event.paymentMethod, event.paymentAmount);
-    if (paymentDate >= today) collectedToday += event.paymentAmount;
-    if (paymentDate >= month) collectedThisMonth += event.paymentAmount;
   }
 
   const topItems = topMapEntries(itemTotals, 5);
@@ -835,7 +668,7 @@ export async function getSalesWorkspaceData() {
     orders: history.sort(
       (a, b) => new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime(),
     ),
-    error: marketResult.error?.message ?? collectionsResult.error ?? null,
+    error: marketResult.error?.message ?? null,
   };
 }
 

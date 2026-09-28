@@ -1,7 +1,6 @@
 "use client";
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   CalendarDays,
@@ -24,7 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { voidSalesRecordAction } from "@/app/(portal)/sales/actions";
-import { formatCurrency, formatDate, formatDateTime, formatQuantity } from "@/lib/format";
+import { formatCurrency, formatDateTime, formatQuantity } from "@/lib/format";
 import type {
   ReleasedDiscount,
   RecentSalesOrder,
@@ -70,24 +69,12 @@ function matchesDateRange(order: RecentSalesOrder, start: string, end: string) {
 }
 
 function displayedSaleStatus(order: RecentSalesOrder) {
-  if (order.status !== "Completed" || order.paymentMethod !== "Installment") {
-    return order.status;
-  }
-
-  if (order.installmentStatus === "Completed") return "Paid";
-  if (order.installmentStatus === "Cancelled") return "Cancelled";
-  return "Partially paid";
-}
-
-function isPaymentEntry(order: RecentSalesOrder) {
-  return order.source === "payment" || order.source === "reversal";
+  return order.status;
 }
 
 function salesEntryType(order: RecentSalesOrder) {
-  if (order.source === "reversal") return "Payment reversal";
-  if (order.source === "payment") return order.entryLabel ?? "Installment payment";
   if (order.source === "market") return "Legacy inventory sale";
-  return order.paymentMethod === "Installment" ? "Installment sale" : "Sale";
+  return "Receipt sale";
 }
 
 function FilterSelect({
@@ -227,7 +214,6 @@ export function SalesWorkspace({
         order.transactionReference ?? "",
         order.marketItemName ?? "",
         order.paymentMethod,
-        order.entryLabel ?? "",
         displayedSaleStatus(order),
       ]
         .join(" ")
@@ -440,38 +426,27 @@ export function SalesWorkspace({
               <span>Actions</span>
             </div>
             {paginatedOrders.map((order) => (
-              <div className={styles.salesTableRow} key={`${order.source}-${order.id}`}>
-                {isPaymentEntry(order) ? (
-                  <Link className={styles.receiptCellLink} data-label="Payment receipt" href={`/sales/payments/${order.paymentReceiptId ?? order.relatedSaleId ?? order.id}`}>{order.receiptNumber}</Link>
-                ) : (
-                  <strong className={styles.receiptCell} data-label={order.source === "market" ? "Legacy reference" : "Receipt"}>{order.receiptNumber}</strong>
-                )}
-                <span className={styles.dateCell} data-label={isPaymentEntry(order) ? "Collection date" : "Date / time"}>{isPaymentEntry(order) ? formatDate(order.saleDate) : formatDateTime(order.saleDate)}</span>
+              <div className={styles.salesTableRow} key={order.id}>
+                <strong className={styles.receiptCell} data-label={order.source === "market" ? "Legacy reference" : "Receipt"}>{order.receiptNumber}</strong>
+                <span className={styles.dateCell} data-label="Date / time">{formatDateTime(order.saleDate)}</span>
                 <strong className={styles.customerCell} data-label="Customer">{order.customerName}</strong>
                 <span className={styles.typeCell} data-label="Type">
-                  {isPaymentEntry(order) ? order.entryLabel : order.source === "market" ? "Legacy inventory sale" : order.paymentMethod === "Installment" ? "Installment sale" : "Receipt sale"}
+                  {salesEntryType(order)}
                 </span>
-                <span className={styles.itemsCell} data-label="Items">{isPaymentEntry(order) ? "-" : order.itemCount ?? 1}</span>
+                <span className={styles.itemsCell} data-label="Items">{order.itemCount ?? 1}</span>
                 <span className={styles.paymentCell} data-label="Payment">
                   {order.paymentMethod}
-                  {order.source === "receipt" && order.paymentMethod === "Installment" ? (
-                    <small>Paid {formatCurrency(order.amountPaid ?? 0)} / {formatCurrency(order.totalAmount)}</small>
-                  ) : null}
-                  {isPaymentEntry(order) && order.transactionReference ? <small>Ref: {order.transactionReference}</small> : null}
+                  {order.transactionReference ? <small>Ref: {order.transactionReference}</small> : null}
                 </span>
-                <span className={styles.discountCell} data-label="Discount">{isPaymentEntry(order) ? "-" : formatCurrency(order.discountAmount ?? 0)}</span>
-                <strong className={styles.totalCell} data-label={isPaymentEntry(order) ? (order.source === "reversal" ? "Reversed" : "Collected") : "Sale total"}>{formatCurrency(isPaymentEntry(order) ? order.paymentAmount ?? 0 : order.totalAmount)}</strong>
+                <span className={styles.discountCell} data-label="Discount">{formatCurrency(order.discountAmount ?? 0)}</span>
+                <strong className={styles.totalCell} data-label="Sale total">{formatCurrency(order.totalAmount)}</strong>
                 <div className={styles.statusCell} data-label="Status">
                   <span className={styles.statusPill} data-status={displayedSaleStatus(order).toLowerCase()}>
-                    {order.source === "reversal" ? "Reversed" : isPaymentEntry(order) && order.status === "Voided" ? "Sale voided" : isPaymentEntry(order) ? "Recorded" : displayedSaleStatus(order)}
+                    {displayedSaleStatus(order)}
                   </span>
                 </div>
                 <div className={styles.tableActions} data-label="Actions">
-                  {isPaymentEntry(order) ? (
-                    <Link aria-label="View payment receipt" href={`/sales/payments/${order.paymentReceiptId ?? order.relatedSaleId ?? order.id}`}>
-                      <Eye size={17} />
-                    </Link>
-                  ) : order.source === "receipt" ? (
+                  {order.source === "receipt" ? (
                     <button
                       aria-label="View receipt details"
                       type="button"
@@ -489,7 +464,6 @@ export function SalesWorkspace({
                     </button>
                   )}
                   {canVoidSales &&
-                  order.source !== "payment" &&
                   order.status === "Completed" ? (
                     <button
                       aria-label="Void sale"
@@ -653,12 +627,6 @@ function SalesRecordDetailModal({
             <ReadOnlyDetail label="Contact" value={order.customerContact} />
           ) : null}
           <ReadOnlyDetail label="Payment method" value={order.paymentMethod} />
-          {order.paymentMethod === "Installment" ? (
-            <>
-              <ReadOnlyDetail label="Paid to date" value={formatCurrency(order.amountPaid ?? 0)} />
-              <ReadOnlyDetail label="Remaining balance" value={formatCurrency(Math.max(order.totalAmount - (order.amountPaid ?? 0), 0))} />
-            </>
-          ) : null}
           {showTransactionReference ? (
             <ReadOnlyDetail
               icon={<Hash size={16} />}
