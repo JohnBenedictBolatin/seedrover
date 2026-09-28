@@ -980,7 +980,7 @@ function CropSensorHistoryPanel({ crop }: { crop: CropItem }) {
               {visibleReadings.map((reading) => (
                 <div className={styles.sensorHistoryRow} key={reading.id}>
                   <time>{formatDateTime(reading.recordedAt)}</time>
-                  <span data-label="Soil moisture / raw ADC">{formatSensorValue(reading.soilMoisture, "%")}{reading.soilRaw == null ? "" : ` · raw ADC ${reading.soilRaw}`}</span>
+                  <span data-label="Soil moisture">{formatSensorValue(reading.soilMoisture, "%")}</span>
                   <span data-label="Soil temp">{formatSensorValue(reading.soilTemperature, "°C")}</span>
                   <span data-label="Air temp">{formatSensorValue(reading.environmentalTemperature, "°C")}</span>
                   <span data-label="Humidity">{formatSensorValue(reading.humidity, "%")}</span>
