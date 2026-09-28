@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Check,
   ChevronDown,
@@ -10,13 +11,14 @@ import {
   Receipt,
   Trash2,
 } from "lucide-react";
-import { recordSalesOrderAction, type SalesFormState } from "@/app/(portal)/sales/actions";
+import { getCustomerActiveInstallmentAction, recordSalesOrderAction, type SalesFormState } from "@/app/(portal)/sales/actions";
 import type { AlertTone } from "@/components/action-alert-stack";
 import { ContactNumberInput, NumericInput } from "@/components/constrained-inputs";
 import { useConfirmationDialog } from "@/components/confirmation-dialog";
 import { PendingActionLabel } from "@/components/pending-action-label";
 import { formatCurrency, formatQuantity } from "@/lib/format";
 import { isContactNumber } from "@/lib/contact-number.mjs";
+import { futureInstallmentAmounts } from "@/lib/installment-schedule.mjs";
 import type { ExistingSaleCustomer } from "@/lib/customers";
 import type { ReleasedDiscount, SellableItem } from "@/lib/sales";
 import styles from "./sales-order-form.module.css";
@@ -31,7 +33,7 @@ const initialState: SalesFormState = {
   message: "",
 };
 
-const paymentMethodOptions = ["Cash", "Installment", "GCash", "Bank Transfer", "Card", "Other"];
+const paymentMethodOptions = ["Cash", "GCash", "Bank Transfer", "Card", "Other"];
 
 function newLineItem(items: SellableItem[], excludedIds: string[] = []): LineItem {
   const firstItem = items.find((item) => !excludedIds.includes(item.id));
@@ -49,16 +51,28 @@ function toNumber(value: string) {
 }
 
 function nextInstallmentDateLabel(frequency: string) {
-  const date = new Date();
-
-  if (frequency === "Weekly") date.setDate(date.getDate() + 7);
-  if (frequency === "Monthly") date.setMonth(date.getMonth() + 1);
-  if (frequency === "Yearly") date.setFullYear(date.getFullYear() + 1);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const year = Number(values.year);
+  const month = Number(values.month) - 1;
+  const day = Number(values.day);
+  let date = new Date(Date.UTC(year, month, day + (frequency === "Weekly" ? 7 : 0), 12));
+  if (frequency === "Monthly") {
+    const targetMonth = month + 1;
+    const lastDay = new Date(Date.UTC(year, targetMonth + 1, 0)).getUTCDate();
+    date = new Date(Date.UTC(year, targetMonth, Math.min(day, lastDay), 12));
+  } else if (frequency === "Yearly") {
+    const lastDay = new Date(Date.UTC(year + 1, month + 1, 0)).getUTCDate();
+    date = new Date(Date.UTC(year + 1, month, Math.min(day, lastDay), 12));
+  }
 
   return new Intl.DateTimeFormat("en-PH", {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: "UTC",
   }).format(date);
 }
 
@@ -230,15 +244,32 @@ export function SalesOrderForm({
   const [lineItems, setLineItems] = useState<LineItem[]>(() => [newLineItem(items)]);
   const [discountCode, setDiscountCode] = useState("");
   const [amountPaid, setAmountPaid] = useState("");
+  const [cashTendered, setCashTendered] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("Cash");
+  const [paymentArrangement, setPaymentArrangement] = useState<"full" | "installment">("full");
   const [otherPaymentMethod, setOtherPaymentMethod] = useState("");
   const [transactionReference, setTransactionReference] = useState("");
   const [installmentFrequency, setInstallmentFrequency] = useState("Monthly");
   const [installmentCount, setInstallmentCount] = useState("12");
   const [initialPaymentMethod, setInitialPaymentMethod] = useState("Cash");
+  const [initialOtherPaymentMethod, setInitialOtherPaymentMethod] = useState("");
   const [initialPaymentReference, setInitialPaymentReference] = useState("");
   const [customerMode, setCustomerMode] = useState<"new" | "existing">("new");
   const [selectedCustomerKey, setSelectedCustomerKey] = useState("");
+  const [customerInstallmentState, setCustomerInstallmentState] = useState<{
+    customerKey: string;
+    installment: {
+    planId: string;
+    salesOrderId: string;
+    receiptNumber: string;
+    remainingAmount: number;
+    nextDueDate: string | null;
+    } | null;
+    error: string | null;
+  } | null>(null);
+  const [installmentCheckVersion, setInstallmentCheckVersion] = useState(0);
+  const [checkingInstallment, startInstallmentCheck] = useTransition();
+  const idempotencyKeyRef = useRef("");
   const { confirm, confirmationDialog } = useConfirmationDialog();
 
   const itemById = useMemo(
@@ -252,6 +283,12 @@ export function SalesOrderForm({
   const selectedCustomer = selectableCustomers.find(
     (customer) => customer.key === selectedCustomerKey,
   );
+  const customerInstallment = customerMode === "existing" && customerInstallmentState?.customerKey === selectedCustomer?.key
+    ? customerInstallmentState?.installment ?? null
+    : null;
+  const customerInstallmentError = customerMode === "existing" && customerInstallmentState?.customerKey === selectedCustomer?.key
+    ? customerInstallmentState?.error ?? null
+    : null;
 
   const subtotal = lineItems.reduce(
     (total, item) =>
@@ -273,18 +310,51 @@ export function SalesOrderForm({
   const change = amountPaid.trim() ? Math.max(paid - total, 0) : 0;
   const remainingBalance = Math.max(total - paid, 0);
   const installmentCountNumber = Number(installmentCount);
-  const installmentPayment = installmentCountNumber > 0
-    ? Math.round((total / installmentCountNumber) * 100) / 100
-    : 0;
-  const installmentAmount = installmentPayment.toFixed(2);
+  const futurePayments = Math.max(installmentCountNumber - 1, 0);
+  const futurePaymentAmounts = total > paid && paid > 0 && futurePayments > 0 && installmentCountNumber <= 120 && futurePayments <= Math.floor((total - paid) * 100)
+    ? futureInstallmentAmounts(total, paid, installmentCountNumber)
+    : [];
+  const nextPaymentAmount = futurePaymentAmounts[0] ?? 0;
+  const initialCashChange = Math.max(toNumber(cashTendered) - paid, 0);
+
+  useEffect(() => {
+    let current = true;
+    if (customerMode !== "existing" || !selectedCustomer) {
+      return () => { current = false; };
+    }
+    startInstallmentCheck(async () => {
+      const result = await getCustomerActiveInstallmentAction(
+        selectedCustomer.customerId,
+        selectedCustomer.contact,
+      );
+      if (!current) return;
+      setCustomerInstallmentState({
+        customerKey: selectedCustomer.key,
+        installment: result.installment,
+        error: result.error,
+      });
+    });
+    return () => { current = false; };
+  }, [customerMode, selectedCustomer, installmentCheckVersion]);
 
   useEffect(() => {
     confirmedRef.current = false;
 
     if (!state.message) return;
 
+    if (state.paymentReceiptId && state.paymentReceiptNumber) {
+      notify?.("success", `Initial payment recorded. Receipt ${state.paymentReceiptNumber}.`);
+      idempotencyKeyRef.current = "";
+      const idempotencyInput = formRef.current?.elements.namedItem("idempotency_key");
+      if (idempotencyInput instanceof HTMLInputElement) idempotencyInput.value = "";
+      router.push(`/sales/payments/${state.paymentReceiptId}`);
+      return;
+    }
     if (state.receiptId && state.receiptNumber) {
       notify?.("success", `Receipt ${state.receiptNumber} recorded.`);
+      idempotencyKeyRef.current = "";
+      const idempotencyInput = formRef.current?.elements.namedItem("idempotency_key");
+      if (idempotencyInput instanceof HTMLInputElement) idempotencyInput.value = "";
       onRecorded?.();
       router.refresh();
       return;
@@ -346,37 +416,36 @@ export function SalesOrderForm({
       }
     }
 
-    if (paymentMethod !== "Installment" && amountPaid.trim() && paid < total) {
+    if (paymentArrangement === "full" && amountPaid.trim() && paid < total) {
       return "Amount paid cannot be lower than the total.";
     }
 
-    if (paymentMethod !== "Cash" && paymentMethod !== "Installment" && amountPaid.trim() && paid > total) {
+    if (paymentArrangement === "full" && paymentMethod !== "Cash" && amountPaid.trim() && paid > total) {
       return "Non-cash payment cannot exceed the sale total.";
     }
 
-    if (paymentMethod === "Installment" && !amountPaid.trim()) {
-      return "Enter the initial payment amount, or enter 0 if none is collected.";
+    if (paymentArrangement === "installment" && paid <= 0) {
+      return "Enter an initial payment greater than zero.";
     }
 
-    if (paymentMethod === "Installment" && remainingBalance <= 0) {
+    if (paymentArrangement === "installment" && remainingBalance <= 0) {
       return "An installment sale must have a remaining balance.";
     }
 
-    if (paymentMethod === "Installment" && (!Number.isInteger(installmentCountNumber) || installmentCountNumber < 1 || installmentCountNumber > 120)) {
-      return "Enter a number of payments between 1 and 120.";
+    if (paymentArrangement === "installment" && (!Number.isInteger(installmentCountNumber) || installmentCountNumber < 2 || installmentCountNumber > 120)) {
+      return "Enter a total of 2 to 120 payments, including the initial payment.";
     }
 
-    if (paymentMethod === "Installment" && installmentCountNumber > Math.floor(total * 100)) {
-      return "Number of payments is too high for the sale total.";
+    if (paymentArrangement === "installment" && installmentCountNumber - 1 > Math.floor(remainingBalance * 100)) {
+      return "Number of future payments is too high for the remaining balance.";
     }
 
-    if (paymentMethod === "Other" && !otherPaymentMethod.trim()) {
+    if (paymentArrangement === "full" && paymentMethod === "Other" && !otherPaymentMethod.trim()) {
       return "Enter the other payment method used.";
     }
 
     if (
-      paymentMethod === "Installment" &&
-      paid > 0 &&
+      paymentArrangement === "installment" &&
       initialPaymentMethod !== "Cash" &&
       !initialPaymentReference.trim()
     ) {
@@ -384,8 +453,7 @@ export function SalesOrderForm({
     }
 
     if (
-      paymentMethod !== "Cash" &&
-      paymentMethod !== "Installment" &&
+      paymentArrangement === "full" && paymentMethod !== "Cash" &&
       !transactionReference.trim()
     ) {
       return "Enter the transaction ID for non-cash payment.";
@@ -393,6 +461,18 @@ export function SalesOrderForm({
 
     if (normalizedDiscountCode && !selectedDiscount) {
       return "Enter a valid released discount code.";
+    }
+
+    if (paymentArrangement === "installment" && customerMode === "existing" && !selectedCustomer) {
+      return "Select an existing customer before creating an installment.";
+    }
+    if (paymentArrangement === "installment" && checkingInstallment) return "Checking this customer's installment balance. Please wait.";
+    if (paymentArrangement === "installment" && customerInstallmentError) return customerInstallmentError;
+    if (paymentArrangement === "installment" && customerInstallment) {
+      return `This customer has an existing installment with ${formatCurrency(customerInstallment.remainingAmount)} remaining.`;
+    }
+    if (paymentArrangement === "installment" && paymentMethod === "Cash" && toNumber(cashTendered) < paid) {
+      return "Cash received must cover the initial payment.";
     }
 
     return "";
@@ -414,11 +494,18 @@ export function SalesOrderForm({
 
     const approved = await confirm({
       title: "Record this sale?",
-      message: "This will create the receipt and deduct the sold quantities from inventory.",
-      summary: <strong>Total amount: {formatCurrency(total)}</strong>,
+      message: paymentArrangement === "installment"
+        ? "This will create the purchase, payment schedule, and initial payment receipt together."
+        : "This will create the receipt and deduct the sold quantities from inventory.",
+      summary: <strong>{paymentArrangement === "installment" ? `Purchase: ${formatCurrency(total)} · Collected now: ${formatCurrency(paid)} · Balance: ${formatCurrency(remainingBalance)}` : `Total amount: ${formatCurrency(total)}`}</strong>,
       confirmLabel: "Record sale",
     });
     if (!approved) return;
+    const idempotencyInput = formRef.current?.elements.namedItem("idempotency_key");
+    if (idempotencyInput instanceof HTMLInputElement) {
+      if (!idempotencyKeyRef.current) idempotencyKeyRef.current = crypto.randomUUID();
+      idempotencyInput.value = idempotencyKeyRef.current;
+    }
     confirmedRef.current = true;
     formRef.current?.requestSubmit();
   }
@@ -435,6 +522,9 @@ export function SalesOrderForm({
   return (
     <form ref={formRef} className={styles.form} action={formAction} onSubmit={handleSubmit}>
       <input name="customer_mode" type="hidden" value={customerMode} />
+      <input name="idempotency_key" type="hidden" defaultValue="" />
+      <input name="existing_customer_id" type="hidden" value={selectedCustomer?.customerId ?? ""} />
+      <input name="payment_method" type="hidden" value={paymentArrangement === "installment" ? "Installment" : paymentMethod} />
       <section className={styles.panel}>
         <div className={styles.panelHeader}>
           <div>
@@ -573,59 +663,29 @@ export function SalesOrderForm({
                     No saved customer with a valid contact number is available. Choose New customer to enter receipt details.
                   </p>
                 ) : null}
-                {selectedCustomer ? (
-                  <p className={styles.customerPickerHint}>
-                    This receipt will be recorded for {selectedCustomer.name} and included in their customer history.
-                  </p>
+                {selectedCustomer ? <p className={styles.customerPickerHint}>This sale will be recorded for {selectedCustomer.name} and included in their customer history.</p> : null}
+                {checkingInstallment ? <p className={styles.customerPickerHint} role="status">Checking existing installment balance…</p> : null}
+                {customerInstallmentError ? <p className={styles.customerPickerHint} data-tone="error" role="alert">Could not check the installment balance: {customerInstallmentError} <button type="button" onClick={() => setInstallmentCheckVersion((version) => version + 1)}>Retry</button></p> : null}
+                {customerInstallment ? (
+                  <div className={styles.customerPickerHint} data-tone="warning" role="alert">
+                    <strong>This customer has an existing installment with {formatCurrency(customerInstallment.remainingAmount)} remaining.</strong>
+                    <span>{customerInstallment.receiptNumber}{customerInstallment.nextDueDate ? ` · Next due ${new Intl.DateTimeFormat("en-PH", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${customerInstallment.nextDueDate}T00:00:00Z`))}` : ""}</span>
+                    <Link href={`/sales/${customerInstallment.salesOrderId}`}>View installment and record payment</Link>
+                  </div>
                 ) : null}
               </>
             )}
-            <ThemedSelect
-              label="Payment method"
-              name="payment_method"
-              options={paymentMethodOptions}
-              required
-              value={paymentMethod}
-              onChange={(value) => {
-                if (value !== paymentMethod) setAmountPaid("");
-                setPaymentMethod(value);
-                if (value === "Cash" || value === "Installment") {
-                  setTransactionReference("");
-                }
-                if (value !== "Other") {
-                  setOtherPaymentMethod("");
-                }
-              }}
-            />
-            {paymentMethod === "Other" ? (
-              <label>
-                Other payment method
-                <input
-                  name="other_payment_method"
-                  placeholder="e.g. Maya, cheque, farm credit"
-                  required
-                  type="text"
-                  value={otherPaymentMethod}
-                  onChange={(event) => setOtherPaymentMethod(event.target.value)}
-                />
-              </label>
-            ) : null}
-            {paymentMethod !== "Cash" ? (
-              paymentMethod !== "Installment" ? (
-              <label>
-                Transaction ID
-                <input
-                  name="transaction_reference"
-                  placeholder="e.g. TXN-2026-0012"
-                  required
-                  type="text"
-                  value={transactionReference}
-                  onChange={(event) => setTransactionReference(event.target.value)}
-                />
-              </label>
-              ) : null
-            ) : null}
-            {paymentMethod === "Installment" ? (
+            <div className={styles.customerMode} aria-label="Payment arrangement" role="group">
+              <button aria-pressed={paymentArrangement === "full"} className={paymentArrangement === "full" ? styles.customerModeActive : ""} type="button" onClick={() => setPaymentArrangement("full")}>Full payment</button>
+              <button aria-pressed={paymentArrangement === "installment"} className={paymentArrangement === "installment" ? styles.customerModeActive : ""} type="button" onClick={() => setPaymentArrangement("installment")}>Installment</button>
+            </div>
+            {paymentArrangement === "full" ? (
+              <>
+                <ThemedSelect label="Payment method" name="payment_method_display" options={paymentMethodOptions} required value={paymentMethod} onChange={(value) => { setPaymentMethod(value); setTransactionReference(""); setOtherPaymentMethod(""); }} />
+                {paymentMethod === "Other" ? <label>Other payment method<input name="other_payment_method" placeholder="e.g. Maya or cheque" required value={otherPaymentMethod} onChange={(event) => setOtherPaymentMethod(event.target.value)} type="text" /></label> : null}
+                {paymentMethod !== "Cash" ? <label>Transaction ID<input name="transaction_reference" placeholder="e.g. TXN-2026-0012" required value={transactionReference} onChange={(event) => setTransactionReference(event.target.value)} type="text" /></label> : null}
+              </>
+            ) : (
               <>
                 <div className={styles.installmentTermsGrid}>
                   <ThemedSelect
@@ -637,10 +697,10 @@ export function SalesOrderForm({
                     onChange={setInstallmentFrequency}
                   />
                   <label>
-                    Number of payments
+                    Total number of payments (including today)
                     <NumericInput
                       max="120"
-                      min="1"
+                      min="2"
                       name="installment_count"
                       required
                       step="1"
@@ -649,14 +709,9 @@ export function SalesOrderForm({
                     />
                   </label>
                   <label>
-                    Amount per payment (PHP)
-                    <NumericInput
-                      min="0.01"
-                      readOnly
-                      step="0.01"
-                      value={installmentAmount}
-                    />
-                    <small className={styles.installmentAmountHint}>Auto-calculated from sale total ÷ number of payments.</small>
+                    Next payment amount (PHP)
+                    <output>{formatCurrency(nextPaymentAmount)}</output>
+                    <small className={styles.installmentAmountHint}>Calculated from the remaining balance ÷ {futurePayments} future payments.</small>
                   </label>
                 </div>
                 <div className={styles.installmentInitialGrid}>
@@ -674,17 +729,20 @@ export function SalesOrderForm({
                   <label>
                     Initial payment amount (PHP)
                     <NumericInput
-                      min="0"
+                      min="0.01"
                       name="amount_paid"
-                      placeholder="Enter 0 if none"
                       required
                       step="0.01"
                       value={amountPaid}
-                      onChange={(event) => setAmountPaid(event.target.value)}
+                      onChange={(event) => { setAmountPaid(event.target.value); if (initialPaymentMethod === "Cash") setCashTendered(event.target.value); }}
                     />
                   </label>
-                  <p>Recorded to the sale and customer installment progress immediately.</p>
+                  <p>Collected as payment 1; the remaining balance is split over future payments.</p>
                 </div>
+                {initialPaymentMethod === "Cash" ? (
+                  <label>Cash received (PHP)<NumericInput min={String(paid)} name="initial_cash_tendered" step="0.01" value={cashTendered || amountPaid} onChange={(event) => setCashTendered(event.target.value)} /><small>Change: {formatCurrency(initialCashChange)}</small></label>
+                ) : null}
+                {initialPaymentMethod === "Other" ? <label>Other payment method<input name="initial_other_payment_method" required placeholder="e.g. Maya or cheque" value={initialOtherPaymentMethod} onChange={(event) => setInitialOtherPaymentMethod(event.target.value)} /></label> : null}
                 {paid > 0 && initialPaymentMethod !== "Cash" ? (
                   <label>
                     Initial payment transaction ID
@@ -701,10 +759,13 @@ export function SalesOrderForm({
                 <div className={styles.installmentDueHint}>
                   <span>Next payment due</span>
                   <strong>{nextInstallmentDateLabel(installmentFrequency)}</strong>
-                  <small>Calculated from the transaction date and payment frequency.</small>
+                  <small>Payment 1 is collected today. {futurePayments} future payments cover the remaining balance.</small>
+                  <span>Schedule preview</span>
+                  {futurePaymentAmounts.slice(0, 5).map((amount, index) => <small key={index}>Payment {index + 2}: {formatCurrency(amount)}</small>)}
+                  {futurePayments > 5 ? <small>And {futurePayments - 5} more payments</small> : null}
                 </div>
               </>
-            ) : null}
+            )}
             <label>
               Remarks
               <textarea name="remarks" placeholder="e.g. Customer requested delivery on Friday" rows={4} />
@@ -738,7 +799,7 @@ export function SalesOrderForm({
                   : "Code not found or already used."}
               </p>
             ) : null}
-            {paymentMethod !== "Installment" ? (
+            {paymentArrangement === "full" ? (
               <label>
                 Amount paid (PHP)
                 <NumericInput
@@ -771,7 +832,7 @@ export function SalesOrderForm({
             </div>
           </div>
 
-          <button className={styles.submitButton} disabled={pending} type="submit">
+          <button className={styles.submitButton} disabled={pending || (paymentArrangement === "installment" && (checkingInstallment || Boolean(customerInstallmentError) || Boolean(customerInstallment)))} type="submit">
             <PendingActionLabel pending={pending} pendingText="Recording sale...">Record sale</PendingActionLabel>
             <span aria-hidden="true">
               <Receipt size={18} />

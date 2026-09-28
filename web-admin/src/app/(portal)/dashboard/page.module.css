@@ -138,6 +138,37 @@
 .stageBarRow > div { height: 10px; overflow: hidden; border-radius: 999px; background: rgba(var(--dashboard-green-rgb), 0.1); }
 .stageBarRow i { display: block; height: 100%; min-width: 5px; border-radius: inherit; background: linear-gradient(90deg, var(--green-secondary), var(--green-accent)); }
 .stageBarRow b { color: var(--text); text-align: right; }
+.harvestChart {
+  display: grid;
+  min-height: 210px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  align-items: end;
+  gap: 12px;
+  border-bottom: 1px solid var(--border-soft);
+  padding: 8px 4px 0;
+}
+.harvestMonth {
+  display: grid;
+  height: 190px;
+  grid-template-rows: 20px minmax(72px, 1fr) 22px;
+  justify-items: center;
+  gap: 7px;
+}
+.harvestMonth > strong { color: var(--text-secondary); font-family: var(--font-roboto-mono); font-size: 0.8rem; }
+.harvestMonth > div { display: flex; width: min(100%, 42px); height: 100%; align-items: end; overflow: hidden; border-radius: 8px 8px 2px 2px; background: rgba(var(--dashboard-green-rgb), 0.08); }
+.harvestMonth i { display: block; width: 100%; min-height: 0; border-radius: 8px 8px 2px 2px; background: linear-gradient(180deg, var(--green-accent), var(--green-secondary)); }
+.harvestMonth > span { color: var(--text-muted); font-size: 0.75rem; font-weight: 800; }
+.statusChart { display: grid; gap: 18px; }
+.statusBarRow { display: grid; grid-template-columns: 10px minmax(100px, 0.55fr) minmax(0, 1fr) 24px; align-items: center; gap: 10px; color: var(--text-secondary); font-size: 0.84rem; }
+.statusBarRow > span { width: 9px; height: 9px; border-radius: 50%; background: var(--green-accent); }
+.statusBarRow > span[data-status="Needs Attention"] { background: var(--warning); }
+.statusBarRow > span[data-status="Harvest Ready"] { background: #71b8ff; }
+.statusBarRow > strong { color: var(--text-secondary); font-size: 0.82rem; }
+.statusBarRow > div { height: 10px; overflow: hidden; border-radius: 999px; background: rgba(var(--dashboard-green-rgb), 0.1); }
+.statusBarRow i { display: block; height: 100%; min-width: 5px; border-radius: inherit; background: var(--green-accent); }
+.statusBarRow i[data-status="Needs Attention"] { background: var(--warning); }
+.statusBarRow i[data-status="Harvest Ready"] { background: #71b8ff; }
+.statusBarRow b { color: var(--text); text-align: right; }
 .careCropList { list-style: none; gap: 0; }
 .careCropList li { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--border-soft); padding: 12px 0; }
 .careCropList li:first-child { border-top: 0; padding-top: 0; }

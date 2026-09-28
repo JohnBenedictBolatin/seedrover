@@ -20,6 +20,7 @@ export async function GET(request: Request) {
     payment: searchParams.get("payment") ?? undefined,
     start: searchParams.get("start") ?? undefined,
     status: searchParams.get("status") ?? undefined,
+    type: searchParams.get("type") ?? undefined,
   });
   const csv = rowsToCsv([
     [

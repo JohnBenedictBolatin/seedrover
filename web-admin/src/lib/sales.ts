@@ -40,12 +40,14 @@ export type RecentSalesOrder = {
   discountAmount?: number;
   totalAmount: number;
   status: string;
-  source?: "receipt" | "market" | "payment";
+  source?: "receipt" | "market" | "payment" | "reversal";
   entryLabel?: string;
   paymentAmount?: number;
   relatedSaleId?: string;
   amountPaid?: number;
   installmentStatus?: "Active" | "Completed" | "Cancelled";
+  paymentReceiptId?: string;
+  reversalReason?: string | null;
 };
 
 export type SalesSummary = {
@@ -107,8 +109,10 @@ export type SalesReceipt = {
 
 export type InstallmentCollectionEvent = {
   id: string;
+  paymentReceiptId: string;
   salesOrderId: string;
   receiptNumber: string;
+  saleReceiptNumber: string;
   customerName: string;
   paymentDate: string;
   paymentMethod: string;
@@ -118,6 +122,8 @@ export type InstallmentCollectionEvent = {
   installmentNumber: number | null;
   installmentCount: number;
   saleStatus: string;
+  isReversal: boolean;
+  reversalReason: string | null;
 };
 
 type SellableRow = {
@@ -259,6 +265,23 @@ function toNumber(value: number | string | null | undefined) {
   }
 
   return Number(value ?? 0);
+}
+
+async function fetchAllPages<T>(
+  fetchPage: (from: number, to: number) => PromiseLike<{
+    data: T[] | null;
+    error: { message: string } | null;
+  }>,
+) {
+  const rows: T[] = [];
+  for (let from = 0; ; from += 1000) {
+    const result = await fetchPage(from, from + 999);
+    if (result.error) return { data: null, error: result.error };
+    const page = result.data ?? [];
+    rows.push(...page);
+    if (page.length < 1000) break;
+  }
+  return { data: rows, error: null };
 }
 
 export async function getSellableInventory() {
@@ -447,75 +470,67 @@ function displayPaymentMethod(method: string | null | undefined, otherMethod?: s
   return method ?? "Not recorded";
 }
 
+function manilaDate(timestamp: string) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(timestamp));
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
 export async function getInstallmentCollectionEvents() {
   const supabase = await createSupabaseServerClient();
   if (!supabase) return { events: [] as InstallmentCollectionEvent[], error: "Supabase is not configured." };
-
-  const { data: plans, error: plansError } = await supabase
-    .from("installment_plans")
-    .select("id, sales_order_id, receipt_number, customer_name")
-    .returns<InstallmentPlanLinkRow[]>();
-  if (plansError) return { events: [] as InstallmentCollectionEvent[], error: plansError.message };
-  if (!plans?.length) return { events: [] as InstallmentCollectionEvent[], error: null };
-
-  const planIds = plans.map((plan) => plan.id);
-  const saleIds = plans.map((plan) => plan.sales_order_id);
-  const [paymentsResult, schedulesResult, ordersResult] = await Promise.all([
-    supabase
-      .from("installment_payments")
-      .select("id, collection_group_id, collection_type, plan_id, schedule_id, amount, payment_date, payment_method, transaction_reference, other_payment_method")
-      .in("plan_id", planIds)
-      .order("payment_date", { ascending: false })
-      .returns<InstallmentCollectionRow[]>(),
-    supabase
-      .from("installment_schedule")
-      .select("id, plan_id, installment_number")
-      .in("plan_id", planIds)
-      .order("installment_number", { ascending: true })
-      .returns<InstallmentScheduleLinkRow[]>(),
-    supabase
-      .from("sales_orders")
-      .select("id, status")
-      .in("id", saleIds)
-      .returns<SalesOrderStatusRow[]>(),
-  ]);
-  const relatedError = paymentsResult.error ?? schedulesResult.error ?? ordersResult.error;
-  if (relatedError) return { events: [] as InstallmentCollectionEvent[], error: relatedError.message };
-
-  const planById = new Map(plans.map((plan) => [plan.id, plan]));
-  const scheduleById = new Map((schedulesResult.data ?? []).map((schedule) => [schedule.id, schedule]));
-  const scheduleCounts = new Map<string, number>();
-  for (const schedule of schedulesResult.data ?? []) {
-    scheduleCounts.set(schedule.plan_id, (scheduleCounts.get(schedule.plan_id) ?? 0) + 1);
+  const collectionResult = await fetchAllPages((from, to) => supabase
+    .from("installment_collections")
+    .select("id, receipt_number, sales_order_id, plan_id, collection_type, amount, payment_date, payment_method, transaction_reference, other_payment_method, installment_plans(customer_name, receipt_number), sales_orders(status)")
+    .order("payment_date", { ascending: false })
+    .range(from, to));
+  const collections = collectionResult.data;
+  const error = collectionResult.error;
+  if (error) return { events: [] as InstallmentCollectionEvent[], error: error.message };
+  if (!collections?.length) return { events: [] as InstallmentCollectionEvent[], error: null };
+  const ids = collections.map((collection) => collection.id);
+  const reversals = [] as Array<{ id: string; collection_id: string; receipt_number: string; reason: string; balance_after: number | string; reversed_at: string }>;
+  for (let index = 0; index < ids.length; index += 500) {
+    const { data, error: reversalsError } = await supabase
+      .from("installment_collection_reversals")
+      .select("id, collection_id, receipt_number, reason, balance_after, reversed_at")
+      .in("collection_id", ids.slice(index, index + 500));
+    if (reversalsError) return { events: [] as InstallmentCollectionEvent[], error: reversalsError.message };
+    reversals.push(...((data ?? []) as typeof reversals));
   }
-  const statusBySale = new Map((ordersResult.data ?? []).map((order) => [order.id, order.status]));
-  const groups = new Map<string, InstallmentCollectionRow[]>();
-  for (const row of paymentsResult.data ?? []) {
-    const groupId = row.collection_group_id || row.id;
-    groups.set(groupId, [...(groups.get(groupId) ?? []), row]);
-  }
-
-  const events = [...groups.entries()].flatMap<InstallmentCollectionEvent>(([id, rows]) => {
-    const first = rows[0];
-    const plan = planById.get(first.plan_id);
-    if (!plan) return [];
-    const schedule = scheduleById.get(first.schedule_id);
-    return [{
-      id,
-      salesOrderId: plan.sales_order_id,
-      receiptNumber: plan.receipt_number,
-      customerName: plan.customer_name || "Walk-in customer",
-      paymentDate: first.payment_date,
-      paymentMethod: displayPaymentMethod(first.payment_method, first.other_payment_method),
-      transactionReference: first.transaction_reference,
-      paymentAmount: rows.reduce((sum, row) => sum + toNumber(row.amount), 0),
-      collectionType: first.collection_type,
-      installmentNumber: first.collection_type === "installment" ? schedule?.installment_number ?? null : null,
-      installmentCount: scheduleCounts.get(first.plan_id) ?? 0,
-      saleStatus: statusBySale.get(plan.sales_order_id) ?? "Completed",
+  const reversalByCollection = new Map((reversals ?? []).map((reversal) => [reversal.collection_id, reversal]));
+  const events = collections.flatMap<InstallmentCollectionEvent>((raw) => {
+    const row = raw as unknown as {
+      id: string; receipt_number: string; sales_order_id: string; plan_id: string;
+      collection_type: "down_payment" | "installment"; amount: number | string; payment_date: string;
+      payment_method: string; transaction_reference: string | null; other_payment_method: string | null;
+      installment_plans: { customer_name: string; receipt_number: string } | { customer_name: string; receipt_number: string }[] | null;
+      sales_orders: { status: string } | { status: string }[] | null;
+    };
+    const plan = Array.isArray(row.installment_plans) ? row.installment_plans[0] : row.installment_plans;
+    const sale = Array.isArray(row.sales_orders) ? row.sales_orders[0] : row.sales_orders;
+    const base: InstallmentCollectionEvent = {
+      id: row.id, paymentReceiptId: row.id, salesOrderId: row.sales_order_id,
+      receiptNumber: row.receipt_number, saleReceiptNumber: plan?.receipt_number ?? "Purchase",
+      customerName: plan?.customer_name ?? "Customer", paymentDate: row.payment_date,
+      paymentMethod: displayPaymentMethod(row.payment_method, row.other_payment_method),
+      transactionReference: row.transaction_reference, paymentAmount: toNumber(row.amount),
+      collectionType: row.collection_type, installmentNumber: null, installmentCount: 0,
+      saleStatus: sale?.status ?? "Completed", isReversal: false, reversalReason: null,
+    };
+    const reversal = reversalByCollection.get(row.id);
+    if (!reversal) return [base];
+    return [base, {
+      ...base, id: reversal.id, receiptNumber: reversal.receipt_number,
+      paymentDate: manilaDate(reversal.reversed_at), paymentAmount: -base.paymentAmount,
+      paymentMethod: "Reversal", isReversal: true, reversalReason: reversal.reason,
     }];
   }).sort((left, right) => new Date(right.paymentDate).getTime() - new Date(left.paymentDate).getTime());
-
   return { events, error: null };
 }
 
@@ -551,54 +566,54 @@ export async function getSalesWorkspaceData() {
   }
 
   const [ordersResultWithPaymentDetails, marketResultWithPayment] = await Promise.all([
-    supabase
+    fetchAllPages<RecentSalesOrderRow>((from, to) => supabase
       .from("sales_orders")
       .select(
         "id, receipt_number, sale_date, customer_name, customer_contact, payment_method, transaction_reference, other_payment_method, discount_amount, total_amount, amount_paid, change_amount, remarks, void_reason, status, sales_order_items(id, item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total, inventory(category))",
       )
       .order("sale_date", { ascending: false })
-      .limit(120)
-      .returns<RecentSalesOrderRow[]>(),
-    supabase
+      .range(from, to)
+      .returns<RecentSalesOrderRow[]>()),
+    fetchAllPages<StandaloneSalesRow>((from, to) => supabase
       .from("sales_transactions")
       .select("id, sale_date, customer_name, payment_method, transaction_reference, other_payment_method, quantity_sold, unit_price, total_amount, remarks, void_reason, status, inventory(item_name, unit, category)")
       .order("sale_date", { ascending: false })
-      .limit(120)
-      .returns<StandaloneSalesRow[]>(),
+      .range(from, to)
+      .returns<StandaloneSalesRow[]>()),
   ]);
 
   const ordersResult = isMissingSalesOrderPaymentDetailColumn(ordersResultWithPaymentDetails.error)
-    ? await supabase
+    ? await fetchAllPages<RecentSalesOrderRow>((from, to) => supabase
         .from("sales_orders")
         .select(
           "id, receipt_number, sale_date, customer_name, customer_contact, payment_method, discount_amount, total_amount, amount_paid, change_amount, remarks, void_reason, status, sales_order_items(id, item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total, inventory(category))",
         )
         .order("sale_date", { ascending: false })
-        .limit(120)
-        .returns<RecentSalesOrderRow[]>()
+        .range(from, to)
+        .returns<RecentSalesOrderRow[]>())
     : ordersResultWithPaymentDetails;
 
   const marketResult = isMissingPaymentMethodColumn(marketResultWithPayment.error)
-    ? await supabase
+    ? await fetchAllPages<StandaloneSalesRow>((from, to) => supabase
         .from("sales_transactions")
         .select("id, sale_date, customer_name, quantity_sold, unit_price, total_amount, remarks, void_reason, status, inventory(item_name, unit, category)")
         .order("sale_date", { ascending: false })
-        .limit(120)
-        .returns<StandaloneSalesRow[]>()
+        .range(from, to)
+        .returns<StandaloneSalesRow[]>())
     : isMissingTransactionReferenceColumn(marketResultWithPayment.error)
-      ? await supabase
+      ? await fetchAllPages<StandaloneSalesRow>((from, to) => supabase
           .from("sales_transactions")
           .select("id, sale_date, customer_name, payment_method, quantity_sold, unit_price, total_amount, remarks, void_reason, status, inventory(item_name, unit, category)")
           .order("sale_date", { ascending: false })
-          .limit(120)
-          .returns<StandaloneSalesRow[]>()
+          .range(from, to)
+          .returns<StandaloneSalesRow[]>())
       : isMissingOtherPaymentMethodColumn(marketResultWithPayment.error)
-        ? await supabase
+        ? await fetchAllPages<StandaloneSalesRow>((from, to) => supabase
             .from("sales_transactions")
             .select("id, sale_date, customer_name, payment_method, transaction_reference, quantity_sold, unit_price, total_amount, remarks, void_reason, status, inventory(item_name, unit, category)")
             .order("sale_date", { ascending: false })
-            .limit(120)
-            .returns<StandaloneSalesRow[]>()
+            .range(from, to)
+            .returns<StandaloneSalesRow[]>())
     : marketResultWithPayment;
 
   if (ordersResult.error) {
@@ -608,15 +623,18 @@ export async function getSalesWorkspaceData() {
   const orderRows = ordersResult.data ?? [];
   const marketRows = marketResult.data ?? [];
   const installmentStatusesResult = orderRows.length
-    ? await supabase
+    ? await fetchAllPages<InstallmentPlanStatusRow>((from, to) => supabase
         .from("installment_plans")
         .select("sales_order_id, status")
-        .in("sales_order_id", orderRows.map((order) => order.id))
-        .returns<InstallmentPlanStatusRow[]>()
-    : { data: [] as InstallmentPlanStatusRow[], error: null };
+        .range(from, to)
+        .returns<InstallmentPlanStatusRow[]>())
+    : { data: [] as InstallmentPlanStatusRow[], error: null as { message: string } | null };
   const installmentStatusBySale = new Map(
     (installmentStatusesResult.data ?? []).map((plan) => [plan.sales_order_id, plan.status]),
   );
+  if (installmentStatusesResult.error) {
+    return { ...empty, error: installmentStatusesResult.error.message };
+  }
   const collectionsResult = await getInstallmentCollectionEvents();
   const collectionEvents = collectionsResult.events;
   const today = startOfToday();
@@ -763,9 +781,9 @@ export async function getSalesWorkspaceData() {
 
   for (const event of collectionEvents) {
     const paymentDate = new Date(`${event.paymentDate}T00:00:00`);
-    const entryLabel = event.collectionType === "down_payment"
-      ? "Down payment"
-      : `Installment (${event.installmentNumber ?? "?"}/${event.installmentCount || "?"})`;
+    const entryLabel = event.isReversal
+      ? `Payment reversal · ${event.reversalReason ?? ""}`
+      : event.collectionType === "down_payment" ? "Initial payment" : "Installment payment";
     history.push({
       id: event.id,
       receiptNumber: event.receiptNumber,
@@ -778,9 +796,11 @@ export async function getSalesWorkspaceData() {
       discountAmount: 0,
       itemCount: 0,
       status: event.saleStatus,
-      source: "payment",
+      source: event.isReversal ? "reversal" : "payment",
       entryLabel,
       relatedSaleId: event.salesOrderId,
+      paymentReceiptId: event.paymentReceiptId,
+      reversalReason: event.reversalReason,
     });
     addToMap(paymentTotals, event.paymentMethod, event.paymentAmount);
     if (paymentDate >= today) collectedToday += event.paymentAmount;

@@ -841,6 +841,11 @@ function useActionSubmit({
   return { confirmationDialog, handleSubmit, pending };
 }
 
+type InventoryFormActionResult = void | { error: string };
+type InventoryFormAction = (
+  formData: FormData,
+) => InventoryFormActionResult | Promise<InventoryFormActionResult>;
+
 function InventoryForm({
   action,
   item,
@@ -848,7 +853,7 @@ function InventoryForm({
   onSuccess,
   successMessage,
 }: {
-  action: (formData: FormData) => void | Promise<void>;
+  action: InventoryFormAction;
   item?: InventoryItem;
   notify: (tone: AlertTone, text: string) => void;
   onSuccess: () => void;
@@ -883,7 +888,8 @@ function InventoryForm({
     startTransition(async () => {
       let itemDetailsSaved = false;
       try {
-        await action(formData);
+        const result = await action(formData);
+        if (result?.error) throw new Error(result.error);
         itemDetailsSaved = true;
 
         if (item) {

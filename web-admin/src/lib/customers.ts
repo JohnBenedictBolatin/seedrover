@@ -30,6 +30,7 @@ export type CustomerSummary = {
 
 export type ExistingSaleCustomer = {
   key: string;
+  customerId: string | null;
   name: string;
   contact: string;
 };
@@ -155,7 +156,7 @@ export async function getExistingSaleCustomers() {
     if (!name) continue;
     const contact = normalizeText(row.customer_contact || "Not provided");
     const key = row.customer_id ?? customerKey(name, contact);
-    if (!customers.has(key)) customers.set(key, { key, name, contact });
+    if (!customers.has(key)) customers.set(key, { key, customerId: row.customer_id, name, contact });
   }
 
   return {

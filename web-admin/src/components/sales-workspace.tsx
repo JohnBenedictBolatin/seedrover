@@ -76,7 +76,18 @@ function displayedSaleStatus(order: RecentSalesOrder) {
 
   if (order.installmentStatus === "Completed") return "Paid";
   if (order.installmentStatus === "Cancelled") return "Cancelled";
-  return "Ongoing";
+  return "Partially paid";
+}
+
+function isPaymentEntry(order: RecentSalesOrder) {
+  return order.source === "payment" || order.source === "reversal";
+}
+
+function salesEntryType(order: RecentSalesOrder) {
+  if (order.source === "reversal") return "Payment reversal";
+  if (order.source === "payment") return order.entryLabel ?? "Installment payment";
+  if (order.source === "market") return "Legacy inventory sale";
+  return order.paymentMethod === "Installment" ? "Installment sale" : "Sale";
 }
 
 function FilterSelect({
@@ -152,6 +163,7 @@ export function SalesWorkspace({
 }: SalesWorkspaceProps) {
   const [query, setQuery] = useState("");
   const [payment, setPayment] = useState("All");
+  const [entryType, setEntryType] = useState("All");
   const [status, setStatus] = useState("All");
   const [startDate, setStartDate] = useState(todayInputValue(-30));
   const [endDate, setEndDate] = useState(todayInputValue());
@@ -224,17 +236,18 @@ export function SalesWorkspace({
       return (
         (!normalized || haystack.includes(normalized)) &&
         (payment === "All" || order.paymentMethod === payment) &&
+        (entryType === "All" || salesEntryType(order) === entryType) &&
         (status === "All" || displayedSaleStatus(order) === status) &&
         matchesDateRange(order, startDate, endDate)
       );
     });
-  }, [endDate, orders, payment, query, startDate, status]);
+  }, [endDate, entryType, orders, payment, query, startDate, status]);
 
   useEffect(() => {
     const resetPage = window.setTimeout(() => setCurrentPage(1), 0);
 
     return () => window.clearTimeout(resetPage);
-  }, [endDate, payment, query, startDate, status]);
+  }, [endDate, entryType, payment, query, startDate, status]);
 
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / SALES_ROWS_PER_PAGE));
   const safeCurrentPage = Math.min(currentPage, totalPages);
@@ -247,6 +260,7 @@ export function SalesWorkspace({
 
   const paymentOptions = ["All", ...new Set(orders.map((order) => order.paymentMethod))];
   const statusOptions = ["All", ...new Set(orders.map(displayedSaleStatus))];
+  const entryTypeOptions = ["All", ...new Set(orders.map(salesEntryType))];
   const exportParams = new URLSearchParams();
 
   if (startDate) {
@@ -259,6 +273,10 @@ export function SalesWorkspace({
 
   if (payment !== "All") {
     exportParams.set("payment", payment);
+  }
+
+  if (entryType !== "All") {
+    exportParams.set("type", entryType);
   }
 
   if (status !== "All") {
@@ -387,6 +405,13 @@ export function SalesWorkspace({
             onChange={setPayment}
           />
           <FilterSelect
+            icon={<Receipt size={17} />}
+            label="Type"
+            options={entryTypeOptions}
+            value={entryType}
+            onChange={setEntryType}
+          />
+          <FilterSelect
             icon={<CheckCircle2 size={17} />}
             label="Status"
             options={statusOptions}
@@ -416,34 +441,34 @@ export function SalesWorkspace({
             </div>
             {paginatedOrders.map((order) => (
               <div className={styles.salesTableRow} key={`${order.source}-${order.id}`}>
-                {order.source === "payment" ? (
-                  <Link className={styles.receiptCellLink} data-label="Receipt / reference" href={`/sales/${order.relatedSaleId ?? order.id}`}>{order.receiptNumber}</Link>
+                {isPaymentEntry(order) ? (
+                  <Link className={styles.receiptCellLink} data-label="Payment receipt" href={`/sales/payments/${order.paymentReceiptId ?? order.relatedSaleId ?? order.id}`}>{order.receiptNumber}</Link>
                 ) : (
                   <strong className={styles.receiptCell} data-label={order.source === "market" ? "Legacy reference" : "Receipt"}>{order.receiptNumber}</strong>
                 )}
-                <span className={styles.dateCell} data-label={order.source === "payment" ? "Collection date" : "Date / time"}>{order.source === "payment" ? formatDate(order.saleDate) : formatDateTime(order.saleDate)}</span>
+                <span className={styles.dateCell} data-label={isPaymentEntry(order) ? "Collection date" : "Date / time"}>{isPaymentEntry(order) ? formatDate(order.saleDate) : formatDateTime(order.saleDate)}</span>
                 <strong className={styles.customerCell} data-label="Customer">{order.customerName}</strong>
                 <span className={styles.typeCell} data-label="Type">
-                  {order.source === "payment" ? order.entryLabel : order.source === "market" ? "Legacy inventory sale" : order.paymentMethod === "Installment" ? "Installment sale" : "Receipt sale"}
+                  {isPaymentEntry(order) ? order.entryLabel : order.source === "market" ? "Legacy inventory sale" : order.paymentMethod === "Installment" ? "Installment sale" : "Receipt sale"}
                 </span>
-                <span className={styles.itemsCell} data-label="Items">{order.source === "payment" ? "-" : order.itemCount ?? 1}</span>
+                <span className={styles.itemsCell} data-label="Items">{isPaymentEntry(order) ? "-" : order.itemCount ?? 1}</span>
                 <span className={styles.paymentCell} data-label="Payment">
                   {order.paymentMethod}
                   {order.source === "receipt" && order.paymentMethod === "Installment" ? (
                     <small>Paid {formatCurrency(order.amountPaid ?? 0)} / {formatCurrency(order.totalAmount)}</small>
                   ) : null}
-                  {order.source === "payment" && order.transactionReference ? <small>Ref: {order.transactionReference}</small> : null}
+                  {isPaymentEntry(order) && order.transactionReference ? <small>Ref: {order.transactionReference}</small> : null}
                 </span>
-                <span className={styles.discountCell} data-label="Discount">{order.source === "payment" ? "-" : formatCurrency(order.discountAmount ?? 0)}</span>
-                <strong className={styles.totalCell} data-label={order.source === "payment" ? "Collected" : "Sale total"}>{formatCurrency(order.source === "payment" ? order.paymentAmount ?? 0 : order.totalAmount)}</strong>
+                <span className={styles.discountCell} data-label="Discount">{isPaymentEntry(order) ? "-" : formatCurrency(order.discountAmount ?? 0)}</span>
+                <strong className={styles.totalCell} data-label={isPaymentEntry(order) ? (order.source === "reversal" ? "Reversed" : "Collected") : "Sale total"}>{formatCurrency(isPaymentEntry(order) ? order.paymentAmount ?? 0 : order.totalAmount)}</strong>
                 <div className={styles.statusCell} data-label="Status">
                   <span className={styles.statusPill} data-status={displayedSaleStatus(order).toLowerCase()}>
-                    {order.source === "payment" && order.status === "Voided" ? "Sale voided" : order.source === "payment" ? "Recorded" : displayedSaleStatus(order)}
+                    {order.source === "reversal" ? "Reversed" : isPaymentEntry(order) && order.status === "Voided" ? "Sale voided" : isPaymentEntry(order) ? "Recorded" : displayedSaleStatus(order)}
                   </span>
                 </div>
                 <div className={styles.tableActions} data-label="Actions">
-                  {order.source === "payment" ? (
-                    <Link aria-label="View linked sale receipt" href={`/sales/${order.relatedSaleId ?? order.id}`}>
+                  {isPaymentEntry(order) ? (
+                    <Link aria-label="View payment receipt" href={`/sales/payments/${order.paymentReceiptId ?? order.relatedSaleId ?? order.id}`}>
                       <Eye size={17} />
                     </Link>
                   ) : order.source === "receipt" ? (

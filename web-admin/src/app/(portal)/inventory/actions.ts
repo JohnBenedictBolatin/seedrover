@@ -10,6 +10,20 @@ import { parseDatabaseDecimal } from "@/lib/field-validation.mjs";
 
 const STOCK_IMAGE_BUCKET = "stock-images";
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const ITEM_ALREADY_EXISTS_MESSAGE = "Item already exists.";
+
+function isDuplicateInventoryName(error: {
+  code?: string;
+  message?: string;
+  details?: string | null;
+  hint?: string | null;
+}) {
+  const diagnostic = `${error.message ?? ""} ${error.details ?? ""} ${error.hint ?? ""}`.toLowerCase();
+  return diagnostic.includes("inventory item with this name already exists") ||
+    diagnostic.includes("item already exists") ||
+    diagnostic.includes("inventory_item_name_normalized_idx") ||
+    (error.code === "23505" && /inventory.*item_name|item_name.*inventory/.test(diagnostic));
+}
 
 function text(formData: FormData, key: string, fallback = "") {
   return String(formData.get(key) ?? fallback).trim();
@@ -184,13 +198,13 @@ export async function createInventoryItemAction(formData: FormData) {
     throw new Error(duplicateLookupError.message);
   }
 
-  const normalizedName = payload.item_name.toLocaleLowerCase();
+  const normalizedName = payload.item_name.trim().toLowerCase();
   if (
     (existingItems ?? []).some(
-      (item) => item.item_name.trim().toLocaleLowerCase() === normalizedName,
+      (item) => item.item_name.trim().toLowerCase() === normalizedName,
     )
   ) {
-    throw new Error("An inventory item with this name already exists.");
+    return { error: ITEM_ALREADY_EXISTS_MESSAGE };
   }
 
   const image = formData.get("image");
@@ -215,13 +229,7 @@ export async function createInventoryItemAction(formData: FormData) {
     // The database trigger is the final duplicate guard. Translate its error
     // (and any duplicate-name constraint error from a deployed schema) into
     // the same message used by the form's pre-insert check.
-    const duplicateMessage = "An inventory item with this name already exists.";
-    const errorText = `${error.message} ${error.details ?? ""} ${error.hint ?? ""}`;
-    const likelyNameConflict = /already exists/i.test(errorText) ||
-      (error.code === "23505" && /inventory.*name|name.*inventory/i.test(errorText));
-    if (likelyNameConflict) {
-      throw new Error(duplicateMessage);
-    }
+    if (isDuplicateInventoryName(error)) return { error: ITEM_ALREADY_EXISTS_MESSAGE };
 
     // Recheck after an insert failure to catch a duplicate that was added
     // concurrently or was not visible in the initial paginated read.
@@ -229,9 +237,9 @@ export async function createInventoryItemAction(formData: FormData) {
       .from("inventory")
       .select("id, item_name");
     if ((currentItems ?? []).some(
-      (item) => item.item_name.trim().toLocaleLowerCase() === normalizedName,
+      (item) => item.item_name.trim().toLowerCase() === normalizedName,
     )) {
-      throw new Error(duplicateMessage);
+      return { error: ITEM_ALREADY_EXISTS_MESSAGE };
     }
 
     throw new Error(error.message);
@@ -258,25 +266,45 @@ export async function updateInventoryItemAction(formData: FormData) {
 
   const id = text(formData, "id");
   const userId = await currentUserId();
+  const payload = inventoryPayload(formData);
+  const normalizedName = payload.item_name.trim().toLowerCase();
+  const { data: otherItems, error: duplicateLookupError } = await supabase
+    .from("inventory")
+    .select("id, item_name")
+    .neq("id", id);
+  if (duplicateLookupError) throw new Error(duplicateLookupError.message);
+  if ((otherItems ?? []).some((item) => item.item_name.trim().toLowerCase() === normalizedName)) {
+    return { error: ITEM_ALREADY_EXISTS_MESSAGE };
+  }
+
   const imagePath = await uploadImage(id, formData.get("image"));
 
   const { error } = await supabase
     .from("inventory")
     .update({
-      ...inventoryPayload(formData),
+      ...payload,
       ...(imagePath ? { image_path: imagePath } : {}),
       updated_by: userId,
     })
     .eq("id", id);
 
   if (error) {
+    if (isDuplicateInventoryName(error)) return { error: ITEM_ALREADY_EXISTS_MESSAGE };
+
+    const { data: currentItems } = await supabase
+      .from("inventory")
+      .select("id, item_name")
+      .neq("id", id);
+    if ((currentItems ?? []).some((item) => item.item_name.trim().toLowerCase() === normalizedName)) {
+      return { error: ITEM_ALREADY_EXISTS_MESSAGE };
+    }
     throw new Error(error.message);
   }
 
   await logInventoryActivity(
     supabase,
     "Inventory item updated",
-    `${inventoryPayload(formData).item_name || "Inventory item"} profile was updated.`,
+    `${payload.item_name || "Inventory item"} profile was updated.`,
     userId,
   );
 

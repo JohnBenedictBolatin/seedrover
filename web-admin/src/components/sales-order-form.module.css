@@ -354,6 +354,37 @@
   line-height: 1.45;
 }
 
+.customerPickerHint[data-tone="warning"],
+.customerPickerHint[data-tone="error"] {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 11px 12px;
+  color: var(--text);
+  background: var(--surface);
+}
+
+.customerPickerHint[data-tone="warning"] {
+  border-color: rgba(239, 160, 54, 0.5);
+  background: rgba(239, 160, 54, 0.1);
+}
+
+.customerPickerHint[data-tone="error"] {
+  border-color: rgba(214, 78, 78, 0.45);
+}
+
+.customerPickerHint a {
+  width: fit-content;
+  color: var(--text);
+  font-weight: 800;
+  text-decoration: underline;
+}
+
+.customerPickerHint button {
+  width: fit-content;
+}
+
 .installmentTermsGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

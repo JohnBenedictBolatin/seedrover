@@ -1045,6 +1045,8 @@ function CropForm({
 }) {
   const [pending, startTransition] = useTransition();
   const router = useRouter();
+  const currentStageIndex = crop.stages.findIndex((stage) => stage.trim().toLowerCase() === crop.growthStage.trim().toLowerCase());
+  const editableStages = currentStageIndex >= 0 ? crop.stages.slice(currentStageIndex) : crop.stages;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1078,7 +1080,7 @@ function CropForm({
         <CalendarField label="Estimated harvest" min={localDateInputValue()} name="estimated_harvest" defaultValue={crop?.estimatedHarvest ?? ""} />
       </div>
       <div className={styles.twoColumn}>
-        <ThemedSelect label="Growth stage" name="growth_stage" options={crop?.stages ?? []} defaultValue={crop?.growthStage ?? "Seeded"} />
+        <ThemedSelect label="Growth stage" name="growth_stage" options={editableStages} defaultValue={crop?.growthStage ?? "Seeded"} />
         <ThemedSelect label="Status" name="crop_status" options={statusInputOptions} defaultValue={displayCropStatus(crop.cropStatus)} />
       </div>
       <label>

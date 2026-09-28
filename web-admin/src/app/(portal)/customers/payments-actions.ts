@@ -65,21 +65,22 @@ export async function markCustomerPaymentPaidAction(formData: FormData) {
   revalidatePath("/customers");
 }
 
-export async function recordInstallmentPaymentAction(formData: FormData) {
+export async function recordInstallmentPaymentAction(formData: FormData): Promise<{ paymentId: string; receiptNumber: string }> {
   const profile = await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
   const supabase = await createSupabaseServerClient();
   if (!supabase) throw new Error("Supabase is not configured.");
 
-  const scheduleId = text(formData, "schedule_id");
+  const planId = text(formData, "plan_id");
   const amount = parseDatabaseDecimal(formData.get("amount"), "Amount");
+  const cashTendered = parseDatabaseDecimal(formData.get("cash_tendered") ?? String(amount), "Cash received");
   const paymentDate = text(formData, "payment_date");
   const paymentMethod = text(formData, "payment_method", "Cash");
   const transactionReference = text(formData, "transaction_reference") || null;
   const otherPaymentMethod = text(formData, "other_payment_method") || null;
   const notes = text(formData, "notes") || null;
 
-  if (!scheduleId || amount <= 0 || !paymentDate) {
-    throw new Error("The installment period, amount, and payment date are required.");
+  if (!planId || amount <= 0 || !paymentDate) {
+    throw new Error("The installment plan, amount, and payment date are required.");
   }
 
   if (!["Cash", "GCash", "Bank Transfer", "Card", "Other"].includes(paymentMethod)) {
@@ -94,37 +95,34 @@ export async function recordInstallmentPaymentAction(formData: FormData) {
     throw new Error("Describe the other payment method used.");
   }
 
-  const { data: scheduleInfo } = await supabase
-    .from("installment_schedule")
-    .select("installment_number")
-    .eq("id", scheduleId)
-    .maybeSingle<{ installment_number: number }>();
-
   let receiptPath: string | null = null;
   const receipt = formData.get("receipt");
   if (receipt instanceof File && receipt.size > 0) {
     if (receipt.size > MAX_UPLOAD_SIZE_BYTES) throw new Error("Receipt must be 5MB or smaller.");
     if (!receiptTypes.has(receipt.type)) throw new Error("Receipt must be a JPG, PNG, WebP, or PDF file.");
     const extension = receipt.name.split(".").pop()?.toLowerCase() || "bin";
-    receiptPath = `${scheduleId}/${randomUUID()}-receipt.${extension}`;
+    receiptPath = `${planId}/${randomUUID()}-receipt.${extension}`;
     const { error: uploadError } = await supabase.storage.from("installment-receipts").upload(receiptPath, receipt, { contentType: receipt.type });
     if (uploadError) throw new Error(uploadError.message);
   }
 
-  const { error } = await supabase.rpc("record_installment_payment", {
-    p_schedule_id: scheduleId,
+  const requestId = text(formData, "idempotency_key");
+  const { data, error } = await supabase.rpc("record_installment_collection", {
+    p_plan_id: planId,
     p_amount: amount,
+    p_cash_tendered: paymentMethod === "Cash" ? cashTendered : amount,
     p_payment_date: paymentDate,
     p_payment_method: paymentMethod,
     p_transaction_reference: paymentMethod === "Cash" ? null : transactionReference,
     p_other_payment_method: paymentMethod === "Other" ? otherPaymentMethod : null,
     p_notes: notes,
     p_receipt_path: receiptPath,
+    p_request_id: requestId,
   });
 
   if (error) {
     if (receiptPath) await supabase.storage.from("installment-receipts").remove([receiptPath]);
-    if (error.message.includes("record_installment_payment") || error.message.includes("schema cache")) {
+    if (error.message.includes("record_installment_collection") || error.message.includes("schema cache")) {
       throw new Error("Installment payment support is not deployed yet. Apply the latest Supabase migration, then try again.");
     }
     throw new Error(error.message);
@@ -133,7 +131,7 @@ export async function recordInstallmentPaymentAction(formData: FormData) {
   await writeActivityLog(supabase, {
     userId: profile.id,
     activity: "Installment payment recorded",
-    description: `${profile.fullName} recorded PHP ${amount.toFixed(2)} for installment period ${scheduleInfo?.installment_number ?? "selected"}.${receiptPath ? " A receipt was attached." : ""}`,
+    description: `${profile.fullName} recorded PHP ${amount.toFixed(2)} under payment receipt ${(data as { receipt_number?: string } | null)?.receipt_number ?? "recorded"}.${receiptPath ? " A proof of payment was attached." : ""}`,
     module: "Customers",
   });
 
@@ -142,4 +140,32 @@ export async function recordInstallmentPaymentAction(formData: FormData) {
   revalidatePath("/sales", "layout");
   const saleId = text(formData, "sales_order_id");
   if (saleId) revalidatePath(`/sales/${saleId}`);
+  return { paymentId: String((data as { payment_id?: string } | null)?.payment_id ?? ""), receiptNumber: String((data as { receipt_number?: string } | null)?.receipt_number ?? "") };
+}
+
+export async function reverseInstallmentPaymentAction(formData: FormData) {
+  const profile = await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const collectionId = text(formData, "collection_id");
+  const reason = text(formData, "reason");
+  if (!collectionId || !reason) throw new Error("Select a payment and enter a reversal reason.");
+  const { data, error } = await supabase.rpc("reverse_installment_collection", {
+    p_collection_id: collectionId,
+    p_reason: reason,
+  });
+  if (error) throw new Error(error.message);
+  const result = data as { reversal_id?: string };
+  await writeActivityLog(supabase, {
+    userId: profile.id,
+    activity: "Installment payment reversed",
+    description: `${profile.fullName} reversed payment ${collectionId}. Reason: ${reason}`,
+    module: "Sales",
+  });
+  revalidatePath("/customers");
+  revalidatePath("/sales");
+  revalidatePath("/sales", "layout");
+  const saleId = text(formData, "sales_order_id");
+  if (saleId) revalidatePath(`/sales/${saleId}`);
+  return result;
 }

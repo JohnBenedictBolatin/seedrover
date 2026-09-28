@@ -77,6 +77,7 @@ export type SalesExportFilters = {
   payment?: string;
   start?: string;
   status?: string;
+  type?: string;
 };
 
 export type ReportExportFilters = SalesExportFilters & {
@@ -426,17 +427,17 @@ export async function getSalesExportRows(filters: SalesExportFilters = {}) {
     })
     .map<ExportSalesRow>((event) => ({
       entryKind: "collection",
-      entryType: event.collectionType === "down_payment"
-        ? "Down payment"
-        : `Installment (${event.installmentNumber ?? "?"}/${event.installmentCount || "?"})`,
+      entryType: event.isReversal
+        ? "Payment reversal"
+        : event.collectionType === "down_payment" ? "Initial payment" : "Installment payment",
       receiptNumber: event.receiptNumber,
-      receiptLink: `/sales/${event.salesOrderId}`,
+      receiptLink: `/sales/payments/${event.paymentReceiptId}`,
       saleDate: event.paymentDate,
       customerName: event.customerName,
       customerContact: "",
       paymentMethod: event.paymentMethod,
       transactionReference: event.transactionReference ?? "",
-      itemName: event.collectionType === "down_payment" ? "Down payment" : "Installment payment",
+      itemName: event.isReversal ? `Reversal: ${event.reversalReason ?? ""}` : event.collectionType === "down_payment" ? "Initial payment" : "Installment payment",
       quantitySold: 0,
       unit: INVENTORY_UNIT,
       unitPrice: 0,
@@ -445,12 +446,14 @@ export async function getSalesExportRows(filters: SalesExportFilters = {}) {
       discountAmount: null,
       receiptTotal: null,
       collectionAmount: event.paymentAmount,
-      status: event.saleStatus === "Voided" ? "Sale voided" : "Recorded",
+      status: event.isReversal ? "Reversed" : event.saleStatus === "Voided" ? "Sale voided" : "Recorded",
     }));
 
-  return [...orderRows, ...marketRows, ...collectionRows].sort(
+  return [...orderRows, ...marketRows, ...collectionRows]
+    .filter((row) => !filters.type || filters.type === "All" || row.entryType === filters.type)
+    .sort(
     (left, right) => new Date(right.saleDate).getTime() - new Date(left.saleDate).getTime(),
-  );
+    );
 }
 
 export async function getCustomerExportRows(filters: ReportExportFilters = {}) {

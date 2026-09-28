@@ -53,7 +53,7 @@ export default async function SalesReceiptPage({
           <div className={styles.receiptMeta}>
             <strong>{receipt.receiptNumber}</strong>
             <span>{formatDateTime(receipt.saleDate)}</span>
-            <span>{receipt.status}</span>
+            <span>{plan ? plan.status === "Completed" ? "Fully paid" : plan.status === "Cancelled" ? "Cancelled" : "Partially paid" : receipt.status}</span>
           </div>
         </header>
 
@@ -121,6 +121,7 @@ export default async function SalesReceiptPage({
                 : formatCurrency(receipt.amountPaid)}
             </strong>
           </div>
+          {plan ? <div><span>Outstanding balance</span><strong>{formatCurrency(plan.remainingAmount)}</strong></div> : null}
           <div>
             <span>Change</span>
             <strong>

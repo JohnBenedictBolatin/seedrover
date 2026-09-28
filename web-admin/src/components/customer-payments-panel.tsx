@@ -1,7 +1,8 @@
 "use client";
 
-import { type FormEvent, type ReactNode, useEffect, useMemo, useState, useTransition } from "react";
+import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createPortal } from "react-dom";
 import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, FileText, Filter, Search, X } from "lucide-react";
 import { recordInstallmentPaymentAction } from "@/app/(portal)/customers/payments-actions";
@@ -16,6 +17,10 @@ import uploadStyles from "@/components/file-upload-field.module.css";
 import type { InstallmentPlan, InstallmentSchedule } from "@/lib/customer-payments";
 import { formatCurrency, formatDate } from "@/lib/format";
 import styles from "@/app/(portal)/customers/page.module.css";
+
+function manilaToday() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
+}
 
 export function CustomerPaymentsPanel({
   plans,
@@ -139,10 +144,11 @@ export function CustomerPaymentsPanel({
         selection={selectedPayment}
         onClose={() => { setSelectedPayment(null); setSelectedPlan(selectedPayment.plan); }}
         onError={(message) => notify("error", message)}
-        onRecorded={() => {
+        onRecorded={(paymentId) => {
           setSelectedPayment(null);
           setSelectedPlan(null);
           router.refresh();
+          router.push(`/sales/payments/${paymentId}`);
           notify("success", "Installment payment recorded.");
         }}
       /> : null}
@@ -239,10 +245,11 @@ export function InstallmentSaleSchedule({ plan }: { plan: InstallmentPlan }) {
         selection={{ plan, schedule: selectedPayment }}
         onClose={() => { setSelectedPayment(null); setScheduleOpen(true); }}
         onError={(message) => notify("error", message)}
-        onRecorded={() => {
+        onRecorded={(paymentId) => {
           setSelectedPayment(null);
           setScheduleOpen(false);
           router.refresh();
+          router.push(`/sales/payments/${paymentId}`);
           notify("success", "Installment payment recorded.");
         }}
       /> : null}
@@ -326,6 +333,7 @@ function InstallmentPaymentDetailsModal({
               <div><strong>{formatCurrency(payment.amount)}</strong><small>{formatDate(payment.paymentDate)} · {payment.paymentMethod}{payment.otherPaymentMethod ? ` (${payment.otherPaymentMethod})` : ""}</small></div>
               <div>
                 <span className={styles.paymentReference}>{payment.transactionReference ? `Ref: ${payment.transactionReference}` : "No transaction reference"}</span>
+                <Link href={`/sales/payments/${payment.id}`}>View payment receipt {payment.receiptNumber}</Link>
                 {payment.notes ? <small>{payment.notes}</small> : null}
                 {payment.receiptUrl ? (
                   <a className={`${uploadStyles.uploadArea} ${styles.recordedPaymentReceipt}`} href={payment.receiptUrl} rel="noreferrer" target="_blank" title="Open payment receipt">
@@ -358,14 +366,17 @@ function InstallmentPaymentModal({
   selection: { plan: InstallmentPlan; schedule: InstallmentSchedule };
   onClose: () => void;
   onError: (message: string) => void;
-  onRecorded: () => void;
+  onRecorded: (paymentId: string) => void;
 }) {
-  const { plan, schedule } = selection;
-  const today = new Date().toISOString().slice(0, 10);
+  const { plan } = selection;
+  const today = manilaToday();
   const [pending, startTransition] = useTransition();
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [transactionReference, setTransactionReference] = useState("");
   const [otherPaymentMethod, setOtherPaymentMethod] = useState("");
+  const [amount, setAmount] = useState("");
+  const [cashTendered, setCashTendered] = useState("");
+  const idempotencyKeyRef = useRef<string | null>(null);
   const { confirm, confirmationDialog } = useConfirmationDialog();
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -375,21 +386,28 @@ function InstallmentPaymentModal({
     if (!form.reportValidity()) return;
     const formData = new FormData(form);
     const amount = Number(formData.get("amount"));
+    const cashReceived = paymentMethod === "Cash" ? Number(formData.get("cash_tendered")) : amount;
+    if (paymentMethod === "Cash" && (!Number.isFinite(cashReceived) || cashReceived < amount)) {
+      onError("Cash received must cover the applied payment.");
+      return;
+    }
 
     const confirmed = await confirm({
       title: "Record installment payment?",
-      message: `Record this payment for ${plan.customerName}, Period ${schedule.installmentNumber}.`,
+      message: `Apply this payment to ${plan.customerName}'s oldest unpaid installments first.`,
       summary: <strong>{formatCurrency(amount)} via {paymentMethod}</strong>,
       confirmLabel: "Record payment",
       cancelLabel: "Review payment",
     });
 
     if (!confirmed) return;
+    if (!idempotencyKeyRef.current) idempotencyKeyRef.current = crypto.randomUUID();
+    formData.set("idempotency_key", idempotencyKeyRef.current);
 
     startTransition(async () => {
       try {
-        await recordInstallmentPaymentAction(formData);
-        onRecorded();
+        const result = await recordInstallmentPaymentAction(formData);
+        onRecorded(result.paymentId);
       } catch (error) {
         onError(error instanceof Error ? error.message : "The installment payment could not be recorded.");
       }
@@ -399,11 +417,12 @@ function InstallmentPaymentModal({
   return (
     <div className={styles.modalBackdrop} data-ui-backdrop="true" role="presentation">
       <section className={styles.installmentPaymentModal} role="dialog" aria-modal="true" aria-label="Record installment payment">
-        <header className={styles.modalHeader}><div><p className={styles.eyebrow}>Period {schedule.installmentNumber}</p><h3>Record payment</h3></div><button aria-label="Close payment modal" type="button" onClick={onClose}><X size={18} /></button></header>
-        <div className={styles.installmentPaymentSummary}><span>{plan.customerName} · Due {formatDate(schedule.dueDate)}</span><strong>{formatCurrency(schedule.remainingAmount)} remaining</strong></div>
+        <header className={styles.modalHeader}><div><p className={styles.eyebrow}>Installment collection</p><h3>Record payment</h3></div><button aria-label="Close payment modal" type="button" onClick={onClose}><X size={18} /></button></header>
+        <div className={styles.installmentPaymentSummary}><span>{plan.customerName} · Applies to the oldest unpaid periods first</span><strong>{formatCurrency(plan.remainingAmount)} total remaining</strong></div>
         <form className={styles.installmentPaymentForm} onSubmit={handleSubmit}>
-          <input name="schedule_id" type="hidden" value={schedule.id} /><input name="sales_order_id" type="hidden" value={plan.salesOrderId} />
-          <label>Amount received (PHP)<NumericInput max={schedule.remainingAmount} min="0.01" name="amount" required step="0.01" /></label>
+          <input name="plan_id" type="hidden" value={plan.id} /><input name="sales_order_id" type="hidden" value={plan.salesOrderId} />
+          <label>Amount to apply (PHP)<NumericInput max={plan.remainingAmount} min="0.01" name="amount" required step="0.01" value={amount} onChange={(event) => { setAmount(event.target.value); if (paymentMethod === "Cash") setCashTendered(event.target.value); }} /></label>
+          {paymentMethod === "Cash" ? <label>Cash received (PHP)<NumericInput min={amount || "0.01"} name="cash_tendered" required step="0.01" value={cashTendered || amount} onChange={(event) => setCashTendered(event.target.value)} /><small>Change: {formatCurrency(Math.max(Number(cashTendered || amount) - Number(amount), 0))}</small></label> : null}
           <CalendarField defaultValue={today} label="Payment date" max={today} name="payment_date" required />
           <InstallmentPaymentSelect label="Payment method" name="payment_method" options={["Cash", "GCash", "Bank Transfer", "Card", "Other"]} required value={paymentMethod} onChange={(value) => { setPaymentMethod(value); if (value === "Cash") setTransactionReference(""); if (value !== "Other") setOtherPaymentMethod(""); }} />
           {paymentMethod !== "Cash" ? <label>Transaction ID<input name="transaction_reference" placeholder="e.g. TXN-2026-0012" required type="text" value={transactionReference} onChange={(event) => setTransactionReference(event.target.value)} /></label> : null}

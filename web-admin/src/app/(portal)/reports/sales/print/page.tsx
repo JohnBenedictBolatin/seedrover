@@ -9,7 +9,7 @@ import styles from "./page.module.css";
 export default async function SalesPrintPage({
   searchParams,
 }: {
-  searchParams: Promise<{ end?: string; payment?: string; start?: string; status?: string }>;
+  searchParams: Promise<{ end?: string; payment?: string; start?: string; status?: string; type?: string }>;
 }) {
   const profile = await getCurrentAdminProfile();
 
