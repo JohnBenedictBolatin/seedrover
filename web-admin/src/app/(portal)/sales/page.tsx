@@ -45,13 +45,6 @@ export default async function SalesPage() {
         </section>
       ) : null}
 
-      {salesData.error ? (
-        <section className={styles.notice}>
-          <strong>Some sales data could not load.</strong>
-          <span>{salesData.error}</span>
-        </section>
-      ) : null}
-
       {discountData.error ? (
         <section className={styles.notice}>
           <strong>Some discount data could not load.</strong>
@@ -59,17 +52,24 @@ export default async function SalesPage() {
         </section>
       ) : null}
 
-      <SalesWorkspace
-        canVoidSales={[
-          "System Administrator",
-          "Farm Inventory Manager",
-        ].includes(profile.roleName)}
-        customers={customerData.customers}
-        discounts={discountData.discounts}
-        items={items}
-        orders={salesData.orders}
-        summary={salesData.summary}
-      />
+      {salesData.error ? (
+        <section className={styles.notice} role="status">
+          <strong>Sales data unavailable.</strong>
+          <span>{salesData.error} Retry the page when the connection is restored.</span>
+        </section>
+      ) : (
+        <SalesWorkspace
+          canVoidSales={[
+            "System Administrator",
+            "Farm Inventory Manager",
+          ].includes(profile.roleName)}
+          customers={customerData.customers}
+          discounts={discountData.discounts}
+          items={items}
+          orders={salesData.orders}
+          summary={salesData.summary}
+        />
+      )}
     </div>
   );
 }

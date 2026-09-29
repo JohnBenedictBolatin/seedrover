@@ -15,14 +15,38 @@ function manilaDateParts(now = new Date()) {
   };
 }
 
+function manilaMidnight(year: number, month: number, day: number) {
+  return new Date(
+    `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T00:00:00+08:00`,
+  );
+}
+
+export function businessDateKey(now = new Date()) {
+  const { year, month, day } = manilaDateParts(now);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 export function startOfBusinessDay(now = new Date()) {
   const { year, month, day } = manilaDateParts(now);
-  return new Date(`${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T00:00:00+08:00`);
+  return manilaMidnight(year, month, day);
 }
 
 export function startOfBusinessMonth(now = new Date()) {
   const { year, month } = manilaDateParts(now);
-  return new Date(`${year}-${String(month).padStart(2, "0")}-01T00:00:00+08:00`);
+  return manilaMidnight(year, month, 1);
+}
+
+export function startOfBusinessYear(now = new Date()) {
+  const { year } = manilaDateParts(now);
+  return manilaMidnight(year, 1, 1);
+}
+
+export function startOfBusinessWeek(now = new Date()) {
+  const { year, month, day } = manilaDateParts(now);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const daysSinceMonday = (date.getUTCDay() + 6) % 7;
+  date.setUTCDate(date.getUTCDate() - daysSinceMonday);
+  return manilaMidnight(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
 }
 
 export function startOfNextBusinessMonth(now = new Date()) {

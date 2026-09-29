@@ -131,16 +131,16 @@ export async function buildWebAssistantContext(profile: AdminProfile): Promise<A
     farmAnalytics: {
       salesOverview: {
         summary:
-          !sales || sales.summary.completedSalesCount === 0
-            ? "No completed sales transactions are available."
-            : `There are ${sales.summary.completedSalesCount} completed sale(s), totaling PHP ${sales.summary.salesThisMonth.toFixed(
-                2,
-              )} this month.`,
-        salesToday: sales?.summary.salesToday ?? 0,
-        salesThisMonth: sales?.summary.salesThisMonth ?? 0,
-        salesTransactionsThisMonth: sales?.summary.transactions ?? 0,
-        averageTransactionValue: sales?.summary.averageTransactionValue ?? 0,
-        totalDiscountGiven: sales?.summary.totalDiscountGiven ?? 0,
+          sales?.error
+            ? "Sales data is unavailable because one or more record reads failed."
+            : !sales || sales.summary.completedSalesCount === 0
+              ? "No completed sales transactions are available."
+              : `There are ${sales.summary.completedSalesCount} completed sale(s), totaling PHP ${sales.summary.salesThisMonth.toFixed(2)} this month.`,
+        salesToday: sales && !sales.error ? sales.summary.salesToday : null,
+        salesThisMonth: sales && !sales.error ? sales.summary.salesThisMonth : null,
+        salesTransactionsThisMonth: sales && !sales.error ? sales.summary.transactions : null,
+        averageTransactionValue: sales && !sales.error ? sales.summary.averageTransactionValue : null,
+        totalDiscountGiven: sales && !sales.error ? sales.summary.totalDiscountGiven : null,
         bestSellingItem: sales?.summary.bestSellingItem ?? "Not available",
         latestSale,
         recentSales:
@@ -151,11 +151,11 @@ export async function buildWebAssistantContext(profile: AdminProfile): Promise<A
             source: order.source,
           })) ?? [],
       },
-      salesByDay: sales?.analytics.dailySales ?? [],
-      salesByCategory: sales?.analytics.salesByCategory ?? [],
-      paymentMethods: sales?.analytics.paymentMethods ?? [],
+      salesByDay: sales && !sales.error ? sales.analytics.dailySales : null,
+      salesByCategory: sales && !sales.error ? sales.analytics.salesByCategory : null,
+      paymentMethods: sales && !sales.error ? sales.analytics.paymentMethods : null,
       topSoldItems,
-      lowPerformingItems: sales?.analytics.lowPerformingItems ?? [],
+      lowPerformingItems: sales && !sales.error ? sales.analytics.lowPerformingItems : null,
       inventorySummary: inventory?.summary ?? null,
       salesSummary: sales?.summary ?? null,
       cropSummary: crops?.summary ?? null,
@@ -227,7 +227,7 @@ function fallbackRovieAnswer(question: string, context: AssistantContext) {
   const analytics = context.farmAnalytics;
   const sales = analytics.salesOverview as Record<string, unknown> | undefined;
   const inventory = analytics.inventorySummary as
-    | { totalItems?: number; lowStockItems?: number; inventoryValue?: number }
+    | { totalItems?: number; lowStockItems?: number; inventoryValue?: number | null }
     | null
     | undefined;
   const cropSummary = analytics.cropSummary as
@@ -237,6 +237,9 @@ function fallbackRovieAnswer(question: string, context: AssistantContext) {
   const rover = context.rover;
 
   if (normalized.includes("sales") || normalized.includes("sell")) {
+    if (sales?.salesToday == null || sales.salesThisMonth == null) {
+      return "Sales figures are unavailable right now. Please retry when all sales records can be loaded.";
+    }
     return `Sales today are PHP ${Number(
       sales?.salesToday ?? 0,
     ).toFixed(2)} and sales this month are PHP ${Number(
@@ -247,6 +250,12 @@ function fallbackRovieAnswer(question: string, context: AssistantContext) {
   }
 
   if (normalized.includes("stock") || normalized.includes("inventory")) {
+    if (!inventory) {
+      return "Inventory figures are unavailable for this account or could not be loaded.";
+    }
+    if (inventory.inventoryValue == null) {
+      return `There are ${inventory.totalItems ?? 0} inventory item(s), with ${inventory.lowStockItems ?? 0} needing stock attention. Inventory value is incomplete because some item costs are not recorded.`;
+    }
     return `There are ${
       inventory?.totalItems ?? 0
     } inventory item(s), with ${
@@ -257,6 +266,9 @@ function fallbackRovieAnswer(question: string, context: AssistantContext) {
   }
 
   if (normalized.includes("crop") || normalized.includes("plant")) {
+    if (!cropSummary) {
+      return "Crop figures are unavailable for this account or could not be loaded.";
+    }
     return `There are ${
       cropSummary?.activeCrops ?? 0
     } active crop record(s), ${cropSummary?.needsAttention ?? 0} needing attention, and ${
@@ -265,6 +277,9 @@ function fallbackRovieAnswer(question: string, context: AssistantContext) {
   }
 
   if (normalized.includes("rover")) {
+    if (!rover) {
+      return "Rover status is unavailable right now.";
+    }
     return `Rover status is ${String(
       rover.status ?? "not available",
     )}. Current activity: ${String(

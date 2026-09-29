@@ -321,6 +321,7 @@ export function UsersWorkspace({ users, roles, summary }: Props) {
           onClose={() => setSelectedUser(null)}
           onSubmit={() => {
             setSelectedUser(null);
+            notify("Profile updated successfully.");
             router.refresh();
           }}
           onError={(message) => notify(message, "error")}

@@ -1,4 +1,3 @@
-import { INVENTORY_UNIT } from "@/lib/inventory";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   startOfBusinessDay,
@@ -243,27 +242,34 @@ export async function getSellableInventory() {
     };
   }
 
-  const { data, error } = await supabase
-    .from("inventory")
-    .select("id, stock_code, item_name, quantity, unit, selling_price")
-    .gt("quantity", 0)
-    .order("item_name", { ascending: true })
-    .returns<SellableRow[]>();
-
-  if (error) {
+  let data: SellableRow[];
+  try {
+    const result = await fetchAllPages<SellableRow>((from, to) => supabase
+      .from("inventory")
+      .select("id, stock_code, item_name, quantity, unit, selling_price")
+      .gt("quantity", 0)
+      .order("item_name", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to)
+      .returns<SellableRow[]>());
+    if (result.error) {
+      return { items: [], error: result.error.message };
+    }
+    data = result.data;
+  } catch (error) {
     return {
       items: [],
-      error: error.message,
+      error: error instanceof Error ? error.message : "Unable to load all sellable inventory records.",
     };
   }
 
   return {
-    items: (data ?? []).map<SellableItem>((row) => ({
+    items: data.map<SellableItem>((row) => ({
       id: row.id,
       label: row.item_name,
       stockCode: row.stock_code ?? "Uncoded",
       quantity: toNumber(row.quantity),
-      unit: INVENTORY_UNIT,
+      unit: row.unit,
       sellingPrice: toNumber(row.selling_price),
     })),
     error: null,
@@ -369,6 +375,7 @@ function dateKey(value: string) {
   return new Intl.DateTimeFormat("en-PH", {
     month: "short",
     day: "numeric",
+    timeZone: "Asia/Manila",
   }).format(new Date(value));
 }
 
@@ -499,13 +506,17 @@ export async function getSalesWorkspaceData() {
   if (ordersResult.error) {
     return { ...empty, error: ordersResult.error.message };
   }
+  if (marketResult.error) {
+    return { ...empty, error: marketResult.error.message };
+  }
 
   const orderRows = ordersResult.data ?? [];
   const marketRows = marketResult.data ?? [];
   const today = startOfToday();
   const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
   const month = startOfMonth();
-  const nextMonth = startOfNextBusinessMonth();
+  const nextMonth = startOfNextBusinessMonth(month);
+  const asOf = new Date();
   const itemTotals = new Map<string, number>();
   const categoryTotals = new Map<string, number>();
   const paymentTotals = new Map<string, number>();
@@ -542,7 +553,7 @@ export async function getSalesWorkspaceData() {
       receiptItems: items.map<SalesReceiptItem>((item) => ({
         id: item.id,
         itemName: item.item_name_snapshot,
-        unit: INVENTORY_UNIT,
+        unit: item.unit_snapshot ?? "Unit unavailable",
         quantitySold: toNumber(item.quantity_sold),
         unitPrice:
           item.unit_price === null || item.unit_price === undefined
@@ -560,6 +571,7 @@ export async function getSalesWorkspaceData() {
     if (!isCompleted) {
       continue;
     }
+    if (saleDate > asOf) continue;
 
     completedTotal += total;
     completedCount += 1;
@@ -582,7 +594,10 @@ export async function getSalesWorkspaceData() {
 
     for (const item of items) {
       const category = firstRelation(item.inventory)?.category ?? "Uncategorized";
-      addToMap(itemTotals, item.item_name_snapshot, toNumber(item.line_total));
+      const itemLabel = item.unit_snapshot
+        ? `${item.item_name_snapshot} (${item.unit_snapshot})`
+        : item.item_name_snapshot;
+      addToMap(itemTotals, itemLabel, toNumber(item.line_total));
       addToMap(categoryTotals, category, toNumber(item.line_total));
     }
   }
@@ -605,7 +620,7 @@ export async function getSalesWorkspaceData() {
       otherPaymentMethod: sale.other_payment_method ?? null,
       itemCount: 1,
       marketItemName: itemName,
-      marketItemUnit: INVENTORY_UNIT,
+      marketItemUnit: inventory?.unit ?? "Unit unavailable",
       marketQuantitySold: toNumber(sale.quantity_sold),
       marketUnitPrice: toNumber(sale.unit_price),
       marketRemarks: sale.remarks ?? "",
@@ -620,13 +635,15 @@ export async function getSalesWorkspaceData() {
     if (!isCompleted) {
       continue;
     }
+    if (saleDate > asOf) continue;
 
     completedTotal += total;
     completedCount += 1;
     const method = displayPaymentMethod(sale.payment_method, sale.other_payment_method);
     addToMap(paymentTotals, method, total);
     addToMap(dailyTotals, dateKey(sale.sale_date), total);
-    addToMap(itemTotals, itemName, total);
+    const itemLabel = inventory?.unit ? `${itemName} (${inventory.unit})` : itemName;
+    addToMap(itemTotals, itemLabel, total);
     addToMap(categoryTotals, category, total);
 
     if (saleDate >= today && saleDate < tomorrow) {
@@ -668,7 +685,7 @@ export async function getSalesWorkspaceData() {
     orders: history.sort(
       (a, b) => new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime(),
     ),
-    error: marketResult.error?.message ?? null,
+    error: null,
   };
 }
 
@@ -733,7 +750,7 @@ export async function getSalesReceipt(id: string) {
       items: data.sales_order_items.map<SalesReceiptItem>((item) => ({
         id: item.id,
         itemName: item.item_name_snapshot,
-        unit: INVENTORY_UNIT,
+        unit: item.unit_snapshot ?? "Unit unavailable",
         quantitySold: toNumber(item.quantity_sold),
         unitPrice: toNumber(item.unit_price),
         lineTotal: toNumber(item.line_total),

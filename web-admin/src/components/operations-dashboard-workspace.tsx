@@ -90,36 +90,38 @@ export function OperationsDashboardWorkspace({ canViewInvestments, isInventoryMa
     {
       icon: <TrendingUp size={20} />,
       label: "Sales total",
-      value: data.summary.salesInRange,
+      value: data.salesAvailable ? data.summary.salesInRange : "Unavailable",
       currency: true,
     },
     {
       icon: <ReceiptText size={20} />,
       label: "Transactions",
-      value: data.summary.transactionsInRange,
+      value: data.salesAvailable ? data.summary.transactionsInRange : "Unavailable",
     },
     ...(canViewInvestments ? [{
       icon: <Package size={20} />,
       label: "Inventory value",
-      value: data.summary.inventoryValue,
+      value: data.inventoryAvailable
+        ? data.inventoryValueAvailable ? data.summary.inventoryValue : "Incomplete"
+        : "Unavailable",
       currency: true,
     },
     {
       icon: <TrendingUp size={20} />,
       label: `${rangeLabel} ROI`,
-      value: data.summary.roi,
+      value: data.financeAvailable ? data.summary.roi : "Unavailable",
       suffix: "%",
     }] : []),
     ...(isInventoryManager ? [
       {
         icon: <AlertTriangle size={20} />,
         label: "Low-stock items",
-        value: data.summary.lowStockItems,
+        value: data.inventoryAvailable ? data.summary.lowStockItems : "Unavailable",
       },
       {
         icon: <PackageX size={20} />,
         label: "Out-of-stock items",
-        value: data.summary.outOfStockItems,
+        value: data.inventoryAvailable ? data.summary.outOfStockItems : "Unavailable",
       },
     ] : []),
   ];
@@ -154,7 +156,9 @@ export function OperationsDashboardWorkspace({ canViewInvestments, isInventoryMa
                   <p>{card.label}</p>
                 </div>
                 <div className={styles.metricValue}>
-                  <CountUpValue className="mono" currency={card.currency} value={card.value} suffix={card.suffix} />
+                  {typeof card.value === "number" ? (
+                    <CountUpValue className="mono" currency={card.currency} value={card.value} suffix={card.suffix} />
+                  ) : <span>{card.value}</span>}
                 </div>
               </article>
             ))}
@@ -198,7 +202,7 @@ export function OperationsDashboardWorkspace({ canViewInvestments, isInventoryMa
                 ))}
               </div>
             ) : (
-              <EmptyState text="No low-stock items." />
+              <EmptyState text={data.inventoryAvailable ? "No low-stock items." : "Inventory data unavailable."} />
             )}
           </article>
 
@@ -267,27 +271,27 @@ export function OperationsDashboardWorkspace({ canViewInvestments, isInventoryMa
           <ChartPanel
             title="Sales trend"
           >
-            <AreaValueChart data={data.charts.salesTrend} />
+            {data.salesAvailable ? <AreaValueChart data={data.charts.salesTrend} /> : <EmptyState text={data.salesError ?? "Sales data unavailable."} />}
           </ChartPanel>
 
-          <ChartPanel title="Sales by category">
-            <PieValueChart data={data.charts.salesByCategory} />
+          <ChartPanel title="Sales by category (before receipt discounts)">
+            {data.salesAvailable ? <PieValueChart data={data.charts.salesByCategory} /> : <EmptyState text={data.salesError ?? "Sales data unavailable."} />}
           </ChartPanel>
 
           <ChartPanel title="Stock value">
-            <BarValueChart currency data={data.charts.stockValueByCategory} />
+            {data.inventoryValueAvailable ? <BarValueChart currency data={data.charts.stockValueByCategory} /> : <EmptyState text={data.inventoryAvailable ? "Inventory cost data incomplete." : "Inventory data unavailable."} />}
           </ChartPanel>
 
-          <ChartPanel title="Stock movement">
-            <StockMovementLineChart data={data.charts.stockMovement} />
+          <ChartPanel title="Stock transaction counts">
+            {data.transactionsAvailable ? <StockMovementLineChart data={data.charts.stockMovement} /> : <EmptyState text={data.transactionsError ?? "Stock transaction data unavailable."} />}
           </ChartPanel>
 
           <ChartPanel title="Payment breakdown">
-            <PieValueChart data={data.charts.paymentMethods} />
+            {data.salesAvailable ? <PieValueChart data={data.charts.paymentMethods} /> : <EmptyState text={data.salesError ?? "Sales data unavailable."} />}
           </ChartPanel>
 
           <ChartPanel title="Top-selling items">
-            <BarValueChart data={data.charts.topItems} />
+            {data.salesAvailable ? <BarValueChart data={data.charts.topItems} /> : <EmptyState text={data.salesError ?? "Sales data unavailable."} />}
           </ChartPanel>
 
         </section>

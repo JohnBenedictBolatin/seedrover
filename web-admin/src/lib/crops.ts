@@ -1,4 +1,22 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { businessDateKey, startOfBusinessWeek } from "@/lib/business-time";
+
+async function fetchAllPages<T>(
+  fetchPage: (from: number, to: number) => PromiseLike<{
+    data: T[] | null;
+    error: { message: string } | null;
+  }>,
+) {
+  const rows: T[] = [];
+  const size = 500;
+  for (let from = 0;; from += size) {
+    const { data, error } = await fetchPage(from, from + size - 1);
+    if (error) return { data: null, error };
+    const page = data ?? [];
+    rows.push(...page);
+    if (page.length < size) return { data: rows, error: null };
+  }
+}
 
 export type CropTask = { id: string; crop_id: string; task_type: string; title: string; recommendation: string; due_at: string; status: string; priority: string };
 
@@ -201,24 +219,27 @@ export async function getCropsDashboard() {
     };
   }
 
-  let { data, error } = await supabase
+  const assessmentNow = new Date();
+  const weekStart = startOfBusinessWeek(assessmentNow);
+  const nextTwoWeeksDate = businessDateKey(new Date(assessmentNow.getTime() + 14 * 86400000));
+
+  const fetchCropRows = (columns: string) => fetchAllPages<CropRow>((from, to) => supabase
     .from("crops")
-    .select(
-      "id, batch_code, crop_name, planting_date, estimated_harvest, growth_stage, maintenance_notes, image_path, crop_status, crop_profile_key, field_label, planting_log_id, completed_drop_cycles, harvest_window_start, harvest_window_end, expected_stage, current_care_status, assigned_manager, harvested_at, forecast_confidence, crop_profiles(stage_plan), profiles(full_name)",
-    )
+    .select(columns)
     .order("planting_date", { ascending: false })
-    .returns<CropRow[]>();
+    .order("id", { ascending: true })
+    .range(from, to)
+    .returns<CropRow[]>());
+  let { data, error } = await fetchCropRows(
+    "id, batch_code, crop_name, planting_date, estimated_harvest, growth_stage, maintenance_notes, image_path, crop_status, crop_profile_key, field_label, planting_log_id, completed_drop_cycles, harvest_window_start, harvest_window_end, expected_stage, current_care_status, assigned_manager, harvested_at, forecast_confidence, crop_profiles(stage_plan), profiles(full_name)",
+  );
 
   // Keep legacy crop records visible while the crop-monitoring migration is
   // being deployed. New monitoring fields use conservative display defaults.
   if (error && isMissingCropMonitoringSchema(error)) {
-    const legacyResult = await supabase
-      .from("crops")
-      .select(
-        "id, crop_name, planting_date, estimated_harvest, growth_stage, maintenance_notes, image_path, crop_status, profiles(full_name)",
-      )
-      .order("planting_date", { ascending: false })
-      .returns<CropRow[]>();
+    const legacyResult = await fetchCropRows(
+      "id, crop_name, planting_date, estimated_harvest, growth_stage, maintenance_notes, image_path, crop_status, profiles(full_name)",
+    );
     data = legacyResult.data;
     error = legacyResult.error;
   }
@@ -238,17 +259,44 @@ export async function getCropsDashboard() {
     ? { data: [] as { id: string; target_drop_cycles: number | null; completed_drop_cycles: number | null; field_label: string | null }[] }
     : await supabase.from("planting_logs").select("id, target_drop_cycles, completed_drop_cycles, field_label").in("id", plantingLogIds);
   const plantingLogs = new Map((plantingLogData ?? []).map((row) => [row.id, row]));
-  const [{ data: sensorData }, { data: taskData, error: taskError }, { data: seedImageData }, { data: activityData }, liveWeather] = await Promise.all([
+  const [sensorResult, taskResult, seedImageResult, activityResult, liveWeather] = await Promise.all([
     cropIds.length === 0
-      ? Promise.resolve({ data: [] as SensorRow[] })
-      : supabase.from("sensor_readings").select("crop_id, calibrated_value, soil_moisture, recorded_at, source, provenance_status, soil_moisture_calibrated, calibration_version").in("crop_id", cropIds).order("recorded_at", { ascending: false }).returns<SensorRow[]>(),
+      ? Promise.resolve({ data: [] as SensorRow[], error: null })
+      : fetchAllPages<SensorRow>((from, to) => supabase
+          .from("sensor_readings")
+          .select("id, crop_id, calibrated_value, soil_moisture, recorded_at, source, provenance_status, soil_moisture_calibrated, calibration_version")
+          .in("crop_id", cropIds)
+          .gte("recorded_at", new Date(assessmentNow.getTime() - 60_000).toISOString())
+          .lt("recorded_at", assessmentNow.toISOString())
+          .order("recorded_at", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, to)
+          .returns<SensorRow[]>()),
     cropIds.length === 0
       ? Promise.resolve({ data: [] as TaskRow[], error: null })
-      : supabase.from("crop_tasks").select("id, crop_id, task_type, status, title, recommendation, due_at, priority").in("crop_id", cropIds).in("status", ["Upcoming", "Due", "Overdue", "Postponed"]).order("due_at", { ascending: true }).returns<TaskRow[]>(),
+      : fetchAllPages<TaskRow>((from, to) => supabase
+          .from("crop_tasks")
+          .select("id, crop_id, task_type, status, title, recommendation, due_at, priority")
+          .in("crop_id", cropIds)
+          .in("status", ["Upcoming", "Due", "Overdue", "Postponed"])
+          .order("due_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to)
+          .returns<TaskRow[]>()),
     supabase.from("crop_profile_images").select("profile_key, image_path").returns<SeedImageRow[]>(),
-    supabase.from("crop_activities").select("crop_id, activity_type, performed_at").order("performed_at", { ascending: false }),
+    fetchAllPages<{ id: string; crop_id: string; activity_type: string; performed_at: string }>((from, to) => supabase
+      .from("crop_activities")
+      .select("id, crop_id, activity_type, performed_at")
+      .order("performed_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, to)),
     getWeatherApiForecast(),
   ]);
+  const sensorData = sensorResult.data ?? [];
+  const taskData = taskResult.data ?? [];
+  const seedImageData = seedImageResult.data ?? [];
+  const activityData = activityResult.data ?? [];
+  const relatedDataError = sensorResult.error?.message ?? taskResult.error?.message ?? activityResult.error?.message ?? null;
   const rank = (priority: string) => priority === "Critical" ? 0 : priority === "Important" ? 1 : 2;
   taskData?.sort((a, b) => rank(a.priority) - rank(b.priority) || a.due_at.localeCompare(b.due_at));
   const latestSensor = new Map<string, SensorRow>();
@@ -278,7 +326,10 @@ export async function getCropsDashboard() {
       forecastConfidence: row.forecast_confidence ?? "Unavailable",
       harvestedAt: row.harvested_at ?? null,
       lastObservedAt: (activityData ?? []).find((a) => a.crop_id === row.id && ["Inspected", "Stage Observed"].includes(a.activity_type))?.performed_at ?? null,
-      weeklyActivities: (activityData ?? []).filter((a) => a.crop_id === row.id && new Date(a.performed_at).getTime() >= Date.now() - 7 * 86400000).length,
+      weeklyActivities: (activityData ?? []).filter((a) => {
+        const timestamp = new Date(a.performed_at).getTime();
+        return a.crop_id === row.id && timestamp >= weekStart.getTime() && timestamp <= assessmentNow.getTime();
+      }).length,
       batchCode: row.batch_code?.trim() || fallbackBatchCode(row.id),
       cropName: row.crop_name,
       managerName: managerName(row),
@@ -311,8 +362,7 @@ export async function getCropsDashboard() {
   });
 
   const pendingTasks = taskData ?? [];
-  const now = new Date();
-  const soon = new Date(now.getTime() + 14 * 86400000);
+  const now = assessmentNow;
   const weather: CropWeatherStatus = liveWeather ?? {
     source: "Unavailable",
     currentCondition: "Weather unavailable",
@@ -325,7 +375,7 @@ export async function getCropsDashboard() {
 
   const activeCropIds = new Set(
     crops
-      .filter((crop) => crop.cropStatus !== "Completed" && crop.cropStatus !== "Cancelled")
+      .filter((crop) => !["Completed", "Harvested", "Cancelled"].includes(crop.cropStatus))
       .map((crop) => crop.id),
   );
   const attentionCropIds = new Set(
@@ -350,9 +400,8 @@ export async function getCropsDashboard() {
       (crop) =>
         crop.cropStatus === "Harvest Ready" ||
         (crop.harvestWindowStart !== null &&
-          new Date(crop.harvestWindowStart) <= soon &&
-          crop.cropStatus !== "Completed" &&
-          crop.cropStatus !== "Cancelled"),
+          crop.harvestWindowStart.slice(0, 10) <= nextTwoWeeksDate &&
+          !["Completed", "Harvested", "Cancelled"].includes(crop.cropStatus)),
     ).length,
   };
 
@@ -360,6 +409,6 @@ export async function getCropsDashboard() {
     crops,
     summary,
     weather,
-    error: taskError ? "Care tasks could not be loaded: " + taskError.message : null,
+      error: relatedDataError ?? (taskResult.error ? "Care tasks could not be loaded: " + taskResult.error.message : null),
   };
 }

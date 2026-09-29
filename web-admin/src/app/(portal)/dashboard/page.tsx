@@ -6,6 +6,7 @@ import { getCurrentAdminProfile } from "@/lib/auth";
 import { getOperationsDashboard, normalizeDashboardRange } from "@/lib/dashboard";
 import { getCropsDashboard } from "@/lib/crops";
 import { CalendarDays, Sprout, TriangleAlert } from "lucide-react";
+import { businessDateKey } from "@/lib/business-time";
 import styles from "./page.module.css";
 
 type DashboardPageProps = {
@@ -30,7 +31,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   if (profile.roleName === "Farm Planting Manager") {
     const { crops, summary, error } = await getCropsDashboard();
     const stageCounts = new Map<string, number>();
-    const activeCrops = crops.filter((item) => item.cropStatus !== "Completed" && item.cropStatus !== "Cancelled");
+    const activeCrops = crops.filter((item) => !["Completed", "Harvested", "Cancelled"].includes(item.cropStatus));
     for (const crop of activeCrops) {
       stageCounts.set(crop.growthStage, (stageCounts.get(crop.growthStage) ?? 0) + 1);
     }
@@ -46,19 +47,19 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       status,
       count: activeCrops.filter((crop) => crop.cropStatus === status).length,
     }));
+    const todayKey = businessDateKey();
+    const [businessYear, businessMonth] = todayKey.split("-").map(Number);
     const harvestMonths = Array.from({ length: 6 }, (_, offset) => {
-      const month = new Date();
-      month.setDate(1);
-      month.setHours(0, 0, 0, 0);
-      month.setMonth(month.getMonth() + offset);
-      return { key: `${month.getFullYear()}-${month.getMonth()}`, label: month.toLocaleDateString("en", { month: "short" }), count: 0 };
+      const month = new Date(Date.UTC(businessYear, businessMonth - 1 + offset, 1));
+      const key = `${month.getUTCFullYear()}-${String(month.getUTCMonth() + 1).padStart(2, "0")}`;
+      return { key, label: month.toLocaleDateString("en", { month: "short", timeZone: "UTC" }), count: 0 };
     });
     for (const crop of activeCrops) {
       const date = crop.harvestWindowStart ?? crop.estimatedHarvest;
       if (!date) continue;
-      const expected = new Date(`${date.slice(0, 10)}T00:00:00`);
-      if (Number.isNaN(expected.getTime())) continue;
-      const bucket = harvestMonths.find((month) => month.key === `${expected.getFullYear()}-${expected.getMonth()}`);
+      const expected = date.slice(0, 7);
+      if (!/^\d{4}-\d{2}$/.test(expected)) continue;
+      const bucket = harvestMonths.find((month) => month.key === expected);
       if (bucket) bucket.count += 1;
     }
     const maxHarvestCount = Math.max(1, ...harvestMonths.map((month) => month.count));
@@ -75,9 +76,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         </header>
         {error ? <section className={styles.notice}><strong>Crop dashboard data could not load.</strong><span>{error}</span></section> : null}
         <section className={styles.plantingMetrics} aria-label="Planting summary">
-          <article className={styles.metric}><div className={styles.plantingMetricLabel}><Sprout size={19} /><span>Active crop batches</span></div><strong>{summary?.activeCrops ?? 0}</strong></article>
-          <article className={styles.metric}><div className={styles.plantingMetricLabel}><TriangleAlert size={19} /><span>Need attention</span></div><strong>{summary?.needsAttention ?? 0}</strong></article>
-          <article className={styles.metric}><div className={styles.plantingMetricLabel}><CalendarDays size={19} /><span>Harvesting soon</span></div><strong>{summary?.upcomingHarvests ?? 0}</strong></article>
+          <article className={styles.metric}><div className={styles.plantingMetricLabel}><Sprout size={19} /><span>Active crop batches</span></div><strong>{error ? "Unavailable" : summary?.activeCrops ?? 0}</strong></article>
+          <article className={styles.metric}><div className={styles.plantingMetricLabel}><TriangleAlert size={19} /><span>Need attention</span></div><strong>{error ? "Unavailable" : summary?.needsAttention ?? 0}</strong></article>
+          <article className={styles.metric}><div className={styles.plantingMetricLabel}><CalendarDays size={19} /><span>Harvesting soon</span></div><strong>{error ? "Unavailable" : summary?.upcomingHarvests ?? 0}</strong></article>
         </section>
         <section className={styles.plantingDashboardGrid}>
           <article className={styles.plantingPanel}>

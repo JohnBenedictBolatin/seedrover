@@ -45,7 +45,7 @@ export default async function RoverMonitorPage() {
           {sensorError ? <DataError title="Sensor readings could not be loaded." message={sensorError} /> : null}
           <LatestSensors history={sensorHistory} sensors={sensors} />
           <p className={styles.latestMeta}>
-            {sensors ? `Verified hardware · ${sensors.source || "Source unavailable"} · ${formatDateTime(sensors.recordedAt)} · ${sensors.fresh ? "Fresh" : "Stale"} · ${sensors.soilMoistureCalibrated === true ? `moisture calibration ${sensors.calibrationVersion ?? "version unavailable"}` : sensors.soilMoistureCalibrated === false ? "moisture % unavailable · probe not calibrated" : "moisture calibration status unavailable"}` : "No verified hardware reading is available."}
+            {sensors ? `Verified hardware · ${sensors.source || "Source unavailable"} · ${formatDateTime(sensors.recordedAt)} · ${sensors.fresh ? "Fresh" : "Stale"}` : "No verified hardware reading is available."}
           </p>
           <div className={styles.historySection}>
             <div className={styles.historyHeading}>

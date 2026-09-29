@@ -14,7 +14,7 @@ export type InventoryItem = {
   category: string;
   notes: string;
   quantity: number;
-  unit: typeof INVENTORY_UNIT;
+  unit: string;
   minimumQuantity: number;
   storageLocation: string;
   unitCost: number | null;
@@ -31,8 +31,8 @@ export type InventorySummary = {
   totalItems: number;
   lowStockItems: number;
   outOfStockItems: number;
-  inventoryValue: number;
-  estimatedSalesValue: number;
+  inventoryValue: number | null;
+  estimatedSalesValue: number | null;
 };
 
 export type SalesSummary = {
@@ -163,12 +163,18 @@ function toNumber(value: number | string | null | undefined) {
   return Number(value ?? 0);
 }
 
+function isWithinDateRange(value: string, start: Date, end: Date, asOf: Date) {
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) && timestamp >= start.getTime() &&
+    timestamp < Math.min(end.getTime(), asOf.getTime());
+}
+
 async function fetchAllPages<T>(
   fetchPage: (from: number, to: number) => PromiseLike<{
     data: T[] | null;
     error: { message: string } | null;
   }>,
-) {
+) : Promise<T[]> {
   const rows: T[] = [];
   const pageSize = 500;
   for (let from = 0;; from += pageSize) {
@@ -200,14 +206,6 @@ function displayPaymentMethod(method: string | null | undefined, otherMethod?: s
   return method ?? "Not recorded";
 }
 
-function startOfTodayIso() {
-  return startOfBusinessDay().toISOString();
-}
-
-function startOfMonthIso() {
-  return startOfBusinessMonth().toISOString();
-}
-
 export function stockStatus(item: InventoryItem) {
   if (item.quantity <= 0) {
     return "Out of Stock";
@@ -236,77 +234,76 @@ export async function getInventoryDashboard() {
     };
   }
 
-  const { data: inventoryRows, error: inventoryError } = await supabase
-    .from("inventory")
-    .select(
-      "id, stock_code, item_name, category, quantity, unit, minimum_quantity, storage_location, unit_cost, selling_price, image_path, notes, created_at, updated_at",
-    )
-    .order("item_name", { ascending: true })
-    .returns<InventoryRow[]>();
-
-  if (inventoryError) {
+  let inventoryRows: InventoryRow[];
+  try {
+    inventoryRows = await fetchAllPages<InventoryRow>((from, to) => supabase
+      .from("inventory")
+      .select("id, stock_code, item_name, category, quantity, unit, minimum_quantity, storage_location, unit_cost, selling_price, image_path, notes, created_at, updated_at")
+      .order("item_name", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to)
+      .returns<InventoryRow[]>());
+  } catch (inventoryError) {
     return {
       items: [],
       summary: null,
       sales: null,
-      error: inventoryError.message,
+      error: inventoryError instanceof Error ? inventoryError.message : "Unable to read all inventory records.",
     };
   }
 
-  const inventoryIds = (inventoryRows ?? []).map((row) => row.id);
+  const inventoryIds = inventoryRows.map((row) => row.id);
 
-  const { data: transactionRows } = inventoryIds.length
-    ? await supabase
+  let transactionRows: TransactionRow[] = [];
+  try {
+    if (inventoryIds.length) {
+      transactionRows = await fetchAllPages<TransactionRow>((from, to) => supabase
         .from("inventory_transactions")
         .select("id, inventory_id, transaction_type, quantity, remarks, source, created_at")
         .in("inventory_id", inventoryIds)
         .order("created_at", { ascending: false })
-        .returns<TransactionRow[]>()
-    : { data: [] };
+        .order("id", { ascending: true })
+        .range(from, to)
+        .returns<TransactionRow[]>());
+    }
+  } catch (error) {
+    return { items: [], summary: null, sales: null, error: error instanceof Error ? error.message : "Inventory transaction history is unavailable." };
+  }
 
   let itemSaleRows: SaleRow[] = [];
 
   if (inventoryIds.length) {
-    const itemSalesResultWithPayment = await supabase
-      .from("sales_transactions")
-      .select(
-        "id, inventory_id, quantity_sold, unit_price, total_amount, sale_date, customer_name, customer_contact, payment_method, other_payment_method, remarks, status",
-      )
-      .in("inventory_id", inventoryIds)
-      .order("sale_date", { ascending: false })
-      .returns<SaleRow[]>();
+    try {
+      const fetchStandalone = (select: string) => fetchAllPages<SaleRow>((from, to) => supabase
+        .from("sales_transactions")
+        .select(select)
+        .in("inventory_id", inventoryIds)
+        .order("sale_date", { ascending: false })
+        .order("id", { ascending: true })
+        .range(from, to)
+        .returns<SaleRow[]>());
+      try {
+        itemSaleRows = await fetchStandalone("id, inventory_id, quantity_sold, unit_price, total_amount, sale_date, customer_name, customer_contact, payment_method, other_payment_method, remarks, status");
+      } catch (error) {
+        const details = { message: error instanceof Error ? error.message : "" };
+        if (isMissingPaymentMethodColumn(details)) {
+          itemSaleRows = await fetchStandalone("id, inventory_id, quantity_sold, unit_price, total_amount, sale_date, customer_name, remarks, status");
+        } else if (isMissingOtherPaymentMethodColumn(details)) {
+          itemSaleRows = await fetchStandalone("id, inventory_id, quantity_sold, unit_price, total_amount, sale_date, customer_name, payment_method, remarks, status");
+        } else {
+          throw error;
+        }
+      }
 
-    const itemSalesResult = isMissingPaymentMethodColumn(itemSalesResultWithPayment.error)
-      ? await supabase
-          .from("sales_transactions")
-          .select(
-            "id, inventory_id, quantity_sold, unit_price, total_amount, sale_date, customer_name, remarks, status",
-          )
-          .in("inventory_id", inventoryIds)
-          .order("sale_date", { ascending: false })
-          .returns<SaleRow[]>()
-      : isMissingOtherPaymentMethodColumn(itemSalesResultWithPayment.error)
-        ? await supabase
-            .from("sales_transactions")
-            .select(
-              "id, inventory_id, quantity_sold, unit_price, total_amount, sale_date, customer_name, payment_method, remarks, status",
-            )
-            .in("inventory_id", inventoryIds)
-            .order("sale_date", { ascending: false })
-            .returns<SaleRow[]>()
-      : itemSalesResultWithPayment;
+      const receiptItemRows = await fetchAllPages<ReceiptItemSaleRow>((from, to) => supabase
+        .from("sales_order_items")
+        .select("id, inventory_id, quantity_sold, unit_price, line_total, sales_orders!inner(sale_date, customer_name, customer_contact, payment_method, other_payment_method, remarks, status)")
+        .in("inventory_id", inventoryIds)
+        .order("id", { ascending: true })
+        .range(from, to)
+        .returns<ReceiptItemSaleRow[]>());
 
-    itemSaleRows = itemSalesResult.data ?? [];
-
-    const { data: receiptItemRows } = await supabase
-      .from("sales_order_items")
-      .select(
-        "id, inventory_id, quantity_sold, unit_price, line_total, sales_orders!inner(sale_date, customer_name, customer_contact, payment_method, other_payment_method, remarks, status)",
-      )
-      .in("inventory_id", inventoryIds)
-      .returns<ReceiptItemSaleRow[]>();
-
-    for (const row of receiptItemRows ?? []) {
+      for (const row of receiptItemRows) {
       const order = firstRelation(row.sales_orders);
       if (!order) continue;
       itemSaleRows.push({
@@ -323,6 +320,14 @@ export async function getInventoryDashboard() {
         remarks: order.remarks,
         status: order.status,
       });
+      }
+    } catch (error) {
+      return {
+        items: [],
+        summary: null,
+        sales: null,
+        error: error instanceof Error ? `Inventory sales history is unavailable: ${error.message}` : "Inventory sales history is unavailable.",
+      };
     }
   }
 
@@ -383,7 +388,7 @@ export async function getInventoryDashboard() {
     category: row.category,
     notes: row.notes ?? '',
     quantity: toNumber(row.quantity),
-    unit: INVENTORY_UNIT,
+    unit: row.unit,
     minimumQuantity: toNumber(row.minimum_quantity),
     storageLocation: row.storage_location ?? "Not set",
     unitCost: row.unit_cost === null ? null : toNumber(row.unit_cost),
@@ -407,40 +412,54 @@ export async function getInventoryDashboard() {
     ).length,
     outOfStockItems: items.filter((item) => stockStatus(item) === "Out of Stock")
       .length,
-    inventoryValue: items.reduce(
-      (total, item) => total + item.quantity * (item.unitCost ?? 0),
-      0,
-    ),
-    estimatedSalesValue: items.reduce(
-      (total, item) => total + item.quantity * (item.sellingPrice ?? 0),
-      0,
-    ),
+    inventoryValue: items.every((item) => item.unitCost !== null)
+      ? items.reduce((total, item) => total + item.quantity * item.unitCost!, 0)
+      : null,
+    estimatedSalesValue: items.every((item) => item.sellingPrice !== null)
+      ? items.reduce((total, item) => total + item.quantity * item.sellingPrice!, 0)
+      : null,
   };
 
-  const [salesRows, orderItemRows, completedOrderRows] = await Promise.all([
-    fetchAllPages<SaleRow>((from, to) => supabase
+  let salesRows: SaleRow[];
+  let orderItemRows: SalesOrderItemSummaryRow[];
+  let completedOrderRows: SalesOrderTotalRow[];
+  try {
+    [salesRows, orderItemRows, completedOrderRows] = await Promise.all([
+      fetchAllPages<SaleRow>((from, to) => supabase
       .from("sales_transactions")
-      .select("total_amount, sale_date, status, inventory_id, quantity_sold")
+      .select("id, total_amount, sale_date, status, inventory_id, quantity_sold")
       .order("sale_date", { ascending: false })
+      .order("id", { ascending: true })
       .range(from, to)
       .returns<SaleRow[]>()),
     fetchAllPages<SalesOrderItemSummaryRow>((from, to) => supabase
       .from("sales_order_items")
-      .select("quantity_sold, item_name_snapshot, sales_orders(status)")
+      .select("id, quantity_sold, item_name_snapshot, sales_orders(status)")
+      .order("id", { ascending: true })
       .range(from, to)
       .returns<SalesOrderItemSummaryRow[]>()),
     fetchAllPages<SalesOrderTotalRow>((from, to) => supabase
       .from("sales_orders")
-      .select("total_amount, sale_date, status")
+      .select("id, total_amount, sale_date, status")
       .order("sale_date", { ascending: false })
+      .order("id", { ascending: true })
       .range(from, to)
       .returns<SalesOrderTotalRow[]>()),
-  ]);
+    ]);
+  } catch (error) {
+    return {
+      items,
+      summary,
+      sales: null,
+      error: error instanceof Error ? `Sales totals unavailable: ${error.message}` : "Sales totals unavailable.",
+    };
+  }
 
-  const todayIso = startOfTodayIso();
-  const monthIso = startOfMonthIso();
-  const tomorrowIso = new Date(startOfBusinessDay().getTime() + 24 * 60 * 60 * 1000).toISOString();
-  const nextMonthIso = startOfNextBusinessMonth().toISOString();
+  const todayStart = startOfBusinessDay();
+  const asOf = new Date();
+  const monthStart = startOfBusinessMonth();
+  const tomorrow = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+  const nextMonth = startOfNextBusinessMonth(monthStart);
   const itemTotals = new Map<string, number>();
 
   for (const sale of salesRows) {
@@ -478,10 +497,10 @@ export async function getInventoryDashboard() {
 
   const sales: SalesSummary = {
     salesToday: [...salesRows, ...completedOrderRows]
-      .filter((sale) => sale.status === "Completed" && sale.sale_date >= todayIso && sale.sale_date < tomorrowIso)
+      .filter((sale) => sale.status === "Completed" && isWithinDateRange(sale.sale_date, todayStart, tomorrow, asOf))
       .reduce((total, sale) => total + toNumber(sale.total_amount), 0),
     salesThisMonth: [...salesRows, ...completedOrderRows]
-      .filter((sale) => sale.status === "Completed" && sale.sale_date >= monthIso && sale.sale_date < nextMonthIso)
+      .filter((sale) => sale.status === "Completed" && isWithinDateRange(sale.sale_date, monthStart, nextMonth, asOf))
       .reduce((total, sale) => total + toNumber(sale.total_amount), 0),
     completedTransactions: salesRows.filter((sale) => sale.status === "Completed").length + completedOrderRows.length,
     bestSellingItem,

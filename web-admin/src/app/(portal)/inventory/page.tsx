@@ -56,7 +56,7 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
             </span>
             <p>Total items</p>
           </div>
-          <CountUpValue className="mono" value={summary?.totalItems ?? 0} />
+          {summary ? <CountUpValue className="mono" value={summary.totalItems} /> : <strong>Unavailable</strong>}
         </article>
         <article className={styles.metric}>
           <div className={styles.metricMeta}>
@@ -65,7 +65,7 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
             </span>
             <p>Low stock</p>
           </div>
-          <CountUpValue className="mono" value={summary?.lowStockItems ?? 0} />
+          {summary ? <CountUpValue className="mono" value={summary.lowStockItems} /> : <strong>Unavailable</strong>}
         </article>
         <article className={styles.metric}>
           <div className={styles.metricMeta}>
@@ -74,7 +74,7 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
             </span>
             <p>Out of stock</p>
           </div>
-          <CountUpValue className="mono" value={summary?.outOfStockItems ?? 0} />
+          {summary ? <CountUpValue className="mono" value={summary.outOfStockItems} /> : <strong>Unavailable</strong>}
         </article>
         <article className={styles.metric}>
           <div className={styles.metricMeta}>
@@ -83,26 +83,26 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
             </span>
             <p>Inventory value</p>
           </div>
-          <CountUpValue className="mono" currency value={summary?.inventoryValue ?? 0} />
+          {summary?.inventoryValue != null ? <CountUpValue className="mono" currency value={summary.inventoryValue} /> : <strong>{summary ? "Incomplete cost data" : "Unavailable"}</strong>}
         </article>
       </section>
 
       <section className={styles.salesBand} aria-label="Sales summary">
         <article className={styles.metric}>
           <div className={styles.metricMeta}><span className={styles.metricIcon}><ShoppingCart size={20} /></span><p>Sales today</p></div>
-          <CountUpValue currency value={sales?.salesToday ?? 0} />
+          {sales ? <CountUpValue currency value={sales.salesToday} /> : <span>Unavailable</span>}
         </article>
         <article className={styles.metric}>
           <div className={styles.metricMeta}><span className={styles.metricIcon}><CalendarDays size={20} /></span><p>Sales this month</p></div>
-          <CountUpValue currency value={sales?.salesThisMonth ?? 0} />
+          {sales ? <CountUpValue currency value={sales.salesThisMonth} /> : <span>Unavailable</span>}
         </article>
         <article className={styles.metric}>
           <div className={styles.metricMeta}><span className={styles.metricIcon}><Award size={20} /></span><p>Best-selling item</p></div>
-          <strong className={styles.metricTextValue}>{sales?.bestSellingItem ?? "No sales yet"}</strong>
+          <strong className={styles.metricTextValue}>{sales?.bestSellingItem ?? "Unavailable"}</strong>
         </article>
         <article className={styles.metric}>
           <div className={styles.metricMeta}><span className={styles.metricIcon}><CircleDollarSign size={20} /></span><p>Potential sales value</p></div>
-          <CountUpValue currency value={summary?.estimatedSalesValue ?? 0} />
+          {summary?.estimatedSalesValue != null ? <CountUpValue currency value={summary.estimatedSalesValue} /> : <strong>{summary ? "Incomplete price data" : "Unavailable"}</strong>}
         </article>
       </section>
 

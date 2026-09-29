@@ -289,4 +289,5 @@ export async function updateUserAction(formData: FormData) {
   });
 
   revalidatePath("/users");
+  revalidatePath("/", "layout");
 }

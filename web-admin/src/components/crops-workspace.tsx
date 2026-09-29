@@ -964,7 +964,7 @@ function CropSensorHistoryPanel({ crop }: { crop: CropItem }) {
               <div>
                 <h5>Latest sensor check</h5>
               </div>
-              <time>{latest.source} · {formatDateTime(latest.recordedAt)} · {latest.fresh ? "Fresh" : "Stale"} · {latest.soilMoistureCalibrated === true ? `Moisture calibration ${latest.calibrationVersion ?? "version unavailable"}` : latest.soilMoistureCalibrated === false ? "Moisture % unavailable: probe not calibrated" : "Moisture calibration status unavailable"}</time>
+              <time>{latest.source} · {formatDateTime(latest.recordedAt)} · {latest.fresh ? "Fresh" : "Stale"}</time>
             </div>
             <div className={styles.sensorSummaryGrid}>
               <SensorValue tone="moisture" icon={<Droplets size={19} />} label="Soil moisture" unit="%" value={latest.soilMoisture} />
@@ -1057,6 +1057,7 @@ function CropForm({
     startTransition(async () => {
       try {
         await action(formData);
+        notify("success", "Crop details updated successfully.");
         onSuccess();
         router.refresh();
       } catch (error) {
@@ -1337,7 +1338,7 @@ function SavedRunTimeline({ run }: { run: PlantingRunHistoryRow }) {
   const confirmed = ["Row Planted", "Some Planted", "None Planted"].includes(run.confirmationOutcome);
   const steps = [
     ["PREPARE", run.startedAt ? `Run started ${formatDateTime(run.startedAt)} · ${run.seedName} · ${run.fieldLabel || "Field not labeled"}` : "Start time unavailable", Boolean(run.startedAt)],
-    ["READ SOIL", run.soilCapturedAt ? `Historical capture ${formatDateTime(run.soilCapturedAt)} · ${run.provenanceStatus === "verified_hardware" ? "Verified rover hardware" : "Unverified source"} · Moisture ${formatRunSensor(run.soilMoisturePercent, "%")}${run.soilMoistureCalibrated === true ? ` (calibration ${run.calibrationVersion})` : run.soilMoistureCalibrated === false ? " (probe uncalibrated)" : " (calibration unverified)"} · Soil temperature ${formatRunSensor(run.soilTemperatureC, "°C")}` : "No soil snapshot recorded", Boolean(run.soilCapturedAt)],
+    ["READ SOIL", run.soilCapturedAt ? `Historical capture ${formatDateTime(run.soilCapturedAt)} · ${run.provenanceStatus === "verified_hardware" ? "Verified rover hardware" : "Unverified source"} · Moisture ${formatRunSensor(run.soilMoisturePercent, "%")} · Soil temperature ${formatRunSensor(run.soilTemperatureC, "°C")}` : "No soil snapshot recorded", Boolean(run.soilCapturedAt)],
     ["PLANT ROW", `${run.completedCycles} of ${run.targetCycles ?? "—"} rover gate cycles acknowledged · ${run.plantingStatus}${run.failureCode ? ` · ${run.failureCode}` : ""}`, Boolean(run.completedAt)],
     ["CONFIRM RESULT", run.confirmationOutcome === "Legacy" ? "Legacy run · Worker confirmation was not tracked in the older workflow" : confirmed ? `${run.confirmationOutcome}${run.confirmedAt ? ` · ${formatDateTime(run.confirmedAt)}` : ""}` : "NEEDS REVIEW · No crop is created until a worker confirms", confirmed],
     ["SAVE TO CROPS", run.cropId ? "Crop is available in Crops" : confirmed ? "Run saved; no crop was created for this result" : "Run log is saved; waiting for worker confirmation", true],
