@@ -1,7 +1,7 @@
 "use client";
 
-import type { FormEvent, InputHTMLAttributes, ReactNode } from "react";
-import { useMemo, useRef, useState, useTransition } from "react";
+import type { FormEvent, InputHTMLAttributes, KeyboardEvent, ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Apple,
@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ClipboardList,
   Clock3,
+  History,
   X,
   ChevronRight,
   Edit3,
@@ -22,33 +23,31 @@ import {
   ImageIcon,
   Package,
   PackagePlus,
-  Plus,
   Search,
   SlidersHorizontal,
   Sprout,
   Trash2,
-  WalletCards,
 } from "lucide-react";
 import {
   adjustStockAction,
   createInventoryItemAction,
   deleteInventoryItemAction,
-  recordInventorySaleAction,
   stockInAction,
   stockOutAction,
   updateInventoryItemAction,
 } from "@/app/(portal)/inventory/actions";
-import {
-  ActionAlertStack,
-  type ActionAlert,
-  type AlertTone,
-} from "@/components/action-alert-stack";
+import type { AlertTone } from "@/components/action-alert-stack";
+import { NumericInput } from "@/components/constrained-inputs";
 import { useConfirmationDialog } from "@/components/confirmation-dialog";
-import { CalendarField } from "@/components/calendar-field";
+import { useActionFeedback } from "@/components/action-feedback";
+import { PendingActionLabel } from "@/components/pending-action-label";
 import { FileUploadField } from "@/components/file-upload-field";
 import { formatCurrency, formatDateTime, formatQuantity } from "@/lib/format";
+import { displayDate } from "@/lib/spoilage-estimates";
+import { sharedWorkflowChoices, sharedWorkflowTerms } from "@/lib/shared-workflow-terms";
 import type { InventoryItem } from "@/lib/inventory";
 import styles from "@/app/(portal)/inventory/page.module.css";
+import quickActionStyles from "@/app/(portal)/sales/page.module.css";
 
 const categoryInputOptions = [
   "Leafy Vegetables",
@@ -65,21 +64,8 @@ const units = ["kg"];
 const wholeNumberUnits = new Set<string>();
 const statusOptions = ["All", "In Stock", "Low Stock", "Critical Stock", "Out of Stock"];
 const sortOptions = ["Name", "Quantity", "Updated", "Value"];
-const stockInLocations = [
-  "Harvest Bay",
-  "Greenhouse Sorting",
-  "Field Crate",
-  "Market Return",
-  "Farm-table Prep",
-];
-const stockOutReasons = [
-  "Market Distribution",
-  "Farm-table Dining",
-  "Kitchen Preparation",
-  "Spoilage Removal",
-  "Staff Allocation",
-];
-const paymentMethods = ["Cash", "GCash", "Bank Transfer", "Card", "Other"];
+const stockInLocations = [...sharedWorkflowChoices.receiptSources];
+const stockOutReasons = [...sharedWorkflowChoices.issueReasons];
 
 type DialogState =
   | { type: "add" }
@@ -88,6 +74,7 @@ type DialogState =
   | { type: "stock-in"; item: InventoryItem }
   | { type: "stock-out"; item: InventoryItem }
   | { type: "delete"; item: InventoryItem }
+  | { type: "history" }
   | null;
 
 function getStockStatus(item: InventoryItem) {
@@ -192,21 +179,26 @@ function categoryMeta(category: string) {
   return { icon: <Boxes size={22} />, color: "#b4b4b4" };
 }
 
-export function InventoryWorkspace({ items }: { items: InventoryItem[] }) {
+export function InventoryWorkspace({
+  items,
+  initialItemId,
+}: {
+  items: InventoryItem[];
+  initialItemId?: string;
+}) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
   const [status, setStatus] = useState("All");
   const [sort, setSort] = useState("Name");
-  const [dialog, setDialog] = useState<DialogState>(null);
-  const [alerts, setAlerts] = useState<ActionAlert[]>([]);
-
-  function notify(tone: AlertTone, text: string) {
-    const id = Date.now();
-    setAlerts((current) => [...current.slice(-2), { id, tone, text }]);
-    window.setTimeout(() => {
-      setAlerts((current) => current.filter((alert) => alert.id !== id));
-    }, 4200);
-  }
+  const [dialog, setDialog] = useState<DialogState>(() => {
+    const initialItem = items.find((item) => item.id === initialItemId);
+    return initialItem ? { type: "details", item: initialItem } : null;
+  });
+  const currentDialog = dialog && "item" in dialog
+    ? { ...dialog, item: items.find((item) => item.id === dialog.item.id) ?? dialog.item }
+    : dialog;
+  const { notify: sendFeedback } = useActionFeedback();
+  const notify = (tone: AlertTone, text: string) => sendFeedback({ tone, text });
 
   const filteredItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -256,6 +248,23 @@ export function InventoryWorkspace({ items }: { items: InventoryItem[] }) {
 
   return (
     <>
+      <section className={quickActionStyles.quickActions} aria-label="Inventory quick actions">
+        <div>
+          <p className={quickActionStyles.eyebrow}>Quick action</p>
+          <h2>Inventory control</h2>
+          <span>Add an inventory item or review every stock movement.</span>
+        </div>
+        <div className={styles.inventoryQuickActions}>
+          <button className={quickActionStyles.recordSaleButton} type="button" onClick={() => setDialog({ type: "add" })}>
+            <span className={quickActionStyles.recordSaleText}>ADD ITEM</span>
+            <span className={quickActionStyles.recordSaleIcon} aria-hidden="true"><PackagePlus size={20} /></span>
+          </button>
+          <button className={quickActionStyles.recordSaleButton} type="button" onClick={() => setDialog({ type: "history" })}>
+            <span className={quickActionStyles.recordSaleText}>VIEW INVENTORY HISTORY</span>
+            <span className={quickActionStyles.recordSaleIcon} aria-hidden="true"><History size={20} /></span>
+          </button>
+        </div>
+      </section>
       <section className={styles.inventoryToolbar}>
         <label className={styles.searchField}>
           <Search size={18} />
@@ -287,16 +296,6 @@ export function InventoryWorkspace({ items }: { items: InventoryItem[] }) {
           values={sortOptions}
           onChange={setSort}
         />
-        <button
-          className={styles.addItemButton}
-          type="button"
-          onClick={() => setDialog({ type: "add" })}
-        >
-          <span className={styles.addItemText}>Add Item</span>
-          <span className={styles.addItemIcon} aria-hidden="true">
-            <Plus size={20} />
-          </span>
-        </button>
       </section>
 
       {filteredItems.length === 0 ? (
@@ -318,15 +317,11 @@ export function InventoryWorkspace({ items }: { items: InventoryItem[] }) {
       )}
 
       <InventoryDialog
-        dialog={dialog}
+        dialog={currentDialog}
+        items={items}
         notify={notify}
+        onAction={setDialog}
         onClose={() => setDialog(null)}
-      />
-      <ActionAlertStack
-        alerts={alerts}
-        onDismiss={(id) =>
-          setAlerts((current) => current.filter((alert) => alert.id !== id))
-        }
       />
     </>
   );
@@ -364,6 +359,8 @@ function ThemedSelect({
   name,
   onChange,
   options,
+  placeholder,
+  required = false,
   value,
   variant = "form",
 }: {
@@ -373,6 +370,8 @@ function ThemedSelect({
   name?: string;
   onChange?: (value: string) => void;
   options: string[];
+  placeholder?: string;
+  required?: boolean;
   value?: string;
   variant?: "toolbar" | "form";
 }) {
@@ -398,7 +397,7 @@ function ThemedSelect({
       }}
     >
       {name ? <input name={name} type="hidden" value={selectedValue} /> : null}
-      {variant === "form" ? <span className={styles.themedSelectLabel}>{label}</span> : null}
+      {variant === "form" ? <span className={styles.themedSelectLabel}>{label}{required ? <span aria-hidden="true" className={styles.requiredMarker}>*</span> : null}</span> : null}
       <button
         aria-expanded={open}
         className={styles.themedSelectButton}
@@ -407,7 +406,7 @@ function ThemedSelect({
       >
         {icon ? <span className={styles.themedSelectIcon}>{icon}</span> : null}
         {variant === "toolbar" ? <span className={styles.themedSelectLabel}>{label}</span> : null}
-        <span className={styles.themedSelectValue}>{selectedValue}</span>
+        <span className={styles.themedSelectValue}>{selectedValue || placeholder || "No stage change"}</span>
         <ChevronDown className={styles.themedSelectChevron} size={16} />
       </button>
       {open ? (
@@ -561,14 +560,14 @@ function InventoryCard({
       </dl>
       <div className={styles.cardActions}>
         <IconAction
-          label="Stock In"
+          label={sharedWorkflowTerms.receiveStock}
           tone="stock-in"
           onClick={() => onOpen({ type: "stock-in", item })}
         >
           <ArrowUpCircle size={16} />
         </IconAction>
         <IconAction
-          label="Stock Out"
+          label={sharedWorkflowTerms.issueStock}
           tone="stock-out"
           onClick={() => onOpen({ type: "stock-out", item })}
         >
@@ -613,36 +612,93 @@ function IconAction({
 
 function InventoryDialog({
   dialog,
+  items,
   notify,
+  onAction,
   onClose,
 }: {
   dialog: DialogState;
+  items: InventoryItem[];
   notify: (tone: AlertTone, text: string) => void;
+  onAction: (dialog: DialogState) => void;
   onClose: () => void;
 }) {
+  const dialogRef = useRef<HTMLElement>(null);
+  const previousFocus = useRef<HTMLElement | null>(null);
+  const itemId = dialog && "item" in dialog ? dialog.item.id : null;
+  const dialogType = dialog?.type ?? null;
+  const [historyPage, setHistoryPage] = useState(1);
+  const historyPageSize = 5;
+  const historyRecords = useMemo(
+    () =>
+      items
+        .flatMap((item) =>
+          item.transactions.map((transaction) => ({ item, transaction })),
+        )
+        .sort(
+          (a, b) =>
+            (b.transaction.createdAt ? new Date(b.transaction.createdAt).getTime() : Number.NEGATIVE_INFINITY) -
+            (a.transaction.createdAt ? new Date(a.transaction.createdAt).getTime() : Number.NEGATIVE_INFINITY),
+        ),
+    [items],
+  );
+  const historyPageCount = Math.max(
+    1,
+    Math.ceil(historyRecords.length / historyPageSize),
+  );
+  const currentHistoryPage = Math.min(historyPage, historyPageCount);
+  const visibleHistoryRecords = historyRecords.slice(
+    (currentHistoryPage - 1) * historyPageSize,
+    currentHistoryPage * historyPageSize,
+  );
+
+  useEffect(() => {
+    if (!dialogType) {
+      if (previousFocus.current?.isConnected) previousFocus.current.focus();
+      previousFocus.current = null;
+      return;
+    }
+    if (!previousFocus.current) {
+      previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    }
+    dialogRef.current?.focus();
+  }, [dialogType, itemId]);
+
   if (!dialog) {
     return null;
   }
 
   const modalMeta = {
     add: { title: "Add Item", icon: <PackagePlus size={18} /> },
-    details: { title: "Stock Details", icon: <ClipboardList size={18} /> },
-    edit: { title: "Edit Item", icon: <Edit3 size={18} /> },
-    "stock-in": { title: "Stock In", icon: <ArrowUpCircle size={18} /> },
-    "stock-out": { title: "Stock Out", icon: <ArrowDownCircle size={18} /> },
-    delete: { title: "Delete Item", icon: <Trash2 size={18} /> },
-  }[dialog.type];
-  const title = modalMeta.title;
+    edit: { title: "Edit item", icon: <Edit3 size={18} /> },
+    "stock-in": { title: sharedWorkflowTerms.receiveStock, icon: <ArrowUpCircle size={18} /> },
+    "stock-out": { title: sharedWorkflowTerms.issueStock, icon: <ArrowDownCircle size={18} /> },
+    delete: { title: "Delete item", icon: <Trash2 size={18} /> },
+    history: { title: "Inventory History", icon: <Clock3 size={18} /> },
+  } as const;
+  const isDetails = dialog.type === "details";
+  const title = isDetails ? "Item Details" : modalMeta[dialog.type].title;
+  const modalIcon = isDetails ? categoryMeta(dialog.item.category).icon : modalMeta[dialog.type].icon;
 
   return (
-    <div className={styles.modalBackdrop} data-ui-backdrop="true" role="presentation">
-      <section className={styles.modal} role="dialog" aria-modal="true" aria-label={title}>
+    <div className={styles.modalBackdrop} data-ui-backdrop="true" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section ref={dialogRef} tabIndex={-1} onKeyDown={(event) => {
+        if (event.key === "Escape") { event.stopPropagation(); onClose(); return; }
+        if (event.key !== "Tab" || !dialogRef.current) return;
+        const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])')).filter((element) => element.tabIndex >= 0 && !element.closest("[hidden]"));
+        if (!focusable.length) { event.preventDefault(); return; }
+        const first = focusable[0]; const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }} className={`${styles.modal} ${isDetails ? styles.inventoryDetailsModal : ""} ${dialog.type === "history" ? `${styles.transactionHistoryModal} ${styles.inventoryHistoryModal}` : ""}`} role="dialog" aria-modal="true" aria-label={title}>
         <header className={styles.modalHeader}>
           <h3 className={styles.modalTitle}>
             <span className={styles.modalTitleIcon} aria-hidden="true">
-              {modalMeta.icon}
+              {modalIcon}
             </span>
-            <span>{title}</span>
+            <span className={styles.modalTitleText}>
+              {title}
+            </span>
           </h3>
           <button
             aria-label="Close modal"
@@ -658,17 +714,17 @@ function InventoryDialog({
             action={createInventoryItemAction}
             notify={notify}
             onSuccess={onClose}
-            successMessage="Success - Inventory item added."
+            successMessage="Inventory item added."
           />
         ) : null}
-        {dialog.type === "details" ? <DetailsPanel item={dialog.item} /> : null}
+        {isDetails ? <DetailsPanel item={dialog.item} /> : null}
         {dialog.type === "edit" ? (
           <InventoryForm
             action={updateInventoryItemAction}
             item={dialog.item}
             notify={notify}
             onSuccess={onClose}
-            successMessage="Success - Inventory item updated."
+            successMessage="Inventory item updated."
           />
         ) : null}
         {dialog.type === "stock-in" ? (
@@ -690,6 +746,42 @@ function InventoryDialog({
         {dialog.type === "delete" ? (
           <DeleteForm item={dialog.item} notify={notify} onSuccess={onClose} />
         ) : null}
+        {dialog.type === "history" ? (
+          <div className={styles.inventoryHistoryLedger}>
+            <div className={styles.historyPanel}>
+              <div className={styles.historyHeader}><div><h4 className={styles.historyHeading}>Stock movements</h4><p>Receipts, issues, and adjustments</p></div><strong>{historyRecords.length} records</strong></div>
+              <div className={styles.historyTableHeader} aria-hidden="true">
+                <span>Type</span>
+                <span>Item and quantity</span>
+                <span>Date</span>
+                <span>Notes</span>
+              </div>
+              <div className={styles.inventoryHistoryRecords}>
+              {visibleHistoryRecords.map(({ item, transaction }) => (
+                <div className={styles.historyItem} key={transaction.id}>
+                  <div><strong data-type={transaction.type}>{transaction.type === "OPENING" ? "Opening stock" : transaction.type === "HISTORICAL" ? "Historical batch" : transaction.source === "harvest" ? "Harvest" : transaction.type === "IN" ? sharedWorkflowTerms.receiveStock : transaction.type === "OUT" ? sharedWorkflowTerms.issueStock : sharedWorkflowTerms.adjustQuantity}</strong><span>{item.itemName} · {transaction.quantity} {item.unit}</span></div>
+                  <div><small>{transaction.createdAt ? formatDateTime(transaction.createdAt) : "Date unknown"}</small></div>
+                  <p>{transaction.remarks || "—"}</p>
+                </div>
+              ))}
+              {items.every((item) => item.transactions.length === 0) ? <p className={styles.historyEmpty}>No inventory movements recorded yet.</p> : null}
+              </div>
+              {historyRecords.length > 0 ? <div className={styles.historyPagination}><button aria-label="Previous history page" disabled={currentHistoryPage === 1} type="button" onClick={() => setHistoryPage((value) => Math.max(1, value - 1))}><ChevronLeft size={16} /></button><span>Page {currentHistoryPage} of {historyPageCount}</span><button aria-label="Next history page" disabled={currentHistoryPage >= historyPageCount} type="button" onClick={() => setHistoryPage((value) => Math.min(historyPageCount, value + 1))}><ChevronRight size={16} /></button></div> : null}
+            </div>
+          </div>
+        ) : null}
+        {isDetails ? (
+          <footer className={styles.inventoryDetailsFooter}>
+            <button className={`${styles.primaryAction} ${styles.receiveStockAction}`} type="button" onClick={() => onAction({ type: "stock-in", item: dialog.item })}>
+              <ArrowUpCircle size={18} aria-hidden="true" />
+              <span>{sharedWorkflowTerms.receiveStock}</span>
+            </button>
+            <button className={`${styles.primaryAction} ${styles.issueStockAction}`} type="button" onClick={() => onAction({ type: "stock-out", item: dialog.item })}>
+              <ArrowDownCircle size={18} aria-hidden="true" />
+              <span>{sharedWorkflowTerms.issueStock}</span>
+            </button>
+          </footer>
+        ) : null}
       </section>
     </div>
   );
@@ -698,12 +790,16 @@ function InventoryDialog({
 function useActionSubmit({
   action,
   confirmMessage,
+  confirmTitle,
+  confirmLabel,
   notify,
   onSuccess,
   successMessage,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   confirmMessage?: string;
+  confirmTitle?: string;
+  confirmLabel?: string;
   notify: (tone: AlertTone, text: string) => void;
   onSuccess: () => void;
   successMessage: string;
@@ -718,8 +814,9 @@ function useActionSubmit({
 
     if (confirmMessage) {
       const confirmed = await confirm({
+        title: confirmTitle,
         message: confirmMessage,
-        confirmLabel: "Confirm",
+        confirmLabel: confirmLabel ?? "Confirm",
         tone: "danger",
       });
 
@@ -739,7 +836,7 @@ function useActionSubmit({
       } catch (error) {
         notify(
           "error",
-          `Error - ${error instanceof Error ? error.message : "Something went wrong."}`,
+          error instanceof Error ? error.message : "Something went wrong.",
         );
       }
     });
@@ -748,6 +845,11 @@ function useActionSubmit({
   return { confirmationDialog, handleSubmit, pending };
 }
 
+type InventoryFormActionResult = void | { error: string };
+type InventoryFormAction = (
+  formData: FormData,
+) => InventoryFormActionResult | Promise<InventoryFormActionResult>;
+
 function InventoryForm({
   action,
   item,
@@ -755,7 +857,7 @@ function InventoryForm({
   onSuccess,
   successMessage,
 }: {
-  action: (formData: FormData) => void | Promise<void>;
+  action: InventoryFormAction;
   item?: InventoryItem;
   notify: (tone: AlertTone, text: string) => void;
   onSuccess: () => void;
@@ -770,22 +872,29 @@ function InventoryForm({
     event.preventDefault();
     const form = event.currentTarget;
 
-    const confirmed = await confirm({
-      message: item
-        ? "Are you sure you want to save these inventory item changes?"
-        : "Are you sure you want to create this inventory item?",
-      confirmLabel: item ? "Save Item" : "Create Item",
-    });
-
-    if (!confirmed) {
-      return;
+    const formData = new FormData(form);
+    const nextQuantity = Number(formData.get("quantity") ?? item?.quantity);
+    const consequential = !item || nextQuantity !== item.quantity ||
+      String(formData.get("unit") ?? item.unit) !== item.unit ||
+      Number(formData.get("unit_cost") ?? item.unitCost) !== item.unitCost ||
+      Number(formData.get("selling_price") ?? item.sellingPrice) !== item.sellingPrice;
+    if (consequential) {
+      const confirmed = await confirm({
+        title: item ? "Update inventory item?" : "Create inventory item?",
+        message: item
+          ? `This will update ${item.itemName}${nextQuantity !== item.quantity ? ` and change its quantity to ${nextQuantity} ${String(formData.get("unit") ?? item.unit)}` : ""}.`
+          : `This will create ${String(formData.get("item_name") ?? "this item")} with an opening stock of ${nextQuantity} ${String(formData.get("unit") ?? "kg")}.`,
+        confirmLabel: item ? "Save item" : "Create item",
+      });
+      if (!confirmed) return;
     }
 
-    const formData = new FormData(form);
-
     startTransition(async () => {
+      let itemDetailsSaved = false;
       try {
-        await action(formData);
+        const result = await action(formData);
+        if (result?.error) throw new Error(result.error);
+        itemDetailsSaved = true;
 
         if (item) {
           const nextQuantity = Number(formData.get("quantity") ?? item.quantity);
@@ -795,6 +904,7 @@ function InventoryForm({
             adjustFormData.set("new_quantity", String(nextQuantity));
             adjustFormData.set("reason", "Edit Item");
             adjustFormData.set("remarks", "Quantity updated from edit item.");
+            adjustFormData.set("request_id", crypto.randomUUID());
             await adjustStockAction(adjustFormData);
           }
         }
@@ -805,7 +915,9 @@ function InventoryForm({
       } catch (error) {
         notify(
           "error",
-          `Error - ${error instanceof Error ? error.message : "Something went wrong."}`,
+          itemDetailsSaved
+            ? `Inventory item details were saved, but the stock adjustment could not be recorded: ${error instanceof Error ? error.message : "Please review the item and retry the quantity adjustment."}`
+            : error instanceof Error ? error.message : "Something went wrong.",
         );
       }
     });
@@ -818,8 +930,8 @@ function InventoryForm({
 
     const confirmed = await confirm({
       title: "Delete item?",
-      message: `Are you sure you want to permanently delete ${item.itemName}?`,
-      confirmLabel: "Delete Item",
+      message: `Permanently delete ${item.itemName}? This cannot be undone.`,
+      confirmLabel: "Delete item",
       tone: "danger",
     });
 
@@ -835,11 +947,11 @@ function InventoryForm({
         await deleteInventoryItemAction(formData);
         onSuccess();
         router.refresh();
-        notify("success", "Success - Inventory item deleted.");
+        notify("success", "Inventory item deleted.");
       } catch (error) {
         notify(
           "error",
-          `Error - ${error instanceof Error ? error.message : "Something went wrong."}`,
+          error instanceof Error ? error.message : "Something went wrong.",
         );
       }
     });
@@ -849,7 +961,7 @@ function InventoryForm({
     <>
     <form className={styles.formGrid} onSubmit={handleSubmit}>
       {item ? <input name="id" type="hidden" value={item.id} /> : null}
-      <Field label="Item name" name="item_name" placeholder="e.g. Tomato seeds" required defaultValue={item?.itemName} />
+      <Field label={sharedWorkflowTerms.itemName} name="item_name" placeholder="e.g. Tomato seeds" required={!item} defaultValue={item?.itemName} />
       <ThemedSelect
         label="Category"
         name="category"
@@ -863,7 +975,8 @@ function InventoryForm({
           type="number"
           step="0.01"
           min="0"
-          defaultValue={item?.quantity ?? 0}
+          required={!item}
+          defaultValue={item?.quantity ?? ""}
         />
         <ThemedSelect
           label="Unit"
@@ -872,22 +985,24 @@ function InventoryForm({
           defaultValue={item?.unit ?? "kg"}
         />
       </div>
-      <Field label="Minimum stock level" name="minimum_quantity" placeholder="e.g. 25" type="number" step="0.01" min="0" defaultValue={item?.minimumQuantity ?? 0} />
+      <Field label="Minimum stock level" name="minimum_quantity" placeholder="e.g. 25" type="number" step="0.01" min="0" required={!item} defaultValue={item?.minimumQuantity ?? ""} />
       <div className={styles.twoColumn}>
-        <Field label="Unit cost" name="unit_cost" placeholder="e.g. 120.00" type="number" step="0.01" min="0" defaultValue={item?.unitCost ?? ""} />
-        <Field label="Selling price" name="selling_price" placeholder="e.g. 180.00" type="number" step="0.01" min="0" defaultValue={item?.sellingPrice ?? ""} />
+        <Field label="Unit cost (PHP)" name="unit_cost" placeholder="e.g. 120.00" type="number" step="0.01" min="0" required={!item} defaultValue={item?.unitCost ?? ""} />
+        <Field label="Selling price (PHP)" name="selling_price" placeholder="e.g. 180.00" type="number" step="0.01" min="0" required={!item} defaultValue={item?.sellingPrice ?? ""} />
       </div>
-      <Field label="Storage location" name="storage_location" placeholder="e.g. Greenhouse storage" defaultValue={item?.storageLocation ?? "Harvest Bay"} />
+      <Field label="Storage location" name="storage_location" placeholder="e.g. Greenhouse storage" required={!item} defaultValue={item?.storageLocation ?? ""} />
+      <Field label={`${sharedWorkflowTerms.itemNotes} (optional)`} name="notes" defaultValue={item?.notes ?? ""} />
       <FileUploadField
         accept="image/jpeg,image/png,image/webp"
-        helperText="JPG, PNG or WEBP"
+        helperText="JPG, PNG or WEBP · up to 5 MB"
         label="Stock image"
         name="image"
         prompt={item?.imagePath ? "Choose replacement image" : "Choose stock image"}
+        required={!item}
       />
       <button className={styles.primaryAction} disabled={pending} type="submit">
         <PackagePlus size={17} />
-        <span>{pending ? "Saving..." : "Save Item"}</span>
+        <PendingActionLabel pending={pending} pendingText="Saving item...">Save Item</PendingActionLabel>
       </button>
       {item ? (
         <button
@@ -897,7 +1012,7 @@ function InventoryForm({
           onClick={handleDelete}
         >
           <Trash2 size={17} />
-          <span>{deletePending ? "Deleting..." : "Delete Item"}</span>
+          <PendingActionLabel pending={deletePending} pendingText="Deleting item...">Delete Item</PendingActionLabel>
         </button>
       ) : null}
     </form>
@@ -906,6 +1021,15 @@ function InventoryForm({
   );
 }
 
+function MovementBatchEstimate({ batch }: { batch: InventoryItem["batches"][number] }) {
+  const estimate = !batch.ageKnown
+    ? "Age unknown"
+    : batch.estimatedSpoilageOn
+      ? displayDate(batch.estimatedSpoilageOn)
+      : "Estimate unavailable";
+
+  return <div className={styles.movementBatchEstimate}>Estimated spoilage: {estimate}</div>;
+}
 function MovementForm({
   item,
   mode,
@@ -916,16 +1040,13 @@ function MovementForm({
   mode: "in" | "out";
   notify: (tone: AlertTone, text: string) => void;
   onSuccess: () => void;
-  }) {
-    const options = mode === "in" ? stockInLocations : stockOutReasons;
-    const [reason, setReason] = useState(mode === "in" ? stockInLocations[0] : stockOutReasons[0]);
-    const [pending, startTransition] = useTransition();
-    const [paymentMethod, setPaymentMethod] = useState(paymentMethods[0]);
-    const [otherPaymentMethod, setOtherPaymentMethod] = useState("");
-    const localDate = new Date();
-    localDate.setMinutes(localDate.getMinutes() - localDate.getTimezoneOffset());
-    const [saleDate, setSaleDate] = useState(localDate.toISOString().slice(0, 16));
-    const isSale = mode === "out" && reason === "Market Distribution";
+}) {
+  const options = mode === "in" ? stockInLocations : stockOutReasons;
+  const [reason, setReason] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [formError, setFormError] = useState("");
+  const [pending, startTransition] = useTransition();
+  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
 
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const router = useRouter();
@@ -934,40 +1055,38 @@ function MovementForm({
     event.preventDefault();
     const form = event.currentTarget;
 
+    const formData = new FormData(form);
+    if (!reason) { setFormError(mode === "in" ? "Choose a source." : "Choose a reason."); return; }
+    const quantityValue = String(formData.get("quantity") ?? "");
     const confirmed = await confirm({
-      message: isSale
-        ? `Are you sure you want to record this market distribution sale for ${item.itemName}?`
-        : mode === "in"
-          ? `Are you sure you want to record stock in for ${item.itemName}?`
-          : `Are you sure you want to record stock out for ${item.itemName}?`,
-      confirmLabel: isSale ? "Record Sale" : "Confirm",
+      title: mode === "in" ? "Receive stock?" : "Issue stock?",
+      message: mode === "in"
+        ? `Add ${quantityValue} ${item.unit} to ${item.itemName}?`
+        : `Deduct ${quantityValue} ${item.unit} from ${item.itemName} for ${reason}?`,
+      confirmLabel: mode === "in" ? "Receive stock" : "Issue stock",
     });
 
     if (!confirmed) {
       return;
     }
 
-    const formData = new FormData(form);
-
     startTransition(async () => {
       try {
-        if (isSale) {
-          await recordInventorySaleAction(formData);
-          notify("success", "Success - Sale recorded and inventory deducted.");
-        } else if (mode === "in") {
+        if (mode === "in") {
           await stockInAction(formData);
-          notify("success", "Success - Stock quantity added.");
+          notify("success", "Stock quantity added.");
         } else {
           await stockOutAction(formData);
-          notify("success", "Success - Stock quantity deducted.");
+          notify("success", "Stock quantity deducted.");
         }
 
+        setRequestId(crypto.randomUUID());
         onSuccess();
         router.refresh();
       } catch (error) {
         notify(
           "error",
-          `Error - ${error instanceof Error ? error.message : "Something went wrong."}`,
+          error instanceof Error ? error.message : "Something went wrong.",
         );
       }
     });
@@ -975,98 +1094,62 @@ function MovementForm({
 
   return (
     <>
-    <form className={styles.formGrid} onSubmit={handleSubmit}>
-      <input name="id" type="hidden" value={item.id} />
-      <ReadOnly label="Item" value={item.itemName} />
-      <ReadOnly label="Available" value={formatQuantity(item.quantity, item.unit)} />
-      <Field
-        label={isSale ? `Quantity sold (${item.unit})` : `Quantity (${item.unit})`}
-        name="quantity"
-        required
-        type="number"
-        step={wholeNumberUnits.has(item.unit) ? "1" : "0.01"}
-        min="0.01"
-      />
-      <ThemedSelect
-        label={mode === "in" ? "Stock in location" : "Reason"}
-        name="reason"
-        options={options}
-        value={reason}
-        onChange={setReason}
-      />
-      {isSale ? (
-        <>
-          <div className={styles.twoColumn}>
-            <Field
-              label="Unit price"
-              name="unit_price"
-              required
-              type="number"
-              step="0.01"
-              min="0"
-              defaultValue={item.sellingPrice ?? 0}
-            />
-            <CalendarField
-              includeTime
-              label="Sale date"
-              name="sale_date"
-              required
-              value={saleDate}
-              onChange={setSaleDate}
-            />
-          </div>
-          <ThemedSelect
-            label="Payment method"
-            name="payment_method"
-            options={paymentMethods}
-            value={paymentMethod}
-            onChange={(value) => {
-              setPaymentMethod(value);
-              if (value !== "Other") {
-                setOtherPaymentMethod("");
-              }
-            }}
-          />
-          {paymentMethod === "Other" ? (
-            <Field
-              label="Other payment method"
-              name="other_payment_method"
-              required
-              placeholder="e.g. Maya, cheque, farm credit"
-              value={otherPaymentMethod}
-              onChange={(event) => setOtherPaymentMethod(event.target.value)}
-            />
-          ) : null}
-          {paymentMethod !== "Cash" ? (
-            <Field
-              label={`${paymentMethod} transaction ID`}
-              name="transaction_reference"
-              required
-              placeholder="e.g. TXN-2026-0012"
-            />
-          ) : null}
-          <Field label="Customer name" name="customer_name" />
-          <Field label="Sale remarks" name="remarks" defaultValue="Market distribution." />
-        </>
-      ) : (
+      <form className={styles.formGrid} onSubmit={handleSubmit}>
+        <input name="id" type="hidden" value={item.id} />
+        <input name="request_id" type="hidden" value={requestId} />
+        <ReadOnly label="Item" value={item.itemName} />
+        <ReadOnly label="Available" value={formatQuantity(item.quantity, item.unit)} />
+        {mode === "out" && item.batches.some((batch) => batch.remainingQuantity > 0) ? (
+          <details className={styles.batchChoice}>
+            <summary>Choose batch (optional; default is oldest first)</summary>
+            <select name="target_batch_id" defaultValue="">
+              <option value="">Oldest batch first (FIFO)</option>
+              {item.batches.filter((batch) => batch.remainingQuantity > 0).map((batch) => (
+                <option key={batch.id} value={batch.id}>
+                  {formatQuantity(batch.remainingQuantity, item.unit)} {item.unit} · {batch.profileName ?? "Unknown product"} · {batch.harvestOn ? `harvested ${displayDate(batch.harvestOn)}` : `received ${displayDate(batch.receivedOn)}`}
+                </option>
+              ))}
+            </select>
+          </details>
+        ) : null}
+        <Field
+          label={`Quantity (${item.unit})`}
+          name="quantity"
+          value={quantity}
+          onChange={(event) => setQuantity(event.currentTarget.value)}
+          required
+          type="number"
+          step={wholeNumberUnits.has(item.unit) ? "1" : "0.01"}
+          min="0.01"
+        />
+        <ThemedSelect
+          label={mode === "in" ? "Source" : "Reason"}
+          name="reason"
+          options={["", ...options]}
+          value={reason}
+          onChange={setReason}
+          placeholder={mode === "in" ? "Choose a source" : "Choose a reason"}
+          required
+        />
+        <ReadOnly label="Resulting balance" value={formatQuantity(item.quantity + (mode === "in" ? 1 : -1) * (Number(quantity) || 0), item.unit)} />
+        {formError ? <p role="alert">{formError}</p> : null}
         <Field
           label="Remarks"
           name="remarks"
-          defaultValue={mode === "in" ? "Harvest received." : "Stock deducted."}
+          defaultValue=""
         />
-      )}
-      <button className={styles.primaryAction} disabled={pending} type="submit">
-        {mode === "in" ? (
-          <ArrowUpCircle size={17} />
-        ) : isSale ? (
-          <WalletCards size={17} />
-        ) : (
-          <ArrowDownCircle size={17} />
-        )}
-        <span>{pending ? "Saving..." : isSale ? "Record Sale" : "Confirm"}</span>
-      </button>
-    </form>
-    {confirmationDialog}
+        <button className={styles.primaryAction} disabled={pending} type="submit">
+          {mode === "in" ? (
+            <ArrowUpCircle size={17} />
+          ) : (
+            <ArrowDownCircle size={17} />
+          )}
+          <PendingActionLabel pending={pending} pendingText="Saving stock movement...">
+            {mode === "in" ? sharedWorkflowTerms.receiveStock : sharedWorkflowTerms.issueStock}
+          </PendingActionLabel>
+        </button>
+      </form>
+      {confirmationDialog}
     </>
   );
 }
@@ -1082,10 +1165,12 @@ function DeleteForm({
 }) {
   const { confirmationDialog, handleSubmit, pending } = useActionSubmit({
     action: deleteInventoryItemAction,
-    confirmMessage: `Are you sure you want to permanently delete ${item.itemName}?`,
+    confirmTitle: "Delete inventory item?",
+    confirmMessage: `Permanently delete ${item.itemName}? This cannot be undone.`,
+    confirmLabel: "Delete item",
     notify,
     onSuccess,
-    successMessage: "Success - Inventory item deleted.",
+    successMessage: "Inventory item deleted.",
   });
 
   return (
@@ -1095,7 +1180,7 @@ function DeleteForm({
       <p className={styles.warningText}>Delete {item.itemName}? This cannot be undone.</p>
       <button className={styles.dangerAction} disabled={pending} type="submit">
         <Trash2 size={17} />
-        <span>{pending ? "Deleting..." : "Delete Item"}</span>
+        <PendingActionLabel pending={pending} pendingText="Deleting item...">Delete item</PendingActionLabel>
       </button>
     </form>
     {confirmationDialog}
@@ -1104,189 +1189,177 @@ function DeleteForm({
 }
 
 function DetailsPanel({ item }: { item: InventoryItem }) {
-  return (
-    <div className={styles.detailsGrid}>
-      <div className={styles.detailsTop}>
-        <div className={styles.detailHero}>
-          {item.imageUrl ? (
-            <span
-              className={styles.detailImage}
-              style={{ backgroundImage: `url("${item.imageUrl}")` }}
-            />
-          ) : (
-            <ImageIcon size={52} />
-          )}
-        </div>
-        <div className={styles.detailSummary}>
-          <div className={styles.detailTitleBlock}>
-            <span className={styles.itemCode}>{item.stockCode}</span>
-            <div className={styles.detailTitleRow}>
-              <h4>{item.itemName}</h4>
-              <span className={styles.status} data-status={getStockStatus(item)}>
-                {getStockStatus(item)}
-              </span>
-            </div>
-          </div>
-          <div className={styles.detailMetrics}>
-            <ReadOnly label="Quantity" value={formatQuantity(item.quantity, item.unit)} />
-            <ReadOnly label="Minimum" value={formatQuantity(item.minimumQuantity, item.unit)} />
-            <ReadOnly label="Location" value={item.storageLocation} />
-            <ReadOnly label="Updated" value={formatDateTime(item.updatedAt)} />
-            <ReadOnly label="Unit cost" value={item.unitCost === null ? "Not set" : formatCurrency(item.unitCost)} />
-            <ReadOnly label="Sell price" value={item.sellingPrice === null ? "Not set" : formatCurrency(item.sellingPrice)} />
-            <ReadOnly label="Stock value" value={formatCurrency(item.quantity * (item.unitCost ?? 0))} />
-            <ReadOnly label="Est. sales" value={formatCurrency(item.quantity * (item.sellingPrice ?? 0))} />
-          </div>
-        </div>
-      </div>
-      <HistoryList item={item} />
-    </div>
-  );
-}
+  const [tab, setTab] = useState<"overview" | "movements" | "sales">("overview");
 
-function HistoryList({ item }: { item: InventoryItem }) {
-  const [historyModal, setHistoryModal] = useState<"transactions" | "sales" | null>(null);
+  function handleTabKeyDown(event: KeyboardEvent<HTMLElement>) {
+    const tabs = ["overview", "movements", "sales"] as const;
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const current = tabs.indexOf(tab);
+    const next = event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? tabs.length - 1
+        : (current + (event.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length;
+    setTab(tabs[next]);
+    requestAnimationFrame(() => document.getElementById(`inventory-tab-${tabs[next]}`)?.focus());
+  }
 
   return (
     <>
-      <div className={styles.historyGrid}>
-        <div className={styles.historyPanel}>
-          <div className={styles.historyHeader}>
-            <h4 className={styles.historyHeading}>Transaction History</h4>
-            {item.transactions.length > 0 ? (
-              <button
-                aria-label="View full transaction history"
-                className={styles.historyAction}
-                type="button"
-                onClick={() => setHistoryModal("transactions")}
-              >
-                <Clock3 size={19} />
-              </button>
-            ) : null}
+      <nav className={styles.inventoryDetailTabs} role="tablist" aria-label="Inventory item information" onKeyDown={handleTabKeyDown}>
+        <button id="inventory-tab-overview" role="tab" aria-selected={tab === "overview"} aria-controls="inventory-tabpanel-overview" tabIndex={tab === "overview" ? 0 : -1} type="button" onClick={() => setTab("overview")}>OVERVIEW</button>
+        <button id="inventory-tab-movements" role="tab" aria-selected={tab === "movements"} aria-controls="inventory-tabpanel-movements" tabIndex={tab === "movements" ? 0 : -1} type="button" onClick={() => setTab("movements")}>STOCK MOVEMENTS</button>
+        <button id="inventory-tab-sales" role="tab" aria-selected={tab === "sales"} aria-controls="inventory-tabpanel-sales" tabIndex={tab === "sales" ? 0 : -1} type="button" onClick={() => setTab("sales")}>SALES HISTORY</button>
+      </nav>
+      <div className={styles.inventoryDetailsBody}>
+        <div id="inventory-tabpanel-overview" role="tabpanel" aria-labelledby="inventory-tab-overview" hidden={tab !== "overview"}>
+          <div className={styles.inventoryItemIdentity}>
+            <div>
+              <span className={styles.itemCode}>{item.stockCode}</span>
+              <h4>{item.itemName}</h4>
+              <small>{displayCategory(item)}</small>
+            </div>
+            <span className={styles.status} data-status={getStockStatus(item)}>{getStockStatus(item)}</span>
           </div>
-          {item.transactions.length === 0 ? (
-            <p>No stock movements yet.</p>
-          ) : (
-            item.transactions.slice(0, 2).map((transaction) => (
-              <div className={styles.historyItem} key={transaction.id}>
-                <strong>{transaction.type}</strong>
-                <span>{formatQuantity(transaction.quantity, item.unit)}</span>
-                <small>{transaction.remarks}</small>
-                <time>{formatDateTime(transaction.createdAt)}</time>
+          <div className={styles.detailsTop}>
+            <div className={styles.detailHero}>
+              {item.imageUrl ? (
+                <span className={styles.detailImage} style={{ backgroundImage: `url("${item.imageUrl}")` }} />
+              ) : (
+                <ImageIcon size={52} />
+              )}
+            </div>
+            <div className={styles.detailSummary}>
+              <div className={styles.detailMetrics}>
+                <ReadOnly label="Quantity" value={formatQuantity(item.quantity, item.unit)} />
+                <ReadOnly label="Minimum" value={formatQuantity(item.minimumQuantity, item.unit)} />
+                <ReadOnly label="Location" value={item.storageLocation} />
+                <ReadOnly label="Updated" value={formatDateTime(item.updatedAt)} />
+                <ReadOnly label="Unit cost (PHP)" value={item.unitCost === null ? "Not set" : formatCurrency(item.unitCost)} />
+                <ReadOnly label="Sell price (PHP)" value={item.sellingPrice === null ? "Not set" : formatCurrency(item.sellingPrice)} />
+                <ReadOnly label="Stock value (PHP)" value={formatCurrency(item.quantity * (item.unitCost ?? 0))} />
+                <ReadOnly label="Est. sales (PHP)" value={formatCurrency(item.quantity * (item.sellingPrice ?? 0))} />
               </div>
-            ))
-          )}
+            </div>
+          </div>
         </div>
-        <div className={styles.historyPanel}>
-          <div className={styles.historyHeader}>
-            <h4 className={styles.historyHeading}>Sales History</h4>
-            {item.sales.length > 0 ? (
-              <button
-                aria-label="View full sales history"
-                className={styles.historyAction}
-                type="button"
-                onClick={() => setHistoryModal("sales")}
-              >
-                <Clock3 size={19} />
-              </button>
-            ) : null}
-          </div>
-          {item.sales.length === 0 ? (
-            <p>No sale records yet.</p>
-          ) : (
-            item.sales.slice(0, 2).map((sale) => (
-              <div className={styles.historyItem} key={sale.id}>
-                <strong>{formatCurrency(sale.totalAmount)}</strong>
-                <span>{formatQuantity(sale.quantitySold, item.unit)}</span>
-                <small>
-                  {sale.customerName ?? "Walk-in customer"} - {sale.paymentMethod}
-                </small>
-                <time>{formatDateTime(sale.saleDate)}</time>
-              </div>
-            ))
-          )}
+        <div id="inventory-tabpanel-movements" role="tabpanel" aria-labelledby="inventory-tab-movements" hidden={tab !== "movements"}>
+          <InventoryMovementTable key={item.id} item={item} />
+        </div>
+        <div id="inventory-tabpanel-sales" role="tabpanel" aria-labelledby="inventory-tab-sales" hidden={tab !== "sales"}>
+          <InventorySalesTable key={item.id} item={item} />
         </div>
       </div>
-      {historyModal ? (
-        <HistoryModal
-          sales={item.sales}
-          transactions={item.transactions}
-          kind={historyModal}
-          unit={item.unit}
-          onClose={() => setHistoryModal(null)}
-        />
-      ) : null}
     </>
   );
 }
 
-function HistoryModal({
-  kind,
-  onClose,
-  sales,
-  transactions,
-  unit,
-}: {
-  kind: "transactions" | "sales";
-  onClose: () => void;
-  sales: InventoryItem["sales"];
-  transactions: InventoryItem["transactions"];
-  unit: string;
-}) {
-  const isTransactions = kind === "transactions";
+function InventoryMovementTable({ item }: { item: InventoryItem }) {
+  const [page, setPage] = useState(1);
+  const pageSize = 5;
+  const totalPages = Math.max(1, Math.ceil(item.transactions.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = Math.min(Math.max(currentPage - 1, 1), Math.max(totalPages - 2, 1));
+  const pageNumbers = Array.from({ length: Math.min(3, totalPages) }, (_, index) => pageStart + index);
+  const visibleTransactions = item.transactions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   return (
-    <div className={styles.modalBackdrop} data-ui-backdrop="true" role="presentation">
-      <section
-        className={`${styles.modal} ${styles.historyModal} ${isTransactions ? styles.transactionHistoryModal : styles.salesHistoryModal}`}
-        role="dialog"
-        aria-modal="true"
-        aria-label={isTransactions ? "Full transaction history" : "Full sales history"}
-      >
-        <header className={styles.modalHeader}>
-          <h3 className={styles.modalTitle}>
-            <span className={styles.modalTitleIcon} aria-hidden="true">
-              {isTransactions ? <ClipboardList size={18} /> : <WalletCards size={18} />}
-            </span>
-            <span>{isTransactions ? "Full Transaction History" : "Full Sales History"}</span>
-          </h3>
-          <button
-            aria-label="Close modal"
-            className={styles.modalCloseButton}
-            type="button"
-            onClick={onClose}
-          >
-            <X size={18} />
-          </button>
-        </header>
-        <div
-          className={`${styles.historyModalList} ${isTransactions ? styles.transactionHistoryList : styles.salesHistoryList}`}
-        >
-          {isTransactions
-            ? transactions.map((entry) => (
-                <div className={`${styles.historyItem} ${styles.transactionHistoryItem}`} key={entry.id}>
-                  <strong>{entry.type}</strong>
-                  <span>{formatQuantity(entry.quantity, unit)}</span>
-                  <small>{entry.remarks}</small>
-                  <time>{formatDateTime(entry.createdAt)}</time>
-                </div>
-              ))
-            : sales.map((entry) => (
-                <div className={`${styles.historyItem} ${styles.salesHistoryItem}`} key={entry.id}>
-                  <strong>{formatCurrency(entry.totalAmount)}</strong>
-                  <span>{formatQuantity(entry.quantitySold, unit)}</span>
-                  <small>
-                    {entry.customerName ?? "Walk-in customer"} - {entry.paymentMethod}
-                  </small>
-                  <time>{formatDateTime(entry.saleDate)}</time>
-                </div>
-              ))}
+    <section className={styles.itemHistorySection} aria-label="Stock movement history">
+      <div className={styles.itemHistoryHeading}><h4>Stock Movements</h4><span>{item.transactions.length} records</span></div>
+      {item.transactions.length === 0 ? (
+        <div className={styles.itemHistoryEmpty}>No stock movements recorded yet.</div>
+      ) : (
+        <div className={styles.itemHistoryTable} data-kind="movements" role="table" aria-label="Stock movement records">
+          <div className={styles.itemHistoryTableHead} role="row">
+            <span role="columnheader">Movement</span>
+            <span role="columnheader">Quantity</span>
+            <span role="columnheader">Date / time</span>
+            <span role="columnheader">Notes</span>
+          </div>
+          {visibleTransactions.map((transaction) => (
+            <div className={styles.itemHistoryTableRow} role="row" key={transaction.id}>
+              <strong data-label="Movement">{transaction.type === "OPENING" ? "Opening stock" : transaction.type === "HISTORICAL" ? "Historical batch" : transaction.source === "harvest" ? "Harvest" : transaction.type === "IN" ? sharedWorkflowTerms.receiveStock : transaction.type === "OUT" ? sharedWorkflowTerms.issueStock : sharedWorkflowTerms.adjustQuantity}</strong>
+              <span data-label="Quantity">{formatQuantity(transaction.quantity, item.unit)}</span>
+              <span data-label="Date / time">{transaction.createdAt ? formatDateTime(transaction.createdAt) : "Date unknown"}</span>
+              <div data-label="Notes">{transaction.remarks || "—"}{transaction.batch ? <MovementBatchEstimate batch={transaction.batch} /> : null}</div>
+            </div>
+          ))}
         </div>
-      </section>
-    </div>
+      )}
+      <HistoryTablePagination page={currentPage} totalPages={totalPages} pageNumbers={pageNumbers} label="Stock movements pagination" onPageChange={setPage} />
+    </section>
   );
 }
 
+function InventorySalesTable({ item }: { item: InventoryItem }) {
+  const [page, setPage] = useState(1);
+  const pageSize = 5;
+  const totalPages = Math.max(1, Math.ceil(item.sales.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = Math.min(Math.max(currentPage - 1, 1), Math.max(totalPages - 2, 1));
+  const pageNumbers = Array.from({ length: Math.min(3, totalPages) }, (_, index) => pageStart + index);
+  const visibleSales = item.sales.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  return (
+    <section className={styles.itemHistorySection} aria-label="Sales history">
+      <div className={styles.itemHistoryHeading}><h4>Sales History</h4><span>{item.sales.length} records</span></div>
+      {item.sales.length === 0 ? (
+        <div className={styles.itemHistoryEmpty}>No sales recorded for this item yet.</div>
+      ) : (
+        <div className={styles.itemHistoryTable} data-kind="sales" role="table" aria-label="Sales records">
+          <div className={styles.itemHistoryTableHead} role="row">
+            <span role="columnheader">Date / time</span>
+            <span role="columnheader">Customer</span>
+            <span role="columnheader">Quantity</span>
+            <span role="columnheader">Payment</span>
+            <span role="columnheader">Sale total</span>
+            <span role="columnheader">Status</span>
+          </div>
+          {visibleSales.map((sale) => (
+            <div className={styles.itemHistoryTableRow} role="row" key={sale.id}>
+              <span data-label="Date / time">{formatDateTime(sale.saleDate)}</span>
+              <strong data-label="Customer">{sale.customerName ?? "Walk-in customer"}</strong>
+              <span data-label="Quantity">{formatQuantity(sale.quantitySold, item.unit)}</span>
+              <span data-label="Payment">{sale.paymentMethod}</span>
+              <strong data-label="Sale total">{formatCurrency(sale.totalAmount)}</strong>
+              <span data-label="Status"><span className={styles.itemSaleStatus} data-status={sale.status.toLowerCase()}>{sale.status}</span></span>
+            </div>
+          ))}
+        </div>
+      )}
+      <HistoryTablePagination page={currentPage} totalPages={totalPages} pageNumbers={pageNumbers} label="Sales history pagination" onPageChange={setPage} />
+    </section>
+  );
+}
+
+function HistoryTablePagination({
+  page,
+  totalPages,
+  pageNumbers,
+  label,
+  onPageChange,
+}: {
+  page: number;
+  totalPages: number;
+  pageNumbers: number[];
+  label: string;
+  onPageChange: (page: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+
+  return (
+    <nav className={styles.itemHistoryPagination} aria-label={label}>
+      <button aria-label="Previous page" disabled={page === 1} type="button" onClick={() => onPageChange(Math.max(1, page - 1))}><ChevronLeft size={16} /></button>
+      <div className={styles.itemHistoryPageNumbers}>
+        {pageNumbers.map((number) => (
+          <button key={number} type="button" data-active={number === page} aria-current={number === page ? "page" : undefined} aria-label={`Page ${number}`} onClick={() => onPageChange(number)}>{number}</button>
+        ))}
+      </div>
+      <button aria-label="Next page" disabled={page >= totalPages} type="button" onClick={() => onPageChange(Math.min(totalPages, page + 1))}><ChevronRight size={16} /></button>
+    </nav>
+  );
+}
 function Field({
   label,
   name,
@@ -1298,7 +1371,7 @@ function Field({
   return (
     <label>
       <span>{label}</span>
-      <input name={name} {...props} />
+      {props.type === "number" ? <NumericInput name={name} {...props} /> : <input name={name} {...props} />}
     </label>
   );
 }

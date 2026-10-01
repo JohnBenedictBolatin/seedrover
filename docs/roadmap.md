@@ -197,8 +197,6 @@ Tasks
 
 - Personalized greeting.
 - Rover status overview.
-- Battery status.
-- Seed level.
 - Wi-Fi/Bluetooth connection status.
 - Camera connection status.
 - Live sensor summary.
@@ -231,8 +229,6 @@ Tasks
 - Directional buttons.
 - Speed control.
 - Emergency stop.
-- Live battery monitoring.
-- Live seed level monitoring.
 - Live soil moisture readings.
 - Live soil temperature.
 - Live environmental temperature.
@@ -312,8 +308,6 @@ Centralize all system notifications.
 
 Tasks
 
-- Battery alerts.
-- Seed level alerts.
 - Robot status alerts.
 - Inventory alerts.
 - Planting reminders.
@@ -398,8 +392,6 @@ Tasks
 - Send movement commands.
 - Send planting commands.
 - Receive sensor data.
-- Receive battery status.
-- Receive seed level.
 - Receive rover status.
 - Receive system diagnostics.
 - Communication testing.
@@ -449,7 +441,6 @@ Tasks
 - Hardware integration testing
 - Sensor validation
 - Communication stress testing
-- Battery endurance testing
 - Camera performance testing
 - Permission testing
 - Database validation

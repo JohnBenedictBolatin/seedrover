@@ -71,15 +71,46 @@ class AssistantBubble extends StatelessWidget {
           ),
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.sm),
-            child: Text(
-              message.content,
-              style: AppTypography.small.copyWith(
-                color: AppColors.primaryText,
-              ),
-            ),
+            child: _AssistantRichText(message.content),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _AssistantRichText extends StatelessWidget {
+  const _AssistantRichText(this.content);
+
+  final String content;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = AppTypography.small.copyWith(color: AppColors.primaryText);
+    final spans = <InlineSpan>[];
+    final boldPattern = RegExp(r'\*\*(.+?)\*\*', dotAll: true);
+    var cursor = 0;
+
+    for (final match in boldPattern.allMatches(content)) {
+      if (match.start > cursor) {
+        spans.add(TextSpan(text: content.substring(cursor, match.start)));
+      }
+
+      spans.add(
+        TextSpan(
+          text: match.group(1),
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      );
+      cursor = match.end;
+    }
+
+    if (cursor < content.length) {
+      spans.add(TextSpan(text: content.substring(cursor)));
+    }
+
+    return Text.rich(
+      TextSpan(style: style, children: spans),
     );
   }
 }
@@ -119,19 +150,29 @@ class AssistantSuggestionRow extends StatelessWidget {
 }
 
 class AssistantNotice extends StatelessWidget {
-  const AssistantNotice({required this.message, super.key});
+  const AssistantNotice({this.message, this.onRetry, super.key});
 
-  final String message;
+  final String? message;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-      child: Text(
-        message,
-        textAlign: TextAlign.center,
-        style: AppTypography.caption.copyWith(color: AppColors.warning),
-      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        if (message != null)
+          Text(
+            message!,
+            textAlign: TextAlign.center,
+            style: AppTypography.caption.copyWith(color: AppColors.warning),
+          ),
+        if (onRetry != null)
+          TextButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry message'),
+          ),
+      ]),
     );
   }
 }
@@ -153,26 +194,29 @@ class AssistantInput extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: controller,
-              enabled: enabled,
-              minLines: 1,
-              maxLines: 3,
-              textInputAction: TextInputAction.send,
-              onSubmitted: onSubmit,
-              decoration: const InputDecoration(
-                hintText: 'Ask Rovie...',
-                prefixIcon: Icon(CupertinoIcons.sparkles),
-              ),
-            ),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.sm,
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.md,
+      ),
+      child: TextField(
+        controller: controller,
+        enabled: enabled,
+        minLines: 1,
+        maxLines: 3,
+        textInputAction: TextInputAction.send,
+        onSubmitted: onSubmit,
+        decoration: InputDecoration(
+          hintText: 'Ask Rovie...',
+          prefixIcon: const Icon(CupertinoIcons.sparkles),
+          suffixIconConstraints: const BoxConstraints.tightFor(
+            width: 48,
+            height: 48,
           ),
-          const SizedBox(width: AppSpacing.sm),
-          IconButton(
+          suffixIcon: IconButton(
             tooltip: 'Send',
+            padding: EdgeInsets.zero,
             onPressed: enabled ? () => onSubmit(controller.text) : null,
             icon: isSending
                 ? const SizedBox.square(
@@ -181,10 +225,10 @@ class AssistantInput extends StatelessWidget {
                   )
                 : Icon(
                     CupertinoIcons.arrow_up_circle_fill,
-                    color: AppColors.primaryGreen,
+                    color: Colors.white,
                   ),
           ),
-        ],
+        ),
       ),
     );
   }

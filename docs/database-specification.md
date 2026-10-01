@@ -115,8 +115,6 @@ Since the project only supports one robotic unit, only one active record is requ
 Fields
 
 - id
-- battery_level
-- seed_level
 - rover_status
 - wifi_connected
 - bluetooth_connected
@@ -127,10 +125,6 @@ Fields
 - last_updated
 
 Examples
-
-Battery Level
-
-95%
 
 Connection
 
@@ -161,12 +155,24 @@ Fields
 - soil_temperature
 - humidity
 - environmental_temperature
+- soil_raw
+- calibrated_value
+- provenance_status
+- soil_moisture_calibrated
+- calibration_version
+- firmware_version
+- source
 - recorded_at
 - created_at
 
 Notes
 
-Sensor values should be stored periodically for monitoring and historical reference.
+Preserve uncertain historical samples as unverified. Only fresh verified
+hardware samples feed current values, trends, or sensor-based recommendations.
+The soil-moisture percentage is unavailable unless the probe's calibration
+status and version are recorded. Keep raw ADC values explicitly labeled as raw.
+Null represents missing, stale, invalid, or uncalibrated values; never replace
+it with zero. `recorded_at` represents capture time rather than cloud sync time.
 
 ---
 
@@ -410,8 +416,6 @@ Relationships
 
 Notification Types
 
-- Battery
-- Seed Level
 - Inventory
 - Robot Status
 - Crop Reminder
@@ -618,9 +622,6 @@ Roles
 - Role name must be unique.
 
 Robot Status
-
-- Battery level must be between 0 and 100.
-- Seed level must be between 0 and 100.
 
 Sensor Readings
 

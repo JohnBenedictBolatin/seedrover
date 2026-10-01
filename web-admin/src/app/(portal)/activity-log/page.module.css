@@ -310,10 +310,10 @@
 .tableHead,
 .tableRow {
   display: grid;
-  grid-template-columns: minmax(360px, 1.6fr) minmax(150px, 0.7fr) minmax(180px, 0.8fr) minmax(220px, 0.9fr);
+  grid-template-columns: minmax(360px, 1.7fr) 165px minmax(190px, .8fr) 225px;
   align-items: center;
-  min-width: 1040px;
-  column-gap: 18px;
+  min-width: 1080px;
+  column-gap: 22px;
 }
 
 .tableHead {
@@ -322,6 +322,11 @@
   font-weight: 950;
   padding: 0 14px;
   text-transform: uppercase;
+}
+
+.tableHead > span,
+.tableRow > * {
+  min-width: 0;
 }
 
 .tableRow {
@@ -341,6 +346,12 @@
   display: grid;
   gap: 5px;
   min-width: 0;
+}
+
+.moduleCell {
+  display: flex;
+  min-width: 0;
+  align-items: center;
 }
 
 .activityCell strong,
@@ -405,7 +416,7 @@
 
 .paginationBar {
   display: flex;
-  min-width: 1040px;
+  min-width: 1080px;
   align-items: center;
   justify-content: center;
   gap: 10px;
@@ -615,5 +626,54 @@
   .metricGrid,
   .filters {
     grid-template-columns: 1fr;
+  }
+
+  .logTable {
+    overflow: visible;
+  }
+
+  .tableHead {
+    display: none;
+  }
+
+  .tableRow {
+    min-width: 0;
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+    gap: 12px 16px;
+    padding: 14px;
+  }
+
+  .activityCell,
+  .moduleCell,
+  .userCell,
+  .dateCell {
+    display: grid;
+    justify-content: stretch;
+    gap: 4px;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .activityCell::before,
+  .moduleCell::before,
+  .userCell::before,
+  .dateCell::before {
+    content: attr(data-label);
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: .66rem;
+    font-weight: 900;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+
+  .moduleBadge {
+    justify-self: start;
+  }
+
+  .paginationBar {
+    min-width: 0;
   }
 }

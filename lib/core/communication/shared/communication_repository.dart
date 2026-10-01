@@ -143,18 +143,6 @@ class CommunicationRepository {
     _simulatorStateController.close();
   }
 
-  void setSimulatorBatteryLevel(int value) {
-    _simulatedService?.setSimulatorBatteryLevel(value);
-  }
-
-  void rechargeSimulatorBattery() {
-    _simulatedService?.rechargeSimulatorBattery();
-  }
-
-  void setSimulatorSeedLevel(int value) {
-    _simulatedService?.setSimulatorSeedLevel(value);
-  }
-
   void setSimulatorCurrentActivity(String value) {
     _simulatedService?.setSimulatorCurrentActivity(value);
   }
@@ -171,14 +159,6 @@ class CommunicationRepository {
       environmentTemperature: environmentTemperature,
       humidity: humidity,
     );
-  }
-
-  void triggerSimulatorLowBattery() {
-    _simulatedService?.triggerSimulatorLowBattery();
-  }
-
-  void triggerSimulatorCriticalBattery() {
-    _simulatedService?.triggerSimulatorCriticalBattery();
   }
 
   void triggerSimulatorConnectionLost() {

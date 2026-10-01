@@ -112,11 +112,15 @@
 
 .notificationCard {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 90px 220px;
+  grid-template-columns: minmax(0, 1fr) 110px 220px;
   align-items: center;
-  gap: 14px;
+  column-gap: 20px;
   background: var(--surface);
   padding: 16px;
+}
+
+.notificationCard > * {
+  min-width: 0;
 }
 
 .notificationCard[data-read="false"] {
@@ -171,6 +175,44 @@
   color: var(--danger) !important;
 }
 
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-top: 1px solid var(--border-soft);
+  padding-top: 14px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.pagination > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pagination strong {
+  color: var(--text-secondary);
+}
+
+.pagination button {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.pagination button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
 @media (max-width: 980px) {
   .metricGrid,
   .notificationCard {
@@ -187,5 +229,10 @@
   .notificationCard,
   .actions {
     grid-template-columns: 1fr;
+  }
+
+  .pagination {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

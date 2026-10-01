@@ -1,9 +1,15 @@
+import '../../../shared/models/action_outcome.dart';
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/utils/app_input_formatters.dart';
+import '../../../core/utils/business_calendar.dart';
 import '../data/models/stock_model.dart';
+import '../data/models/uncertain_inventory_write.dart';
 import '../data/repositories/stock_repository.dart';
 import 'stock_inventory_state.dart';
 
@@ -12,11 +18,17 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
       : super(StockInventoryState.initial()) {
     loadStocks();
     _subscription = _repository.watchStocks().listen(
-      (stocks) => _setStocks(stocks, successMessage: null, isLoading: false),
+      (stocks) => _setStocks(
+        stocks,
+        successMessage: null,
+        isLoading: state.isLoading,
+      ),
       onError: (_) {
         state = state.copyWith(
-          isLoading: false,
-          errorMessage: null,
+          isLoading: state.stocks.isEmpty ? state.isLoading : false,
+          errorMessage: state.stocks.isEmpty
+              ? 'Inventory records are temporarily unavailable.'
+              : state.errorMessage,
         );
       },
     );
@@ -24,24 +36,146 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
 
   final StockRepository _repository;
   StreamSubscription<List<StockModel>>? _subscription;
+  int _loadGeneration = 0;
+  int _salesSummaryGeneration = 0;
+  List<StockModel> get currentStocks => state.stocks;
+
+  Future<List<ExistingSaleCustomer>> getExistingSaleCustomers() =>
+      _repository.getExistingSaleCustomers();
+
+  String? _uncertainWritesKey() {
+    final account = _repository.currentAccountId;
+    return account == null ? null : 'uncertain_inventory_writes_v1:$account';
+  }
+
+  Future<Map<String, UncertainInventoryWrite>> uncertainWrites() async {
+    final key = _uncertainWritesKey();
+    if (key == null) return {};
+    final prefs = await SharedPreferences.getInstance();
+    final entries = prefs.getStringList(key) ?? const [];
+    final pending = <String, UncertainInventoryWrite>{};
+    for (final entry in entries) {
+      try {
+        final json = jsonDecode(entry) as Map<String, dynamic>;
+        final write = UncertainInventoryWrite(
+          stockId: json['stockId'] as String,
+          action: json['action'] as String,
+          attempted: json['attempted'] as String,
+          createdAt: DateTime.parse(json['createdAt'] as String),
+          reference: json['reference'] as String?,
+        );
+        pending[write.stockId] = write;
+      } catch (_) {
+        // Ignore a damaged entry without deleting other account-scoped work.
+      }
+    }
+    return pending;
+  }
+
+  Future<void> markUncertainWrite(UncertainInventoryWrite write) async {
+    final key = _uncertainWritesKey();
+    if (key == null) return;
+    final writes = await uncertainWrites();
+    writes[write.stockId] = write;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+        key,
+        writes.values
+            .map((entry) => jsonEncode({
+                  'stockId': entry.stockId,
+                  'action': entry.action,
+                  'attempted': entry.attempted,
+                  'createdAt': entry.createdAt.toIso8601String(),
+                  'reference': entry.reference,
+                }))
+            .toList());
+  }
+
+  Future<void> resolveUncertainWrite(String stockId) async {
+    final key = _uncertainWritesKey();
+    if (key == null) return;
+    final writes = await uncertainWrites()
+      ..remove(stockId);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+        key,
+        writes.values
+            .map((entry) => jsonEncode({
+                  'stockId': entry.stockId,
+                  'action': entry.action,
+                  'attempted': entry.attempted,
+                  'createdAt': entry.createdAt.toIso8601String(),
+                  'reference': entry.reference,
+                }))
+            .toList());
+  }
+
+  Future<ActionOutcome?> pendingWriteFor(String stockId) async =>
+      (await uncertainWrites())[stockId] == null
+          ? null
+          : const ActionOutcome.unknown(
+              'A previous inventory write has not been reconciled. Check its record before submitting another change.',
+            );
+
+  Future<void> _rememberUncertain(
+      Object error, String stockId, String action, String attempted,
+      {String? reference}) async {
+    if (error is! UnconfirmedWrite) return;
+    await markUncertainWrite(UncertainInventoryWrite(
+      stockId: error.stockId ?? stockId,
+      action: action,
+      attempted: attempted,
+      createdAt: DateTime.now(),
+      reference: reference,
+    ));
+  }
 
   Future<void> loadStocks() async {
+    final generation = ++_loadGeneration;
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    late final List<StockModel> stocks;
     try {
-      final stocks = await _repository.getStocks();
-      final salesSummary = await _repository.getSalesSummary();
-      _setStocks(
-        stocks,
-        successMessage: null,
-        isLoading: false,
-        salesSummary: salesSummary,
-      );
+      stocks = await _repository.getStocks();
     } catch (error) {
+      if (!mounted || generation != _loadGeneration) return;
       state = state.copyWith(
         isLoading: false,
+        isSalesSummaryLoading: false,
+        salesSummaryError:
+            'Sales totals are unavailable until inventory loads.',
         errorMessage: _friendlyError(
           error,
           fallback: 'Unable to load inventory data.',
         ),
+      );
+      return;
+    }
+    if (!mounted || generation != _loadGeneration) return;
+
+    _setStocks(stocks, successMessage: null, isLoading: true);
+    await refreshSalesSummary();
+    if (mounted && generation == _loadGeneration) {
+      state = state.copyWith(isLoading: false);
+    }
+  }
+
+  Future<void> refreshSalesSummary() async {
+    final generation = ++_salesSummaryGeneration;
+    state = state.copyWith(isSalesSummaryLoading: true);
+    try {
+      final salesSummary = await _repository.getSalesSummary();
+      if (!mounted || generation != _salesSummaryGeneration) return;
+      state = state.copyWith(
+        salesSummary: salesSummary,
+        salesSummaryError: null,
+        isSalesSummaryLoading: false,
+        hasSalesSummary: true,
+      );
+    } catch (_) {
+      if (!mounted || generation != _salesSummaryGeneration) return;
+      state = state.copyWith(
+        salesSummaryError: 'Sales totals could not be refreshed.',
+        isSalesSummaryLoading: false,
       );
     }
   }
@@ -62,10 +196,27 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
     return null;
   }
 
+  Future<StockModel> refreshStockForReview(String id) async {
+    final stocks = await _repository.getStocks();
+    _setStocks(stocks, successMessage: null, isLoading: false);
+    return stocks.firstWhere((stock) => stock.id == id);
+  }
+
   Future<String?> createStock(
     StockModel stock, {
     StockImageUpload? imageUpload,
   }) async {
+    final normalizedName = stock.name.trim().toLowerCase();
+    if (normalizedName.isEmpty) {
+      return 'Item name is required.';
+    }
+
+    if (state.stocks.any(
+      (existing) => existing.name.trim().toLowerCase() == normalizedName,
+    )) {
+      return 'Item already exists.';
+    }
+
     try {
       final createdStock = await _repository.createStock(
         stock,
@@ -79,10 +230,11 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
       );
       return null;
     } catch (error) {
-      final message = _friendlyError(
-        error,
-        fallback: 'Unable to create stock item.',
-      );
+      if (error is UnconfirmedWrite && error.stockId != null) {
+        await _rememberUncertain(
+            error, error.stockId!, 'Create item', stock.name);
+      }
+      final message = _mutationError(error, 'Unable to create stock item.');
       state = state.copyWith(errorMessage: message);
       return message;
     }
@@ -129,7 +281,10 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
     required String supplier,
     required String remarks,
     required String performedBy,
+    String? requestId,
   }) async {
+    final pending = await pendingWriteFor(stockId);
+    if (pending != null) return pending.message;
     if (quantity <= 0) {
       return 'Quantity must be greater than zero.';
     }
@@ -146,13 +301,15 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
         quantity: quantity,
         supplier: supplier,
         remarks: remarks,
+        requestId: requestId,
       );
       _replaceStock(
         updatedStock,
         successMessage: 'Harvest stock added successfully.',
       );
     } catch (error) {
-      return _friendlyError(error, fallback: 'Unable to add stock.');
+      await _rememberUncertain(error, stockId, 'Receive stock', '$quantity');
+      return _mutationError(error, 'Unable to add stock.');
     }
 
     return null;
@@ -164,7 +321,11 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
     required String purpose,
     required String remarks,
     required String performedBy,
+    String? requestId,
+    String? batchId,
   }) async {
+    final pending = await pendingWriteFor(stockId);
+    if (pending != null) return pending.message;
     if (quantity <= 0) {
       return 'Quantity must be greater than zero.';
     }
@@ -185,11 +346,14 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
         quantity: quantity,
         purpose: purpose,
         remarks: remarks,
+        requestId: requestId,
+        batchId: batchId,
       );
       _replaceStock(updatedStock,
           successMessage: 'Stock deducted successfully.');
     } catch (error) {
-      return _friendlyError(error, fallback: 'Unable to deduct stock.');
+      await _rememberUncertain(error, stockId, 'Issue stock', '$quantity');
+      return _mutationError(error, 'Unable to deduct stock.');
     }
 
     return null;
@@ -201,7 +365,10 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
     required String reason,
     required String remarks,
     required String performedBy,
+    String? requestId,
   }) async {
+    final pending = await pendingWriteFor(stockId);
+    if (pending != null) return pending.message;
     if (newQuantity < 0) {
       return 'New quantity cannot be negative.';
     }
@@ -218,20 +385,31 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
         newQuantity: newQuantity,
         reason: reason,
         remarks: remarks,
+        requestId: requestId,
       );
       _replaceStock(updatedStock,
           successMessage: 'Stock adjusted successfully.');
     } catch (error) {
-      return _friendlyError(error, fallback: 'Unable to adjust stock.');
+      await _rememberUncertain(
+          error, stockId, 'Adjust quantity', '$newQuantity');
+      return _mutationError(error, 'Unable to adjust stock.');
     }
 
     return null;
   }
 
   Future<String?> recordSale(RecordSaleRequest request) async {
+    final pending = await pendingWriteFor(request.stock.id);
+    if (pending != null) return pending.message;
     if (state.isSavingSale) {
       return 'Sale is already being saved.';
     }
+
+    final contactError = AppInputFormatters.validateContactNumber(
+      request.customerContact,
+      required: true,
+    );
+    if (contactError != null) return contactError;
 
     if (request.quantitySold <= 0) {
       return 'Quantity sold must be greater than zero.';
@@ -260,41 +438,67 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
     try {
       state = state.copyWith(isSavingSale: true);
       final updatedStock = await _repository.recordSale(request);
-      final salesSummary = await _repository.getSalesSummary();
+      StockSalesSummaryModel? salesSummary;
+      String? salesSummaryError;
+      try {
+        salesSummary = await _repository.getSalesSummary();
+      } catch (_) {
+        salesSummary = _summaryIncludingSale(state.salesSummary, request);
+        salesSummaryError =
+            'Sale saved, but dashboard totals could not be refreshed.';
+      }
       _replaceStock(
         updatedStock,
         successMessage: 'Sale recorded successfully.',
         salesSummary: salesSummary,
       );
+      state = state.copyWith(salesSummaryError: salesSummaryError);
     } catch (error) {
+      await _rememberUncertain(error, request.stock.id, 'Record sale',
+          '${request.quantitySold} ${request.stock.unit} at ${request.unitPrice}',
+          reference: request.transactionReference);
       state = state.copyWith(isSavingSale: false);
-      return _friendlyError(error, fallback: 'Unable to record sale.');
+      return _mutationError(error, 'Unable to record sale.');
     }
 
     state = state.copyWith(isSavingSale: false);
     return null;
   }
 
-  Future<void> updateStock(StockModel stock) async {
+  Future<String?> updateStock(StockModel stock) async {
+    final pending = await pendingWriteFor(stock.id);
+    if (pending != null) return pending.message;
+    final normalizedName = stock.name.trim().toLowerCase();
+    if (state.stocks.any((existing) =>
+        existing.id != stock.id &&
+        existing.name.trim().toLowerCase() == normalizedName)) {
+      return 'Item already exists.';
+    }
     try {
       final updatedStock = await _repository.updateStock(stock);
-      final salesSummary = await _repository.getSalesSummary();
+      StockSalesSummaryModel? salesSummary;
+      try {
+        salesSummary = await _repository.getSalesSummary();
+      } catch (_) {
+        // The item update succeeded; a summary refresh failure must not
+        // misreport that inventory edit as failed.
+      }
       _replaceStock(
         updatedStock,
         successMessage: 'Inventory item updated.',
         salesSummary: salesSummary,
       );
     } catch (error) {
-      state = state.copyWith(
-        errorMessage: _friendlyError(
-          error,
-          fallback: 'Unable to update stock item.',
-        ),
-      );
+      await _rememberUncertain(error, stock.id, 'Edit item', stock.name);
+      final message = _mutationError(error, 'Unable to update stock item.');
+      state = state.copyWith(errorMessage: message);
+      return message;
     }
+    return null;
   }
 
   Future<bool> deleteStock(String stockId) async {
+    if (await pendingWriteFor(stockId) != null) return false;
     try {
       await _repository.deleteStock(stockId);
       final stocks =
@@ -303,11 +507,9 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
           successMessage: 'Inventory item deleted.', isLoading: false);
       return true;
     } catch (error) {
+      await _rememberUncertain(error, stockId, 'Delete item', '');
       state = state.copyWith(
-        errorMessage: _friendlyError(
-          error,
-          fallback: 'Unable to delete stock item.',
-        ),
+        errorMessage: _mutationError(error, 'Unable to delete stock item.'),
       );
       return false;
     }
@@ -315,6 +517,10 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
 
   void clearSuccessMessage() {
     state = state.copyWith(successMessage: null);
+  }
+
+  void clearErrorMessage() {
+    state = state.copyWith(errorMessage: null);
   }
 
   void _updateFilters({
@@ -451,6 +657,52 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
   }
 }
 
+StockSalesSummaryModel _summaryIncludingSale(
+  StockSalesSummaryModel current,
+  RecordSaleRequest request,
+) {
+  final now = BusinessCalendar.now();
+  final saleDate = request.saleDate.toUtc();
+  final today = BusinessCalendar.startOfDay(now);
+  final weekStart = BusinessCalendar.startOfWeek(now);
+  final monthStart = BusinessCalendar.startOfMonth(now);
+  final nextYear = BusinessCalendar.startOfNextYear(now);
+  final nextMonth = BusinessCalendar.startOfNextMonth(now);
+  final tomorrow = today.add(const Duration(days: 1));
+  final occurredToday = !saleDate.isBefore(today) &&
+      saleDate.isBefore(tomorrow) &&
+      !saleDate.isAfter(now);
+  final occurredThisWeek = !saleDate.isBefore(weekStart) &&
+      saleDate.isBefore(tomorrow) &&
+      !saleDate.isAfter(now);
+  final occurredThisMonth = !saleDate.isBefore(monthStart) &&
+      saleDate.isBefore(nextMonth) &&
+      !saleDate.isAfter(now);
+  final occurredThisYear =
+      !saleDate.isBefore(BusinessCalendar.startOfYear(now)) &&
+          saleDate.isBefore(nextYear) &&
+          !saleDate.isAfter(now);
+
+  return StockSalesSummaryModel(
+    salesToday: current.salesToday + (occurredToday ? request.totalAmount : 0),
+    salesThisWeek:
+        current.salesThisWeek + (occurredThisWeek ? request.totalAmount : 0),
+    salesThisMonth:
+        current.salesThisMonth + (occurredThisMonth ? request.totalAmount : 0),
+    salesThisYear:
+        current.salesThisYear + (occurredThisYear ? request.totalAmount : 0),
+    unitsSoldThisMonth: current.unitsSoldThisMonth +
+        (occurredThisMonth ? request.quantitySold : 0),
+    salesTransactions: current.salesTransactions + (occurredThisMonth ? 1 : 0),
+    salesTransactionsToday:
+        current.salesTransactionsToday + (occurredToday ? 1 : 0),
+    salesTransactionsThisWeek:
+        current.salesTransactionsThisWeek + (occurredThisWeek ? 1 : 0),
+    salesTransactionsThisYear:
+        current.salesTransactionsThisYear + (occurredThisYear ? 1 : 0),
+  );
+}
+
 const _noCategoryChange = Object();
 
 String _friendlyError(Object error, {required String fallback}) {
@@ -468,10 +720,36 @@ String _friendlyError(Object error, {required String fallback}) {
       return 'You do not have permission to perform this inventory action.';
     }
 
+    final lowerMessage = message.toLowerCase();
+    final diagnostics =
+        '$lowerMessage ${error.details ?? ''} ${error.hint ?? ''}'
+            .toLowerCase();
+    if (diagnostics.contains('inventory item with this name already exists') ||
+        diagnostics.contains('item already exists') ||
+        diagnostics.contains('inventory_item_name_normalized_idx') ||
+        (error.code == '23505' &&
+            diagnostics.contains('item_name') &&
+            diagnostics.contains('inventory'))) {
+      return 'Item already exists.';
+    }
+
     if (message.trim().isNotEmpty) {
       return message;
     }
   }
 
   return fallback;
+}
+
+String _mutationError(Object error, String fallback) {
+  if (error is UnconfirmedWrite) {
+    return 'Outcome not confirmed: ${error.message}';
+  }
+  if (error is ArgumentError) {
+    return fallback;
+  }
+  if (error is PostgrestException) {
+    return _friendlyError(error, fallback: fallback);
+  }
+  return 'Outcome not confirmed: Check the latest transactions before starting another operation. Your input is still here.';
 }

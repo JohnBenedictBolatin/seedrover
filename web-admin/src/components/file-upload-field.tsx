@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { FileUp, ImageUp } from "lucide-react";
 import styles from "@/components/file-upload-field.module.css";
+import { MAX_UPLOAD_SIZE_BYTES, MAX_UPLOAD_SIZE_LABEL } from "@/lib/upload-limits";
 
 type FileUploadFieldProps = {
   accept: string;
@@ -11,6 +12,7 @@ type FileUploadFieldProps = {
   kind?: "image" | "document";
   label: string;
   name: string;
+  multiple?: boolean;
   prompt: string;
   required?: boolean;
 };
@@ -22,10 +24,12 @@ export function FileUploadField({
   kind = "image",
   label,
   name,
+  multiple = false,
   prompt,
   required = false,
 }: FileUploadFieldProps) {
   const [fileName, setFileName] = useState("");
+  const [sizeError, setSizeError] = useState("");
   const UploadIcon = kind === "document" ? FileUp : ImageUp;
 
   return (
@@ -36,17 +40,29 @@ export function FileUploadField({
           accept={accept}
           className={styles.input}
           disabled={disabled}
+          multiple={multiple}
           name={name}
           required={required}
           type="file"
-          onChange={(event) => setFileName(event.currentTarget.files?.[0]?.name ?? "")}
+          onChange={(event) => {
+            const files = Array.from(event.currentTarget.files ?? []);
+            if (files.some((file) => file.size > MAX_UPLOAD_SIZE_BYTES)) {
+              setFileName("");
+              setSizeError(`Each file must be ${MAX_UPLOAD_SIZE_LABEL} or smaller.`);
+              event.currentTarget.value = "";
+              return;
+            }
+            setSizeError("");
+            const selectedLabel = kind === "image" ? "photos" : "files";
+            setFileName(multiple && files.length > 1 ? `${files.length} ${selectedLabel} selected` : files[0]?.name ?? "");
+          }}
         />
         <span className={styles.icon} aria-hidden="true">
           <UploadIcon size={20} strokeWidth={1.8} />
         </span>
         <span className={styles.copy}>
           <span className={styles.fileName}>{fileName || prompt}</span>
-          <small>{fileName ? "File selected" : helperText}</small>
+          <small>{sizeError || (fileName ? "File selected" : helperText)}</small>
         </span>
         <span className={styles.browse} aria-hidden="true">BROWSE</span>
       </div>

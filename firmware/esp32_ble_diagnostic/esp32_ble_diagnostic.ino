@@ -19,18 +19,18 @@ void setup() {
   Serial.println(BLEDevice::getAddress().toString().c_str());
 
   BLEServer* server = BLEDevice::createServer();
-  BLEService* service = server->createService("180F");
+  BLEService* service = server->createService("FFE0");
   BLECharacteristic* characteristic = service->createCharacteristic(
-    "2A19",
+    "FFE1",
     BLECharacteristic::PROPERTY_READ
   );
 
-  uint8_t batteryLevel = 100;
-  characteristic->setValue(&batteryLevel, 1);
+  const char* diagnosticStatus = "OK";
+  characteristic->setValue(diagnosticStatus);
   service->start();
 
   BLEAdvertising* advertising = BLEDevice::getAdvertising();
-  advertising->addServiceUUID("180F");
+  advertising->addServiceUUID("FFE0");
   advertising->setScanResponse(true);
   advertising->setMinPreferred(0x06);
   advertising->setMaxPreferred(0x12);

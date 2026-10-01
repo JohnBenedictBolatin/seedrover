@@ -10,7 +10,9 @@ export function LoginThemeSwitch() {
     const savedTheme = window.localStorage.getItem("seedrover-theme");
     const nextTheme = savedTheme === "light" ? "light" : "dark";
     document.documentElement.dataset.theme = nextTheme;
-    setTheme(nextTheme);
+    const updateThemeState = window.setTimeout(() => setTheme(nextTheme), 0);
+
+    return () => window.clearTimeout(updateThemeState);
   }, []);
 
   function toggleTheme() {

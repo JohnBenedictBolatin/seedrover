@@ -1,4 +1,9 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  startOfBusinessDay,
+  startOfBusinessMonth,
+  startOfNextBusinessMonth,
+} from "@/lib/business-time";
 
 export type SellableItem = {
   id: string;
@@ -11,8 +16,6 @@ export type SellableItem = {
 
 export type ReleasedDiscount = {
   code: string;
-  customerName: string;
-  customerContact: string;
   discountType: "Amount" | "Percent";
   discountValue: number;
   validUntil: string | null;
@@ -34,15 +37,20 @@ export type RecentSalesOrder = {
   marketQuantitySold?: number;
   marketUnitPrice?: number;
   marketRemarks?: string;
+  remarks?: string | null;
+  voidReason?: string | null;
   discountAmount?: number;
   totalAmount: number;
   status: string;
   source?: "receipt" | "market";
+  amountPaid?: number;
 };
 
 export type SalesSummary = {
   salesToday: number;
   salesThisMonth: number;
+  collectedToday: number;
+  collectedThisMonth: number;
   transactions: number;
   completedSalesCount: number;
   averageTransactionValue: number;
@@ -106,8 +114,6 @@ type SellableRow = {
 
 type ReleasedDiscountRow = {
   discount_code: string;
-  customer_name: string;
-  customer_contact: string | null;
   discount_type: "Amount" | "Percent";
   discount_value: number | string;
   valid_until: string | null;
@@ -124,6 +130,10 @@ type RecentSalesOrderRow = {
   other_payment_method?: string | null;
   discount_amount?: number | string;
   total_amount: number | string;
+  amount_paid?: number | string | null;
+  change_amount?: number | string | null;
+  remarks?: string | null;
+  void_reason?: string | null;
   status: string;
   sales_order_items?: Array<{
     id: string;
@@ -174,6 +184,7 @@ type StandaloneSalesRow = {
   payment_method?: string | null;
   transaction_reference?: string | null;
   other_payment_method?: string | null;
+  void_reason?: string | null;
   quantity_sold: number | string;
   unit_price: number | string;
   total_amount: number | string;
@@ -190,12 +201,31 @@ type StandaloneSalesRow = {
   }[] | null;
 };
 
+type SalesOrderStatusRow = { id: string; status: string };
+
 function toNumber(value: number | string | null | undefined) {
   if (typeof value === "number") {
     return value;
   }
 
   return Number(value ?? 0);
+}
+
+async function fetchAllPages<T>(
+  fetchPage: (from: number, to: number) => PromiseLike<{
+    data: T[] | null;
+    error: { message: string } | null;
+  }>,
+) {
+  const rows: T[] = [];
+  for (let from = 0; ; from += 1000) {
+    const result = await fetchPage(from, from + 999);
+    if (result.error) return { data: null, error: result.error };
+    const page = result.data ?? [];
+    rows.push(...page);
+    if (page.length < 1000) break;
+  }
+  return { data: rows, error: null };
 }
 
 export async function getSellableInventory() {
@@ -208,22 +238,29 @@ export async function getSellableInventory() {
     };
   }
 
-  const { data, error } = await supabase
-    .from("inventory")
-    .select("id, stock_code, item_name, quantity, unit, selling_price")
-    .gt("quantity", 0)
-    .order("item_name", { ascending: true })
-    .returns<SellableRow[]>();
-
-  if (error) {
+  let data: SellableRow[];
+  try {
+    const result = await fetchAllPages<SellableRow>((from, to) => supabase
+      .from("inventory")
+      .select("id, stock_code, item_name, quantity, unit, selling_price")
+      .gt("quantity", 0)
+      .order("item_name", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to)
+      .returns<SellableRow[]>());
+    if (result.error) {
+      return { items: [], error: result.error.message };
+    }
+    data = result.data;
+  } catch (error) {
     return {
       items: [],
-      error: error.message,
+      error: error instanceof Error ? error.message : "Unable to load all sellable inventory records.",
     };
   }
 
   return {
-    items: (data ?? []).map<SellableItem>((row) => ({
+    items: data.map<SellableItem>((row) => ({
       id: row.id,
       label: row.item_name,
       stockCode: row.stock_code ?? "Uncoded",
@@ -247,7 +284,7 @@ export async function getReleasedDiscounts() {
 
   const { data, error } = await supabase
     .from("customer_discounts")
-    .select("discount_code, customer_name, customer_contact, discount_type, discount_value, valid_until")
+    .select("discount_code, discount_type, discount_value, valid_until")
     .eq("status", "Released")
     .order("created_at", { ascending: false })
     .returns<ReleasedDiscountRow[]>();
@@ -274,8 +311,6 @@ export async function getReleasedDiscounts() {
       })
       .map<ReleasedDiscount>((discount) => ({
         code: discount.discount_code,
-        customerName: discount.customer_name,
-        customerContact: discount.customer_contact ?? "",
         discountType: discount.discount_type,
         discountValue: toNumber(discount.discount_value),
         validUntil: discount.valid_until,
@@ -323,22 +358,18 @@ export async function getRecentSalesOrders() {
 }
 
 function startOfToday() {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  return date;
+  return startOfBusinessDay();
 }
 
 function startOfMonth() {
-  const date = new Date();
-  date.setDate(1);
-  date.setHours(0, 0, 0, 0);
-  return date;
+  return startOfBusinessMonth();
 }
 
 function dateKey(value: string) {
   return new Intl.DateTimeFormat("en-PH", {
     month: "short",
     day: "numeric",
+    timeZone: "Asia/Manila",
   }).format(new Date(value));
 }
 
@@ -391,6 +422,8 @@ export async function getSalesWorkspaceData() {
     summary: {
       salesToday: 0,
       salesThisMonth: 0,
+      collectedToday: 0,
+      collectedThisMonth: 0,
       transactions: 0,
       completedSalesCount: 0,
       averageTransactionValue: 0,
@@ -414,64 +447,70 @@ export async function getSalesWorkspaceData() {
   }
 
   const [ordersResultWithPaymentDetails, marketResultWithPayment] = await Promise.all([
-    supabase
+    fetchAllPages<RecentSalesOrderRow>((from, to) => supabase
       .from("sales_orders")
       .select(
-        "id, receipt_number, sale_date, customer_name, customer_contact, payment_method, transaction_reference, other_payment_method, discount_amount, total_amount, status, sales_order_items(id, item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total, inventory(category))",
+        "id, receipt_number, sale_date, customer_name, customer_contact, payment_method, transaction_reference, other_payment_method, discount_amount, total_amount, amount_paid, change_amount, remarks, void_reason, status, sales_order_items(id, item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total, inventory(category))",
       )
       .order("sale_date", { ascending: false })
-      .limit(120)
-      .returns<RecentSalesOrderRow[]>(),
-    supabase
+      .range(from, to)
+      .returns<RecentSalesOrderRow[]>()),
+    fetchAllPages<StandaloneSalesRow>((from, to) => supabase
       .from("sales_transactions")
-      .select("id, sale_date, customer_name, payment_method, transaction_reference, other_payment_method, quantity_sold, unit_price, total_amount, remarks, status, inventory(item_name, unit, category)")
+      .select("id, sale_date, customer_name, payment_method, transaction_reference, other_payment_method, quantity_sold, unit_price, total_amount, remarks, void_reason, status, inventory(item_name, unit, category)")
       .order("sale_date", { ascending: false })
-      .limit(120)
-      .returns<StandaloneSalesRow[]>(),
+      .range(from, to)
+      .returns<StandaloneSalesRow[]>()),
   ]);
 
   const ordersResult = isMissingSalesOrderPaymentDetailColumn(ordersResultWithPaymentDetails.error)
-    ? await supabase
+    ? await fetchAllPages<RecentSalesOrderRow>((from, to) => supabase
         .from("sales_orders")
         .select(
-          "id, receipt_number, sale_date, customer_name, customer_contact, payment_method, discount_amount, total_amount, status, sales_order_items(id, item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total, inventory(category))",
+          "id, receipt_number, sale_date, customer_name, customer_contact, payment_method, discount_amount, total_amount, amount_paid, change_amount, remarks, void_reason, status, sales_order_items(id, item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total, inventory(category))",
         )
         .order("sale_date", { ascending: false })
-        .limit(120)
-        .returns<RecentSalesOrderRow[]>()
+        .range(from, to)
+        .returns<RecentSalesOrderRow[]>())
     : ordersResultWithPaymentDetails;
 
   const marketResult = isMissingPaymentMethodColumn(marketResultWithPayment.error)
-    ? await supabase
+    ? await fetchAllPages<StandaloneSalesRow>((from, to) => supabase
         .from("sales_transactions")
-        .select("id, sale_date, customer_name, quantity_sold, unit_price, total_amount, remarks, status, inventory(item_name, unit, category)")
+        .select("id, sale_date, customer_name, quantity_sold, unit_price, total_amount, remarks, void_reason, status, inventory(item_name, unit, category)")
         .order("sale_date", { ascending: false })
-        .limit(120)
-        .returns<StandaloneSalesRow[]>()
+        .range(from, to)
+        .returns<StandaloneSalesRow[]>())
     : isMissingTransactionReferenceColumn(marketResultWithPayment.error)
-      ? await supabase
+      ? await fetchAllPages<StandaloneSalesRow>((from, to) => supabase
           .from("sales_transactions")
-          .select("id, sale_date, customer_name, payment_method, quantity_sold, unit_price, total_amount, remarks, status, inventory(item_name, unit, category)")
+          .select("id, sale_date, customer_name, payment_method, quantity_sold, unit_price, total_amount, remarks, void_reason, status, inventory(item_name, unit, category)")
           .order("sale_date", { ascending: false })
-          .limit(120)
-          .returns<StandaloneSalesRow[]>()
+          .range(from, to)
+          .returns<StandaloneSalesRow[]>())
       : isMissingOtherPaymentMethodColumn(marketResultWithPayment.error)
-        ? await supabase
+        ? await fetchAllPages<StandaloneSalesRow>((from, to) => supabase
             .from("sales_transactions")
-            .select("id, sale_date, customer_name, payment_method, transaction_reference, quantity_sold, unit_price, total_amount, remarks, status, inventory(item_name, unit, category)")
+            .select("id, sale_date, customer_name, payment_method, transaction_reference, quantity_sold, unit_price, total_amount, remarks, void_reason, status, inventory(item_name, unit, category)")
             .order("sale_date", { ascending: false })
-            .limit(120)
-            .returns<StandaloneSalesRow[]>()
+            .range(from, to)
+            .returns<StandaloneSalesRow[]>())
     : marketResultWithPayment;
 
   if (ordersResult.error) {
     return { ...empty, error: ordersResult.error.message };
   }
+  if (marketResult.error) {
+    return { ...empty, error: marketResult.error.message };
+  }
 
   const orderRows = ordersResult.data ?? [];
   const marketRows = marketResult.data ?? [];
   const today = startOfToday();
+  const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
   const month = startOfMonth();
+  const nextMonth = startOfNextBusinessMonth(month);
+  const asOf = new Date();
   const itemTotals = new Map<string, number>();
   const categoryTotals = new Map<string, number>();
   const paymentTotals = new Map<string, number>();
@@ -481,6 +520,8 @@ export async function getSalesWorkspaceData() {
   let totalDiscountGiven = 0;
   let salesToday = 0;
   let salesThisMonth = 0;
+  let collectedToday = 0;
+  let collectedThisMonth = 0;
 
   const history: RecentSalesOrder[] = [];
 
@@ -497,6 +538,8 @@ export async function getSalesWorkspaceData() {
       saleDate: order.sale_date,
       customerName: order.customer_name ?? "Walk-in customer",
       customerContact: order.customer_contact ?? "",
+      remarks: order.remarks,
+      voidReason: order.void_reason,
       paymentMethod: displayPaymentMethod(order.payment_method, order.other_payment_method),
       transactionReference: order.transaction_reference ?? null,
       otherPaymentMethod: order.other_payment_method ?? null,
@@ -504,7 +547,7 @@ export async function getSalesWorkspaceData() {
       receiptItems: items.map<SalesReceiptItem>((item) => ({
         id: item.id,
         itemName: item.item_name_snapshot,
-        unit: item.unit_snapshot ?? "unit",
+        unit: item.unit_snapshot ?? "Unit unavailable",
         quantitySold: toNumber(item.quantity_sold),
         unitPrice:
           item.unit_price === null || item.unit_price === undefined
@@ -514,6 +557,7 @@ export async function getSalesWorkspaceData() {
       })),
       discountAmount: discount,
       totalAmount: total,
+      amountPaid: toNumber(order.amount_paid),
       status: order.status,
       source: "receipt",
     });
@@ -521,24 +565,33 @@ export async function getSalesWorkspaceData() {
     if (!isCompleted) {
       continue;
     }
+    if (saleDate > asOf) continue;
 
     completedTotal += total;
     completedCount += 1;
     totalDiscountGiven += discount;
-    addToMap(paymentTotals, displayPaymentMethod(order.payment_method, order.other_payment_method), total);
     addToMap(dailyTotals, dateKey(order.sale_date), total);
 
-    if (saleDate >= today) {
+    const method = displayPaymentMethod(order.payment_method, order.other_payment_method);
+    const collectedAmount = Math.max(toNumber(order.amount_paid ?? total) - toNumber(order.change_amount), 0);
+    addToMap(paymentTotals, method, collectedAmount);
+    if (saleDate >= today && saleDate < tomorrow) collectedToday += collectedAmount;
+    if (saleDate >= month && saleDate < nextMonth) collectedThisMonth += collectedAmount;
+
+    if (saleDate >= today && saleDate < tomorrow) {
       salesToday += total;
     }
 
-    if (saleDate >= month) {
+    if (saleDate >= month && saleDate < nextMonth) {
       salesThisMonth += total;
     }
 
     for (const item of items) {
       const category = firstRelation(item.inventory)?.category ?? "Uncategorized";
-      addToMap(itemTotals, item.item_name_snapshot, toNumber(item.line_total));
+      const itemLabel = item.unit_snapshot
+        ? `${item.item_name_snapshot} (${item.unit_snapshot})`
+        : item.item_name_snapshot;
+      addToMap(itemTotals, itemLabel, toNumber(item.line_total));
       addToMap(categoryTotals, category, toNumber(item.line_total));
     }
   }
@@ -548,23 +601,25 @@ export async function getSalesWorkspaceData() {
     const isCompleted = sale.status === "Completed";
     const saleDate = new Date(sale.sale_date);
     const inventory = firstRelation(sale.inventory);
-    const itemName = inventory?.item_name ?? "Market distribution";
-    const category = inventory?.category ?? "Market Distribution";
+    const itemName = inventory?.item_name ?? "Legacy inventory sale";
+    const category = inventory?.category ?? "Uncategorized";
 
     history.push({
       id: sale.id,
-      receiptNumber: `SR-${sale.id.slice(0, 8).toUpperCase()}`,
+      receiptNumber: `LEGACY-${sale.id.slice(0, 8).toUpperCase()}`,
       saleDate: sale.sale_date,
-      customerName: sale.customer_name ?? "Market distribution",
+      customerName: sale.customer_name ?? "Legacy inventory sale",
       paymentMethod: displayPaymentMethod(sale.payment_method, sale.other_payment_method),
       transactionReference: sale.transaction_reference ?? null,
       otherPaymentMethod: sale.other_payment_method ?? null,
       itemCount: 1,
       marketItemName: itemName,
-      marketItemUnit: inventory?.unit ?? "unit",
+      marketItemUnit: inventory?.unit ?? "Unit unavailable",
       marketQuantitySold: toNumber(sale.quantity_sold),
       marketUnitPrice: toNumber(sale.unit_price),
       marketRemarks: sale.remarks ?? "",
+      remarks: sale.remarks ?? "",
+      voidReason: sale.void_reason,
       discountAmount: 0,
       totalAmount: total,
       status: sale.status,
@@ -574,20 +629,25 @@ export async function getSalesWorkspaceData() {
     if (!isCompleted) {
       continue;
     }
+    if (saleDate > asOf) continue;
 
     completedTotal += total;
     completedCount += 1;
-    addToMap(paymentTotals, displayPaymentMethod(sale.payment_method, sale.other_payment_method), total);
+    const method = displayPaymentMethod(sale.payment_method, sale.other_payment_method);
+    addToMap(paymentTotals, method, total);
     addToMap(dailyTotals, dateKey(sale.sale_date), total);
-    addToMap(itemTotals, itemName, total);
+    const itemLabel = inventory?.unit ? `${itemName} (${inventory.unit})` : itemName;
+    addToMap(itemTotals, itemLabel, total);
     addToMap(categoryTotals, category, total);
 
-    if (saleDate >= today) {
+    if (saleDate >= today && saleDate < tomorrow) {
       salesToday += total;
+      collectedToday += total;
     }
 
-    if (saleDate >= month) {
+    if (saleDate >= month && saleDate < nextMonth) {
       salesThisMonth += total;
+      collectedThisMonth += total;
     }
   }
 
@@ -597,7 +657,9 @@ export async function getSalesWorkspaceData() {
     summary: {
       salesToday,
       salesThisMonth,
-      transactions: history.length,
+      collectedToday,
+      collectedThisMonth,
+      transactions: orderRows.length + marketRows.length,
       completedSalesCount: completedCount,
       averageTransactionValue: completedCount > 0 ? completedTotal / completedCount : 0,
       bestSellingItem: topItems[0]?.label ?? "No sales yet",
@@ -610,14 +672,14 @@ export async function getSalesWorkspaceData() {
       topItems,
       lowPerformingItems: topMapEntries(itemTotals, 5, true),
       discountImpact: [
-        { label: "Collected", value: completedTotal },
+        { label: "Sales value", value: completedTotal },
         { label: "Discounts", value: totalDiscountGiven },
       ],
     },
     orders: history.sort(
       (a, b) => new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime(),
     ),
-    error: marketResult.error?.message ?? null,
+    error: null,
   };
 }
 
@@ -682,7 +744,7 @@ export async function getSalesReceipt(id: string) {
       items: data.sales_order_items.map<SalesReceiptItem>((item) => ({
         id: item.id,
         itemName: item.item_name_snapshot,
-        unit: item.unit_snapshot,
+        unit: item.unit_snapshot ?? "Unit unavailable",
         quantitySold: toNumber(item.quantity_sold),
         unitPrice: toNumber(item.unit_price),
         lineTotal: toNumber(item.line_total),

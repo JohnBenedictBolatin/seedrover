@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { requireAdminRole } from "@/lib/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { writeActivityLog } from "@/lib/activity-log";
+import { normalizeContactNumber } from "@/lib/contact-number.mjs";
 
 export type CreateUserState = {
   message: string;
@@ -36,17 +38,31 @@ export async function createUserAction(
     };
   }
 
-  const fullName = text(formData, "full_name");
+  const firstName = text(formData, "first_name");
+  const middleInitial = text(formData, "middle_initial").replace(/[^a-z]/gi, "").slice(0, 1).toUpperCase();
+  const lastName = text(formData, "last_name");
+  const fullName = [firstName, middleInitial ? `${middleInitial}.` : "", lastName]
+    .filter(Boolean)
+    .join(" ");
   const username = normalizeUsername(text(formData, "username"));
   const email = text(formData, "email").toLowerCase();
-  const password = String(formData.get("temporary_password") ?? "");
-  const contactNumber = text(formData, "contact_number");
+  const password = String(formData.get("initial_password") ?? "");
+  let contactNumber: string | null;
   const roleId = text(formData, "role_id");
   const isActive = text(formData, "is_active", "true") === "true";
   const accessNote = text(formData, "access_note");
 
-  if (!fullName || !username || !email || !password || !roleId) {
+  if (!firstName || !lastName || !username || !email || !roleId || !password) {
     return { message: "Complete all required account fields.", success: false };
+  }
+
+  try {
+    contactNumber = normalizeContactNumber(text(formData, "contact_number"));
+  } catch (error) {
+    return {
+      message: error instanceof Error ? error.message : "Enter an 11-digit contact number.",
+      success: false,
+    };
   }
 
   if (!/^[a-z0-9_]{3,32}$/.test(username)) {
@@ -59,7 +75,7 @@ export async function createUserAction(
 
   if (password.length < 8) {
     return {
-      message: "Temporary password must be at least 8 characters.",
+      message: "Initial password must be at least 8 characters.",
       success: false,
     };
   }
@@ -75,31 +91,44 @@ export async function createUserAction(
     };
   }
 
-  const [
-    { data: role },
-    { data: existingUsername },
-    { data: existingEmail },
-  ] = await Promise.all([
+  const [roleResult, usernameResult, emailResult] = await Promise.all([
     supabase.from("roles").select("id, role_name").eq("id", roleId).single(),
     supabase
       .from("profiles")
       .select("id")
       .eq("username", username)
+      .limit(1)
       .maybeSingle(),
     supabase
       .from("profiles")
       .select("id")
       .eq("email", email)
+      .limit(1)
       .maybeSingle(),
   ]);
+
+  const role = roleResult.data;
+  const existingUsername = usernameResult.data;
+  const existingEmail = emailResult.data;
 
   if (!role) {
     return { message: "Selected role was not found.", success: false };
   }
 
-  if (existingUsername || existingEmail) {
+  if (usernameResult.error || emailResult.error) {
     return {
-      message: "A user with that username or email already exists.",
+      message: "Unable to check for duplicate account details. Please retry once.",
+      success: false,
+    };
+  }
+
+  const duplicateDetails = [
+    existingUsername ? "username" : "",
+    existingEmail ? "email address" : "",
+  ].filter(Boolean);
+  if (duplicateDetails.length > 0) {
+    return {
+      message: `That ${duplicateDetails.join(" and ")} already exists. Use different account details.`,
       success: false,
     };
   }
@@ -118,32 +147,42 @@ export async function createUserAction(
 
   if (createError || !createdAuthUser.user) {
     return {
-      message: createError?.message ?? "Unable to create the auth user.",
+      message: createError?.message.toLowerCase().includes("already") || createError?.message.toLowerCase().includes("registered")
+        ? "That email address already belongs to an account. Use a different email address."
+        : createError?.message ?? "Unable to create the auth user.",
       success: false,
     };
   }
 
   const userId = createdAuthUser.user.id;
-  const { error: profileError } = await adminSupabase.from("profiles").insert({
+  // Auth fires on_auth_user_created, which creates a default profile row.
+  // Upsert that row instead of inserting a second row with the same UUID.
+  const { error: profileError } = await adminSupabase.from("profiles").upsert({
     id: userId,
     username,
     email,
     full_name: fullName,
+    first_name: firstName,
+    last_name: lastName,
+    middle_initial: middleInitial || null,
+    contact_number: contactNumber,
     role_id: role.id,
     is_active: isActive,
-  });
+  }, { onConflict: "id" });
 
   if (profileError) {
     await adminSupabase.auth.admin.deleteUser(userId);
 
     return {
-      message: profileError.message,
+      message: profileError.code === "23505"
+        ? "That username or email address already belongs to an account. Use different account details."
+        : profileError.message,
       success: false,
     };
   }
 
-  await supabase.from("activity_logs").insert({
-    user_id: adminProfile.id,
+  await writeActivityLog(supabase, {
+    userId: adminProfile.id,
     activity: "User Created",
     description: `${fullName} was created as ${role.role_name}.${accessNote ? ` Note: ${accessNote}` : ""}`,
     module: "Users",
@@ -152,7 +191,7 @@ export async function createUserAction(
   revalidatePath("/users");
 
   return {
-    message: `${fullName} account created. Share the temporary password securely and ask them to change it after signing in.`,
+    message: `${fullName} account created. They can change their password later using Forgot password.`,
     success: true,
   };
 }
@@ -161,12 +200,22 @@ export async function updateUserAction(formData: FormData) {
   const profile = await requireAdminRole(["System Administrator"]);
 
   const userId = String(formData.get("user_id") ?? "");
-  const fullName = String(formData.get("full_name") ?? "").trim();
+  const firstName = String(formData.get("first_name") ?? "").trim();
+  const lastName = String(formData.get("last_name") ?? "").trim();
+  const middleInitial = String(formData.get("middle_initial") ?? "").replace(/[^a-z]/gi, "").slice(0, 1).toUpperCase();
+  const fullName = [firstName, middleInitial ? `${middleInitial}.` : "", lastName].filter(Boolean).join(" ");
   const roleId = String(formData.get("role_id") ?? "");
   const isActive = String(formData.get("is_active") ?? "false") === "true";
+  let contactNumber: string | null;
 
   if (!userId || !fullName || !roleId) {
     throw new Error("Complete all required user profile fields.");
+  }
+
+  try {
+    contactNumber = normalizeContactNumber(String(formData.get("contact_number") ?? ""));
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : "Enter an 11-digit contact number.");
   }
 
   if (userId === profile.id && !isActive) {
@@ -219,6 +268,10 @@ export async function updateUserAction(formData: FormData) {
     .from("profiles")
     .update({
       full_name: fullName,
+      first_name: firstName,
+      last_name: lastName,
+      middle_initial: middleInitial || null,
+      contact_number: contactNumber,
       role_id: roleId,
       is_active: isActive,
     })
@@ -228,12 +281,13 @@ export async function updateUserAction(formData: FormData) {
     throw new Error(updateError.message);
   }
 
-  await supabase.from("activity_logs").insert({
-    user_id: profile.id,
+  await writeActivityLog(supabase, {
+    userId: profile.id,
     activity: "User Updated",
     description: `${fullName} profile updated from the web admin. Role: ${selectedRole.role_name}. Status: ${isActive ? "Active" : "Inactive"}.`,
     module: "Users",
   });
 
   revalidatePath("/users");
+  revalidatePath("/", "layout");
 }

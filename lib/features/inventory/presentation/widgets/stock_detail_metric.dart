@@ -4,7 +4,6 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
-import '../../../../shared/widgets/animated_content.dart';
 
 class StockDetailMetric extends StatelessWidget {
   const StockDetailMetric({
@@ -28,6 +27,7 @@ class StockDetailMetric extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.cardBackground,
           borderRadius: BorderRadius.circular(AppRadius.sm),
+          border: Border.all(color: AppColors.inactiveBorder),
         ),
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.sm),
@@ -36,12 +36,12 @@ class StockDetailMetric extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(icon, color: AppColors.primaryGreen, size: 14),
+                  Icon(icon, color: AppColors.primaryGreen, size: 16),
                   const SizedBox(width: AppSpacing.xs),
                   Expanded(
-                    child: AnimatedTypingText(
+                    child: Text(
                       label,
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: AppTypography.caption,
                     ),
@@ -49,11 +49,14 @@ class StockDetailMetric extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: AppSpacing.xs),
-              AnimatedMetricText(
-                value,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.monoSmall,
+              Tooltip(
+                message: value,
+                child: Text(
+                  value,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.numericSmall,
+                ),
               ),
             ],
           ),

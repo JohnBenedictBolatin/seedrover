@@ -19,42 +19,36 @@ class PrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final foreground =
+        AppColors.isLight ? Colors.white : const Color(0xFF102318);
     return SizedBox(
       height: 48,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          gradient: LinearGradient(
-            colors: [
-              AppColors.buttonGradientStart,
-              AppColors.buttonGradientEnd,
-            ],
+      child: FilledButton(
+        onPressed: isLoading ? null : onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: AppColors.primaryGreen,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          foregroundColor: foreground,
+          disabledForegroundColor: foreground,
+          disabledBackgroundColor: AppColors.mutedText,
+          textStyle: AppTypography.body.copyWith(
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0,
+            fontVariations: const [FontVariation('wght', 600)],
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.md),
           ),
         ),
-        child: ElevatedButton(
-          onPressed: isLoading ? null : onPressed,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.transparent,
-            disabledBackgroundColor: Colors.transparent,
-            shadowColor: Colors.transparent,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            foregroundColor: AppColors.primaryText,
-            disabledForegroundColor: AppColors.primaryText,
-            textStyle: AppTypography.body.copyWith(
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-          ),
-          child: isLoading
-              ? const SizedBox.square(
-                  dimension: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(label),
-        ),
+        child: isLoading
+            ? SizedBox.square(
+                dimension: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: foreground,
+                ),
+              )
+            : Text(label),
       ),
     );
   }

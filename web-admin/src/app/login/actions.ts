@@ -1,10 +1,12 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isAdminRole } from "@/lib/auth";
 import { checkRateLimit, formatRetryAfter } from "@/lib/rate-limit";
+import { writeActivityLog } from "@/lib/activity-log";
 
 export type LoginState = {
   message: string;
@@ -13,6 +15,51 @@ export type LoginState = {
 const genericLoginError = "Invalid username or password.";
 const genericResetMessage =
   "If that username exists, a password reset email will be sent.";
+
+function getPasswordResetOrigin(requestHeaders: Headers) {
+  function validatedOrigin(value: string) {
+    const url = new URL(value);
+    const isLocalhost = ["localhost", "127.0.0.1", "[::1]", "0.0.0.0"].includes(url.hostname);
+    if (process.env.NODE_ENV === "production" && (url.protocol !== "https:" || isLocalhost)) {
+      return null;
+    }
+    return url.protocol === "https:" || url.protocol === "http:" ? url.origin : null;
+  }
+
+  const configuredSiteUrl = process.env.SITE_URL?.trim();
+  if (configuredSiteUrl) {
+    try {
+      return validatedOrigin(configuredSiteUrl);
+    } catch {
+      return null;
+    }
+  }
+
+  const vercelUrl = process.env.VERCEL_URL?.trim();
+  if (vercelUrl) {
+    try {
+      return validatedOrigin(`https://${vercelUrl}`);
+    } catch {
+      return null;
+    }
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    return null;
+  }
+
+  const requestOrigin = requestHeaders.get("origin");
+  const forwardedHost = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
+  const forwardedProtocol = requestHeaders.get("x-forwarded-proto") ?? "http";
+  const candidate = requestOrigin ?? (forwardedHost ? `${forwardedProtocol}://${forwardedHost}` : null);
+  if (!candidate) return null;
+
+  try {
+    return validatedOrigin(candidate);
+  } catch {
+    return null;
+  }
+}
 
 async function resolveEmailForUsername(
   username: string,
@@ -55,6 +102,7 @@ export async function signInAction(
   const password = String(formData.get("password") ?? "");
   const rememberSession = formData.get("rememberMe") === "true";
   let signedIn = false;
+  let signedInRole = "";
 
   if (!username) {
     return { message: "Enter your username." };
@@ -118,8 +166,8 @@ export async function signInAction(
       return { message: genericLoginError };
     }
 
-    await supabase.from("activity_logs").insert({
-      user_id: authData.user.id,
+    await writeActivityLog(supabase, {
+      userId: authData.user.id,
       activity: "Web Login",
       description: `${profile.username} signed in to the web admin.`,
       module: "Authentication",
@@ -135,12 +183,18 @@ export async function signInAction(
     });
 
     signedIn = true;
+    signedInRole = roleName;
   } catch {
     return { message: "Unable to sign in right now. Please try again." };
   }
 
   if (signedIn) {
-    redirect("/dashboard");
+    const destination = ["Farm Planting Manager", "Planting Staff"].includes(signedInRole)
+      ? "/crops"
+      : signedInRole === "Inventory Staff"
+        ? "/inventory"
+        : "/dashboard";
+    redirect(destination);
   }
 
   return { message: "Unable to sign in right now. Please try again." };
@@ -173,7 +227,18 @@ export async function forgotPasswordAction(username: string) {
   }
 
   try {
-    await supabase.auth.resetPasswordForEmail(email);
+    const origin = getPasswordResetOrigin(await headers());
+    if (!origin) {
+      return "Password reset is not configured for this website.";
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${origin}/auth/recovery`,
+    });
+    if (error) {
+      console.error("Password reset email request failed.", { message: error.message });
+      return genericResetMessage;
+    }
     return genericResetMessage;
   } catch {
     return "Unable to send reset email right now. Please try again.";

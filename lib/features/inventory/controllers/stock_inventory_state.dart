@@ -45,6 +45,9 @@ class StockInventoryState {
     required this.selectedFilter,
     required this.selectedSort,
     required this.salesSummary,
+    required this.salesSummaryError,
+    required this.isSalesSummaryLoading,
+    required this.hasSalesSummary,
     required this.isLoading,
     required this.isSavingSale,
     required this.successMessage,
@@ -60,6 +63,9 @@ class StockInventoryState {
       selectedFilter: StockFilterType.all,
       selectedSort: StockSortType.recentlyUpdated,
       salesSummary: StockSalesSummaryModel.empty(),
+      salesSummaryError: null,
+      isSalesSummaryLoading: true,
+      hasSalesSummary: false,
       isLoading: true,
       isSavingSale: false,
       successMessage: null,
@@ -74,6 +80,9 @@ class StockInventoryState {
   final StockFilterType selectedFilter;
   final StockSortType selectedSort;
   final StockSalesSummaryModel salesSummary;
+  final String? salesSummaryError;
+  final bool isSalesSummaryLoading;
+  final bool hasSalesSummary;
   final bool isLoading;
   final bool isSavingSale;
   final String? successMessage;
@@ -87,6 +96,9 @@ class StockInventoryState {
     StockFilterType? selectedFilter,
     StockSortType? selectedSort,
     StockSalesSummaryModel? salesSummary,
+    Object? salesSummaryError = _noChange,
+    bool? isSalesSummaryLoading,
+    bool? hasSalesSummary,
     bool? isLoading,
     bool? isSavingSale,
     Object? successMessage = _noChange,
@@ -102,6 +114,12 @@ class StockInventoryState {
       selectedFilter: selectedFilter ?? this.selectedFilter,
       selectedSort: selectedSort ?? this.selectedSort,
       salesSummary: salesSummary ?? this.salesSummary,
+      salesSummaryError: salesSummaryError == _noChange
+          ? this.salesSummaryError
+          : salesSummaryError as String?,
+      isSalesSummaryLoading:
+          isSalesSummaryLoading ?? this.isSalesSummaryLoading,
+      hasSalesSummary: hasSalesSummary ?? this.hasSalesSummary,
       isLoading: isLoading ?? this.isLoading,
       isSavingSale: isSavingSale ?? this.isSavingSale,
       successMessage: successMessage == _noChange

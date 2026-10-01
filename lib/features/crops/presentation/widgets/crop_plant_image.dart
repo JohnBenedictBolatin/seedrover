@@ -75,11 +75,13 @@ class CropPlantImage extends StatelessWidget {
 
   String _visualStateFor(CropModel crop) {
     return switch (crop.status) {
-      CropStatus.needsWater => 'needs_water',
-      CropStatus.needsFertilizer => 'needs_fertilizer',
+      CropStatus.needsAttention => 'needs_attention',
       CropStatus.readyForHarvest => 'harvest_ready',
       CropStatus.harvested => 'harvested',
-      CropStatus.healthy => _growthStageKey(crop.growthStage),
+      CropStatus.notHarvested => 'harvested',
+      CropStatus.active ||
+      CropStatus.needsAttention =>
+        _growthStageKey(crop.growthStage),
     };
   }
 
@@ -92,26 +94,28 @@ class CropPlantImage extends StatelessWidget {
       CropGrowthStage.fruiting => 'fruiting',
       CropGrowthStage.harvestReady => 'harvest_ready',
       CropGrowthStage.harvested => 'harvested',
+      CropGrowthStage.other => 'unknown',
+      _ => 'unknown',
     };
   }
 
   String _visualLabelFor(CropModel crop) {
     return switch (crop.status) {
-      CropStatus.needsWater => 'Needs Water',
-      CropStatus.needsFertilizer => 'Needs Fertilizer',
+      CropStatus.needsAttention => 'Needs Attention',
       CropStatus.readyForHarvest => 'Harvest Ready',
       CropStatus.harvested => 'Harvested',
-      CropStatus.healthy => crop.growthStage.label,
+      CropStatus.notHarvested => 'Closed without harvest',
+      CropStatus.active => crop.growthStageLabel,
     };
   }
 
   Color _stateColorFor(CropModel crop) {
     return switch (crop.status) {
-      CropStatus.healthy => AppColors.primaryGreen,
-      CropStatus.needsWater => AppColors.information,
-      CropStatus.needsFertilizer => AppColors.warning,
+      CropStatus.active => AppColors.mutedText,
+      CropStatus.needsAttention => AppColors.warning,
       CropStatus.readyForHarvest => AppColors.success,
       CropStatus.harvested => AppColors.mutedText,
+      CropStatus.notHarvested => AppColors.danger,
     };
   }
 }
@@ -158,10 +162,11 @@ class _CropStatePlaceholder extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: AppTypography.monoCaption.copyWith(
+                style: AppTypography.numericCaption.copyWith(
                   color: AppColors.primaryText,
                   fontSize: size >= 120 ? 12 : 9,
                   fontWeight: FontWeight.w700,
+                  fontVariations: const [FontVariation('wght', 700)],
                 ),
               ),
               Text(
@@ -169,7 +174,7 @@ class _CropStatePlaceholder extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: AppTypography.monoCaption.copyWith(
+                style: AppTypography.numericCaption.copyWith(
                   color: color,
                   fontSize: size >= 120 ? 11 : 8,
                 ),

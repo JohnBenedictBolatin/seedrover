@@ -191,18 +191,6 @@ abstract class SimulatedCommunicationService implements CommunicationService {
     _devicesController.close();
   }
 
-  void setSimulatorBatteryLevel(int value) {
-    _simulator.setBatteryLevel(value);
-  }
-
-  void rechargeSimulatorBattery() {
-    _simulator.rechargeBattery();
-  }
-
-  void setSimulatorSeedLevel(int value) {
-    _simulator.setSeedLevel(value);
-  }
-
   void setSimulatorCurrentActivity(String value) {
     _simulator.setCurrentActivity(value);
   }
@@ -219,14 +207,6 @@ abstract class SimulatedCommunicationService implements CommunicationService {
       environmentTemperature: environmentTemperature,
       humidity: humidity,
     );
-  }
-
-  void triggerSimulatorLowBattery() {
-    _simulator.triggerLowBattery();
-  }
-
-  void triggerSimulatorCriticalBattery() {
-    _simulator.triggerCriticalBattery();
   }
 
   void triggerSimulatorConnectionLost() {

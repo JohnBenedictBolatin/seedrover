@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/config/app_environment.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/primary_button.dart';
+import '../../../../shared/widgets/seedrover_mascot.dart';
 import '../../providers/auth_providers.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -17,8 +20,7 @@ class LoginScreen extends ConsumerStatefulWidget {
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends ConsumerState<LoginScreen>
-    with SingleTickerProviderStateMixin {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   static const _rememberUsernameKey = 'seedrover.remember_username';
   static const _rememberEnabledKey = 'seedrover.remember_enabled';
 
@@ -26,35 +28,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  AnimationController? _fieldAnimationController;
-
   bool _obscurePassword = true;
   bool _rememberMe = false;
 
   @override
   void initState() {
     super.initState();
-    _fieldAnimationController = _createFieldAnimationController();
     _restoreRememberedUsername();
   }
 
   @override
   void dispose() {
-    _fieldAnimationController?.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
-  }
-
-  AnimationController get _fieldAnimation {
-    return _fieldAnimationController ??= _createFieldAnimationController();
-  }
-
-  AnimationController _createFieldAnimationController() {
-    return AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 9),
-    )..repeat();
   }
 
   Future<void> _submit() async {
@@ -116,405 +103,317 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     await preferences.remove(_rememberUsernameKey);
   }
 
-  Future<void> _sendPasswordResetEmail() async {
-    final username = _usernameController.text.trim();
-
-    if (username.isEmpty) {
+  Future<void> _openPasswordRecoveryWebsite() async {
+    final configuredOrigin = ref.read(appEnvironmentProvider).webAdminUrl;
+    final origin = Uri.tryParse(configuredOrigin);
+    if (origin == null ||
+        !origin.hasAuthority ||
+        origin.host.isEmpty ||
+        !const {'http', 'https'}.contains(origin.scheme) ||
+        origin.userInfo.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter your username first.')),
+        const SnackBar(
+          content: Text('Password recovery website is not configured.'),
+        ),
       );
       return;
     }
 
-    await ref
-        .read(authControllerProvider.notifier)
-        .sendPasswordResetEmail(username);
+    final loginUri = origin.replace(
+      path: '/login',
+      queryParameters: const {'reset': '1'},
+    );
+    try {
+      final opened = await launchUrl(
+        loginUri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (opened || !mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not open the SeedRover recovery website.'),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not open the SeedRover recovery website.'),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
-    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 80;
 
     return Scaffold(
       backgroundColor: AppColors.primaryBackground,
       body: Stack(
+        clipBehavior: Clip.none,
         children: [
-          SafeArea(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    AppColors.primaryBackground,
-                    AppColors.secondaryBackground,
-                    AppColors.primaryBackground,
-                  ],
+          if (!keyboardOpen && MediaQuery.sizeOf(context).height > 700)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: -120,
+              child: const IgnorePointer(
+                child: Center(
+                  child: SeedRoverMascot(
+                    expression: SeedRoverMascotExpression.happy,
+                    size: 240,
+                  ),
                 ),
               ),
-              child: Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.lg,
-                    AppSpacing.lg,
-                    AppSpacing.lg,
-                    112,
+            ),
+          SafeArea(
+            bottom: false,
+            child: Stack(
+              children: [
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: _LoginHero(compact: keyboardOpen),
+                ),
+                SingleChildScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: EdgeInsets.fromLTRB(
+                    AppSpacing.md,
+                    keyboardOpen ? 84 : 144,
+                    AppSpacing.md,
+                    keyboardOpen ? AppSpacing.lg : 132,
                   ),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 430),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Center(
-                            child: Image.asset(
-                              'assets/images/SeedRover Logo.png',
-                              width: 226,
-                              fit: BoxFit.contain,
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 430),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: AppColors.secondaryBackground,
+                          borderRadius: BorderRadius.circular(AppRadius.lg),
+                          border: Border.all(color: AppColors.inactiveBorder),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: .08),
+                              blurRadius: 24,
+                              offset: const Offset(0, 8),
                             ),
-                          ),
-                          const SizedBox(height: AppSpacing.md),
-                          Text(
-                            'Welcome back!',
-                            textAlign: TextAlign.center,
-                            style: AppTypography.sectionHeading.copyWith(
-                              color: AppColors.primaryText,
-                            ),
-                          ),
-                          const SizedBox(height: AppSpacing.xs),
-                          Text(
-                            'Your planting tools are set, and the fields are waiting.',
-                            textAlign: TextAlign.center,
-                            style: AppTypography.body.copyWith(
-                              color: AppColors.secondaryText,
-                            ),
-                          ),
-                          const SizedBox(height: AppSpacing.xl),
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: AppColors.secondaryBackground.withOpacity(
-                                0.88,
-                              ),
-                              border: Border.all(
-                                color: AppColors.inactiveBorder,
-                              ),
-                              borderRadius:
-                                  BorderRadius.circular(AppRadius.md),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(AppSpacing.lg),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  TextFormField(
-                                    controller: _usernameController,
-                                    enabled: !authState.isLoading,
-                                    textInputAction: TextInputAction.next,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Username',
-                                      prefixIcon: Icon(Icons.person_outline),
-                                    ),
-                                    validator: (value) {
-                                      if (value == null ||
-                                          value.trim().isEmpty) {
-                                        return 'Enter your username.';
-                                      }
-
-                                      return null;
-                                    },
+                          ],
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(AppSpacing.md),
+                          child: Form(
+                            key: _formKey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text('Welcome back',
+                                      style: AppTypography.sectionHeading),
+                                ),
+                                const SizedBox(height: AppSpacing.sm),
+                                Text(
+                                  'Sign in to your SeedRover workspace.',
+                                  style: AppTypography.small.copyWith(
+                                    color: AppColors.secondaryText,
                                   ),
-                                  const SizedBox(height: AppSpacing.md),
-                                  TextFormField(
-                                    controller: _passwordController,
-                                    enabled: !authState.isLoading,
-                                    obscureText: _obscurePassword,
-                                    textInputAction: TextInputAction.done,
-                                    onFieldSubmitted: (_) => _submit(),
-                                    decoration: InputDecoration(
-                                      labelText: 'Password',
-                                      prefixIcon:
-                                          const Icon(Icons.lock_outline),
-                                      suffixIcon: IconButton(
-                                        tooltip: _obscurePassword
-                                            ? 'Show password'
-                                            : 'Hide password',
-                                        onPressed: authState.isLoading
-                                            ? null
-                                            : () {
-                                                setState(() {
-                                                  _obscurePassword =
-                                                      !_obscurePassword;
-                                                });
-                                              },
-                                        icon: Icon(
-                                          _obscurePassword
-                                              ? Icons.visibility_outlined
-                                              : Icons.visibility_off_outlined,
+                                ),
+                                const SizedBox(height: AppSpacing.lg),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: AppSpacing.xs,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      TextFormField(
+                                        controller: _usernameController,
+                                        enabled: !authState.isLoading,
+                                        autofillHints: const [
+                                          AutofillHints.username
+                                        ],
+                                        textInputAction: TextInputAction.next,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Username',
+                                          prefixIcon:
+                                              Icon(Icons.person_outline),
                                         ),
-                                      ),
-                                    ),
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Enter your password.';
-                                      }
+                                        validator: (value) {
+                                          if (value == null ||
+                                              value.trim().isEmpty) {
+                                            return 'Enter your username.';
+                                          }
 
-                                      return null;
-                                    },
+                                          return null;
+                                        },
+                                      ),
+                                      const SizedBox(height: AppSpacing.md),
+                                      TextFormField(
+                                        controller: _passwordController,
+                                        enabled: !authState.isLoading,
+                                        obscureText: _obscurePassword,
+                                        autofillHints: const [
+                                          AutofillHints.password
+                                        ],
+                                        textInputAction: TextInputAction.done,
+                                        onFieldSubmitted: (_) => _submit(),
+                                        decoration: InputDecoration(
+                                          labelText: 'Password',
+                                          prefixIcon:
+                                              const Icon(Icons.lock_outline),
+                                          suffixIcon: IconButton(
+                                            tooltip: _obscurePassword
+                                                ? 'Show password'
+                                                : 'Hide password',
+                                            onPressed: authState.isLoading
+                                                ? null
+                                                : () {
+                                                    setState(() {
+                                                      _obscurePassword =
+                                                          !_obscurePassword;
+                                                    });
+                                                  },
+                                            icon: Icon(
+                                              _obscurePassword
+                                                  ? Icons.visibility_outlined
+                                                  : Icons
+                                                      .visibility_off_outlined,
+                                            ),
+                                          ),
+                                        ),
+                                        validator: (value) {
+                                          if (value == null || value.isEmpty) {
+                                            return 'Enter your password.';
+                                          }
+
+                                          return null;
+                                        },
+                                      ),
+                                      const SizedBox(height: AppSpacing.smd),
+                                      _RememberMeRow(
+                                        value: _rememberMe,
+                                        enabled: !authState.isLoading,
+                                        onChanged: (value) {
+                                          _setRememberMe(value);
+                                        },
+                                        onForgotPassword:
+                                            _openPasswordRecoveryWebsite,
+                                      ),
+                                      if (authState.errorMessage != null) ...[
+                                        const SizedBox(height: AppSpacing.md),
+                                        _LoginMessage(
+                                          message: authState.errorMessage!,
+                                          color: AppColors.danger,
+                                        ),
+                                      ],
+                                      if (authState.successMessage != null) ...[
+                                        const SizedBox(height: AppSpacing.md),
+                                        _LoginMessage(
+                                          message: authState.successMessage!,
+                                          color: AppColors.success,
+                                        ),
+                                      ],
+                                      const SizedBox(height: AppSpacing.lg),
+                                      PrimaryButton(
+                                        label: 'LOG IN',
+                                        isLoading: authState.isLoading,
+                                        onPressed: _submit,
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(height: AppSpacing.sm),
-                                  _RememberMeRow(
-                                    value: _rememberMe,
-                                    enabled: !authState.isLoading,
-                                    onChanged: (value) {
-                                      _setRememberMe(value);
-                                    },
-                                    onForgotPassword: _sendPasswordResetEmail,
-                                  ),
-                                  if (authState.errorMessage != null) ...[
-                                    const SizedBox(height: AppSpacing.md),
-                                    _LoginMessage(
-                                      message: authState.errorMessage!,
-                                      color: AppColors.danger,
-                                    ),
-                                  ],
-                                  if (authState.successMessage != null) ...[
-                                    const SizedBox(height: AppSpacing.md),
-                                    _LoginMessage(
-                                      message: authState.successMessage!,
-                                      color: AppColors.success,
-                                    ),
-                                  ],
-                                  const SizedBox(height: AppSpacing.lg),
-                                  PrimaryButton(
-                                    label: 'LOG IN',
-                                    isLoading: authState.isLoading,
-                                    onPressed: _submit,
-                                  ),
-                                ],
-                              ),
+                                ),
+                                const SizedBox(height: AppSpacing.lg),
+                                Text(
+                                  'Version ${AppConstants.appVersion}',
+                                  textAlign: TextAlign.center,
+                                  style: AppTypography.caption,
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: AppSpacing.xl),
-                          Text(
-                            'Version ${AppConstants.appVersion}',
-                            textAlign: TextAlign.center,
-                            style: AppTypography.caption,
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
           ),
-          if (!keyboardVisible)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: IgnorePointer(
-                child: _PixelFarmRunner(animation: _fieldAnimation),
-              ),
-            ),
         ],
       ),
     );
   }
 }
 
-class _PixelFarmRunner extends StatelessWidget {
-  const _PixelFarmRunner({required this.animation});
+class _LoginHero extends StatelessWidget {
+  const _LoginHero({required this.compact});
 
-  final Animation<double> animation;
+  final bool compact;
 
   @override
-  Widget build(BuildContext context) {
-    return RepaintBoundary(
-      child: AnimatedBuilder(
-        animation: animation,
-        builder: (context, _) {
-          return SizedBox(
-            height: 132,
-            width: double.infinity,
-            child: CustomPaint(
-              painter: _PixelFarmPainter(progress: animation.value),
+  Widget build(BuildContext context) => Container(
+        height: compact ? 96 : 158,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: AppColors.heroGradientColors,
+          ),
+          borderRadius: const BorderRadius.vertical(
+            bottom: Radius.circular(32),
+          ),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              right: -52,
+              top: compact ? -82 : -96,
+              child: Container(
+                width: 230,
+                height: 230,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: .10),
+                    width: 24,
+                  ),
+                ),
+              ),
             ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _PixelFarmPainter extends CustomPainter {
-  const _PixelFarmPainter({required this.progress});
-
-  final double progress;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final pixel = (size.width / 88).clamp(5.0, 9.0).toDouble();
-    final baseline = size.height - pixel * 2.2;
-    final primary = Paint()..color = AppColors.primaryGreen;
-    final accent = Paint()..color = AppColors.accentGreen;
-    final dark = Paint()..color = AppColors.darkGradientStart;
-    final shadow = Paint()..color = AppColors.primaryGreen.withOpacity(0.18);
-
-    canvas.drawRect(
-      Rect.fromLTWH(0, baseline, size.width, pixel),
-      primary,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(0, baseline + pixel, size.width, pixel),
-      shadow,
-    );
-
-    final offset = progress * pixel * 18;
-    final repeat = pixel * 18;
-    final count = (size.width / repeat).ceil() + 3;
-
-    for (var index = -1; index < count; index++) {
-      final start = index * repeat - offset % repeat;
-      _drawGrassCluster(canvas, start, baseline, pixel, primary, accent);
-
-      if (index.isEven) {
-        _drawTree(canvas, start + pixel * 10, baseline, pixel, primary, dark);
-      } else {
-        _drawSapling(canvas, start + pixel * 8, baseline, pixel, accent);
-      }
-    }
-  }
-
-  void _drawGrassCluster(
-    Canvas canvas,
-    double x,
-    double baseline,
-    double pixel,
-    Paint primary,
-    Paint accent,
-  ) {
-    canvas.drawRect(
-      Rect.fromLTWH(x, baseline - pixel * 1.5, pixel, pixel * 1.5),
-      primary,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(x + pixel, baseline - pixel * 2.2, pixel, pixel * 2.2),
-      accent,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(x + pixel * 2, baseline - pixel * 4.2, pixel, pixel * 4.2),
-      accent,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(x + pixel * 3, baseline - pixel * 2.8, pixel, pixel * 2.8),
-      primary,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(x + pixel * 4, baseline - pixel * 1.5, pixel, pixel * 1.5),
-      primary,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(
-        x + pixel * 5,
-        baseline - pixel * 3.4,
-        pixel,
-        pixel * 3.4,
-      ),
-      primary,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(
-        x + pixel * 6,
-        baseline - pixel * 4.8,
-        pixel,
-        pixel * 4.8,
-      ),
-      accent,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(x + pixel * 7, baseline - pixel * 2.1, pixel, pixel * 2.1),
-      primary,
-    );
-  }
-
-  void _drawTree(
-    Canvas canvas,
-    double x,
-    double baseline,
-    double pixel,
-    Paint leaf,
-    Paint trunk,
-  ) {
-    canvas.drawRect(
-      Rect.fromLTWH(x + pixel * 2, baseline - pixel * 8, pixel, pixel * 8),
-      trunk,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(x + pixel, baseline - pixel * 7.4, pixel, pixel),
-      trunk,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(x + pixel * 3, baseline - pixel * 5.8, pixel, pixel),
-      trunk,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(x, baseline - pixel * 13, pixel * 5, pixel),
-      leaf,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(x + pixel, baseline - pixel * 14, pixel * 3, pixel),
-      leaf,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(x + pixel * 2, baseline - pixel * 15, pixel, pixel),
-      leaf,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(x + pixel, baseline - pixel * 12, pixel * 3, pixel),
-      leaf,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(x, baseline - pixel * 11, pixel * 5, pixel),
-      leaf,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(x + pixel, baseline - pixel * 10, pixel * 3, pixel),
-      leaf,
-    );
-  }
-
-  void _drawSapling(
-    Canvas canvas,
-    double x,
-    double baseline,
-    double pixel,
-    Paint paint,
-  ) {
-    canvas.drawRect(
-      Rect.fromLTWH(x + pixel, baseline - pixel * 7, pixel, pixel * 7),
-      paint,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(x, baseline - pixel * 5, pixel, pixel),
-      paint,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(x + pixel * 2, baseline - pixel * 8, pixel, pixel),
-      paint,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(x + pixel * 3, baseline - pixel * 6, pixel, pixel),
-      paint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_PixelFarmPainter oldDelegate) {
-    return oldDelegate.progress != progress;
-  }
+            Positioned(
+              right: compact ? 24 : 48,
+              bottom: compact ? -72 : -88,
+              child: Icon(
+                Icons.eco_rounded,
+                size: compact ? 164 : 220,
+                color: Colors.white.withValues(alpha: .06),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.only(top: compact ? 12 : 30),
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: Semantics(
+                  image: true,
+                  label: 'SeedRover',
+                  child: Image.asset(
+                    'assets/images/SeedRover Logo White Mobile.png',
+                    width: compact ? 150 : 190,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 class _RememberMeRow extends StatelessWidget {
@@ -542,9 +441,8 @@ class _RememberMeRow extends StatelessWidget {
             activeColor: AppColors.primaryGreen,
             checkColor: AppColors.primaryBackground,
             side: BorderSide(color: AppColors.primaryGreen),
-            onChanged: enabled
-                ? (nextValue) => onChanged(nextValue ?? false)
-                : null,
+            onChanged:
+                enabled ? (nextValue) => onChanged(nextValue ?? false) : null,
           ),
         ),
         const SizedBox(width: AppSpacing.xs),
@@ -552,7 +450,7 @@ class _RememberMeRow extends StatelessWidget {
           child: GestureDetector(
             onTap: enabled ? () => onChanged(!value) : null,
             child: Text(
-              'Remember me',
+              'Remember username',
               style: AppTypography.small.copyWith(
                 color: AppColors.secondaryText,
                 fontSize: 11,
@@ -596,7 +494,7 @@ class _LoginMessage extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(color: color),
       ),

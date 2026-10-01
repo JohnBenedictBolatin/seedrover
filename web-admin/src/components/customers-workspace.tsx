@@ -1,8 +1,9 @@
 "use client";
 
-import { type FormEvent, type ReactNode, useEffect, useMemo, useState, useTransition } from "react";
+import { type ReactNode, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { NumericInput } from "@/components/constrained-inputs";
 import {
   BadgePercent,
   Check,
@@ -12,7 +13,6 @@ import {
   Eye,
   FileDown,
   Filter,
-  NotebookPen,
   Printer,
   Receipt,
   Search,
@@ -23,15 +23,13 @@ import {
 } from "lucide-react";
 import {
   createCustomerDiscountAction,
-  saveCustomerProfileAction,
 } from "@/app/(portal)/customers/actions";
-import {
-  ActionAlertStack,
-  type ActionAlert,
-  type AlertTone,
-} from "@/components/action-alert-stack";
+import type { AlertTone } from "@/components/action-alert-stack";
+import { useActionFeedback } from "@/components/action-feedback";
 import { useConfirmationDialog } from "@/components/confirmation-dialog";
+import { PendingActionLabel } from "@/components/pending-action-label";
 import { ReportPrintButton } from "@/components/report-print-button";
+import { ExportDownloadButton } from "@/components/export-download-button";
 import { formatCurrency, formatDateTime, formatQuantity } from "@/lib/format";
 import type { CustomerDiscount, CustomerStats, CustomerSummary } from "@/lib/customers";
 import { CountUpValue } from "@/components/count-up-value";
@@ -44,9 +42,7 @@ type CustomersWorkspaceProps = {
   stats: CustomerStats | null;
 };
 
-const CUSTOMER_ROWS_PER_PAGE = 8;
-const customerTypes = ["Farm Buyer", "Market Buyer", "Wholesale", "Restaurant", "Retail", "Other"];
-const tagOptions = ["Market Buyer", "Repeat Buyer", "Walk-in", "Wholesale", "Priority"];
+const CUSTOMER_ROWS_PER_PAGE = 5;
 
 function todayInputValue(offsetDays = 0) {
   const date = new Date();
@@ -55,6 +51,22 @@ function todayInputValue(offsetDays = 0) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function formatTopCustomerName(name: string) {
+  const normalized = name.trim().replace(/\s+/g, " ");
+  if (!normalized || normalized === "None yet") return normalized || "None yet";
+
+  const parts = normalized.split(" ");
+  if (parts.length < 2) return normalized;
+
+  const firstName = parts[0];
+  const lastName = parts[parts.length - 1].replace(/[^a-z]/gi, "");
+  const middleParts = parts.slice(1, -1);
+  const middleInitial = middleParts[0]?.replace(/[^a-z]/gi, "").charAt(0).toUpperCase();
+  const lastInitial = lastName.charAt(0).toUpperCase();
+
+  return `${firstName}, ${middleInitial ? `${middleInitial}.` : ""}${lastInitial ? `${lastInitial}.` : ""}`;
 }
 
 function matchesDateRange(customer: CustomerSummary, start: string, end: string) {
@@ -206,14 +218,10 @@ export function CustomersWorkspace({ customers, discounts, stats }: CustomersWor
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSummary | null>(null);
   const [discountModalOpen, setDiscountModalOpen] = useState(false);
   const [discountListOpen, setDiscountListOpen] = useState(false);
-  const [alerts, setAlerts] = useState<ActionAlert[]>([]);
+  const { notify: sendFeedback } = useActionFeedback();
 
   function notify(tone: AlertTone, text: string) {
-    const id = Date.now();
-    setAlerts((current) => [...current.slice(-2), { id, tone, text }]);
-    window.setTimeout(() => {
-      setAlerts((current) => current.filter((alert) => alert.id !== id));
-    }, 4200);
+    sendFeedback({ tone, text });
   }
 
   const paymentOptions = [
@@ -229,11 +237,7 @@ export function CustomersWorkspace({ customers, discounts, stats }: CustomersWor
         const haystack = [
           customer.name,
           customer.contact,
-          customer.alternateContact,
-          customer.location,
-          customer.customerType,
           customer.paymentMethods.join(" "),
-          customer.tags.join(" "),
           customer.purchasedItems.map((item) => item.itemName).join(" "),
         ]
           .join(" ")
@@ -269,7 +273,9 @@ export function CustomersWorkspace({ customers, discounts, stats }: CustomersWor
   }, [customerFilter, customers, endDate, paymentFilter, query, sortBy, startDate]);
 
   useEffect(() => {
-    setCurrentPage(1);
+    const resetPage = window.setTimeout(() => setCurrentPage(1), 0);
+
+    return () => window.clearTimeout(resetPage);
   }, [customerFilter, endDate, paymentFilter, query, sortBy, startDate]);
 
   const totalPages = Math.max(1, Math.ceil(filteredCustomers.length / CUSTOMER_ROWS_PER_PAGE));
@@ -318,15 +324,15 @@ export function CustomersWorkspace({ customers, discounts, stats }: CustomersWor
             </span>
             <p>Top customer</p>
           </div>
-          <strong>{stats?.topCustomer ?? "None yet"}</strong>
+          <strong>{formatTopCustomerName(stats?.topCustomer ?? "None yet")}</strong>
         </article>
       </section>
 
       <section className={styles.quickActions}>
         <div>
           <p className={styles.eyebrow}>Quick action</p>
-          <h2>Create a customer discount</h2>
-          <span>Create buyer discounts and review released discount codes.</span>
+          <h2>Create a discount code</h2>
+          <span>Release codes any customer can use at checkout.</span>
         </div>
         <div className={styles.quickActionButtons}>
           <button
@@ -356,17 +362,20 @@ export function CustomersWorkspace({ customers, discounts, stats }: CustomersWor
         <div className={styles.sectionHeader}>
           <div>
             <p className={styles.eyebrow}>Customer list</p>
-            <h2>Farm buyer records</h2>
+          <h2>Customers from completed sales</h2>
+          <span className={styles.sectionHint}>
+            Names, contacts, purchases, and totals come from completed sales.
+          </span>
           </div>
           <div className={styles.exportActions}>
-            <Link href="/api/exports/customers.csv">
+            <ExportDownloadButton href="/api/exports/customers.csv">
               <FileDown size={17} />
               CSV
-            </Link>
-            <Link href="/api/exports/customers.xls">
+            </ExportDownloadButton>
+            <ExportDownloadButton href="/api/exports/customers.xls">
               <FileDown size={17} />
               Excel
-            </Link>
+            </ExportDownloadButton>
             <ReportPrintButton href="/reports/customers/print">
               <Printer size={17} />
               Print / PDF
@@ -417,8 +426,7 @@ export function CustomersWorkspace({ customers, discounts, stats }: CustomersWor
           <div className={styles.customerTable}>
             <div className={styles.customerTableHead}>
               <span>Customer</span>
-              <span>Contact Details</span>
-              <span>Type</span>
+              <span>Contact</span>
               <span>Receipts</span>
               <span>Total spent</span>
               <span>Last purchase</span>
@@ -427,19 +435,17 @@ export function CustomersWorkspace({ customers, discounts, stats }: CustomersWor
             </div>
             {paginatedCustomers.map((customer) => (
               <article className={styles.customerRow} key={customer.key}>
-                <div className={styles.customerIdentity}>
+                <div className={styles.customerIdentity} data-label="Customer">
                   <strong>{customer.name}</strong>
                 </div>
-                <div className={styles.contactCell}>
+                <div className={styles.contactCell} data-label="Contact details">
                   <strong>{customer.contact}</strong>
-                  <span>{customer.alternateContact || "No alternate contact"}</span>
                 </div>
-                <span className={styles.typeCell}>{customer.customerType}</span>
-                <strong className={styles.receiptsCell}>{customer.receiptCount}</strong>
-                <strong className={styles.totalCell}>{formatCurrency(customer.totalSpent)}</strong>
-                <span className={styles.dateCell}>{formatDateTime(customer.lastPurchaseAt)}</span>
-                <span className={styles.paymentCell}>{customer.paymentMethods.join(", ")}</span>
-                <div className={styles.tableActions}>
+                <strong className={styles.receiptsCell} data-label="Receipts">{customer.receiptCount}</strong>
+                <strong className={styles.totalCell} data-label="Total spent">{formatCurrency(customer.totalSpent)}</strong>
+                <span className={styles.dateCell} data-label="Last purchase">{formatDateTime(customer.lastPurchaseAt)}</span>
+                <span className={styles.paymentCell} data-label="Payment">{customer.paymentMethods.join(", ")}</span>
+                <div className={styles.tableActions} data-label="Actions">
                   <button
                     aria-label={`View ${customer.name}`}
                     type="button"
@@ -488,14 +494,12 @@ export function CustomersWorkspace({ customers, discounts, stats }: CustomersWor
       {selectedCustomer ? (
         <CustomerDetailModal
           customer={selectedCustomer}
-          notify={notify}
           onClose={() => setSelectedCustomer(null)}
         />
       ) : null}
 
       {discountModalOpen ? (
         <CreateDiscountModal
-          customers={customers}
           notify={notify}
           onClose={() => setDiscountModalOpen(false)}
         />
@@ -505,12 +509,6 @@ export function CustomersWorkspace({ customers, discounts, stats }: CustomersWor
         <DiscountListModal discounts={discounts} onClose={() => setDiscountListOpen(false)} />
       ) : null}
 
-      <ActionAlertStack
-        alerts={alerts}
-        onDismiss={(id) =>
-          setAlerts((current) => current.filter((alert) => alert.id !== id))
-        }
-      />
     </>
   );
 }
@@ -552,8 +550,8 @@ function DiscountListModal({
           <div className={styles.discountListTable}>
             <div className={styles.discountListHead}>
               <span>Code</span>
-              <span>Name</span>
-              <span>Amount</span>
+              <span>Available to</span>
+              <span>Amount / %</span>
               <span>Date redeemed</span>
               <span>Status</span>
             </div>
@@ -563,8 +561,8 @@ function DiscountListModal({
               return (
                 <article className={styles.discountListRow} key={discount.id}>
                   <strong data-label="Code">{discount.code}</strong>
-                  <span data-label="Name">{discount.customerName}</span>
-                  <span data-label="Amount">{formatDiscountAmount(discount)}</span>
+                  <span data-label="Available to">Anyone with the code</span>
+                  <span data-label="Amount / %">{formatDiscountAmount(discount)}</span>
                   <span data-label="Date redeemed">{discount.usedAt ? formatDateTime(discount.usedAt) : "Not redeemed"}</span>
                   <div className={styles.discountStatusCell} data-label="Status">
                     <small data-status={redeemed ? "redeemed" : "available"}>
@@ -588,22 +586,17 @@ function DiscountListModal({
 }
 
 function CreateDiscountModal({
-  customers,
   notify,
   onClose,
 }: {
-  customers: CustomerSummary[];
   notify: (tone: AlertTone, text: string) => void;
   onClose: () => void;
 }) {
-  const customerOptions = customers.map((customer) => customer.name);
-  const [customerName, setCustomerName] = useState(customerOptions[0] ?? "No customers yet");
-  const [discountType, setDiscountType] = useState("Percent");
-  const [discountValue, setDiscountValue] = useState("0");
+  const [discountType, setDiscountType] = useState("Choose discount type");
+  const [discountValue, setDiscountValue] = useState("");
   const [validUntil, setValidUntil] = useState("");
   const [notes, setNotes] = useState("");
   const [coupon, setCoupon] = useState<{
-    customerName: string;
     discountType: string;
     discountValue: string;
     validUntil: string;
@@ -614,16 +607,18 @@ function CreateDiscountModal({
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [pending, startTransition] = useTransition();
   const router = useRouter();
-  const hasCustomers = customers.length > 0;
-  const selectedCustomer = customers.find((customer) => customer.name === customerName);
+  const parsedDiscountValue = Number(discountValue.trim());
+  const canCreateDiscount =
+    ["Percent", "Amount"].includes(discountType) &&
+    Number.isFinite(parsedDiscountValue) &&
+    parsedDiscountValue > 0;
 
   function handleCreateDiscount() {
-    if (!hasCustomers) {
+    if (!canCreateDiscount) {
       return;
     }
 
     setCoupon({
-      customerName,
       discountType,
       discountValue: discountValue.trim() || "0",
       validUntil,
@@ -634,13 +629,14 @@ function CreateDiscountModal({
   }
 
   async function handleReleaseDiscount() {
-    if (!coupon || !selectedCustomer) {
+    if (!coupon) {
       return;
     }
 
     const confirmed = await confirm({
-      message: `Are you sure you want to release discount ${coupon.code} to ${coupon.customerName}?`,
-      confirmLabel: "Release Discount",
+      title: "Release this discount?",
+      message: `Discount ${coupon.code} will be available to anyone who enters it.`,
+      confirmLabel: "Release discount",
     });
 
     if (!confirmed) {
@@ -648,8 +644,6 @@ function CreateDiscountModal({
     }
 
     const formData = new FormData();
-    formData.set("customer_name", coupon.customerName);
-    formData.set("customer_contact", selectedCustomer.contact);
     formData.set("discount_code", coupon.code);
     formData.set("discount_type", coupon.discountType);
     formData.set("discount_value", coupon.discountValue);
@@ -662,11 +656,11 @@ function CreateDiscountModal({
         setReleasedCode(result.code);
         onClose();
         router.refresh();
-        notify("success", `Success - Discount ${result.code} released.`);
+        notify("success", `Discount ${result.code} released.`);
       } catch (error) {
         notify(
           "error",
-          `Error - ${error instanceof Error ? error.message : "Unable to release discount."}`,
+          error instanceof Error ? error.message : "Unable to release discount.",
         );
       }
     });
@@ -686,44 +680,50 @@ function CreateDiscountModal({
             </button>
           </header>
 
-          <form className={styles.discountForm}>
-            <FormSelect
-              disabled={!hasCustomers}
-              label="Customer"
-              name="customer_name"
-              options={hasCustomers ? customerOptions : ["No customers yet"]}
-              value={customerName}
-              onChange={setCustomerName}
-            />
-
+          <form
+            className={styles.discountForm}
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!event.currentTarget.reportValidity() || !canCreateDiscount) return;
+              handleCreateDiscount();
+            }}
+          >
             <FormSelect
               label="Discount type"
               name="discount_type"
-              options={["Percent", "Amount"]}
+              options={["Choose discount type", "Percent", "Amount"]}
               value={discountType}
-              onChange={setDiscountType}
+              onChange={(value) => {
+                setDiscountType(value);
+                setDiscountValue("");
+              }}
             />
 
-            <label>
-              Value
-              <input
-                min="0"
-                name="discount_value"
-                type="number"
-                value={discountValue}
-                onChange={(event) => setDiscountValue(event.target.value)}
-              />
-            </label>
+            {discountType === "Percent" || discountType === "Amount" ? (
+              <label>
+                {discountType === "Percent" ? "Discount percent (%)" : "Discount amount (PHP)"}
+                <NumericInput
+                  max={discountType === "Percent" ? "100" : undefined}
+                  min="0.01"
+                  name="discount_value"
+                  required
+                  step="0.01"
+                  value={discountValue}
+                  onChange={(event) => setDiscountValue(event.target.value)}
+                />
+              </label>
+            ) : null}
 
             <CalendarField
-              label="Valid until"
+              label="Valid until (optional)"
               name="valid_until"
+              min={todayInputValue()}
               value={validUntil}
               onChange={setValidUntil}
             />
 
             <label className={styles.discountNotes}>
-              Notes
+              Notes (optional)
               <textarea
                 name="notes"
                 placeholder="Preferred buyer offer, loyalty note, or approval reminder"
@@ -737,7 +737,7 @@ function CreateDiscountModal({
               <button className={styles.secondaryButton} type="button" onClick={onClose}>
                 <span>Close</span>
               </button>
-              <button className={styles.primaryButton} disabled={!hasCustomers} type="button" onClick={handleCreateDiscount}>
+              <button className={styles.primaryButton} disabled={!canCreateDiscount} type="submit">
                 <span>Create Discount</span>
               </button>
             </div>
@@ -768,7 +768,9 @@ function CreateDiscountModal({
               type="button"
               onClick={handleReleaseDiscount}
             >
-              <span>{releasedCode === coupon.code ? "Released" : pending ? "Releasing..." : "Release discount"}</span>
+              <PendingActionLabel pending={pending} pendingText="Releasing discount...">
+                {releasedCode === coupon.code ? "Released" : "Release discount"}
+              </PendingActionLabel>
             </button>
           </div>
         </section>
@@ -782,7 +784,6 @@ function DiscountCoupon({
   coupon,
 }: {
   coupon: {
-    customerName: string;
     discountType: string;
     discountValue: string;
     validUntil: string;
@@ -817,12 +818,12 @@ function DiscountCoupon({
               </div>
 
               <div className={styles.couponTitle}>{discountLabel}</div>
-              <div className={styles.couponSubtitle}>Customer buyer offer</div>
+              <div className={styles.couponSubtitle}>Available to anyone with the code</div>
 
               <div className={styles.couponDetails}>
                 <div>
-                  <span>Customer</span>
-                  <strong>{coupon.customerName}</strong>
+                  <span>Available to</span>
+                  <strong>Anyone with the code</strong>
                 </div>
                 <div>
                   <span>Valid until</span>
@@ -857,54 +858,18 @@ function DiscountCoupon({
 
 function CustomerDetailModal({
   customer,
-  notify,
   onClose,
 }: {
   customer: CustomerSummary;
-  notify: (tone: AlertTone, text: string) => void;
   onClose: () => void;
 }) {
-  const [pending, startTransition] = useTransition();
-  const [customerType, setCustomerType] = useState(customer.customerType);
-  const { confirm, confirmationDialog } = useConfirmationDialog();
-  const router = useRouter();
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-
-    const confirmed = await confirm({
-      message: `Are you sure you want to save the profile for ${customer.name}?`,
-      confirmLabel: "Save Profile",
-    });
-
-    if (!confirmed) {
-      return;
-    }
-
-    const formData = new FormData(form);
-
-    startTransition(async () => {
-      try {
-        await saveCustomerProfileAction(formData);
-        router.refresh();
-        notify("success", "Success - Customer profile saved.");
-      } catch (error) {
-        notify(
-          "error",
-          `Error - ${error instanceof Error ? error.message : "Unable to save profile."}`,
-        );
-      }
-    });
-  }
-
   return (
     <div className={styles.modalBackdrop} data-ui-backdrop="true" role="presentation">
       <section className={styles.modal} role="dialog" aria-modal="true" aria-label="Customer details">
         <header className={styles.modalHeader}>
           <h3>
-            <NotebookPen size={19} />
-            Customer Details
+            <Users size={19} />
+            Customer History
           </h3>
           <button aria-label="Close modal" type="button" onClick={onClose}>
             <X size={18} />
@@ -915,7 +880,7 @@ function CustomerDetailModal({
           <div className={styles.profilePanel}>
             <div className={styles.customerHero}>
               <div>
-                <p>{customer.customerType}</p>
+                <p>Customer from completed sales</p>
                 <h2>{customer.name}</h2>
                 <span>{customer.contact}</span>
               </div>
@@ -936,46 +901,11 @@ function CustomerDetailModal({
               </div>
             </div>
 
-            <form className={styles.profileForm} onSubmit={handleSubmit}>
-              <input name="display_name" type="hidden" value={customer.name} />
-              <input name="contact_number" type="hidden" value={customer.contact} />
-              <FormSelect
-                label="Customer type"
-                name="customer_type"
-                options={customerTypes}
-                value={customerType}
-                onChange={setCustomerType}
-              />
-              <label>
-                Location
-                <input name="location" defaultValue={customer.location} placeholder="Market, barangay, or delivery area" />
-              </label>
-              <label>
-                Alternate contact
-                <input name="alternate_contact" defaultValue={customer.alternateContact} placeholder="e.g. 0917 123 4567" />
-              </label>
-              <label>
-                Tags
-                <input
-                  name="tags"
-                  defaultValue={customer.tags.join(", ")}
-                  placeholder={tagOptions.join(", ")}
-                />
-              </label>
-              <label>
-                Internal notes
-                <textarea
-                  name="notes"
-                  defaultValue={customer.notes}
-                  placeholder="Preferences, delivery notes, or manager observations"
-                  rows={4}
-                />
-              </label>
-              <button disabled={pending} type="submit">
-                <NotebookPen size={17} />
-                <span>{pending ? "Saving..." : "Save Profile"}</span>
-              </button>
-            </form>
+            <div className={styles.customerInfoNote}>
+              <strong>Basic customer information</strong>
+                <span>{customer.name} · {customer.contact}</span>
+              <small>Customer information is taken from completed sales. Record the correct name and contact when making a sale.</small>
+              </div>
           </div>
 
           <div className={styles.historyPanel}>
@@ -985,7 +915,7 @@ function CustomerDetailModal({
                 {customer.purchasedItems.slice(0, 6).map((item) => (
                   <div key={item.itemName}>
                     <strong>{item.itemName}</strong>
-                    <span>{formatQuantity(item.quantity, "units")}</span>
+                    <span>{formatQuantity(item.quantity, "kg")}</span>
                     <small>{formatCurrency(item.totalAmount)}</small>
                   </div>
                 ))}
@@ -1017,7 +947,6 @@ function CustomerDetailModal({
           </div>
         </div>
       </section>
-      {confirmationDialog}
     </div>
   );
 }

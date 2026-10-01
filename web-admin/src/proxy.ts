@@ -28,7 +28,9 @@ function getSessionCookieOptions<T extends { maxAge?: unknown; expires?: unknown
     return options;
   }
 
-  const { maxAge: _maxAge, expires: _expires, ...sessionOptions } = options;
+  const sessionOptions = { ...options };
+  delete sessionOptions.maxAge;
+  delete sessionOptions.expires;
   return sessionOptions;
 }
 
@@ -77,6 +79,10 @@ export async function proxy(request: NextRequest) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("redirectedFrom", pathname);
+    const hadSessionCookie = request.cookies
+      .getAll()
+      .some(({ name }) => name.includes("auth-token"));
+    if (hadSessionCookie) loginUrl.searchParams.set("session", "ended");
     return NextResponse.redirect(loginUrl);
   }
 

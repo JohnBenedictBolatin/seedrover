@@ -1,3 +1,4 @@
+import '../../../../shared/widgets/app_filter_button.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
@@ -71,7 +72,6 @@ class _UserFilterButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 112,
       child: _FilterButton(
         label: selectedFilter.label,
         icon: CupertinoIcons.slider_horizontal_3,
@@ -100,7 +100,6 @@ class ActivityFilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 112,
       child: _FilterButton(
         label: selectedFilter.label,
         icon: CupertinoIcons.calendar,
@@ -211,58 +210,10 @@ class _FilterButton extends StatelessWidget {
   final List<_FilterItem> items;
 
   @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<int>(
-      tooltip: label,
-      color: AppColors.secondaryBackground,
-      onSelected: (index) => items[index].onSelected(),
-      itemBuilder: (context) {
-        return [
-          for (var index = 0; index < items.length; index++)
-            PopupMenuItem<int>(
-              value: index,
-              child: Text(items[index].label, style: AppTypography.body),
-            ),
-        ];
-      },
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: AppColors.secondaryBackground,
-          border: Border.all(color: AppColors.inactiveBorder),
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.xs,
-            vertical: 7,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 13, color: AppColors.primaryText),
-              const SizedBox(width: AppSpacing.xs),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.caption.copyWith(
-                    color: AppColors.primaryText,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.xs),
-              Icon(
-                CupertinoIcons.chevron_down,
-                size: 10,
-                color: AppColors.primaryText,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => AppFilterButton(
+        label: label,
+        icon: icon,
+        options: items.map((item) => item.label).toList(),
+        onSelected: (index) => items[index].onSelected(),
+      );
 }

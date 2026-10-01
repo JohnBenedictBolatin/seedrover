@@ -9,6 +9,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/utils/business_calendar.dart';
 import '../../../crops/data/models/crop_model.dart';
 import '../../../crops/providers/crop_providers.dart';
 import '../../../inventory/data/models/stock_model.dart';
@@ -26,28 +27,45 @@ class SalesInventoryCharts extends ConsumerStatefulWidget {
 }
 
 class _SalesInventoryChartsState extends ConsumerState<SalesInventoryCharts> {
-  _OverviewRange _range = _OverviewRange.monthly;
+  _OverviewRange _range = _OverviewRange.yearly;
 
   @override
   Widget build(BuildContext context) {
     final stockState = ref.watch(stockInventoryControllerProvider);
     final stocks = stockState.stocks;
-    final crops = ref.watch(cropMonitoringControllerProvider).crops;
+    final cropState = ref.watch(cropMonitoringControllerProvider);
+    final crops = cropState.crops;
+    final inventoryUnavailable =
+        stockState.errorMessage != null && stocks.isEmpty;
+    final cropsUnavailable = cropState.errorMessage != null && crops.isEmpty;
+    final trendAsync = ref.watch(stockSalesTrendProvider);
     final overview = _OverviewData.from(
       stocks: stocks,
       crops: crops,
-      salesSummary: stockState.salesSummary,
+      salesRecords: trendAsync.asData?.value ?? const [],
       range: _range,
     );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Overview', style: AppTypography.sectionHeading.copyWith(fontSize: 18)),
+        Text('Overview',
+            style: AppTypography.sectionHeading.copyWith(fontSize: 18)),
         const SizedBox(height: AppSpacing.md),
         _SalesTrendPanel(
           range: _range,
           overview: overview,
+          unavailableMessage: trendAsync.hasError
+              ? 'Sales trend is unavailable.'
+              : stockState.hasSalesSummary && !stockState.isSalesSummaryLoading
+                  ? null
+                  : !stockState.hasSalesSummary
+                      ? (stockState.isSalesSummaryLoading
+                          ? null
+                          : stockState.salesSummaryError ??
+                              'Sales summary is unavailable.')
+                      : null,
+          isTrendLoading: trendAsync.isLoading,
           onRangeChanged: (range) => setState(() => _range = range),
         ),
         const SizedBox(height: AppSpacing.md),
@@ -55,9 +73,13 @@ class _SalesInventoryChartsState extends ConsumerState<SalesInventoryCharts> {
           children: [
             Expanded(
               child: _SignalCard(
-                title: 'Inventory Health',
-                value: '${overview.stockHealth.round()}%',
-                caption: '${overview.healthyStock}/${overview.stockCount} items healthy',
+                title: 'In stock',
+                value: inventoryUnavailable
+                    ? '—'
+                    : '${overview.healthyStock}/${overview.stockCount}',
+                caption: inventoryUnavailable
+                    ? 'inventory data unavailable'
+                    : 'items above minimum stock',
                 percent: overview.stockHealth,
                 color: AppColors.primaryGreen,
                 onTap: () => context.go(AppRoutes.stocks),
@@ -66,9 +88,11 @@ class _SalesInventoryChartsState extends ConsumerState<SalesInventoryCharts> {
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: _SignalCard(
-                title: 'Crop Readiness',
-                value: '${overview.cropReadiness.round()}%',
-                caption: '${overview.harvestReadyCrops} ready to harvest',
+                title: 'Harvest ready',
+                value: cropsUnavailable ? '—' : '${overview.harvestReadyCrops}',
+                caption: cropsUnavailable
+                    ? 'crop data unavailable'
+                    : '${overview.harvestReadyCrops} ready to harvest',
                 percent: overview.cropReadiness,
                 color: AppColors.success,
                 onTap: () => context.go(AppRoutes.crops),
@@ -84,7 +108,7 @@ class _SalesInventoryChartsState extends ConsumerState<SalesInventoryCharts> {
                 icon: Icons.smart_toy_outlined,
                 title: 'Rover',
                 value: widget.rover.status,
-                caption: '${widget.rover.batteryLevel}% battery',
+                caption: widget.rover.plantingStatus,
                 color: _roverColor(widget.rover.status),
                 onTap: () => context.go(AppRoutes.rover),
               ),
@@ -94,8 +118,10 @@ class _SalesInventoryChartsState extends ConsumerState<SalesInventoryCharts> {
               child: _MiniStatusCard(
                 icon: Icons.inventory_2_outlined,
                 title: 'Low Inventory',
-                value: '${overview.watchStock}',
-                caption: 'needs attention',
+                value: inventoryUnavailable ? '—' : '${overview.watchStock}',
+                caption: inventoryUnavailable
+                    ? 'data unavailable'
+                    : 'needs attention',
                 color: overview.watchStock == 0
                     ? AppColors.primaryGreen
                     : AppColors.warning,
@@ -126,7 +152,12 @@ class _SalesInventoryChartsState extends ConsumerState<SalesInventoryCharts> {
           ],
         ),
         const SizedBox(height: AppSpacing.sm),
-        _CategoryList(categories: overview.categories),
+        _CategoryList(
+          categories: overview.categories,
+          unavailableMessage: inventoryUnavailable
+              ? 'Inventory category data is unavailable.'
+              : null,
+        ),
       ],
     );
   }
@@ -147,11 +178,15 @@ class _SalesTrendPanel extends StatelessWidget {
   const _SalesTrendPanel({
     required this.range,
     required this.overview,
+    required this.unavailableMessage,
+    required this.isTrendLoading,
     required this.onRangeChanged,
   });
 
   final _OverviewRange range;
   final _OverviewData overview;
+  final String? unavailableMessage;
+  final bool isTrendLoading;
   final ValueChanged<_OverviewRange> onRangeChanged;
 
   @override
@@ -177,30 +212,53 @@ class _SalesTrendPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: [
-              Text(
-                '${overview.completedSales}',
-                style: AppTypography.displayHeading.copyWith(
-                  color: AppColors.primaryText,
-                  fontSize: 28,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
+          if (isTrendLoading)
+            const Expanded(child: Center(child: CircularProgressIndicator()))
+          else if (unavailableMessage != null)
+            Expanded(
+              child: Center(
                 child: Text(
-                  'completed sales in ${range.label.toLowerCase()} view',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  unavailableMessage!,
+                  textAlign: TextAlign.center,
                   style: AppTypography.caption.copyWith(
                     color: AppColors.mutedText,
                   ),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Expanded(child: _LineGraph(entries: overview.salesTrend)),
+            )
+          else ...[
+            Row(
+              children: [
+                Text(
+                  '${overview.completedSales}',
+                  style: AppTypography.displayHeading.copyWith(
+                    color: AppColors.primaryText,
+                    fontSize: 28,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    'completed sales in ${range.label.toLowerCase()} view',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.caption.copyWith(
+                      color: AppColors.mutedText,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Expanded(
+              child: _LineGraph(
+                entries: overview.salesTrend,
+                summary: overview.completedSales == 0
+                    ? 'No completed sales recorded in this period.'
+                    : 'Completed receipt totals after discounts and completed standalone sales.',
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -243,7 +301,7 @@ class _RangeMenu extends StatelessWidget {
           children: [
             Text(
               range.label,
-              style: AppTypography.monoCaption.copyWith(
+              style: AppTypography.numericCaption.copyWith(
                 color: AppColors.secondaryText,
                 fontSize: 9,
               ),
@@ -320,7 +378,7 @@ class _SignalCard extends StatelessWidget {
                 maxLines: 2,
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
-                style: AppTypography.monoCaption.copyWith(
+                style: AppTypography.numericCaption.copyWith(
                   color: AppColors.mutedText,
                   fontSize: 9,
                 ),
@@ -387,13 +445,13 @@ class _MiniStatusCard extends StatelessWidget {
                       value,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTypography.cardTitle.copyWith(fontSize: 14),
+                      style: AppTypography.numericSmall.copyWith(fontSize: 14),
                     ),
                     Text(
                       caption,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTypography.monoCaption.copyWith(fontSize: 8),
+                      style: AppTypography.numericCaption.copyWith(fontSize: 8),
                     ),
                   ],
                 ),
@@ -407,16 +465,20 @@ class _MiniStatusCard extends StatelessWidget {
 }
 
 class _CategoryList extends StatelessWidget {
-  const _CategoryList({required this.categories});
+  const _CategoryList({required this.categories, this.unavailableMessage});
 
   final List<_CategoryEntry> categories;
+  final String? unavailableMessage;
 
   @override
   Widget build(BuildContext context) {
     if (categories.isEmpty) {
       return _DarkPanel(
         child: Center(
-          child: Text('No inventory items yet.', style: AppTypography.caption),
+          child: Text(
+            unavailableMessage ?? 'No inventory items yet.',
+            style: AppTypography.caption,
+          ),
         ),
       );
     }
@@ -480,8 +542,11 @@ class _CategoryRow extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          _quantity(category.quantity),
-                          style: AppTypography.cardTitle.copyWith(fontSize: 13),
+                          '${_quantity(category.quantity)} items',
+                          style: AppTypography.numericSmall.copyWith(
+                            fontSize: 13,
+                            color: AppColors.primaryText,
+                          ),
                         ),
                       ],
                     ),
@@ -505,7 +570,7 @@ class _CategoryRow extends StatelessWidget {
                         const SizedBox(width: AppSpacing.sm),
                         Text(
                           '${category.percent.round()}%',
-                          style: AppTypography.monoCaption.copyWith(
+                          style: AppTypography.numericCaption.copyWith(
                             color: AppColors.mutedText,
                             fontSize: 9,
                           ),
@@ -558,14 +623,17 @@ class _DarkPanel extends StatelessWidget {
 }
 
 class _LineGraph extends StatelessWidget {
-  const _LineGraph({required this.entries});
+  const _LineGraph({required this.entries, required this.summary});
 
   final List<_ChartEntry> entries;
+  final String summary;
 
   @override
   Widget build(BuildContext context) {
     if (entries.every((entry) => entry.value == 0)) {
-      return Center(child: Text('No sales data yet.', style: AppTypography.caption));
+      return Center(
+        child: Text(summary, style: AppTypography.caption),
+      );
     }
 
     return TweenAnimationBuilder<double>(
@@ -583,7 +651,7 @@ class _LineGraph extends StatelessWidget {
                 for (final entry in entries)
                   Text(
                     entry.label,
-                    style: AppTypography.monoCaption.copyWith(
+                    style: AppTypography.numericCaption.copyWith(
                       color: AppColors.mutedText,
                       fontSize: 9,
                     ),
@@ -722,75 +790,49 @@ class _OverviewData {
   factory _OverviewData.from({
     required List<StockModel> stocks,
     required List<CropModel> crops,
-    required StockSalesSummaryModel salesSummary,
+    required List<StockSalesTrendRecord> salesRecords,
     required _OverviewRange range,
   }) {
-    final now = DateTime.now();
-    final buckets = _buckets(now, range);
-    final salesByBucket = <DateTime, double>{for (final bucket in buckets) bucket.date: 0};
-    final categoryTotals = <StockCategory, double>{};
-    var completedSales = 0;
-    var detailedSalesTotal = 0.0;
+    final now = BusinessCalendar.now();
+    final localNow = now.add(BusinessCalendar.timeZoneOffset);
+    final buckets = _buckets(localNow, range);
+    final salesByBucket = <DateTime, double>{
+      for (final bucket in buckets) bucket.date: 0
+    };
+    final categoryTotals = <StockCategory, int>{};
+    final completedSaleIds = <String>{};
 
     for (final stock in stocks) {
       categoryTotals.update(
         stock.category,
-        (value) => value + stock.currentQuantity,
-        ifAbsent: () => stock.currentQuantity,
+        (value) => value + 1,
+        ifAbsent: () => 1,
       );
-      for (final sale in stock.sales) {
-        if (sale.status != SalesTransactionStatus.completed) {
-          continue;
-        }
-        final day = DateTime(sale.saleDate.year, sale.saleDate.month, sale.saleDate.day);
-        if (day.isBefore(buckets.first.date)) {
-          continue;
-        }
-        completedSales++;
-        detailedSalesTotal += sale.totalAmount;
-        final key = _bucketFor(day, buckets);
-        salesByBucket[key] = salesByBucket[key]! + sale.totalAmount;
-      }
-
-      if (stock.sales.isEmpty) {
-        for (final transaction in stock.transactions) {
-          if (transaction.type != StockTransactionType.sale) {
-            continue;
-          }
-          final day = DateTime(
-            transaction.performedAt.year,
-            transaction.performedAt.month,
-            transaction.performedAt.day,
-          );
-          if (day.isBefore(buckets.first.date)) {
-            continue;
-          }
-          final amount = transaction.quantity * (stock.sellingPrice ?? 1);
-          completedSales++;
-          detailedSalesTotal += amount;
-          final key = _bucketFor(day, buckets);
-          salesByBucket[key] = salesByBucket[key]! + amount;
-        }
-      }
+    }
+    for (final sale in salesRecords) {
+      final saleInstant = sale.date.toUtc();
+      if (saleInstant.isAfter(now)) continue;
+      final manilaDate = saleInstant.add(BusinessCalendar.timeZoneOffset);
+      final day =
+          DateTime.utc(manilaDate.year, manilaDate.month, manilaDate.day);
+      if (day.isBefore(buckets.first.date)) continue;
+      completedSaleIds.add(sale.id);
+      final key = _bucketFor(day, buckets);
+      salesByBucket[key] = salesByBucket[key]! + sale.total;
     }
 
-    if (detailedSalesTotal == 0 && salesSummary.salesThisMonth > 0) {
-      final latestBucket = buckets.last.date;
-      completedSales = salesSummary.salesTransactions;
-      salesByBucket[latestBucket] =
-          (salesByBucket[latestBucket] ?? 0) + salesSummary.salesThisMonth;
-    }
-
-    final totalQuantity = categoryTotals.values.fold<double>(0, (total, value) => total + value);
-    final healthyStock = stocks.where((stock) => stock.status == StockStatus.inStock).length;
+    final totalInventoryItems = stocks.length;
+    final healthyStock =
+        stocks.where((stock) => stock.status == StockStatus.inStock).length;
     final watchStock = stocks
         .where((stock) =>
             stock.status == StockStatus.lowStock ||
             stock.status == StockStatus.criticalStock ||
             stock.status == StockStatus.outOfStock)
         .length;
-    final activeCrops = crops.where((crop) => !crop.isHarvested).toList();
-    final harvestReady = activeCrops.where((crop) => crop.isHarvestReady).length;
+    final activeCrops = crops.where((crop) => !crop.isCompleted).toList();
+    final harvestReady =
+        activeCrops.where((crop) => crop.isHarvestReady).length;
 
     return _OverviewData(
       salesTrend: [
@@ -801,13 +843,15 @@ class _OverviewData {
         for (final entry in categoryTotals.entries)
           _CategoryEntry(
             label: entry.key.label,
-            quantity: entry.value,
-            percent: totalQuantity == 0 ? 0 : (entry.value / totalQuantity) * 100,
+            quantity: entry.value.toDouble(),
+            percent: totalInventoryItems == 0
+                ? 0
+                : (entry.value / totalInventoryItems) * 100,
             color: _categoryColor(entry.key),
             icon: _categoryIcon(entry.key),
           ),
       ]..sort((left, right) => right.quantity.compareTo(left.quantity)),
-      completedSales: completedSales,
+      completedSales: completedSaleIds.length,
       stockCount: stocks.length,
       healthyStock: healthyStock,
       watchStock: watchStock,
@@ -829,38 +873,42 @@ class _OverviewData {
   }
 
   static List<_Bucket> _buckets(DateTime now, _OverviewRange range) {
-    final today = DateTime(now.year, now.month, now.day);
+    final today = DateTime.utc(now.year, now.month, now.day);
     switch (range) {
       case _OverviewRange.weekly:
+        final monday = today.subtract(Duration(days: today.weekday - 1));
         return [
-          for (var index = 6; index >= 0; index--)
+          for (var index = 0; index < 7; index++)
             _Bucket(
-              today.subtract(Duration(days: index)),
-              _weekdayLabel(today.subtract(Duration(days: index)).weekday),
+              monday.add(Duration(days: index)),
+              _weekdayLabel(monday.add(Duration(days: index)).weekday),
             ),
         ];
       case _OverviewRange.monthly:
         return [
-          for (var index = 5; index >= 0; index--)
+          for (var day = 1;
+              day <= DateTime.utc(now.year, now.month + 1, 0).day;
+              day += 5)
             _Bucket(
-              today.subtract(Duration(days: index * 5)),
-              '${today.subtract(Duration(days: index * 5)).day}',
+              DateTime.utc(now.year, now.month, day),
+              '$day',
             ),
         ];
       case _OverviewRange.quarterly:
+        final quarterStartMonth = ((now.month - 1) ~/ 3) * 3 + 1;
         return [
-          for (var index = 2; index >= 0; index--)
+          for (var index = 0; index < 3; index++)
             _Bucket(
-              DateTime(now.year, now.month - index),
-              _monthLabel(DateTime(now.year, now.month - index).month),
+              DateTime.utc(now.year, quarterStartMonth + index),
+              _monthLabel(quarterStartMonth + index),
             ),
         ];
       case _OverviewRange.yearly:
         return [
-          for (var index = 5; index >= 0; index--)
+          for (var month = 1; month <= 12; month++)
             _Bucket(
-              DateTime(now.year, now.month - index),
-              _monthLabel(DateTime(now.year, now.month - index).month),
+              DateTime.utc(now.year, month),
+              _monthLabel(month),
             ),
         ];
     }

@@ -21,10 +21,10 @@ class StockEmptyState extends StatelessWidget {
             size: 88,
           ),
           const SizedBox(height: AppSpacing.md),
-          Text("You're all caught up.", style: AppTypography.cardTitle),
+          Text('No inventory items yet.', style: AppTypography.cardTitle),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'No inventory items match the current view.',
+            'Inventory items added to your workspace will appear here.',
             textAlign: TextAlign.center,
             style: AppTypography.caption,
           ),

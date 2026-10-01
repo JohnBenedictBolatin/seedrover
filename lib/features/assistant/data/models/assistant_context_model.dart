@@ -30,7 +30,7 @@ class AssistantContextModel {
     return {
       'source': 'current_app_state',
       'note':
-          'Data comes from the current app state, which is backed by Supabase where integration is available.',
+          'Operational summaries only. Private identifiers, customer details, staff names, remarks, supplier details, costs, and raw transaction records are excluded.',
       'generatedAt': generatedAt.toIso8601String(),
       'rover': rover,
       'crops': crops,

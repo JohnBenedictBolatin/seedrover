@@ -28,14 +28,8 @@ class NotificationCard extends StatelessWidget {
       onTap: onView,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: notification.isRead
-              ? AppColors.secondaryBackground
-              : AppColors.cardBackground,
-          border: Border.all(
-            color: notification.priority == NotificationPriority.critical
-                ? AppColors.danger
-                : AppColors.inactiveBorder,
-          ),
+          color: AppColors.secondaryBackground,
+          border: Border.all(color: AppColors.inactiveBorder),
           borderRadius: BorderRadius.circular(AppRadius.sm),
         ),
         child: Padding(
@@ -64,6 +58,17 @@ class NotificationCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: AppTypography.caption,
                     ),
+                    if (notification.actorName != null) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        'By ${notification.actorName}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.numericCaption.copyWith(
+                          color: AppColors.mutedText,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: AppSpacing.md),
                     Row(
                       children: [
@@ -77,7 +82,7 @@ class NotificationCard extends StatelessWidget {
                             _formatTimestamp(notification.createdAt),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: AppTypography.monoCaption,
+                            style: AppTypography.numericCaption,
                           ),
                         ),
                       ],
@@ -90,8 +95,7 @@ class NotificationCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   _ReadDot(isRead: notification.isRead),
-                  const SizedBox(height: AppSpacing.xl),
-                  const SizedBox(height: AppSpacing.md),
+                  const SizedBox(height: AppSpacing.lg),
                   Icon(
                     CupertinoIcons.arrow_right,
                     color: AppColors.primaryText,
@@ -167,7 +171,6 @@ IconData notificationCategoryIcon(NotificationCategory category) {
     NotificationCategory.planting => Icons.grass_outlined,
     NotificationCategory.cropMonitoring => Icons.spa_outlined,
     NotificationCategory.inventory => CupertinoIcons.cube_box,
-    NotificationCategory.battery => CupertinoIcons.battery_25,
     NotificationCategory.camera => CupertinoIcons.camera,
     NotificationCategory.userManagement => CupertinoIcons.person_2,
   };

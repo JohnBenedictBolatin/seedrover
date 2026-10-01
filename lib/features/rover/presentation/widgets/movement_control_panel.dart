@@ -130,14 +130,14 @@ class _DirectionalPad extends StatelessWidget {
   }
 
   double _padSizeFor(double availableWidth, double availableHeight) {
-    final boundedWidth = availableWidth.clamp(140.0, 220.0).toDouble();
-    final boundedHeight = availableHeight.clamp(140.0, 220.0).toDouble();
+    final boundedWidth = availableWidth.clamp(140.0, 280.0).toDouble();
+    final boundedHeight = availableHeight.clamp(140.0, 280.0).toDouble();
 
     return boundedWidth < boundedHeight ? boundedWidth : boundedHeight;
   }
 }
 
-class _ArrowButton extends StatelessWidget {
+class _ArrowButton extends StatefulWidget {
   const _ArrowButton({
     required this.icon,
     required this.command,
@@ -155,34 +155,103 @@ class _ArrowButton extends StatelessWidget {
   final ValueChanged<RoverMovementCommand> onCommand;
 
   @override
+  State<_ArrowButton> createState() => _ArrowButtonState();
+}
+
+class _ArrowButtonState extends State<_ArrowButton> {
+  int? _activePointer;
+
+  @override
   Widget build(BuildContext context) {
-    final color = danger ? AppColors.danger : AppColors.primaryGreen;
+    final color = widget.danger ? AppColors.danger : AppColors.primaryGreen;
 
     return Tooltip(
-      message: command.label,
+      message: widget.command.label,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppRadius.sm),
-          border:
-              Border.all(color: selected ? color : AppColors.inactiveBorder),
-        ),
-        child: Center(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final shortestSide = constraints.biggest.shortestSide;
-              final iconSize =
-                  (shortestSide * 0.40).clamp(20.0, 30.0).toDouble();
-
-              return IconButton(
-                onPressed: enabled ? () => onCommand(command) : null,
-                icon:
-                    Icon(icon, color: selected ? color : null, size: iconSize),
-              );
-            },
+          border: Border.all(
+            color: widget.selected ? color : AppColors.inactiveBorder,
           ),
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final shortestSide = constraints.biggest.shortestSide;
+            final iconSize = (shortestSide * 0.40).clamp(20.0, 30.0).toDouble();
+            final arrow = Icon(
+              widget.icon,
+              color: widget.selected ? color : null,
+              size: iconSize,
+            );
+
+            if (widget.command == RoverMovementCommand.stop) {
+              return Center(
+                child: IconButton(
+                  tooltip: 'Stop rover',
+                  onPressed: widget.enabled
+                      ? () => widget.onCommand(widget.command)
+                      : null,
+                  icon: arrow,
+                ),
+              );
+            }
+
+            return Semantics(
+              button: true,
+              enabled: widget.enabled,
+              label:
+                  'Hold to ${widget.command.label.toLowerCase()}; release to stop',
+              onTap: widget.enabled
+                  ? () {
+                      // A semantic tap has no press/release pair, so use a
+                      // short, bounded pulse. Touch input below remains active
+                      // for the complete time the pointer is held down.
+                      widget.onCommand(widget.command);
+                      Future<void>.delayed(
+                        const Duration(milliseconds: 250),
+                        () => widget.onCommand(RoverMovementCommand.stop),
+                      );
+                    }
+                  : null,
+              child: Listener(
+                behavior: HitTestBehavior.opaque,
+                onPointerDown: widget.enabled ? _handlePointerDown : null,
+                onPointerUp: widget.enabled ? _handlePointerUp : null,
+                onPointerCancel: widget.enabled ? _handlePointerCancel : null,
+                child: Center(child: arrow),
+              ),
+            );
+          },
         ),
       ),
     );
+  }
+
+  void _handlePointerDown(PointerDownEvent event) {
+    if (_activePointer != null) return;
+    _activePointer = event.pointer;
+    widget.onCommand(widget.command);
+  }
+
+  void _handlePointerUp(PointerUpEvent event) {
+    if (_activePointer != event.pointer) return;
+    _activePointer = null;
+    widget.onCommand(RoverMovementCommand.stop);
+  }
+
+  void _handlePointerCancel(PointerCancelEvent event) {
+    if (_activePointer != event.pointer) return;
+    _activePointer = null;
+    widget.onCommand(RoverMovementCommand.stop);
+  }
+
+  @override
+  void dispose() {
+    if (_activePointer != null) {
+      _activePointer = null;
+      widget.onCommand(RoverMovementCommand.stop);
+    }
+    super.dispose();
   }
 }

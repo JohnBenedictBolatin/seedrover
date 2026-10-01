@@ -6,7 +6,6 @@ enum NotificationCategory {
   planting,
   cropMonitoring,
   inventory,
-  battery,
   camera,
   userManagement;
 
@@ -17,7 +16,6 @@ enum NotificationCategory {
       NotificationCategory.planting => 'Planting',
       NotificationCategory.cropMonitoring => 'Crop Monitoring',
       NotificationCategory.inventory => 'Inventory',
-      NotificationCategory.battery => 'Battery',
       NotificationCategory.camera => 'Camera',
       NotificationCategory.userManagement => 'User Management',
     };
@@ -131,6 +129,7 @@ class SeedRoverNotification {
     required this.triggeredBy,
     required this.relatedModule,
     required this.actionRoute,
+    this.actorName,
     this.relatedId,
     this.relatedItem,
     this.isRead = false,
@@ -148,6 +147,7 @@ class SeedRoverNotification {
   final String? relatedId;
   final String? relatedItem;
   final String actionRoute;
+  final String? actorName;
   final bool isRead;
 
   SeedRoverNotification copyWith({
@@ -166,6 +166,7 @@ class SeedRoverNotification {
       relatedId: relatedId,
       relatedItem: relatedItem,
       actionRoute: actionRoute,
+      actorName: actorName,
       isRead: isRead ?? this.isRead,
     );
   }
@@ -193,8 +194,7 @@ String notificationRouteFor(SeedRoverNotification notification) {
         AppRoutes.rover,
         AppRoutes.plantingLogDetailsPath,
       ),
-    NotificationRelatedModule.users => _detailsOrList(
-        notification.relatedId, AppRoutes.profile, AppRoutes.userDetailsPath),
+    NotificationRelatedModule.users => AppRoutes.profile,
     NotificationRelatedModule.dashboard => AppRoutes.dashboard,
     NotificationRelatedModule.system => AppRoutes.notifications,
   };
@@ -219,6 +219,19 @@ String? _sanitizeNotificationRoute(String route) {
 
   if (normalized.isEmpty) {
     return null;
+  }
+
+  final parsed = Uri.tryParse(normalized);
+  if (parsed?.path == AppRoutes.crops) {
+    final cropId = parsed!.queryParameters['crop'];
+    final taskId = parsed.queryParameters['task'];
+    final uuid = RegExp(r'^[0-9a-fA-F-]{36}$');
+    if (cropId != null && uuid.hasMatch(cropId)) {
+      final base = AppRoutes.cropDetailsPath(cropId);
+      return taskId != null && uuid.hasMatch(taskId)
+          ? '$base?task=${Uri.encodeComponent(taskId)}'
+          : base;
+    }
   }
 
   final lower = normalized.toLowerCase();

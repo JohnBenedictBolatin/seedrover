@@ -13,7 +13,7 @@
 .eyebrow {
   margin: 0 0 8px;
   color: var(--green-accent);
-  font-size: 0.76rem;
+  font-size: 0.84rem;
   font-weight: 900;
   text-transform: uppercase;
 }
@@ -32,37 +32,77 @@
   padding: 22px;
 }
 
-.paymentSubtitle { margin: 8px 0 0; color: var(--text-secondary); font-size: 0.88rem; }
-.paymentCount { color: var(--green-accent); font-size: 0.8rem; font-weight: 900; }
+.paymentSubtitle { margin: 8px 0 0; color: var(--text-secondary); font-size: 0.97rem; }
+.paymentCount { color: var(--green-accent); font-size: 0.88rem; font-weight: 900; }
 .paymentForm { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: 12px; align-items: end; }
-.paymentField { display: grid; gap: 7px; color: var(--text-muted); font-size: 0.78rem; font-weight: 900; }
+.paymentField { display: grid; gap: 7px; color: var(--text-muted); font-size: 0.86rem; font-weight: 900; }
 .paymentField input { width: 100%; min-height: 44px; border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text); background: rgba(27, 27, 27, 0.55); padding: 0 12px; }
 .paymentField input:focus { border-color: var(--green-accent); outline: 2px solid rgba(141, 255, 42, 0.12); }
-.paymentPrimaryButton, .paymentMarkButton { min-height: 40px; border: 1px solid rgba(141, 255, 42, 0.35); border-radius: 8px; color: #132313; background: var(--green-accent); font-size: 0.72rem; font-weight: 900; cursor: pointer; padding: 0 14px; white-space: nowrap; }
-.paymentPrimaryButton:hover, .paymentMarkButton:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.paymentPrimaryButton, .paymentMarkButton {
+  position: relative;
+  min-height: 44px;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(141, 255, 42, 0.34);
+  border-radius: 8px;
+  color: #eff8e7;
+  background: linear-gradient(135deg, rgba(83, 209, 30, 0.18), rgba(108, 235, 49, 0.12));
+  cursor: pointer;
+  font-size: 0.79rem;
+  font-weight: 900;
+  isolation: isolate;
+  padding: 0 14px;
+  transition: border-color 180ms ease, color 180ms ease, background 180ms ease, transform 180ms ease, box-shadow 220ms ease;
+}
+.paymentPrimaryButton > span, .paymentMarkButton > span { position: relative; z-index: 1; }
+.paymentPrimaryButton::before, .paymentMarkButton::before,
+.paymentPrimaryButton::after, .paymentMarkButton::after { content: ""; position: absolute; z-index: 0; border-radius: 50%; transform: translateX(-50%) scaleY(1) scaleX(1.25); transition: all 0.5s 0.08s cubic-bezier(0.55, 0, 0.1, 1); }
+.paymentPrimaryButton::before, .paymentMarkButton::before { left: 50%; top: 105%; width: 140%; height: 180%; background: rgba(141, 255, 42, 0.12); }
+.paymentPrimaryButton::after, .paymentMarkButton::after { left: 55%; top: 180%; width: 160%; height: 190%; background: linear-gradient(135deg, var(--green-accent), var(--green)); transform: translateX(-50%) scaleY(1) scaleX(1.45); transition-delay: 0.1s; }
+.paymentPrimaryButton:hover:not(:disabled), .paymentMarkButton:hover:not(:disabled) { border-color: rgba(141, 255, 42, 0.68); color: #102006; transform: translateY(-1px); }
+.paymentPrimaryButton:hover:not(:disabled)::before, .paymentMarkButton:hover:not(:disabled)::before { top: -35%; background: rgba(141, 255, 42, 0.4); transform: translateX(-50%) scaleY(1.3) scaleX(0.8); }
+.paymentPrimaryButton:hover:not(:disabled)::after, .paymentMarkButton:hover:not(:disabled)::after { top: -45%; transform: translateX(-50%) scaleY(1.3) scaleX(0.8); }
+.paymentPrimaryButton:active:not(:disabled), .paymentMarkButton:active:not(:disabled) { transform: translateY(0); }
 .paymentTable { display: grid; gap: 8px; overflow-x: auto; }
-.paymentTableHeader, .paymentRow { display: grid; min-width: 720px; grid-template-columns: minmax(180px, 1.35fr) minmax(120px, .78fr) minmax(135px, .85fr) minmax(105px, .68fr) 116px; gap: 14px; align-items: center; }
-.paymentTableHeader { color: var(--text-muted); font-size: 0.7rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; padding: 0 14px 4px; }
-.paymentTableHeader > span:last-child { text-align: right; }
-.paymentTableHeader > span:nth-child(2) { text-align: right; }
-.paymentRow { min-height: 58px; border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; background: rgba(34,34,34,0.78); color: var(--text-secondary); font-size: 0.84rem; padding: 9px 14px; }
+.paymentTableHeader, .paymentRow { display: grid; min-width: 780px; grid-template-columns: minmax(200px, 1.35fr) 140px 155px 120px 128px; column-gap: 20px; align-items: center; }
+.paymentTableHeader { color: var(--text-muted); font-size: 0.77rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; padding: 0 14px 4px; }
+.paymentTableHeader > span { min-width: 0; }
+.paymentTableHeader > span:last-child { justify-self: end; text-align: right; }
+.paymentTableHeader > span:nth-child(2) { justify-self: end; text-align: right; }
+.paymentRow { min-height: 58px; border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; background: rgba(34,34,34,0.78); color: var(--text-secondary); font-size: 0.92rem; padding: 9px 14px; }
 .paymentRow strong, .paymentAmount { color: var(--text); }
 .paymentAmount { justify-self: end; font-family: var(--font-roboto-mono); font-weight: 900; text-align: right; }
 .paymentDate { font-family: var(--font-roboto-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .paymentStatusCell { display: flex; align-items: center; }
-.paymentStatus { width: max-content; border-radius: 999px; padding: 5px 9px; font-size: 0.68rem; font-weight: 900; }
+.paymentStatus { width: max-content; border-radius: 999px; padding: 5px 9px; font-size: 0.75rem; font-weight: 900; }
 .paymentStatus[data-status="pending"] { color: var(--warning); background: rgba(255,176,0,0.1); }
 .paymentStatus[data-status="overdue"] { color: #ff8585; background: rgba(255,87,87,0.1); }
 .paymentStatus[data-status="paid"] { color: var(--green-accent); background: rgba(83,209,30,0.1); }
 .paymentActionCell { display: flex; justify-content: flex-end; }
-.paymentComplete { color: var(--green-accent); font-size: 0.72rem; font-weight: 900; text-align: right; }
+.paymentComplete { color: var(--green-accent); font-size: 0.79rem; font-weight: 900; text-align: right; }
 .paymentEmpty { border: 1px dashed var(--border-soft); border-radius: 8px; color: var(--text-secondary); padding: 24px; text-align: center; }
+.paymentDetailsButton { min-height: 40px; width: 100%; border: 1px solid var(--border-soft); border-radius: 8px; color: var(--green-accent); background: transparent; cursor: pointer; font-size: 0.95rem; font-weight: 900; transition: border-color 180ms ease, color 180ms ease, background 180ms ease, transform 180ms ease; }
+.paymentDetailsButton:hover { border-color: var(--green-accent); color: var(--text); background: rgba(141,255,42,0.1); transform: translateY(-1px); }
+.legacyPaymentSection { display: grid; gap: 12px; border-top: 1px solid var(--border-soft); padding-top: 16px; }
+.legacyPaymentSection h3 { margin: 0; }
+.recordedPaymentReceipt { width: 100%; min-height: 54px; margin-top: 4px; cursor: pointer; text-decoration: none; }
 
 :global(html[data-theme="light"]) .paymentPanel { background: rgba(255,255,255,0.86); }
 :global(html[data-theme="light"]) .paymentField input { border-color: rgba(18,60,27,0.22); color: #123c1b; background: #fff; }
 :global(html[data-theme="light"]) .paymentRow { border-color: rgba(18,60,27,0.12); color: rgba(18,60,27,0.72); background: #f9fcf7; }
 :global(html[data-theme="light"]) .paymentRow strong, :global(html[data-theme="light"]) .paymentAmount { color: #123c1b; }
-:global(html[data-theme="light"]) .paymentPrimaryButton, :global(html[data-theme="light"]) .paymentMarkButton { color: #ffffff; }
+:global(html[data-theme="light"]) .paymentPrimaryButton, :global(html[data-theme="light"]) .paymentMarkButton {
+  border-color: rgba(18, 60, 27, 0.34);
+  color: #102006;
+  background: linear-gradient(135deg, rgba(18, 60, 27, 0.06), rgba(83, 209, 30, 0.04));
+}
+:global(html[data-theme="light"]) .paymentPrimaryButton:hover:not(:disabled), :global(html[data-theme="light"]) .paymentMarkButton:hover:not(:disabled) { color: #ffffff; }
+:global(html[data-theme="light"]) .paymentPrimaryButton:disabled, :global(html[data-theme="light"]) .paymentMarkButton:disabled { border-color: rgba(18, 60, 27, 0.18); color: rgba(18, 60, 27, 0.48); background: rgba(18, 60, 27, 0.06); }
+:global(html[data-theme="light"]) .paymentDetailsButton { border-color: rgba(18,60,27,0.22); color: #176b25; }
+:global(html[data-theme="light"]) .paymentDetailsButton:hover { color: #123c1b; background: rgba(83,209,30,0.1); }
 
 @media (max-width: 1100px) { .paymentForm { grid-template-columns: repeat(2, minmax(0, 1fr)); } .paymentPrimaryButton { width: max-content; } }
 @media (max-width: 720px) {
@@ -70,7 +110,7 @@
   .paymentTableHeader { display: none; }
   .paymentRow { min-width: 0; grid-template-columns: 1fr 1fr; align-items: start; gap: 12px 16px; padding: 14px; }
   .paymentRow > strong, .paymentRow > span, .paymentStatusCell, .paymentActionCell { display: grid; justify-content: stretch; gap: 4px; }
-  .paymentRow > strong::before, .paymentRow > span::before, .paymentStatusCell::before, .paymentActionCell::before { content: attr(data-label); color: var(--text-muted); font-size: .66rem; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }
+  .paymentRow > strong::before, .paymentRow > span::before, .paymentStatusCell::before, .paymentActionCell::before { content: attr(data-label); color: var(--text-muted); font-size: 0.73rem; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }
   .paymentStatus { justify-self: start; }
   .paymentAmount { justify-self: stretch; text-align: left; }
   .paymentActionCell { grid-column: 1 / -1; grid-template-columns: 1fr auto; align-items: center; border-top: 1px solid var(--border-soft); padding-top: 10px; }
@@ -78,7 +118,7 @@
 }
 
 .header h1 {
-  font-size: clamp(2rem, 4vw, 3.3rem);
+  font-size: clamp(2.2rem, 4.4vw, 3.63rem);
   line-height: 1.04;
 }
 
@@ -97,14 +137,14 @@
 .liveDateTime p {
   margin: 0 0 6px;
   color: var(--text-muted);
-  font-size: 1rem;
+  font-size: 1.1rem;
   font-weight: 800;
 }
 
 .liveDateTime strong {
   color: var(--green-accent);
   font-family: var(--font-roboto-mono);
-  font-size: 1.34rem;
+  font-size: 1.47rem;
   font-weight: 900;
 }
 
@@ -166,7 +206,7 @@
 .metric p {
   margin: 0;
   color: var(--text-muted);
-  font-size: 0.98rem;
+  font-size: 1.08rem;
   font-weight: 800;
 }
 
@@ -174,7 +214,7 @@
   overflow: hidden;
   color: var(--text);
   font-family: var(--font-roboto-mono);
-  font-size: clamp(1.85rem, 2.2vw, 2.35rem);
+  font-size: clamp(2.04rem, 2.42vw, 2.59rem);
   line-height: 1.05;
   text-align: right;
   text-overflow: ellipsis;
@@ -301,7 +341,7 @@
   justify-content: center;
   padding: 0 8px;
   color: var(--green-accent);
-  font-size: 0.84rem;
+  font-size: 0.92rem;
   font-weight: 900;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -344,6 +384,14 @@
   gap: 14px;
 }
 
+.sectionHint {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
 .exportActions {
   display: flex;
   flex-wrap: wrap;
@@ -381,7 +429,7 @@
   display: grid;
   gap: 7px;
   color: var(--text-secondary);
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   font-weight: 900;
 }
 
@@ -469,7 +517,7 @@
 
 .themedSelectLabel {
   color: var(--text-muted);
-  font-size: 0.72rem;
+  font-size: 0.79rem;
   font-weight: 900;
   text-transform: uppercase;
 }
@@ -524,7 +572,7 @@
   background: transparent;
   cursor: pointer;
   font: inherit;
-  font-size: 0.9rem;
+  font-size: 0.99rem;
   padding: 0 10px;
   text-align: left;
 }
@@ -565,26 +613,30 @@
 .customerRow {
   display: grid;
   grid-template-columns:
-    minmax(170px, 1.05fr)
-    minmax(200px, 1.15fr)
-    minmax(140px, .8fr)
-    70px
-    140px
-    minmax(200px, 1.15fr)
-    minmax(150px, .9fr)
-    54px;
-  column-gap: 16px;
+    minmax(260px, 1.6fr)
+    minmax(220px, 1.25fr)
+    90px
+    150px
+    minmax(230px, 1.25fr)
+    minmax(170px, 1fr)
+    76px;
+  column-gap: 24px;
   row-gap: 16px;
   align-items: center;
-  min-width: 1240px;
+  min-width: 1340px;
 }
 
 .customerTableHead {
   color: var(--text-muted);
-  font-size: 0.74rem;
+  font-size: 0.81rem;
   font-weight: 950;
   text-transform: uppercase;
   padding: 0 14px;
+}
+
+.customerTableHead > span,
+.customerRow > * {
+  min-width: 0;
 }
 
 .customerRow {
@@ -630,13 +682,12 @@
 .contactCell span {
   overflow: hidden;
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.typeCell,
 .paymentCell {
   min-width: 0;
   overflow: hidden;
@@ -656,7 +707,7 @@
 .dateCell {
   overflow: hidden;
   color: var(--text);
-  font-size: 0.86rem;
+  font-size: 0.95rem;
   min-width: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -694,7 +745,7 @@
   border-radius: 999px;
   color: var(--green-accent);
   background: rgba(141, 255, 42, 0.06);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 900;
   padding: 3px 7px;
 }
@@ -725,12 +776,12 @@
   background: rgba(141, 255, 42, 0.09);
 }
 
-.customerTableHead span:nth-child(4),
-.customerTableHead span:nth-child(8) {
+.customerTableHead span:nth-child(3),
+.customerTableHead span:nth-child(7) {
   text-align: center;
 }
 
-.customerTableHead span:nth-child(5) {
+.customerTableHead span:nth-child(4) {
   justify-self: end;
   text-align: right;
 }
@@ -740,7 +791,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
-  min-width: 1240px;
+  min-width: 1340px;
   padding: 6px 2px 0;
 }
 
@@ -756,7 +807,7 @@
   background: rgba(255, 255, 255, 0.03);
   cursor: pointer;
   font-family: var(--font-roboto-mono);
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   font-weight: 900;
   transition:
     border-color 0.2s ease,
@@ -793,6 +844,7 @@
   backdrop-filter: none;
   padding: 24px;
 }
+.secondaryModalBackdrop { z-index: var(--dialog-popover-layer) !important; background: var(--dialog-backdrop-color) !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 
 .modal {
   display: grid;
@@ -835,11 +887,22 @@
   color: var(--text-secondary);
   background: transparent;
   cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    color 180ms ease,
+    background 180ms ease,
+    transform 180ms ease;
 }
 
 .modalHeader button:hover {
+  border-color: rgba(255, 59, 48, 0.34);
   color: var(--danger);
   background: rgba(255, 59, 48, 0.1);
+  transform: translateY(-1px);
+}
+
+.modalHeader button:active {
+  transform: translateY(0);
 }
 
 .detailGrid {
@@ -873,14 +936,14 @@
 
 .customerHero p {
   color: var(--green-accent);
-  font-size: 0.72rem;
+  font-size: 0.79rem;
   font-weight: 950;
   text-transform: uppercase;
 }
 
 .customerHero h2 {
   margin-top: 5px;
-  font-size: 1.55rem;
+  font-size: 1.71rem;
 }
 
 .customerHero span {
@@ -893,7 +956,7 @@
 .customerHero > strong {
   color: var(--text);
   font-family: var(--font-roboto-mono);
-  font-size: 1.25rem;
+  font-size: 1.38rem;
   white-space: nowrap;
 }
 
@@ -913,14 +976,14 @@
 
 .detailStats span {
   color: var(--text-muted);
-  font-size: 0.72rem;
+  font-size: 0.79rem;
   font-weight: 900;
   text-transform: uppercase;
 }
 
 .detailStats strong {
   color: var(--text);
-  font-size: 0.88rem;
+  font-size: 0.97rem;
 }
 
 .profileForm {
@@ -928,12 +991,42 @@
   gap: 12px;
 }
 
+.customerInfoNote {
+  display: grid;
+  gap: 5px;
+  border: 1px solid rgba(141, 255, 42, 0.18);
+  border-radius: 8px;
+  background: rgba(141, 255, 42, 0.06);
+  padding: 12px;
+}
+
+.customerInfoNote strong {
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.customerInfoNote span {
+  color: var(--text-secondary);
+  font-weight: 900;
+}
+
+.customerInfoNote small,
+.profileHint {
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.profileHint {
+  margin: 2px 0 0;
+}
+
 .profileForm label,
 .formSelectLabel {
   display: grid;
   gap: 7px;
   color: var(--text-muted);
-  font-size: 0.74rem;
+  font-size: 0.81rem;
   font-weight: 900;
   text-transform: uppercase;
 }
@@ -946,7 +1039,7 @@
   color: var(--text);
   background: rgba(27, 27, 27, 0.42);
   font: inherit;
-  font-size: 0.9rem;
+  font-size: 0.99rem;
   font-weight: 800;
   outline: 0;
   padding: 11px 12px;
@@ -1016,7 +1109,7 @@
 }
 
 .profileForm button[type="submit"]:hover:not(:disabled),
-.primaryButton:hover {
+.primaryButton:hover:not(:disabled) {
   color: #102006;
   border-color: rgba(141, 255, 42, 0.68);
   box-shadow:
@@ -1026,20 +1119,20 @@
 }
 
 .profileForm button[type="submit"]:hover:not(:disabled)::before,
-.primaryButton:hover::before {
+.primaryButton:hover:not(:disabled)::before {
   top: -35%;
   background: rgba(141, 255, 42, 0.4);
   transform: translateX(-50%) scaleY(1.3) scaleX(0.8);
 }
 
 .profileForm button[type="submit"]:hover:not(:disabled)::after,
-.primaryButton:hover::after {
+.primaryButton:hover:not(:disabled)::after {
   top: -45%;
   transform: translateX(-50%) scaleY(1.3) scaleX(0.8);
 }
 
 .profileForm button[type="submit"]:active:not(:disabled),
-.primaryButton:active {
+.primaryButton:active:not(:disabled) {
   transform: translateY(0);
 }
 
@@ -1101,17 +1194,22 @@
     minmax(115px, .65fr)
     minmax(205px, 1.1fr)
     minmax(130px, .72fr);
-  min-width: 860px;
+  min-width: 920px;
   align-items: center;
-  column-gap: 16px;
+  column-gap: 20px;
 }
 
 .discountListHead {
   color: var(--text-muted);
-  font-size: 0.74rem;
+  font-size: 0.81rem;
   font-weight: 950;
   padding: 0 14px;
   text-transform: uppercase;
+}
+
+.discountListHead > span,
+.discountListRow > * {
+  min-width: 0;
 }
 
 .discountListRow {
@@ -1134,7 +1232,7 @@
 .discountListRow > strong {
   color: var(--text-secondary);
   font-family: var(--font-roboto-mono);
-  font-size: 0.92rem;
+  font-size: 1.01rem;
 }
 
 .discountListRow > span:nth-child(2) {
@@ -1146,7 +1244,7 @@
 .discountListRow > span:nth-child(4) {
   color: var(--text);
   font-family: var(--font-roboto-mono);
-  font-size: 0.86rem;
+  font-size: 0.95rem;
 }
 
 .discountListHead > span:nth-child(3),
@@ -1161,7 +1259,7 @@
   border-radius: 999px;
   color: var(--text-secondary);
   background: rgba(255, 255, 255, 0.07);
-  font-size: 0.72rem;
+  font-size: 0.79rem;
   font-weight: 950;
   padding: 5px 9px;
 }
@@ -1193,7 +1291,7 @@
   display: grid;
   gap: 7px;
   color: var(--text-muted);
-  font-size: 0.74rem;
+  font-size: 0.81rem;
   font-weight: 900;
   text-transform: uppercase;
 }
@@ -1206,7 +1304,7 @@
   color: var(--text);
   background: rgba(27, 27, 27, 0.42);
   font: inherit;
-  font-size: 0.9rem;
+  font-size: 0.99rem;
   font-weight: 800;
   outline: 0;
   padding: 11px 12px;
@@ -1242,11 +1340,18 @@
   border: 1px solid var(--border-soft);
   color: var(--text-secondary);
   background: transparent;
+  transition: border-color 180ms ease, color 180ms ease, background 180ms ease, transform 180ms ease;
 }
 
 .secondaryButton:hover {
+  border-color: var(--green-accent);
   color: var(--text);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(141, 255, 42, 0.08);
+  transform: translateY(-1px);
+}
+
+.secondaryButton:active {
+  transform: translateY(0);
 }
 
 .couponCanvas {
@@ -1359,7 +1464,7 @@
   align-items: center;
   gap: 8px;
   color: #fff;
-  font-size: 0.88rem;
+  font-size: 0.97rem;
   font-weight: 950;
 }
 
@@ -1373,7 +1478,7 @@
   border: 1px solid rgba(141, 255, 42, 0.44);
   border-radius: 999px;
   color: var(--coupon-accent);
-  font-size: 0.62rem;
+  font-size: 0.68rem;
   font-weight: 900;
   letter-spacing: 0.14em;
   padding: 5px 9px;
@@ -1385,14 +1490,14 @@
   background-clip: text;
   color: transparent;
   font-family: var(--font-roboto-mono);
-  font-size: clamp(2rem, 5vw, 3rem);
+  font-size: clamp(2.2rem, 5.5vw, 3.3rem);
   font-weight: 950;
   line-height: 1;
 }
 
 .couponSubtitle {
   color: var(--coupon-text-muted);
-  font-size: 0.84rem;
+  font-size: 0.92rem;
   font-weight: 800;
   margin: 8px 0 24px;
 }
@@ -1411,7 +1516,7 @@
 
 .couponDetails span {
   color: var(--coupon-text-muted);
-  font-size: 0.64rem;
+  font-size: 0.7rem;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1420,7 +1525,7 @@
 .couponDetails strong {
   overflow: hidden;
   color: var(--coupon-text-main);
-  font-size: 0.9rem;
+  font-size: 0.99rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1488,7 +1593,7 @@
   margin: 7px 0 0;
   color: var(--coupon-text-muted);
   font-family: var(--font-roboto-mono);
-  font-size: 0.7rem;
+  font-size: 0.77rem;
   font-weight: 800;
   letter-spacing: 0.16em;
 }
@@ -1502,7 +1607,7 @@
 
 .couponValue span {
   color: var(--coupon-text-muted);
-  font-size: 0.64rem;
+  font-size: 0.7rem;
   font-weight: 900;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1511,7 +1616,7 @@
 .couponValue strong {
   color: var(--coupon-accent);
   font-family: var(--font-roboto-mono);
-  font-size: 1.6rem;
+  font-size: 1.76rem;
   line-height: 1;
   text-shadow: 0 0 15px var(--coupon-accent-glow);
 }
@@ -1539,7 +1644,7 @@
 .formMessage {
   margin: 0;
   color: var(--green-accent);
-  font-size: 0.84rem;
+  font-size: 0.92rem;
   font-weight: 900;
 }
 
@@ -1582,7 +1687,7 @@
 .receiptList span,
 .receiptList small {
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   font-weight: 800;
 }
 
@@ -2029,20 +2134,73 @@
     width: 100%;
   }
 
+  .customerTable,
   .discountListTable {
     overflow: visible;
   }
 
+  .customerTableHead,
   .discountListHead {
     display: none;
   }
 
+  .customerRow,
   .discountListRow {
     min-width: 0;
     grid-template-columns: 1fr 1fr;
     align-items: start;
     gap: 12px 16px;
     padding: 14px;
+  }
+
+  .customerRow > strong,
+  .customerRow > span,
+  .customerIdentity,
+  .contactCell,
+  .tableActions {
+    display: grid;
+    justify-content: stretch;
+    gap: 4px;
+    overflow: visible;
+    text-align: left;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .customerRow > strong::before,
+  .customerRow > span::before,
+  .customerIdentity::before,
+  .contactCell::before,
+  .tableActions::before {
+    content: attr(data-label);
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: 0.73rem;
+    font-weight: 900;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+
+  .receiptsCell,
+  .totalCell {
+    justify-self: stretch;
+    text-align: left;
+  }
+
+  .tableActions {
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    border-top: 1px solid var(--border-soft);
+    padding-top: 10px;
+  }
+
+  .tableActions button {
+    justify-self: end;
+  }
+
+  .paginationBar {
+    min-width: 0;
   }
 
   .discountListRow > strong,
@@ -2061,7 +2219,7 @@
     content: attr(data-label);
     color: var(--text-muted);
     font-family: inherit;
-    font-size: .66rem;
+    font-size: 0.73rem;
     font-weight: 900;
     letter-spacing: .04em;
     text-transform: uppercase;

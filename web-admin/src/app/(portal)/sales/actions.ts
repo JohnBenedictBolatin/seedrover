@@ -3,6 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { requireAdminRole } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { writeActivityLog } from "@/lib/activity-log";
+import { normalizeContactNumber } from "@/lib/contact-number.mjs";
+import { parseDatabaseDecimal } from "@/lib/field-validation.mjs";
 
 export type SalesFormState = {
   message: string;
@@ -16,11 +19,10 @@ type SubmittedItem = {
   unit_price: number;
 };
 
-const paymentMethods = new Set(["Cash", "GCash", "Bank Transfer", "Card", "Installment", "Other"]);
+const paymentMethods = new Set(["Cash", "GCash", "Bank Transfer", "Card", "Other"]);
 
-function parseNumber(value: FormDataEntryValue | null) {
-  const parsed = Number(String(value ?? "").trim());
-  return Number.isFinite(parsed) ? parsed : 0;
+function parseNumber(value: FormDataEntryValue | null, label: string) {
+  return parseDatabaseDecimal(value, label);
 }
 
 function text(formData: FormData, key: string, fallback = "") {
@@ -60,8 +62,9 @@ export async function recordSalesOrderAction(
   _state: SalesFormState,
   formData: FormData,
 ): Promise<SalesFormState> {
+  let adminProfile: Awaited<ReturnType<typeof requireAdminRole>>;
   try {
-    await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
+    adminProfile = await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
   } catch (error) {
     return {
       message:
@@ -81,22 +84,81 @@ export async function recordSalesOrderAction(
   const quantities = formData.getAll("quantity");
   const unitPrices = formData.getAll("unit_price");
 
-  const items: SubmittedItem[] = inventoryIds
-    .map((inventoryId, index) => ({
+  let items: SubmittedItem[];
+  try {
+    items = inventoryIds.map((inventoryId, index) => ({
       inventory_id: inventoryId,
-      quantity: parseNumber(quantities[index] ?? null),
-      unit_price: parseNumber(unitPrices[index] ?? null),
-    }))
-    .filter((item) => item.inventory_id && item.quantity > 0);
+      quantity: parseNumber(quantities[index] ?? null, "Quantity"),
+      unit_price: parseNumber(unitPrices[index] ?? null, "Unit price"),
+    }));
+  } catch (error) {
+    return { message: error instanceof Error ? error.message : "Enter valid sale quantities." };
+  }
+  items = items.filter((item) => item.inventory_id && item.quantity > 0);
 
   if (items.length === 0) {
     return { message: "Add at least one item with a valid quantity." };
   }
+  if (new Set(items.map((item) => item.inventory_id)).size !== items.length) {
+    return { message: "Choose each inventory item only once in a sale." };
+  }
 
   const discountCode = text(formData, "discount_code").toUpperCase();
+  const customerMode = text(formData, "customer_mode", "new");
+  if (customerMode !== "new" && customerMode !== "existing") {
+    return { message: "Select whether this is a new or existing customer." };
+  }
+  const customerName = customerMode === "existing"
+    ? text(formData, "existing_customer_name")
+    : [
+        text(formData, "customer_first_name"),
+        text(formData, "customer_middle_initial").replace(/[^a-z]/gi, "").slice(0, 1).toUpperCase(),
+        text(formData, "customer_last_name"),
+      ].filter(Boolean).join(" ");
+  const submittedCustomerContact = text(formData, "customer_contact");
+  let customerContact: string;
+  try {
+    customerContact = normalizeContactNumber(submittedCustomerContact, { required: true })!;
+  } catch (error) {
+    return { message: error instanceof Error ? error.message : "Enter an 11-digit contact number." };
+  }
+  const selectedCustomerId = text(formData, "existing_customer_id") || null;
+  if (customerMode === "existing") {
+    const customerKey = text(formData, "existing_customer_key");
+    if (!customerKey || !customerName) {
+      return { message: "Select an existing customer for this receipt." };
+    }
+    const [orderMatch, marketMatch] = await Promise.all([
+      selectedCustomerId
+        ? supabase.from("sales_orders").select("customer_id, customer_name").eq("status", "Completed").eq("customer_id", selectedCustomerId)
+            .returns<Array<{ customer_id: string | null; customer_name: string | null }>>()
+        : supabase.from("sales_orders").select("customer_id, customer_name").eq("status", "Completed").eq("customer_contact", submittedCustomerContact)
+            .returns<Array<{ customer_id: string | null; customer_name: string | null }>>(),
+      supabase
+        .from("sales_transactions")
+        .select("customer_id, customer_name")
+        .eq("status", "Completed")
+        .eq("customer_contact", submittedCustomerContact)
+        .returns<Array<{ customer_id: string | null; customer_name: string | null }>>(),
+    ]);
+    if (orderMatch.error || marketMatch.error) {
+      return { message: orderMatch.error?.message ?? marketMatch.error?.message ?? "Unable to verify the selected customer." };
+    }
+    const normalizedName = customerName.toLowerCase().replace(/\s+/g, " ").trim();
+    const wasCustomerSoldTo = [...(orderMatch.data ?? []), ...(marketMatch.data ?? [])].some(
+      (record) => record.customer_name?.toLowerCase().replace(/\s+/g, " ").trim() === normalizedName,
+    );
+    if (!wasCustomerSoldTo) {
+      return { message: "The selected customer is no longer available. Refresh the page and select them again." };
+    }
+  }
   const paymentMethod = text(formData, "payment_method", "Cash");
   const transactionReference = text(formData, "transaction_reference");
   const otherPaymentMethod = text(formData, "other_payment_method");
+
+  if (!customerName) {
+    return { message: "Customer name is required." };
+  }
 
   if (!paymentMethods.has(paymentMethod)) {
     return { message: "Select a valid payment method." };
@@ -112,20 +174,46 @@ export async function recordSalesOrderAction(
     }
   }
 
-  const { data: inventoryUnits } = await supabase
+  const { data: inventoryRows } = await supabase
     .from("inventory")
-    .select("id, unit")
+    .select("id, unit, selling_price")
     .in("id", items.map((item) => item.inventory_id));
-  const unitsById = new Map((inventoryUnits ?? []).map((item) => [item.id, item.unit]));
+  const inventoryById = new Map((inventoryRows ?? []).map((item) => [item.id, item]));
   for (const item of items) {
-    const unit = unitsById.get(item.inventory_id) ?? "kg";
+    const inventory = inventoryById.get(item.inventory_id);
+    if (!inventory) {
+      return { message: "One of the selected inventory items is no longer available." };
+    }
+
+    const unit = inventory.unit ?? "kg";
     if (unit !== "kg") {
       return { message: "Inventory quantities must use kg as the unit." };
     }
+
+    item.unit_price = Number(inventory.selling_price ?? 0);
   }
+
+  let expectedSaleTotal = items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
 
   if (discountCode && !/^[A-Z0-9_-]{3,32}$/.test(discountCode)) {
     return { message: "Discount code format is invalid." };
+  }
+
+  if (discountCode) {
+    const { data: discount, error: discountError } = await supabase
+      .from("customer_discounts")
+      .select("discount_type, discount_value")
+      .eq("discount_code", discountCode)
+      .eq("status", "Released")
+      .maybeSingle();
+    if (discountError) return { message: discountError.message };
+    if (discount) {
+      const value = Number(discount.discount_value);
+      const amount = discount.discount_type === "Amount"
+        ? Math.min(value, expectedSaleTotal)
+        : expectedSaleTotal * Math.min(value, 100) / 100;
+      expectedSaleTotal = Math.max(expectedSaleTotal - amount, 0);
+    }
   }
 
   if (paymentMethod === "Other" && !otherPaymentMethod) {
@@ -133,37 +221,39 @@ export async function recordSalesOrderAction(
   }
 
   if (paymentMethod !== "Cash" && !transactionReference) {
-    if (paymentMethod === "Installment") {
-      // Installment plans do not require a payment transaction reference.
-    } else {
     return { message: "Transaction ID is required for non-cash sales." };
-    }
   }
-
-  const installmentTerms = text(formData, "installment_terms");
-  const installmentDueDate = text(formData, "installment_due_date");
-  if (paymentMethod === "Installment" && (!installmentTerms || !installmentDueDate)) {
-    return { message: "Installment terms and the next payment due date are required." };
+  const amountPaidRaw = text(formData, "amount_paid");
+  let amountPaid: number | null;
+  try {
+    amountPaid = amountPaidRaw
+      ? parseNumber(formData.get("amount_paid"), "Amount paid")
+      : null;
+  } catch (error) {
+    return { message: error instanceof Error ? error.message : "Enter valid payment amounts." };
+  }
+  if (amountPaid !== null && amountPaid < 0) {
+    return { message: "Amount paid cannot be negative." };
+  }
+  if (paymentMethod !== "Cash" && amountPaid !== null && amountPaid > expectedSaleTotal) {
+    return { message: "Non-cash payment cannot exceed the sale total." };
   }
 
   const payload = {
-    p_customer_name: String(formData.get("customer_name") ?? ""),
-    p_customer_contact: String(formData.get("customer_contact") ?? ""),
-    p_payment_method: paymentMethod === "Installment" ? "Other" : paymentMethod,
+    p_customer_name: customerName,
+    p_customer_contact: customerContact,
+    p_payment_method: paymentMethod,
     p_transaction_reference: transactionReference,
-    p_other_payment_method: paymentMethod === "Installment" ? "Installment" : otherPaymentMethod,
+    p_other_payment_method: otherPaymentMethod || null,
     p_discount_type: "None",
     p_discount_value: 0,
     p_discount_code: discountCode,
-    p_amount_paid:
-      String(formData.get("amount_paid") ?? "").trim() === ""
-        ? null
-        : parseNumber(formData.get("amount_paid")),
+    p_amount_paid: amountPaid,
     p_remarks: String(formData.get("remarks") ?? ""),
     p_items: items,
   };
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .rpc("record_sales_order", payload)
     .single<{ id: string; receipt_number: string }>();
 
@@ -174,63 +264,55 @@ export async function recordSalesOrderAction(
       !error.message.includes("p_transaction_reference") &&
       !error.message.includes("p_other_payment_method")
     ) {
-      const {
-        p_discount_code: _unusedDiscountCode,
-        p_transaction_reference: _unusedTransactionReference,
-        p_other_payment_method: _unusedOtherPaymentMethod,
-        ...legacyPayload
-      } = payload;
+      const legacyPayload = Object.fromEntries(
+        Object.entries(payload).filter(
+          ([key]) =>
+            ![
+              "p_discount_code",
+              "p_transaction_reference",
+              "p_other_payment_method",
+            ].includes(key),
+        ),
+      );
       const fallback = await supabase
         .rpc("record_sales_order", legacyPayload)
         .single<{ id: string; receipt_number: string }>();
 
       if (!fallback.error) {
-        revalidatePath("/sales");
-        revalidatePath("/inventory");
-        revalidatePath("/customers");
-        revalidatePath("/dashboard");
-
-        return {
-          message: `Receipt ${fallback.data.receipt_number} recorded.`,
-          receiptId: fallback.data.id,
-          receiptNumber: fallback.data.receipt_number,
-        };
+        data = fallback.data;
+        error = null;
       }
     }
 
-    if (needsDiscountMigration(error.message)) {
+    if (error && needsDiscountMigration(error.message)) {
       return {
         message:
           "Sales database is not fully upgraded yet. Apply the latest Supabase migration before using discount codes or transaction IDs.",
       };
     }
 
-    return { message: error.message };
+    if (error) {
+      return { message: error.message };
+    }
+  }
+
+  if (!data) {
+    return { message: "The sale could not be recorded. Please try again." };
+  }
+
+  if (discountCode) {
+    await writeActivityLog(supabase, {
+      userId: adminProfile.id,
+      activity: "Discount applied",
+      description: `${discountCode} was applied to receipt ${data.receipt_number} for ${customerName}.`,
+      module: "Sales",
+    });
   }
 
   revalidatePath("/sales");
   revalidatePath("/inventory");
   revalidatePath("/customers");
   revalidatePath("/dashboard");
-
-  if (paymentMethod === "Installment") {
-    const { data: order } = await supabase
-      .from("sales_orders")
-      .select("total_amount")
-      .eq("id", data.id)
-      .single<{ total_amount: number | string }>();
-    const balance = Number(order?.total_amount ?? 0) - (payload.p_amount_paid ?? 0);
-    if (balance > 0) {
-      await supabase.from("customer_payments").insert({
-        customer_key: payload.p_customer_name.trim().toLowerCase(),
-        customer_name: payload.p_customer_name.trim() || "Walk-in customer",
-        sale_reference: data.receipt_number,
-        amount: balance,
-        due_date: installmentDueDate,
-        notes: installmentTerms,
-      });
-    }
-  }
 
   return {
     message: `Receipt ${data.receipt_number} recorded.`,
@@ -240,7 +322,17 @@ export async function recordSalesOrderAction(
 }
 
 export async function voidSalesRecordAction(formData: FormData) {
-  await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
+  const profile = await requireAdminRole([
+    "System Administrator",
+    "Farm Inventory Manager",
+  ]);
+  if (
+    !["System Administrator", "Farm Inventory Manager"].includes(
+      profile.roleName,
+    )
+  ) {
+    throw new Error("Only an administrator or inventory manager can void sales.");
+  }
 
   const supabase = await createSupabaseServerClient();
 

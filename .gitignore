@@ -1,5 +1,6 @@
 # Miscellaneous
 .env
+/.env.mobile.json
 *.class
 *.log
 *.pyc
@@ -15,6 +16,7 @@ migrate_working_dir/
 supabase/.temp/
 /tmp/node-runtime/
 /tmp/node-*.zip
+/tmp/imagegen/
 
 # Next.js
 **/node_modules/
@@ -55,7 +57,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+/android/app/google-services.json
 # ESP32 provisioning and local firmware secrets
 firmware/**/secrets.h
 firmware/**/credentials.h
+firmware/**/camera_secrets.h
 firmware/**/.env

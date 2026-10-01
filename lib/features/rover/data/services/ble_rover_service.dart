@@ -25,7 +25,10 @@ class BleRoverService {
   Future<void> connect() async {
     if (isConnected) return;
     if (_roverToken.isEmpty) {
-      throw StateError('Add ROVER_TOKEN to the app .env file first.');
+      throw StateError(
+        'Set ROVER_TOKEN in .env.mobile.json and run with '
+        '--dart-define-from-file=.env.mobile.json.',
+      );
     }
     if (!await FlutterBluePlus.isSupported) {
       throw StateError('This phone does not support Bluetooth Low Energy.');

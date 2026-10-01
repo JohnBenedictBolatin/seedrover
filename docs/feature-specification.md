@@ -77,8 +77,6 @@ Functions
 
 - Personalized greeting
 - Rover overview
-- Battery level
-- Seed level
 - Wi-Fi status
 - Bluetooth status
 - Camera status
@@ -196,12 +194,14 @@ Functions
 - Soil temperature
 - Environmental temperature
 - Humidity
-- Live updates
+- Latest verified hardware readings with source, capture time, and freshness
 
 Requirements
 
-- Sensor values should update independently.
-- Use smooth animations for changing values.
+- Exclude simulated, demo, unverified, stale, and invalid readings from current values and recommendations.
+- Soil moisture percentages require confirmed probe calibration and a calibration version; preserve raw ADC readings only with an explicit raw label.
+- Keep zero as a valid sensor measurement and represent missing data as unavailable.
+- Do not color readings as Good, Excellent, or Moderate without explicit crop-specific thresholds.
 
 ---
 
@@ -317,8 +317,6 @@ Functions
 
 Notification Types
 
-- Battery
-- Seed Level
 - Robot Status
 - Inventory
 - Crop Reminder

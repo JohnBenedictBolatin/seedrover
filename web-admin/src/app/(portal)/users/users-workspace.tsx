@@ -1,8 +1,9 @@
 "use client";
 
 import type { FormEvent, ReactNode } from "react";
-import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useActionState, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { ContactNumberInput } from "@/components/constrained-inputs";
 import {
   BadgeCheck,
   ChevronDown,
@@ -10,6 +11,7 @@ import {
   ChevronRight,
   Check,
   Eye,
+  EyeOff,
   Filter,
   IdCard,
   LockKeyhole,
@@ -24,6 +26,8 @@ import {
 } from "lucide-react";
 import { createUserAction, updateUserAction } from "@/app/(portal)/users/actions";
 import { useConfirmationDialog } from "@/components/confirmation-dialog";
+import { useActionFeedback } from "@/components/action-feedback";
+import { PendingActionLabel } from "@/components/pending-action-label";
 import type { AdminUser, UserRole, UsersSummary } from "@/lib/users";
 import styles from "./page.module.css";
 
@@ -61,8 +65,9 @@ export function UsersWorkspace({ users, roles, summary }: Props) {
   const [page, setPage] = useState(1);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const { notify: sendFeedback } = useActionFeedback();
   const router = useRouter();
+  const closeCreateModal = useCallback(() => setShowCreateModal(false), []);
 
   const filteredUsers = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -103,18 +108,7 @@ export function UsersWorkspace({ users, roles, summary }: Props) {
 
   const farmManagers = users.filter((user) => user.roleName.includes("Manager")).length;
 
-  function resetFilters() {
-    setQuery("");
-    setRoleFilter("all");
-    setStatusFilter("All");
-    setSortBy("Newest");
-    setPage(1);
-  }
-
-  function notify(message: string) {
-    setToast(message);
-    window.setTimeout(() => setToast(null), 2600);
-  }
+  const notify = useCallback((message: string, tone: "success" | "error" = "success") => sendFeedback({ tone, text: message }), [sendFeedback]);
 
   return (
     <>
@@ -326,27 +320,22 @@ export function UsersWorkspace({ users, roles, summary }: Props) {
           roles={roles}
           onClose={() => setSelectedUser(null)}
           onSubmit={() => {
+            setSelectedUser(null);
+            notify("Profile updated successfully.");
             router.refresh();
-            notify("User profile update submitted.");
           }}
-          onError={notify}
+          onError={(message) => notify(message, "error")}
         />
       ) : null}
 
       {showCreateModal ? (
         <CreateUserModal
           roles={roles}
-          onClose={() => setShowCreateModal(false)}
+          onClose={closeCreateModal}
           onNotify={notify}
         />
       ) : null}
 
-      {toast ? (
-        <div className={styles.toast} role="alert">
-          <BadgeCheck size={20} />
-          <p>{toast}</p>
-        </div>
-      ) : null}
     </>
   );
 }
@@ -428,16 +417,17 @@ function UserModal({
     event.preventDefault();
     const form = event.currentTarget;
 
-    const confirmed = await confirm({
-      message: `Are you sure you want to save changes for ${user.fullName}?`,
-      confirmLabel: "Save Profile",
-    });
-
-    if (!confirmed) {
-      return;
-    }
-
     const formData = new FormData(form);
+    const roleChanged = String(formData.get("role_id")) !== (currentRole?.id ?? "");
+    const statusChanged = String(formData.get("is_active")) !== String(user.isActive);
+    if (roleChanged || statusChanged) {
+      const confirmed = await confirm({
+        title: "Update account access?",
+        message: `This will change the role or access status for ${user.fullName}.`,
+        confirmLabel: "Update access",
+      });
+      if (!confirmed) return;
+    }
 
     startTransition(async () => {
       try {
@@ -487,8 +477,20 @@ function UserModal({
         >
           <input name="user_id" type="hidden" value={user.id} />
           <label>
-            Full name
-            <input name="full_name" defaultValue={user.fullName} />
+            First name
+            <input name="first_name" defaultValue={user.firstName} required />
+          </label>
+          <label>
+            Middle initial
+            <input name="middle_initial" defaultValue={user.middleInitial} maxLength={1} />
+          </label>
+          <label>
+            Last name
+            <input name="last_name" defaultValue={user.lastName} required />
+          </label>
+          <label>
+            Contact number
+            <ContactNumberInput autoComplete="tel-national" name="contact_number" defaultValue={user.contactNumber} />
           </label>
           <label>
             Role
@@ -516,7 +518,7 @@ function UserModal({
           </label>
           <div className={styles.formActions}>
             <button className={styles.primaryActionButton} disabled={pending} type="submit">
-              <span>{pending ? "Saving..." : "Save Profile"}</span>
+              <PendingActionLabel pending={pending} pendingText="Saving profile...">Save Profile</PendingActionLabel>
             </button>
           </div>
         </form>
@@ -533,26 +535,30 @@ function CreateUserModal({
 }: {
   roles: UserRole[];
   onClose: () => void;
-  onNotify: (message: string) => void;
+  onNotify: (message: string, tone?: "success" | "error") => void;
 }) {
   const [state, formAction, pending] = useActionState(createUserAction, {
     message: "",
     success: false,
   });
   const confirmedRef = useRef(false);
+  const handledStateRef = useRef<typeof state | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const router = useRouter();
-  const roleOptions = roles.map((role) => ({
+  const roleOptions = [{ value: "", label: "Choose a role" }, ...roles.map((role) => ({
     value: role.id,
     label: role.roleName,
-  }));
+  }))];
 
   useEffect(() => {
-    if (!state.message) {
+    if (!state.message || handledStateRef.current === state) {
       return;
     }
 
-    onNotify(state.message);
+    handledStateRef.current = state;
+
+    onNotify(state.message, state.success ? "success" : "error");
 
     if (state.success) {
       onClose();
@@ -561,6 +567,8 @@ function CreateUserModal({
   }, [onClose, onNotify, router, state]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    const form = event.currentTarget;
+
     if (confirmedRef.current) {
       confirmedRef.current = false;
       return;
@@ -569,8 +577,9 @@ function CreateUserModal({
     event.preventDefault();
 
     const confirmed = await confirm({
-      message: "Are you sure you want to create this user account?",
-      confirmLabel: "Create Account",
+      title: "Review new account",
+      message: "This will create a staff account with the selected role and access status.",
+      confirmLabel: "Create account",
     });
 
     if (!confirmed) {
@@ -578,7 +587,7 @@ function CreateUserModal({
     }
 
     confirmedRef.current = true;
-    event.currentTarget.requestSubmit();
+    form.requestSubmit();
   }
 
   return (
@@ -595,6 +604,7 @@ function CreateUserModal({
             className={styles.closeButton}
             type="button"
             aria-label="Close create user modal"
+            disabled={pending}
             onClick={onClose}
           >
             <X size={20} />
@@ -606,7 +616,7 @@ function CreateUserModal({
           <div>
             <strong>Secure account creation</strong>
             <span>
-              This creates a Supabase Auth account and links it to a SeedRover role.
+              Set the initial password for this account. The user can change it later with Forgot password.
             </span>
           </div>
         </div>
@@ -617,8 +627,16 @@ function CreateUserModal({
           onSubmit={handleSubmit}
         >
           <label>
-            Full name
-            <input name="full_name" placeholder="Enter staff full name" required />
+            First name
+            <input name="first_name" placeholder="e.g. Juan" required />
+          </label>
+          <label>
+            Middle initial
+            <input maxLength={1} name="middle_initial" placeholder="e.g. D" />
+          </label>
+          <label>
+            Last name
+            <input name="last_name" placeholder="e.g. Dela Cruz" required />
           </label>
           <label>
             Username
@@ -637,18 +655,27 @@ function CreateUserModal({
             Contact number
             <span className={styles.inputWithIcon}>
               <Phone size={16} />
-              <input name="contact_number" placeholder="e.g. 0912 345 6789" />
+              <ContactNumberInput autoComplete="tel-national" name="contact_number" placeholder="e.g. 09123456789" />
             </span>
           </label>
-          <label>
-            Temporary password
+          <label className={styles.passwordLabel}>
+            Initial password <span aria-hidden="true" style={{ color: "#b42318" }}>*</span>
             <input
+              autoComplete="new-password"
               minLength={8}
-              name="temporary_password"
-              placeholder="Set temporary password"
+              name="initial_password"
+              placeholder="At least 8 characters"
               required
-              type="password"
+              type={showPassword ? "text" : "password"}
             />
+            <button
+              aria-label={showPassword ? "Hide initial password" : "Show initial password"}
+              className={styles.passwordToggle}
+              type="button"
+              onClick={() => setShowPassword((current) => !current)}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
           </label>
           <label>
             Role
@@ -656,7 +683,7 @@ function CreateUserModal({
               icon={<ShieldCheck size={16} />}
               name="role_id"
               options={roleOptions}
-              defaultValue={roles[0]?.id ?? ""}
+              defaultValue=""
             />
           </label>
           <label>
@@ -678,7 +705,7 @@ function CreateUserModal({
 
           <div className={styles.formActions}>
             <button className={styles.primaryActionButton} disabled={pending} type="submit">
-              <span>{pending ? "Creating..." : "Create Account"}</span>
+              <PendingActionLabel pending={pending} pendingText="Creating account...">Create Account</PendingActionLabel>
             </button>
           </div>
         </form>

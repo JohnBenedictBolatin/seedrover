@@ -43,8 +43,6 @@ create table public.profile_permissions (
 
 create table public.robot_status (
   id uuid primary key default gen_random_uuid(),
-  battery_level integer not null default 0,
-  seed_level integer not null default 0,
   rover_status text not null default 'Offline',
   wifi_connected boolean not null default false,
   bluetooth_connected boolean not null default false,
@@ -56,12 +54,6 @@ create table public.robot_status (
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint robot_status_battery_level_range check (
-    battery_level between 0 and 100
-  ),
-  constraint robot_status_seed_level_range check (
-    seed_level between 0 and 100
-  ),
   constraint robot_status_speed_range check (
     speed between 0 and 100
   ),
@@ -209,8 +201,6 @@ create table public.notifications (
   updated_at timestamptz not null default now(),
   constraint notifications_type_allowed check (
     notification_type in (
-      'Battery',
-      'Seed Level',
       'Inventory',
       'Robot Status',
       'Crop Reminder',
@@ -268,7 +258,6 @@ create table public.robot_commands (
       'REFRESH_CAMERA',
       'GET_SENSOR_DATA',
       'GET_ROBOT_STATUS',
-      'GET_SEED_LEVEL',
       'PING'
     )
   ),
@@ -482,13 +471,11 @@ set
   updated_at = now();
 
 insert into public.robot_status (
-  battery_level,
-  seed_level,
   rover_status,
   current_activity,
   is_active
 )
-values (0, 0, 'Offline', 'Idle', true)
+values ('Offline', 'Idle', true)
 on conflict do nothing;
 
 create or replace function public.handle_new_auth_user()

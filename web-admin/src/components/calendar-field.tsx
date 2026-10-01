@@ -12,6 +12,8 @@ type CalendarFieldProps = {
   disabled?: boolean;
   includeTime?: boolean;
   label: string;
+  min?: string;
+  max?: string;
   name?: string;
   onChange?: (value: string) => void;
   required?: boolean;
@@ -54,6 +56,8 @@ export function CalendarField({
   disabled = false,
   includeTime = false,
   label,
+  min,
+  max,
   name,
   onChange,
   required = false,
@@ -70,9 +74,38 @@ export function CalendarField({
   const currentValue = value ?? internalValue;
   const selectedDate = parseDateValue(currentValue, includeTime);
   const visibleDate = selectedDate ?? new Date();
+  const minDate = min ? parseDateValue(min, includeTime && min.includes("T")) : undefined;
+  const maxDate = max ? parseDateValue(max, includeTime && max.includes("T")) : undefined;
+  const minCalendarDate = min ? parseDateValue(min.slice(0, 10), false) : undefined;
+  const maxCalendarDate = max ? parseDateValue(max.slice(0, 10), false) : undefined;
+  const dayPickerDisabled = minCalendarDate && maxCalendarDate
+    ? [{ before: minCalendarDate }, { after: maxCalendarDate }]
+    : minCalendarDate
+      ? { before: minCalendarDate }
+      : maxCalendarDate
+        ? { after: maxCalendarDate }
+        : undefined;
+  const minTime = includeTime && minDate && toDateValue(visibleDate) === toDateValue(minDate)
+    ? `${String(minDate.getHours()).padStart(2, "0")}:${String(minDate.getMinutes()).padStart(2, "0")}`
+    : undefined;
+  const maxTime = includeTime && maxDate && toDateValue(visibleDate) === toDateValue(maxDate)
+    ? `${String(maxDate.getHours()).padStart(2, "0")}:${String(maxDate.getMinutes()).padStart(2, "0")}`
+    : undefined;
+  const minDateRef = useRef(minDate);
+  const maxDateRef = useRef(maxDate);
+  const includeTimeRef = useRef(includeTime);
   const timeValue = `${String(visibleDate.getHours()).padStart(2, "0")}:${String(
     visibleDate.getMinutes(),
   ).padStart(2, "0")}`;
+
+  useEffect(() => {
+    minDateRef.current = min ? parseDateValue(min, includeTime && min.includes("T")) : undefined;
+    maxDateRef.current = max ? parseDateValue(max, includeTime && max.includes("T")) : undefined;
+  }, [includeTime, max, min]);
+
+  useEffect(() => {
+    includeTimeRef.current = includeTime;
+  }, [includeTime]);
 
   const setValue = useCallback((nextValue: string) => {
     if (value === undefined) setInternalValue(nextValue);
@@ -136,7 +169,12 @@ export function CalendarField({
     if (!form || !required) return;
 
     const validate = (event: SubmitEvent) => {
-      if (currentValue) return;
+      const submittedDate = parseDateValue(currentValue, includeTimeRef.current);
+      const selectedIsOutsideBounds = Boolean(submittedDate && (
+        (minDateRef.current && submittedDate < minDateRef.current) ||
+        (maxDateRef.current && submittedDate > maxDateRef.current)
+      ));
+      if (currentValue && !selectedIsOutsideBounds) return;
       event.preventDefault();
       event.stopPropagation();
       setInvalid(true);
@@ -150,6 +188,9 @@ export function CalendarField({
 
   function handleDateSelect(nextDate: Date | undefined) {
     if (!nextDate) return;
+    const nextDateValue = toDateValue(nextDate);
+    if (min && nextDateValue < min.slice(0, 10)) return;
+    if (max && nextDateValue > max.slice(0, 10)) return;
 
     if (includeTime) {
       const updated = new Date(visibleDate);
@@ -230,6 +271,7 @@ export function CalendarField({
                     ? <ChevronLeft className={chevronClassName} size={16} {...props} />
                     : <ChevronRight className={chevronClassName} size={16} {...props} />,
               }}
+              disabled={dayPickerDisabled}
               mode="single"
               selected={selectedDate}
               showOutsideDays
@@ -241,6 +283,8 @@ export function CalendarField({
                 <input
                   className={styles.calendarTimeInput}
                   type="time"
+                  min={minTime}
+                  max={maxTime}
                   value={timeValue}
                   onChange={(event) => handleTimeChange(event.target.value)}
                 />

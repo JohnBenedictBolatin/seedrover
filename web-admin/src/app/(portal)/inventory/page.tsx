@@ -1,33 +1,41 @@
 import { redirect } from "next/navigation";
-import { AlertTriangle, Boxes, CircleDollarSign, PackageX } from "lucide-react";
+import { AlertTriangle, Boxes, CircleDollarSign, PackageX, ShoppingCart, CalendarDays, Award } from "lucide-react";
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { getInventoryDashboard } from "@/lib/inventory";
 import { CountUpValue } from "@/components/count-up-value";
 import { InventoryWorkspace } from "@/components/inventory-workspace";
 import { LiveDateTime } from "@/components/live-date-time";
+import { ModuleHeaderIntro } from "@/components/module-header-intro";
 import styles from "./page.module.css";
 
-export default async function InventoryPage() {
+type InventoryPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function InventoryPage({ searchParams }: InventoryPageProps) {
   const profile = await getCurrentAdminProfile();
 
   if (!profile) {
     redirect("/login");
   }
 
-  if (profile.roleName === "Farm Planting Manager") {
+  if (["Farm Planting Manager", "Planting Staff"].includes(profile.roleName)) {
     redirect("/dashboard");
   }
 
   const { items, summary, sales, error } = await getInventoryDashboard();
+  const params = await searchParams;
+  const itemParam = params?.item;
+  const initialItemId = Array.isArray(itemParam) ? itemParam[0] : itemParam;
 
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <div>
-          <p className={styles.eyebrow}>Operations</p>
-          <h1>Inventory</h1>
-          <p>Stock quantities, prices, locations, and movement history.</p>
-        </div>
+          <ModuleHeaderIntro mascot="inventory">
+            <p className={styles.eyebrow}>Operations</p>
+            <h1>Inventory</h1>
+            <p>Stock quantities, prices, locations, and movement history.</p>
+          </ModuleHeaderIntro>
         <div className={styles.liveDateTime}>
           <LiveDateTime />
         </div>
@@ -48,7 +56,7 @@ export default async function InventoryPage() {
             </span>
             <p>Total items</p>
           </div>
-          <CountUpValue className="mono" value={summary?.totalItems ?? 0} />
+          {summary ? <CountUpValue className="mono" value={summary.totalItems} /> : <strong>Unavailable</strong>}
         </article>
         <article className={styles.metric}>
           <div className={styles.metricMeta}>
@@ -57,7 +65,7 @@ export default async function InventoryPage() {
             </span>
             <p>Low stock</p>
           </div>
-          <CountUpValue className="mono" value={summary?.lowStockItems ?? 0} />
+          {summary ? <CountUpValue className="mono" value={summary.lowStockItems} /> : <strong>Unavailable</strong>}
         </article>
         <article className={styles.metric}>
           <div className={styles.metricMeta}>
@@ -66,7 +74,7 @@ export default async function InventoryPage() {
             </span>
             <p>Out of stock</p>
           </div>
-          <CountUpValue className="mono" value={summary?.outOfStockItems ?? 0} />
+          {summary ? <CountUpValue className="mono" value={summary.outOfStockItems} /> : <strong>Unavailable</strong>}
         </article>
         <article className={styles.metric}>
           <div className={styles.metricMeta}>
@@ -75,32 +83,33 @@ export default async function InventoryPage() {
             </span>
             <p>Inventory value</p>
           </div>
-          <CountUpValue className="mono" currency value={summary?.inventoryValue ?? 0} />
+          {summary?.inventoryValue != null ? <CountUpValue className="mono" currency value={summary.inventoryValue} /> : <strong>{summary ? "Incomplete cost data" : "Unavailable"}</strong>}
         </article>
       </section>
 
       <section className={styles.salesBand} aria-label="Sales summary">
-        <div>
-          <p>Sales today</p>
-          <CountUpValue currency value={sales?.salesToday ?? 0} />
-        </div>
-        <div>
-          <p>Sales this month</p>
-          <CountUpValue currency value={sales?.salesThisMonth ?? 0} />
-        </div>
-        <div>
-          <p>Best-selling item</p>
-          <strong>{sales?.bestSellingItem ?? "No sales yet"}</strong>
-        </div>
-        <div>
-          <p>Potential sales value</p>
-          <CountUpValue currency value={summary?.estimatedSalesValue ?? 0} />
-        </div>
+        <article className={styles.metric}>
+          <div className={styles.metricMeta}><span className={styles.metricIcon}><ShoppingCart size={20} /></span><p>Sales today</p></div>
+          {sales ? <CountUpValue currency value={sales.salesToday} /> : <span>Unavailable</span>}
+        </article>
+        <article className={styles.metric}>
+          <div className={styles.metricMeta}><span className={styles.metricIcon}><CalendarDays size={20} /></span><p>Sales this month</p></div>
+          {sales ? <CountUpValue currency value={sales.salesThisMonth} /> : <span>Unavailable</span>}
+        </article>
+        <article className={styles.metric}>
+          <div className={styles.metricMeta}><span className={styles.metricIcon}><Award size={20} /></span><p>Best-selling item</p></div>
+          <strong className={styles.metricTextValue}>{sales?.bestSellingItem ?? "Unavailable"}</strong>
+        </article>
+        <article className={styles.metric}>
+          <div className={styles.metricMeta}><span className={styles.metricIcon}><CircleDollarSign size={20} /></span><p>Potential sales value</p></div>
+          {summary?.estimatedSalesValue != null ? <CountUpValue currency value={summary.estimatedSalesValue} /> : <strong>{summary ? "Incomplete price data" : "Unavailable"}</strong>}
+        </article>
       </section>
 
-      <section className={styles.tableSection}>
-        <InventoryWorkspace items={items} />
-      </section>
+      <InventoryWorkspace
+        initialItemId={initialItemId}
+        items={items}
+      />
     </div>
   );
 }

@@ -85,7 +85,7 @@ Notes:
 - Create a discount.
 - Confirm discount appears in Discount List.
 - Confirm redeemed/unredeemed status displays cleanly.
-- Edit customer profile notes/type/tags.
+- Confirm customer records show only sales-derived name, contact, and purchase history.
 - Export CSV/Excel.
 - Print/PDF customer report.
 

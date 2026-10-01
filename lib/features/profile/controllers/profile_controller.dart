@@ -1,5 +1,7 @@
+import '../../../shared/models/action_outcome.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/utils/app_input_formatters.dart';
 import '../../authentication/data/models/auth_profile_model.dart';
 import '../data/models/profile_user_model.dart';
 import '../data/repositories/profile_repository.dart';
@@ -63,7 +65,7 @@ class ProfileController extends StateNotifier<ProfileState> {
         username: _authProfile?.username ?? 'operator',
         email: _authProfile?.email ?? 'operator@seedrover.local',
         contactNumber: '+63 917 000 0000',
-        roleName: _authProfile?.roleName ?? 'Farm Staff',
+        roleName: _authProfile?.roleName ?? 'Unassigned',
         dateJoined: DateTime(2026, 1, 1),
         status: ProfileAccountStatus.active,
         hasProfilePicture: !state.profilePictureRemoved,
@@ -112,7 +114,7 @@ class ProfileController extends StateNotifier<ProfileState> {
             iconKey: 'pending',
           ),
         ],
-      'Farm Planting Manager' => [
+      'Farm Planting Manager' || 'Planting Staff' => [
           ProfileStatModel(
             label: 'Crops Managed',
             value: '$recentActivities',
@@ -132,7 +134,7 @@ class ProfileController extends StateNotifier<ProfileState> {
             iconKey: 'tasks',
           ),
         ],
-      'Farm Inventory Manager' => [
+      'Farm Inventory Manager' || 'Inventory Staff' => [
           ProfileStatModel(
             label: 'Inventory Updates',
             value: '$recentActivities',
@@ -208,28 +210,35 @@ class ProfileController extends StateNotifier<ProfileState> {
     );
   }
 
-  Future<void> updateCurrentProfile({
+  Future<ActionOutcome> updateCurrentProfile({
     required String fullName,
     required String contactNumber,
+    String? firstName,
+    String? middleInitial,
+    String? lastName,
   }) async {
     final current = currentUser;
-    final updatedUser = current.copyWith(
-      fullName: fullName.trim().isEmpty ? current.fullName : fullName.trim(),
-      contactNumber: contactNumber.trim().isEmpty
-          ? current.contactNumber
-          : contactNumber.trim(),
-    );
-
     try {
+      final normalizedContact = AppInputFormatters.normalizeContactNumber(
+        contactNumber.trim().isEmpty ? current.contactNumber : contactNumber,
+        allowLegacy: true,
+      ) ?? '';
+      final updatedUser = current.copyWith(
+        fullName: fullName.trim().isEmpty ? current.fullName : fullName.trim(),
+        contactNumber: normalizedContact,
+      );
       final savedUser = await _repository.updateCurrentProfile(
         profileId: current.id,
         fullName: updatedUser.fullName,
         contactNumber: updatedUser.contactNumber,
+        firstName: firstName,
+        middleInitial: middleInitial,
+        lastName: lastName,
       );
       final users = [
         for (final user in state.users)
           if (user.id == savedUser.id)
-            savedUser.copyWith(contactNumber: updatedUser.contactNumber)
+            savedUser
           else
             user,
       ];
@@ -239,47 +248,21 @@ class ProfileController extends StateNotifier<ProfileState> {
         filteredUsers: _filterUsers(users, state.searchQuery, state.userFilter),
         successMessage: 'Profile updated.',
       );
-      await _refreshAuthProfile();
-    } catch (_) {
-      state = state.copyWith(errorMessage: 'Unable to update profile.');
+      try {
+        await _refreshAuthProfile();
+      } catch (_) {/* Saved; refresh can be retried. */}
+    } catch (error) {
+      final message = error is FormatException
+          ? error.message
+          : 'Unable to update profile.';
+      state = state.copyWith(errorMessage: message);
+      return ActionOutcome.failure(
+          state.errorMessage ?? 'Unable to save changes.');
     }
+    return const ActionOutcome.success();
   }
 
-  Future<bool> changePassword({
-    required String currentPassword,
-    required String newPassword,
-    required String confirmation,
-  }) async {
-    if (currentPassword.isEmpty) {
-      state = state.copyWith(errorMessage: 'Enter your current password.');
-      return false;
-    }
-    if (newPassword.length < 8) {
-      state = state.copyWith(
-          errorMessage: 'New password must be at least 8 characters.');
-      return false;
-    }
-    if (newPassword != confirmation) {
-      state = state.copyWith(
-          errorMessage: 'New password confirmation does not match.');
-      return false;
-    }
-    try {
-      await _repository.changePassword(
-        currentPassword: currentPassword,
-        newPassword: newPassword,
-      );
-      state = state.copyWith(successMessage: 'Password changed successfully.');
-      return true;
-    } catch (_) {
-      state = state.copyWith(
-          errorMessage:
-              'Current password is incorrect or the password could not be changed.');
-      return false;
-    }
-  }
-
-  Future<void> changeProfilePicture(ProfileImageUpload upload) async {
+  Future<ActionOutcome> changeProfilePicture(ProfileImageUpload upload) async {
     final current = currentUser;
 
     try {
@@ -293,10 +276,13 @@ class ProfileController extends StateNotifier<ProfileState> {
       );
     } catch (_) {
       state = state.copyWith(errorMessage: 'Unable to update profile picture.');
+      return ActionOutcome.failure(
+          state.errorMessage ?? 'Unable to save changes.');
     }
+    return const ActionOutcome.success();
   }
 
-  Future<void> removeProfilePicture() async {
+  Future<ActionOutcome> removeProfilePicture() async {
     final current = currentUser;
 
     try {
@@ -307,77 +293,10 @@ class ProfileController extends StateNotifier<ProfileState> {
       );
     } catch (_) {
       state = state.copyWith(errorMessage: 'Unable to remove profile picture.');
+      return ActionOutcome.failure(
+          state.errorMessage ?? 'Unable to save changes.');
     }
-  }
-
-  Future<void> createUser({
-    required String fullName,
-    required String username,
-    required String email,
-    required String contactNumber,
-    required String roleName,
-  }) async {
-    final normalizedUsername = username.trim().toLowerCase();
-    if (fullName.trim().isEmpty ||
-        email.trim().isEmpty ||
-        !RegExp(r'^[a-z0-9_]{3,32}$').hasMatch(normalizedUsername)) {
-      state = state.copyWith(
-          errorMessage:
-              'Enter a name, email, and a valid 3-32 character username.');
-      return;
-    }
-    final temporaryPassword = _temporaryPassword();
-    try {
-      await _repository.createUser(
-        fullName: fullName.trim(),
-        username: normalizedUsername,
-        email: email.trim().toLowerCase(),
-        contactNumber: contactNumber.trim(),
-        roleName: roleName,
-        temporaryPassword: temporaryPassword,
-      );
-      await loadProfile();
-      state = state.copyWith(
-        generatedPassword: temporaryPassword,
-        successMessage: 'User created. Temporary password:',
-      );
-    } catch (_) {
-      state = state.copyWith(
-          errorMessage:
-              'Unable to create user. Check for duplicate username or email.');
-    }
-  }
-
-  String _temporaryPassword() {
-    final value = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
-    return 'Sr!${value.substring(value.length - 8)}A7';
-  }
-
-  Future<void> updateUser(
-    ProfileUserModel updatedUser, {
-    String successMessage = 'User updated.',
-  }) async {
-    ProfileUserModel savedUser = updatedUser;
-
-    try {
-      savedUser = await _repository.updateUser(updatedUser);
-    } catch (_) {
-      if (updatedUser.id != _authProfile?.id) {
-        state = state.copyWith(errorMessage: 'Unable to update user.');
-        return;
-      }
-    }
-
-    final users = [
-      for (final user in state.users)
-        if (user.id == savedUser.id) savedUser else user,
-    ];
-
-    state = state.copyWith(
-      users: users,
-      filteredUsers: _filterUsers(users, state.searchQuery, state.userFilter),
-      successMessage: successMessage,
-    );
+    return const ActionOutcome.success();
   }
 
   void _replaceUser(
@@ -397,28 +316,10 @@ class ProfileController extends StateNotifier<ProfileState> {
     );
   }
 
-  void resetPassword(String userId) {
-    state = state.copyWith(
-      generatedPassword: null,
-      successMessage:
-          'Password reset requires the secure admin Edge Function before it can be sent.',
-    );
-  }
-
-  void deleteUser(String userId) {
-    final users = state.users.where((user) => user.id != userId).toList();
-    state = state.copyWith(
-      users: users,
-      filteredUsers: _filterUsers(users, state.searchQuery, state.userFilter),
-      successMessage: 'User deleted.',
-    );
-  }
-
   void clearMessages() {
     state = state.copyWith(
       successMessage: null,
       errorMessage: null,
-      generatedPassword: null,
     );
   }
 
@@ -486,7 +387,8 @@ class ProfileController extends StateNotifier<ProfileState> {
           user.roleName == 'Farm Planting Manager',
         ProfileUserFilter.inventoryManager =>
           user.roleName == 'Farm Inventory Manager',
-        ProfileUserFilter.farmStaff => user.roleName == 'Farm Staff',
+        ProfileUserFilter.farmStaff => user.roleName == 'Planting Staff' ||
+            user.roleName == 'Inventory Staff',
       };
 
       return matchesSearch && matchesFilter;

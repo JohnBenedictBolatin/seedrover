@@ -4,11 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { AdminProfile } from "@/lib/auth";
-import { signOutAction } from "@/app/(portal)/actions";
-import {
-  deleteNotificationAction,
-  markNotificationReadAction,
-} from "@/app/(portal)/notifications/actions";
 import { formatDateTime } from "@/lib/format";
 import type { AdminNotification, NotificationsSummary } from "@/lib/notifications";
 import {
@@ -18,7 +13,6 @@ import {
   ClipboardList,
   LayoutDashboard,
   Radar,
-  LogOut,
   MailCheck,
   Trash2,
   Shield,
@@ -29,22 +23,36 @@ import {
   X,
 } from "lucide-react";
 import { BrandMark } from "./brand-mark";
-import { ConfirmSubmitButton } from "./confirm-submit-button";
+import { NotificationDeleteButton, NotificationReadButton } from "./notification-action-buttons";
+import { SignOutButton } from "./sign-out-button";
 import { RovieAssistant } from "./rovie-assistant";
 import styles from "./app-shell.module.css";
 
+const NOTIFICATIONS_PER_PAGE = 5;
+type NotificationFilter = "unread" | "read";
+
 function navGroupsFor(roleName: AdminProfile["roleName"]) {
   const canManageInventory =
-    roleName === "System Administrator" || roleName === "Farm Inventory Manager";
+    roleName === "System Administrator" ||
+    roleName === "Farm Inventory Manager" ||
+    roleName === "Inventory Staff";
   const canManageCrops =
-    roleName === "System Administrator" || roleName === "Farm Planting Manager";
+    roleName === "System Administrator" ||
+    roleName === "Farm Planting Manager" ||
+    roleName === "Planting Staff";
   const isAdmin = roleName === "System Administrator";
+  const isPlantingOnly =
+    roleName === "Farm Planting Manager" || roleName === "Planting Staff";
+  const canViewDashboard =
+    roleName === "System Administrator" || roleName === "Farm Inventory Manager" || roleName === "Farm Planting Manager";
 
   return [
-    {
-      label: "Overview",
-      items: [{ label: "Dashboard", href: "/dashboard" }],
-    },
+    canViewDashboard
+      ? {
+          label: "Overview",
+          items: [{ label: "Dashboard", href: "/dashboard" }],
+        }
+      : null,
     canManageInventory
       ? {
           label: "Operations",
@@ -52,7 +60,7 @@ function navGroupsFor(roleName: AdminProfile["roleName"]) {
             { label: "Inventory", href: "/inventory" },
             { label: "Sales", href: "/sales" },
             { label: "Customers", href: "/customers" },
-            { label: "Investments", href: "/investments" },
+            ...(isAdmin ? [{ label: "Investments", href: "/investments" }] : []),
           ],
         }
       : null,
@@ -109,8 +117,6 @@ function notificationTone(type: string) {
   if (normalized.includes("inventory")) return "inventory";
   if (normalized.includes("robot") || normalized.includes("rover")) return "robot";
   if (normalized.includes("crop")) return "crop";
-  if (normalized.includes("battery")) return "battery";
-  if (normalized.includes("seed")) return "seed";
   if (normalized.includes("system")) return "system";
 
   return "default";
@@ -131,7 +137,7 @@ function notificationRoute(notification: AdminNotification) {
   if (type.includes("sale")) return "/sales";
   if (type.includes("customer") || type.includes("discount")) return "/customers";
   if (type.includes("crop") || type.includes("plant")) return "/crops";
-  if (type.includes("robot") || type.includes("rover") || type.includes("battery") || type.includes("seed")) {
+  if (type.includes("robot") || type.includes("rover")) {
     return "/rover-monitor";
   }
   if (type.includes("user")) return "/users";
@@ -156,18 +162,32 @@ export function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
-  const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>("unread");
+  const [notificationPage, setNotificationPage] = useState(0);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const unreadCount = notificationsSummary?.unread ?? notifications.filter((item) => !item.isRead).length;
-  const recentNotifications = notifications.slice(0, 5);
-  const hasNotifications = unreadCount > 0 || recentNotifications.length > 0;
+  const unreadNotifications = notifications.filter((item) => !item.isRead);
+  const readNotifications = notifications.filter((item) => item.isRead);
+  const filteredNotifications = notificationFilter === "unread" ? unreadNotifications : readNotifications;
+  const lastNotificationPage = Math.max(
+    0,
+    Math.ceil(filteredNotifications.length / NOTIFICATIONS_PER_PAGE) - 1,
+  );
+  const activeNotificationPage = Math.min(notificationPage, lastNotificationPage);
+  const visibleNotifications = filteredNotifications.slice(
+    activeNotificationPage * NOTIFICATIONS_PER_PAGE,
+    (activeNotificationPage + 1) * NOTIFICATIONS_PER_PAGE,
+  );
+  const hasNotifications = unreadCount > 0 || notifications.length > 0;
 
   useEffect(() => {
     const savedTheme = window.localStorage.getItem("seedrover-theme");
     const nextTheme = savedTheme === "light" ? "light" : "dark";
     document.documentElement.dataset.theme = nextTheme;
-    setTheme(nextTheme);
+    const updateThemeState = window.setTimeout(() => setTheme(nextTheme), 0);
+
+    return () => window.clearTimeout(updateThemeState);
   }, []);
 
   function toggleTheme() {
@@ -210,7 +230,10 @@ export function AppShell({
                   className={styles.notificationButton}
                   title="Notifications"
                   type="button"
-                  onClick={() => setNotificationsOpen((current) => !current)}
+                  onClick={() => {
+                    if (!notificationsOpen) setNotificationPage(0);
+                    setNotificationsOpen((current) => !current);
+                  }}
                 >
                   <Bell size={18} />
                   {hasNotifications ? <i aria-hidden="true" /> : null}
@@ -306,21 +329,13 @@ export function AppShell({
             </div>
           ) : null}
 
-          <button
-            className={styles.signOutButton}
-            title="Sign out"
-            type="button"
-            onClick={() => setConfirmSignOut(true)}
-          >
-            <LogOut size={16} />
-            {!collapsed ? <span>Sign out</span> : null}
-          </button>
+          <SignOutButton collapsed={collapsed} />
         </div>
       </aside>
 
       <main className={styles.main}>{children}</main>
 
-      <RovieAssistant />
+      <RovieAssistant profileId={profile.id} />
 
       {notificationsOpen ? (
         <div
@@ -333,7 +348,6 @@ export function AppShell({
                   <section
                     className={styles.notificationPopover}
                     aria-label="Notifications"
-                    aria-modal="false"
                   >
                     <header>
                       <div>
@@ -352,18 +366,49 @@ export function AppShell({
                         <X size={16} />
                       </button>
                     </header>
+                    <nav className={styles.notificationTabs} role="tablist" aria-label="Notification status">
+                      <button
+                        aria-selected={notificationFilter === "unread"}
+                        className={notificationFilter === "unread" ? styles.notificationTabActive : styles.notificationTab}
+                        id="notifications-unread-tab"
+                        role="tab"
+                        tabIndex={notificationFilter === "unread" ? 0 : -1}
+                        type="button"
+                        onClick={() => {
+                          setNotificationFilter("unread");
+                          setNotificationPage(0);
+                        }}
+                      >
+                        UNREAD <span>{unreadNotifications.length}</span>
+                      </button>
+                      <button
+                        aria-selected={notificationFilter === "read"}
+                        className={notificationFilter === "read" ? styles.notificationTabActive : styles.notificationTab}
+                        id="notifications-read-tab"
+                        role="tab"
+                        tabIndex={notificationFilter === "read" ? 0 : -1}
+                        type="button"
+                        onClick={() => {
+                          setNotificationFilter("read");
+                          setNotificationPage(0);
+                        }}
+                      >
+                        READ <span>{readNotifications.length}</span>
+                      </button>
+                    </nav>
                     {notificationsError ? (
                       <div className={styles.notificationEmpty}>
                         <strong>Notifications unavailable.</strong>
                         <span>{notificationsError}</span>
                       </div>
-                    ) : recentNotifications.length === 0 ? (
-                      <div className={styles.notificationEmpty}>
-                        <strong>No notifications yet.</strong>
+                    ) : visibleNotifications.length === 0 ? (
+                      <div className={styles.notificationEmpty} role="tabpanel" aria-labelledby={`notifications-${notificationFilter}-tab`}>
+                        <strong>{notificationFilter === "unread" ? "You’re all caught up." : "No read notifications yet."}</strong>
                       </div>
                     ) : (
-                      <div className={styles.notificationList}>
-                        {recentNotifications.map((notification) => (
+                      <>
+                        <div className={styles.notificationList} role="tabpanel" aria-labelledby={`notifications-${notificationFilter}-tab`}>
+                          {visibleNotifications.map((notification) => (
                           <article
                             data-read={notification.isRead}
                             key={notification.id}
@@ -389,89 +434,58 @@ export function AppShell({
                               </span>
                             </div>
                             <p>{notification.message}</p>
-                            <small>{formatDateTime(notification.createdAt)}</small>
+                            <div className={styles.notificationMeta}>
+                              {notification.actorName ? (
+                                <span>By {notification.actorName}</span>
+                              ) : null}
+                              <small>{formatDateTime(notification.createdAt)}</small>
+                            </div>
                             {notification.source === "notification" ? (
                               <div
                                 className={styles.notificationActions}
                                 onClick={(event) => event.stopPropagation()}
                                 onKeyDown={(event) => event.stopPropagation()}
                               >
-                                <form action={markNotificationReadAction}>
-                                  <input name="notification_id" type="hidden" value={notification.id} />
-                                  <input
-                                    name="is_read"
-                                    type="hidden"
-                                    value={String(!notification.isRead)}
-                                  />
-                                  <button
-                                    aria-label={notification.isRead ? "Mark unread" : "Mark read"}
-                                    type="submit"
-                                  >
-                                    <MailCheck size={15} />
-                                  </button>
-                                </form>
+                                <NotificationReadButton id={notification.id} isRead={notification.isRead}>
+                                  <MailCheck size={15} />
+                                </NotificationReadButton>
                                 {profile.roleName === "System Administrator" ? (
-                                  <form action={deleteNotificationAction}>
-                                    <input name="notification_id" type="hidden" value={notification.id} />
-                                    <ConfirmSubmitButton
-                                      aria-label="Delete notification"
-                                      confirmMessage="Are you sure you want to delete this notification?"
-                                      type="submit"
-                                    >
+                                    <NotificationDeleteButton id={notification.id}>
                                       <Trash2 size={15} />
-                                    </ConfirmSubmitButton>
-                                  </form>
+                                    </NotificationDeleteButton>
                                 ) : null}
                               </div>
                             ) : null}
                           </article>
-                        ))}
-                      </div>
+                          ))}
+                        </div>
+                        <div className={styles.notificationPager}>
+                          <button
+                            aria-label="Previous notification page"
+                            disabled={activeNotificationPage === 0}
+                            type="button"
+                            onClick={() => setNotificationPage((page) => page - 1)}
+                          >
+                            ‹
+                          </button>
+                          <span>
+                            Page {activeNotificationPage + 1} of {lastNotificationPage + 1}
+                          </span>
+                          <button
+                            aria-label="Next notification page"
+                            disabled={activeNotificationPage === lastNotificationPage}
+                            type="button"
+                            onClick={() => setNotificationPage((page) => page + 1)}
+                          >
+                            ›
+                          </button>
+                        </div>
+                      </>
                     )}
                   </section>
                 </div>
       ) : null}
 
-      {confirmSignOut ? (
-        <div className={styles.modalBackdrop} data-ui-backdrop="true" role="presentation">
-          <section
-            className={styles.modal}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Sign out confirmation"
-          >
-            <header className={styles.modalHeader}>
-              <h3 className={styles.modalTitle}>Are you sure?</h3>
-              <button
-                aria-label="Close modal"
-                className={styles.modalCloseButton}
-                type="button"
-                onClick={() => setConfirmSignOut(false)}
-              >
-                <X size={18} />
-              </button>
-            </header>
-            <p className={styles.modalMessage}>
-              You are about to sign out of the SeedRover web console.
-            </p>
-            <div className={styles.modalActions}>
-              <button
-                className={styles.cancelButton}
-                type="button"
-                onClick={() => setConfirmSignOut(false)}
-              >
-                Cancel
-              </button>
-              <form action={signOutAction}>
-                <button className={styles.confirmButton} type="submit">
-                  <LogOut size={16} />
-                  <span>Sign out</span>
-                </button>
-              </form>
-            </div>
-          </section>
-        </div>
-      ) : null}
     </div>
   );
 }

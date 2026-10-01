@@ -33,14 +33,14 @@ class StockActionButtons extends StatelessWidget {
           children: [
             _ActionButton(
               width: buttonWidth,
-              label: 'Stock In',
+              label: 'Receive stock',
               icon: Icons.add_box_outlined,
               color: AppColors.primaryGreen,
               onPressed: onStockIn,
             ),
             _ActionButton(
               width: buttonWidth,
-              label: 'Stock Out',
+              label: 'Issue stock',
               icon: Icons.indeterminate_check_box_outlined,
               color: AppColors.warning,
               onPressed: onStockOut,

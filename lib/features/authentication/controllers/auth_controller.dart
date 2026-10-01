@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/app_exception.dart';
+import '../../../core/services/push_notification_service.dart';
 import '../data/repositories/auth_repository.dart';
 import 'auth_state.dart';
 
@@ -11,7 +12,14 @@ class AuthController extends StateNotifier<AppAuthState> {
     _initialize();
     _subscription = _repository.authStateChanges.listen((event) {
       if (event.session == null) {
-        state = const AppAuthState.unauthenticated();
+        unawaited(PushNotificationService.instance.setAuthenticatedUser(null));
+        _lastSignOutWasSessionExpiry =
+            event.signOutReason?.name == 'sessionExpired';
+        state = AppAuthState.unauthenticated(
+          errorMessage: _lastSignOutWasSessionExpiry
+              ? 'Your session ended. Your account may have been signed in on another device. Sign in again to continue.'
+              : null,
+        );
       }
     });
   }
@@ -19,15 +27,31 @@ class AuthController extends StateNotifier<AppAuthState> {
   final AuthRepository _repository;
   StreamSubscription<dynamic>? _subscription;
   final Map<String, _AttemptBucket> _attemptBuckets = {};
-  final Map<String, _AttemptBucket> _resetBuckets = {};
+  bool _lastSignOutWasSessionExpiry = false;
 
   Future<void> _initialize() async {
     try {
       final profile = await _repository.getCurrentProfile();
+      if (_lastSignOutWasSessionExpiry) {
+        state = const AppAuthState.unauthenticated(
+          errorMessage:
+              'Your session ended. Your account may have been signed in on another device. Sign in again to continue.',
+        );
+        return;
+      }
 
       state = profile == null
-          ? const AppAuthState.unauthenticated()
+          ? AppAuthState.unauthenticated(
+              errorMessage: _lastSignOutWasSessionExpiry
+                  ? 'Your session ended. Your account may have been signed in on another device. Sign in again to continue.'
+                  : null,
+            )
           : AppAuthState.authenticated(profile);
+      if (profile != null) {
+        unawaited(
+          PushNotificationService.instance.setAuthenticatedUser(profile.id),
+        );
+      }
     } on AppException catch (error) {
       state = AppAuthState.unauthenticated(errorMessage: error.message);
     } catch (_) {
@@ -55,6 +79,7 @@ class AuthController extends StateNotifier<AppAuthState> {
     }
 
     state = const AppAuthState.loading();
+    _lastSignOutWasSessionExpiry = false;
 
     try {
       final profile = await _repository.signInWithUsername(
@@ -64,6 +89,9 @@ class AuthController extends StateNotifier<AppAuthState> {
 
       _attemptBuckets.remove(username.trim().toLowerCase());
       state = AppAuthState.authenticated(profile);
+      unawaited(
+        PushNotificationService.instance.setAuthenticatedUser(profile.id),
+      );
     } on AppException catch (error) {
       state = AppAuthState.unauthenticated(errorMessage: error.message);
     } catch (_) {
@@ -74,6 +102,8 @@ class AuthController extends StateNotifier<AppAuthState> {
   }
 
   Future<void> signOut() async {
+    _lastSignOutWasSessionExpiry = false;
+    await PushNotificationService.instance.setAuthenticatedUser(null);
     state = const AppAuthState.unauthenticated();
     try {
       await _repository.signOut();
@@ -87,36 +117,6 @@ class AuthController extends StateNotifier<AppAuthState> {
   Future<void> refreshProfile() async {
     final profile = await _repository.getCurrentProfile();
     if (profile != null) state = AppAuthState.authenticated(profile);
-  }
-
-  Future<void> sendPasswordResetEmail(String username) async {
-    final limitMessage = _checkLocalLimit(
-      buckets: _resetBuckets,
-      key: username.trim().toLowerCase(),
-      limit: 3,
-      window: const Duration(minutes: 15),
-      actionLabel: 'password reset requests',
-    );
-
-    if (limitMessage != null) {
-      state = AppAuthState.unauthenticated(errorMessage: limitMessage);
-      return;
-    }
-
-    state = const AppAuthState.loading();
-
-    try {
-      await _repository.sendPasswordResetEmail(username);
-      state = const AppAuthState.unauthenticated(
-        successMessage: 'Password reset email sent.',
-      );
-    } on AppException catch (error) {
-      state = AppAuthState.unauthenticated(errorMessage: error.message);
-    } catch (_) {
-      state = const AppAuthState.unauthenticated(
-        errorMessage: 'Unable to send password reset email.',
-      );
-    }
   }
 
   @override

@@ -17,7 +17,7 @@ export default async function SalesReceiptPage({
     redirect("/login");
   }
 
-  if (profile.roleName === "Farm Planting Manager") {
+  if (["Farm Planting Manager", "Planting Staff"].includes(profile.roleName)) {
     redirect("/dashboard");
   }
 
@@ -109,7 +109,7 @@ export default async function SalesReceiptPage({
             <strong>{formatCurrency(receipt.totalAmount)}</strong>
           </div>
           <div>
-            <span>Amount paid</span>
+            <span>Amount paid (PHP)</span>
             <strong>
               {receipt.amountPaid === null
                 ? "Not recorded"

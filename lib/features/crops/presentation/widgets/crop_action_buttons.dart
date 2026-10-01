@@ -9,27 +9,35 @@ class CropActionButtons extends StatelessWidget {
   const CropActionButtons({
     required this.onWater,
     required this.onFertilize,
+    required this.onFieldCheck,
+    required this.onGrowthObservation,
+    required this.onTransplant,
+    this.onSensorCheck,
     this.onHarvest,
-    required this.onEdit,
+    this.onNotHarvested,
     super.key,
   });
 
   final VoidCallback onWater;
   final VoidCallback onFertilize;
+  final VoidCallback onFieldCheck;
+  final VoidCallback onGrowthObservation;
+  final VoidCallback onTransplant;
+  final VoidCallback? onSensorCheck;
   final VoidCallback? onHarvest;
-  final VoidCallback onEdit;
+  final VoidCallback? onNotHarvested;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         const columns = 2;
-        final spacing = AppSpacing.xs * (columns - 1);
+        final spacing = AppSpacing.sm * (columns - 1);
         final buttonWidth = (constraints.maxWidth - spacing) / columns;
 
         return Wrap(
-          spacing: AppSpacing.xs,
-          runSpacing: AppSpacing.xs,
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
           children: [
             _ActionButton(
               width: buttonWidth,
@@ -38,6 +46,14 @@ class CropActionButtons extends StatelessWidget {
               color: AppColors.information,
               onPressed: onWater,
             ),
+            if (onSensorCheck != null)
+              _ActionButton(
+                width: buttonWidth,
+                label: 'Read Sensors',
+                icon: Icons.sensors_outlined,
+                color: AppColors.information,
+                onPressed: onSensorCheck!,
+              ),
             _ActionButton(
               width: buttonWidth,
               label: 'Fertilize',
@@ -45,21 +61,43 @@ class CropActionButtons extends StatelessWidget {
               color: AppColors.primaryGreen,
               onPressed: onFertilize,
             ),
+            _ActionButton(
+              width: buttonWidth,
+              label: 'Check Crop',
+              icon: Icons.visibility_outlined,
+              color: AppColors.information,
+              onPressed: onFieldCheck,
+            ),
+            _ActionButton(
+              width: buttonWidth,
+              label: 'Observe Growth',
+              icon: Icons.timeline,
+              color: AppColors.primaryGreen,
+              onPressed: onGrowthObservation,
+            ),
+            _ActionButton(
+              width: buttonWidth,
+              label: 'Transplanted',
+              icon: Icons.yard_outlined,
+              color: AppColors.primaryGreen,
+              onPressed: onTransplant,
+            ),
             if (onHarvest != null)
               _ActionButton(
                 width: buttonWidth,
-                label: 'Mark Harvested',
+                label: 'Record Harvest',
                 icon: Icons.agriculture_outlined,
                 color: AppColors.warning,
                 onPressed: onHarvest!,
               ),
-            _ActionButton(
-              width: buttonWidth,
-              label: 'Edit',
-              icon: Icons.edit_outlined,
-              color: AppColors.danger,
-              onPressed: onEdit,
-            ),
+            if (onNotHarvested != null)
+              _ActionButton(
+                width: buttonWidth,
+                label: 'Close without harvest',
+                icon: Icons.block_outlined,
+                color: AppColors.danger,
+                onPressed: onNotHarvested!,
+              ),
           ],
         );
       },
@@ -88,22 +126,22 @@ class _ActionButton extends StatelessWidget {
       width: width,
       child: OutlinedButton.icon(
         onPressed: onPressed,
-        icon: Icon(icon, size: 15, color: color),
+        icon: Icon(icon, size: 18, color: color),
         label: Text(
           label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
         style: OutlinedButton.styleFrom(
-          backgroundColor: AppColors.cardBackground,
-          foregroundColor: color,
-          minimumSize: const Size(0, 34),
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
-          side: BorderSide(color: color),
+          backgroundColor: AppColors.secondaryBackground,
+          foregroundColor: AppColors.primaryText,
+          minimumSize: const Size(0, 52),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+          side: BorderSide(color: AppColors.inactiveBorder),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.sm),
           ),
-          textStyle: AppTypography.statusBadge,
+          textStyle: AppTypography.small.copyWith(fontWeight: FontWeight.w600),
         ),
       ),
     );

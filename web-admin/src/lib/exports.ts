@@ -1,5 +1,6 @@
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { getCustomersDashboard } from "@/lib/customers";
+import { INVENTORY_UNIT } from "@/lib/inventory";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type ExportInventoryRow = {
@@ -18,7 +19,10 @@ export type ExportInventoryRow = {
 };
 
 export type ExportSalesRow = {
+  entryKind: "sale" | "collection";
+  entryType: string;
   receiptNumber: string;
+  receiptLink: string;
   saleDate: string;
   customerName: string;
   customerContact: string;
@@ -29,25 +33,22 @@ export type ExportSalesRow = {
   unit: string;
   unitPrice: number;
   lineTotal: number;
-  receiptSubtotal: number;
-  discountAmount: number;
-  receiptTotal: number;
+  receiptSubtotal: number | null;
+  discountAmount: number | null;
+  receiptTotal: number | null;
+  collectionAmount: number | null;
   status: string;
 };
 
 export type ExportCustomerRow = {
   name: string;
   contact: string;
-  customerType: string;
-  tags: string;
-  location: string;
   receiptCount: number;
   totalSpent: number;
   averageSpend: number;
   lastPurchaseAt: string;
   paymentMethods: string;
   topItems: string;
-  notes: string;
 };
 
 export type ExportStockMovementRow = {
@@ -75,6 +76,7 @@ export type SalesExportFilters = {
   payment?: string;
   start?: string;
   status?: string;
+  type?: string;
 };
 
 export type ReportExportFilters = SalesExportFilters & {
@@ -99,11 +101,14 @@ type InventoryRow = {
 };
 
 type SalesOrderRow = {
+  id: string;
   receipt_number: string;
   sale_date: string;
   customer_name: string | null;
   customer_contact: string | null;
   payment_method: string;
+  amount_paid: number | string | null;
+  change_amount: number | string | null;
   subtotal: number | string;
   discount_amount: number | string;
   total_amount: number | string;
@@ -207,7 +212,7 @@ export async function requireOperationsExporter() {
 
   if (
     !profile ||
-    !["System Administrator", "Farm Inventory Manager"].includes(profile.roleName)
+    !["System Administrator", "Farm Inventory Manager", "Inventory Staff"].includes(profile.roleName)
   ) {
     return null;
   }
@@ -257,7 +262,7 @@ export async function getInventoryExportRows(filters: ReportExportFilters = {}) 
       itemName: row.item_name,
       category: row.category,
       quantity,
-      unit: row.unit,
+      unit: INVENTORY_UNIT,
       minimumQuantity: toNumber(row.minimum_quantity),
       storageLocation: row.storage_location ?? "Not set",
       unitCost,
@@ -279,7 +284,7 @@ export async function getSalesExportRows(filters: SalesExportFilters = {}) {
   let orderQuery = supabase
     .from("sales_orders")
     .select(
-      "receipt_number, sale_date, customer_name, customer_contact, payment_method, subtotal, discount_amount, total_amount, status, sales_order_items(item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total)",
+      "id, receipt_number, sale_date, customer_name, customer_contact, payment_method, amount_paid, change_amount, subtotal, discount_amount, total_amount, status, sales_order_items(item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total)",
     )
     .order("sale_date", { ascending: false });
 
@@ -357,8 +362,11 @@ export async function getSalesExportRows(filters: SalesExportFilters = {}) {
     : marketResultWithReference;
 
   const orderRows = (ordersResult.data ?? []).flatMap<ExportSalesRow>((order) =>
-    order.sales_order_items.map((item) => ({
+    order.sales_order_items.map((item, itemIndex) => ({
+      entryKind: "sale",
+      entryType: "Receipt sale",
       receiptNumber: order.receipt_number,
+      receiptLink: `/sales/${order.id}`,
       saleDate: order.sale_date,
       customerName: order.customer_name ?? "Walk-in customer",
       customerContact: order.customer_contact ?? "",
@@ -366,12 +374,15 @@ export async function getSalesExportRows(filters: SalesExportFilters = {}) {
       transactionReference: "",
       itemName: item.item_name_snapshot,
       quantitySold: toNumber(item.quantity_sold),
-      unit: item.unit_snapshot,
+      unit: INVENTORY_UNIT,
       unitPrice: toNumber(item.unit_price),
       lineTotal: toNumber(item.line_total),
-      receiptSubtotal: toNumber(order.subtotal),
-      discountAmount: toNumber(order.discount_amount),
-      receiptTotal: toNumber(order.total_amount),
+      receiptSubtotal: itemIndex === 0 ? toNumber(order.subtotal) : null,
+      discountAmount: itemIndex === 0 ? toNumber(order.discount_amount) : null,
+      receiptTotal: itemIndex === 0 ? toNumber(order.total_amount) : null,
+      collectionAmount: itemIndex === 0
+        ? Math.max(toNumber(order.amount_paid ?? order.total_amount) - toNumber(order.change_amount), 0)
+        : null,
       status: order.status,
     })),
   );
@@ -381,27 +392,33 @@ export async function getSalesExportRows(filters: SalesExportFilters = {}) {
     const total = toNumber(sale.total_amount);
 
     return {
-      receiptNumber: `SR-${sale.id.slice(0, 8).toUpperCase()}`,
+      entryKind: "sale",
+      entryType: "Legacy inventory sale",
+      receiptNumber: `LEGACY-${sale.id.slice(0, 8).toUpperCase()}`,
+      receiptLink: "",
       saleDate: sale.sale_date,
-      customerName: sale.customer_name ?? "Market distribution",
+      customerName: sale.customer_name ?? "Legacy inventory sale",
       customerContact: "",
       paymentMethod: sale.payment_method ?? "Not recorded",
       transactionReference: sale.transaction_reference ?? "",
-      itemName: inventory?.item_name ?? "Market distribution",
+      itemName: inventory?.item_name ?? "Legacy inventory sale",
       quantitySold: toNumber(sale.quantity_sold),
-      unit: inventory?.unit ?? "unit",
+      unit: INVENTORY_UNIT,
       unitPrice: toNumber(sale.unit_price),
       lineTotal: total,
       receiptSubtotal: total,
       discountAmount: 0,
       receiptTotal: total,
+      collectionAmount: sale.status === "Completed" ? total : null,
       status: sale.status,
     };
   });
 
-  return [...orderRows, ...marketRows].sort(
+  return [...orderRows, ...marketRows]
+    .filter((row) => !filters.type || filters.type === "All" || row.entryType === filters.type)
+    .sort(
     (left, right) => new Date(right.saleDate).getTime() - new Date(left.saleDate).getTime(),
-  );
+    );
 }
 
 export async function getCustomerExportRows(filters: ReportExportFilters = {}) {
@@ -414,16 +431,13 @@ export async function getCustomerExportRows(filters: ReportExportFilters = {}) {
         return true;
       }
 
-      return `${customer.name} ${customer.contact} ${customer.customerType} ${customer.paymentMethods.join(" ")} ${customer.purchasedItems.map((item) => item.itemName).join(" ")}`
+      return `${customer.name} ${customer.contact} ${customer.paymentMethods.join(" ")} ${customer.purchasedItems.map((item) => item.itemName).join(" ")}`
         .toLowerCase()
         .includes(search);
     })
     .map<ExportCustomerRow>((customer) => ({
     name: customer.name,
     contact: customer.contact,
-    customerType: customer.customerType,
-    tags: customer.tags.join(", "),
-    location: customer.location,
     receiptCount: customer.receiptCount,
     totalSpent: customer.totalSpent,
     averageSpend: customer.averageSpend,
@@ -433,7 +447,6 @@ export async function getCustomerExportRows(filters: ReportExportFilters = {}) {
       .slice(0, 3)
       .map((item) => item.itemName)
       .join(", "),
-    notes: customer.notes,
     }));
 }
 

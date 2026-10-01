@@ -11,20 +11,14 @@ import '../../controllers/rover_control_state.dart';
 class PlantingControlPanel extends StatelessWidget {
   const PlantingControlPanel({
     required this.status,
-    required this.soilCheckMessage,
-    required this.manualControlsEnabled,
-    required this.calibrationEnabled,
     required this.canStartPlanting,
     required this.isPlantingActive,
-    required this.onSoilDown,
-    required this.onSoilUp,
-    required this.onRakeDown,
-    required this.onRakeUp,
-    required this.onStartPlanting,
-    required this.onEmergencyStop,
-    required this.onCalibration,
     required this.onResume,
     required this.onCancel,
+    required this.onPlantNextRow,
+    required this.onRetrySync,
+    this.canPlantNextRow = false,
+    this.isSyncing = false,
     this.completedDrops = 0,
     this.targetDrops = 0,
     this.pendingReceipts = 0,
@@ -32,20 +26,14 @@ class PlantingControlPanel extends StatelessWidget {
   });
 
   final PlantingStatus status;
-  final String soilCheckMessage;
-  final bool manualControlsEnabled;
-  final bool calibrationEnabled;
   final bool canStartPlanting;
   final bool isPlantingActive;
-  final VoidCallback onSoilDown;
-  final VoidCallback onSoilUp;
-  final VoidCallback onRakeDown;
-  final VoidCallback onRakeUp;
-  final VoidCallback onStartPlanting;
-  final VoidCallback onEmergencyStop;
-  final VoidCallback onCalibration;
   final VoidCallback onResume;
   final VoidCallback onCancel;
+  final VoidCallback onPlantNextRow;
+  final VoidCallback onRetrySync;
+  final bool canPlantNextRow;
+  final bool isSyncing;
   final int completedDrops;
   final int targetDrops;
   final int pendingReceipts;
@@ -66,13 +54,22 @@ class PlantingControlPanel extends StatelessWidget {
               color: AppColors.primaryGreen,
             ),
           ),
-          const SizedBox(height: 2),
-          Text(
-            soilCheckMessage,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: AppTypography.small.copyWith(color: AppColors.secondaryText),
-          ),
+          if (targetDrops > 0) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Planting points', style: AppTypography.small),
+                Text(
+                  '$completedDrops / $targetDrops',
+                  style: AppTypography.small.copyWith(
+                    color: AppColors.primaryGreen,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 2),
           if (targetDrops > 0) ...[
             LinearProgressIndicator(
@@ -83,101 +80,65 @@ class PlantingControlPanel extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.xs),
           ],
-          if (!isPlantingActive) ...[
-            Row(
-              children: [
-                Expanded(
-                  child: _ActionButton(
-                    label: 'Soil Down',
-                    icon: CupertinoIcons.arrow_down_circle,
-                    enabled: manualControlsEnabled,
-                    onPressed: onSoilDown,
-                  ),
+          if (status == PlantingStatus.paused) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Row(children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: canStartPlanting ? onResume : null,
+                  icon: const Icon(CupertinoIcons.play_fill),
+                  label: const Text('Resume run'),
                 ),
-                const SizedBox(width: AppSpacing.xs),
-                Expanded(
-                  child: _ActionButton(
-                    label: 'Soil Up',
-                    icon: CupertinoIcons.arrow_up_circle,
-                    enabled: manualControlsEnabled,
-                    onPressed: onSoilUp,
-                  ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: onCancel,
+                  icon: const Icon(CupertinoIcons.xmark_circle),
+                  label: const Text('Cancel run'),
                 ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Row(
-              children: [
-                Expanded(
-                  child: _ActionButton(
-                    label: 'Rake Down',
-                    icon: CupertinoIcons.arrow_down,
-                    enabled: manualControlsEnabled,
-                    onPressed: onRakeDown,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.xs),
-                Expanded(
-                  child: _ActionButton(
-                    label: 'Rake Up',
-                    icon: CupertinoIcons.arrow_up,
-                    enabled: manualControlsEnabled,
-                    onPressed: onRakeUp,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Row(
-              children: [
-                Expanded(
-                  child: _ActionButton(
-                    label: 'Calibration',
-                    icon: CupertinoIcons.settings,
-                    enabled: calibrationEnabled,
-                    onPressed: onCalibration,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.xs),
-                Expanded(
-                  child: _ActionButton(
-                    label: status == PlantingStatus.paused
-                        ? 'Resume'
-                        : 'Start Planting',
-                    icon: CupertinoIcons.play_fill,
-                    enabled: canStartPlanting,
-                    onPressed: status == PlantingStatus.paused
-                        ? onResume
-                        : onStartPlanting,
-                  ),
-                ),
-              ],
-            ),
-          ] else ...[
-            Row(
-              children: [
-                Expanded(
-                    child: _ActionButton(
-                        label: 'Cancel Row',
-                        icon: CupertinoIcons.xmark_circle,
-                        enabled: true,
-                        onPressed: onCancel)),
-                const SizedBox(width: AppSpacing.xs),
-                Expanded(
-                    child: _ActionButton(
-                        label: 'Emergency Stop',
-                        icon: CupertinoIcons.exclamationmark_triangle_fill,
-                        enabled: true,
-                        danger: true,
-                        onPressed: onEmergencyStop)),
-              ],
+              ),
+            ]),
+          ] else if (isPlantingActive) ...[
+            const SizedBox(height: AppSpacing.sm),
+            OutlinedButton.icon(
+              onPressed: onCancel,
+              icon: const Icon(CupertinoIcons.xmark_circle),
+              label: const Text('Cancel planting run'),
             ),
           ],
           if (pendingReceipts > 0) ...[
             const SizedBox(height: AppSpacing.xs),
-            Text(
-              '$pendingReceipts planting receipt${pendingReceipts == 1 ? '' : 's'} waiting for internet',
-              style: AppTypography.small.copyWith(color: AppColors.warning),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    isSyncing
+                        ? 'UPLOADING PLANTING RECORDS…'
+                        : '$pendingReceipts LOCAL RECORD${pendingReceipts == 1 ? '' : 'S'} · NEEDS REVIEW OR SYNC',
+                    style:
+                        AppTypography.small.copyWith(color: AppColors.warning),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Retry planting record upload',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: isSyncing ? null : onRetrySync,
+                  icon: const Icon(CupertinoIcons.refresh, size: 18),
+                ),
+              ],
+            ),
+          ],
+          if (canPlantNextRow) ...[
+            const SizedBox(height: AppSpacing.xs),
+            SizedBox(
+              width: double.infinity,
+              child: _ActionButton(
+                label: 'Plant Next Row',
+                icon: CupertinoIcons.arrow_right_circle,
+                enabled: true,
+                onPressed: onPlantNextRow,
+              ),
             ),
           ],
         ],
@@ -192,38 +153,31 @@ class _ActionButton extends StatelessWidget {
     required this.icon,
     required this.enabled,
     required this.onPressed,
-    this.danger = false,
   });
 
   final String label;
   final IconData icon;
   final bool enabled;
-  final bool danger;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    final color = danger ? AppColors.danger : AppColors.primaryGreen;
+    final color = AppColors.primaryGreen;
 
     return OutlinedButton.icon(
       onPressed: enabled ? onPressed : null,
       icon: Icon(icon, color: enabled ? color : null, size: 18),
       label: Text(
-        label,
+        label.toUpperCase(),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
       style: OutlinedButton.styleFrom(
-        minimumSize: const Size(0, 28),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        visualDensity: VisualDensity.compact,
+        minimumSize: const Size.fromHeight(48),
         foregroundColor: color,
         side: BorderSide(color: enabled ? color : AppColors.inactiveBorder),
-        textStyle: AppTypography.statusBadge.copyWith(fontSize: 10),
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.xs,
-          vertical: 0,
-        ),
+        textStyle: AppTypography.caption,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
       ),
     );
   }

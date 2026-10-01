@@ -1,7 +1,6 @@
 "use client";
 
-import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import Link from "next/link";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   CalendarDays,
@@ -31,18 +30,20 @@ import type {
   SalesSummary,
   SellableItem,
 } from "@/lib/sales";
+import type { ExistingSaleCustomer } from "@/lib/customers";
 import { CountUpValue } from "@/components/count-up-value";
-import {
-  ActionAlertStack,
-  type ActionAlert,
-  type AlertTone,
-} from "@/components/action-alert-stack";
+import type { AlertTone } from "@/components/action-alert-stack";
+import { useActionFeedback } from "@/components/action-feedback";
+import { useConfirmationDialog } from "@/components/confirmation-dialog";
 import { ReportPrintButton } from "@/components/report-print-button";
 import { SalesOrderForm } from "@/components/sales-order-form";
+import { ExportDownloadButton } from "@/components/export-download-button";
 import { CalendarField } from "@/components/calendar-field";
 import styles from "@/app/(portal)/sales/page.module.css";
 
 type SalesWorkspaceProps = {
+  canVoidSales: boolean;
+  customers: ExistingSaleCustomer[];
   discounts: ReleasedDiscount[];
   items: SellableItem[];
   orders: RecentSalesOrder[];
@@ -65,6 +66,15 @@ function matchesDateRange(order: RecentSalesOrder, start: string, end: string) {
   const startTime = start ? new Date(`${start}T00:00:00`).getTime() : -Infinity;
   const endTime = end ? new Date(`${end}T23:59:59`).getTime() : Infinity;
   return time >= startTime && time <= endTime;
+}
+
+function displayedSaleStatus(order: RecentSalesOrder) {
+  return order.status;
+}
+
+function salesEntryType(order: RecentSalesOrder) {
+  if (order.source === "market") return "Legacy inventory sale";
+  return "Receipt sale";
 }
 
 function FilterSelect({
@@ -131,6 +141,8 @@ function FilterSelect({
 }
 
 export function SalesWorkspace({
+  canVoidSales,
+  customers,
   discounts,
   items,
   orders,
@@ -138,40 +150,55 @@ export function SalesWorkspace({
 }: SalesWorkspaceProps) {
   const [query, setQuery] = useState("");
   const [payment, setPayment] = useState("All");
+  const [entryType, setEntryType] = useState("All");
   const [status, setStatus] = useState("All");
   const [startDate, setStartDate] = useState(todayInputValue(-30));
   const [endDate, setEndDate] = useState(todayInputValue());
-  const [voidTarget, setVoidTarget] = useState<RecentSalesOrder | null>(null);
   const [saleDetail, setSaleDetail] = useState<RecentSalesOrder | null>(null);
   const [salesModalOpen, setSalesModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [alerts, setAlerts] = useState<ActionAlert[]>([]);
+  const voidReasons = useRef<Record<string, string>>({});
   const [voidPending, startVoidTransition] = useTransition();
   const router = useRouter();
+  const { notify: sendFeedback } = useActionFeedback();
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const closeSalesModal = useCallback(() => setSalesModalOpen(false), []);
 
-  function notify(tone: AlertTone, text: string) {
-    const id = Date.now();
-    setAlerts((current) => [...current.slice(-2), { id, tone, text }]);
-    window.setTimeout(() => {
-      setAlerts((current) => current.filter((alert) => alert.id !== id));
-    }, 4200);
-  }
+  const notify = useCallback((tone: AlertTone, text: string) => {
+    sendFeedback({ tone, text });
+  }, [sendFeedback]);
 
-  function handleVoidSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
+  async function handleVoid(order: RecentSalesOrder) {
+    if (voidPending) return;
+    const source = order.source;
+    if (source !== "receipt" && source !== "market") {
+      notify("error", "This sales record cannot be voided.");
+      return;
+    }
+    const voidReason = voidReasons.current[order.id] ?? "Incorrect sales transaction.";
+    const confirmed = await confirm({
+      title: "Void this sale?",
+      message: `${order.source === "market" ? "Void this legacy inventory sale" : `Void receipt ${order.receiptNumber}`} and return the sold quantity to inventory?`,
+      summary: <label>Void reason<textarea rows={3} defaultValue={voidReason} onChange={(event) => { voidReasons.current[order.id] = event.target.value; }} /></label>,
+      confirmLabel: "Void sale",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+    const formData = new FormData();
+    formData.set("id", order.id);
+    formData.set("source", source);
+    formData.set("reason", voidReasons.current[order.id] ?? voidReason);
 
     startVoidTransition(async () => {
       try {
         await voidSalesRecordAction(formData);
-        setVoidTarget(null);
+        delete voidReasons.current[order.id];
         router.refresh();
-        notify("success", "Success - Sale voided and inventory restored.");
+        notify("success", "Sale voided and inventory restored.");
       } catch (error) {
         notify(
           "error",
-          `Error - ${error instanceof Error ? error.message : "Unable to void sale."}`,
+          error instanceof Error ? error.message : "Unable to void sale.",
         );
       }
     });
@@ -187,7 +214,7 @@ export function SalesWorkspace({
         order.transactionReference ?? "",
         order.marketItemName ?? "",
         order.paymentMethod,
-        order.status,
+        displayedSaleStatus(order),
       ]
         .join(" ")
         .toLowerCase();
@@ -195,15 +222,18 @@ export function SalesWorkspace({
       return (
         (!normalized || haystack.includes(normalized)) &&
         (payment === "All" || order.paymentMethod === payment) &&
-        (status === "All" || order.status === status) &&
+        (entryType === "All" || salesEntryType(order) === entryType) &&
+        (status === "All" || displayedSaleStatus(order) === status) &&
         matchesDateRange(order, startDate, endDate)
       );
     });
-  }, [endDate, orders, payment, query, startDate, status]);
+  }, [endDate, entryType, orders, payment, query, startDate, status]);
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [endDate, payment, query, startDate, status]);
+    const resetPage = window.setTimeout(() => setCurrentPage(1), 0);
+
+    return () => window.clearTimeout(resetPage);
+  }, [endDate, entryType, payment, query, startDate, status]);
 
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / SALES_ROWS_PER_PAGE));
   const safeCurrentPage = Math.min(currentPage, totalPages);
@@ -215,7 +245,8 @@ export function SalesWorkspace({
   const pageNumbers = Array.from({ length: Math.min(3, totalPages) }, (_, index) => pageStart + index);
 
   const paymentOptions = ["All", ...new Set(orders.map((order) => order.paymentMethod))];
-  const statusOptions = ["All", ...new Set(orders.map((order) => order.status))];
+  const statusOptions = ["All", ...new Set(orders.map(displayedSaleStatus))];
+  const entryTypeOptions = ["All", ...new Set(orders.map(salesEntryType))];
   const exportParams = new URLSearchParams();
 
   if (startDate) {
@@ -228,6 +259,10 @@ export function SalesWorkspace({
 
   if (payment !== "All") {
     exportParams.set("payment", payment);
+  }
+
+  if (entryType !== "All") {
+    exportParams.set("type", entryType);
   }
 
   if (status !== "All") {
@@ -253,7 +288,7 @@ export function SalesWorkspace({
             <span className={styles.metricIcon} aria-hidden="true">
               <TrendingUp size={20} />
             </span>
-            <p>This month</p>
+            <p>Sales this month</p>
           </div>
           <CountUpValue className="mono" currency value={summary.salesThisMonth} />
         </article>
@@ -286,6 +321,17 @@ export function SalesWorkspace({
         </article>
       </section>
 
+      <section className={`${styles.metricGrid} ${styles.collectionMetricGrid}`} aria-label="Collections summary">
+        <article className={styles.metric}>
+          <div className={styles.metricMeta}><span className={styles.metricIcon} aria-hidden="true"><WalletCards size={20} /></span><p>Collected today</p></div>
+          <CountUpValue className="mono" currency value={summary.collectedToday} />
+        </article>
+        <article className={styles.metric}>
+          <div className={styles.metricMeta}><span className={styles.metricIcon} aria-hidden="true"><WalletCards size={20} /></span><p>Collected this month</p></div>
+          <CountUpValue className="mono" currency value={summary.collectedThisMonth} />
+        </article>
+      </section>
+
       <section className={styles.quickActions}>
         <div>
           <p className={styles.eyebrow}>Quick action</p>
@@ -311,14 +357,14 @@ export function SalesWorkspace({
             <h2>Sales history</h2>
           </div>
           <div className={styles.exportActions}>
-            <Link href={`/api/exports/sales.csv${exportQuery ? `?${exportQuery}` : ""}`}>
+            <ExportDownloadButton href={`/api/exports/sales.csv${exportQuery ? `?${exportQuery}` : ""}`}>
               <FileDown size={17} />
               CSV
-            </Link>
-            <Link href={`/api/exports/sales.xls${exportQuery ? `?${exportQuery}` : ""}`}>
+            </ExportDownloadButton>
+            <ExportDownloadButton href={`/api/exports/sales.xls${exportQuery ? `?${exportQuery}` : ""}`}>
               <FileDown size={17} />
               Excel
-            </Link>
+            </ExportDownloadButton>
             <ReportPrintButton href={`/reports/sales/print${exportQuery ? `?${exportQuery}` : ""}`}>
               <Printer size={17} />
               Print / PDF
@@ -345,6 +391,13 @@ export function SalesWorkspace({
             onChange={setPayment}
           />
           <FilterSelect
+            icon={<Receipt size={17} />}
+            label="Type"
+            options={entryTypeOptions}
+            value={entryType}
+            onChange={setEntryType}
+          />
+          <FilterSelect
             icon={<CheckCircle2 size={17} />}
             label="Status"
             options={statusOptions}
@@ -361,33 +414,38 @@ export function SalesWorkspace({
         ) : (
           <div className={styles.salesTable}>
             <div className={styles.salesTableHead}>
-              <span>Receipt</span>
+              <span>Receipt / reference</span>
               <span>Date/Time</span>
               <span>Customer</span>
               <span>Type</span>
               <span>Items</span>
               <span>Payment</span>
               <span>Discount</span>
-              <span>Total</span>
+              <span>Sale / payment</span>
               <span>Status</span>
               <span>Actions</span>
             </div>
             {paginatedOrders.map((order) => (
-              <div className={styles.salesTableRow} key={`${order.source}-${order.id}`}>
-                <strong className={styles.receiptCell}>{order.receiptNumber}</strong>
-                <span className={styles.dateCell}>{formatDateTime(order.saleDate)}</span>
-                <strong className={styles.customerCell}>{order.customerName}</strong>
-                <span className={styles.typeCell}>
-                  {order.source === "market" ? "Market distribution" : "Receipt sale"}
+              <div className={styles.salesTableRow} key={order.id}>
+                <strong className={styles.receiptCell} data-label={order.source === "market" ? "Legacy reference" : "Receipt"}>{order.receiptNumber}</strong>
+                <span className={styles.dateCell} data-label="Date / time">{formatDateTime(order.saleDate)}</span>
+                <strong className={styles.customerCell} data-label="Customer">{order.customerName}</strong>
+                <span className={styles.typeCell} data-label="Type">
+                  {salesEntryType(order)}
                 </span>
-                <span className={styles.itemsCell}>{order.itemCount ?? 1}</span>
-                <span className={styles.paymentCell}>{order.paymentMethod}</span>
-                <span className={styles.discountCell}>{formatCurrency(order.discountAmount ?? 0)}</span>
-                <strong className={styles.totalCell}>{formatCurrency(order.totalAmount)}</strong>
-                <span className={styles.statusPill} data-status={order.status.toLowerCase()}>
-                  {order.status}
+                <span className={styles.itemsCell} data-label="Items">{order.itemCount ?? 1}</span>
+                <span className={styles.paymentCell} data-label="Payment">
+                  {order.paymentMethod}
+                  {order.transactionReference ? <small>Ref: {order.transactionReference}</small> : null}
                 </span>
-                <div className={styles.tableActions}>
+                <span className={styles.discountCell} data-label="Discount">{formatCurrency(order.discountAmount ?? 0)}</span>
+                <strong className={styles.totalCell} data-label="Sale total">{formatCurrency(order.totalAmount)}</strong>
+                <div className={styles.statusCell} data-label="Status">
+                  <span className={styles.statusPill} data-status={displayedSaleStatus(order).toLowerCase()}>
+                    {displayedSaleStatus(order)}
+                  </span>
+                </div>
+                <div className={styles.tableActions} data-label="Actions">
                   {order.source === "receipt" ? (
                     <button
                       aria-label="View receipt details"
@@ -398,18 +456,19 @@ export function SalesWorkspace({
                     </button>
                   ) : (
                     <button
-                      aria-label="View market distribution details"
+                      aria-label="View legacy inventory sale details"
                       type="button"
                       onClick={() => setSaleDetail(order)}
                     >
                       <Eye size={17} />
                     </button>
                   )}
-                  {order.status === "Completed" ? (
+                  {canVoidSales &&
+                  order.status === "Completed" ? (
                     <button
                       aria-label="Void sale"
                       type="button"
-                      onClick={() => setVoidTarget(order)}
+                      onClick={() => void handleVoid(order)}
                     >
                       <Undo2 size={17} />
                     </button>
@@ -452,37 +511,6 @@ export function SalesWorkspace({
         )}
       </section>
 
-      {voidTarget ? (
-        <div className={styles.modalBackdrop} data-ui-backdrop="true" role="presentation">
-          <form className={styles.voidModal} onSubmit={handleVoidSubmit}>
-            <input name="id" type="hidden" value={voidTarget.id} />
-            <input name="source" type="hidden" value={voidTarget.source} />
-            <h2>Void this sale?</h2>
-            <p>
-              This will mark <strong>{voidTarget.receiptNumber}</strong> as voided and
-              return the sold quantity back to inventory.
-            </p>
-            <label>
-              Void reason
-              <textarea
-                name="reason"
-                defaultValue="Incorrect sales transaction."
-                rows={3}
-              />
-            </label>
-            <div className={styles.modalActions}>
-              <button className={styles.cancelButton} type="button" onClick={() => setVoidTarget(null)}>
-                Cancel
-              </button>
-              <button className={styles.confirmButton} disabled={voidPending} type="submit">
-                <Undo2 size={16} />
-                <span>{voidPending ? "Voiding..." : "Void sale"}</span>
-              </button>
-            </div>
-          </form>
-        </div>
-      ) : null}
-
       {saleDetail ? (
         <SalesRecordDetailModal
           order={saleDetail}
@@ -515,6 +543,7 @@ export function SalesWorkspace({
               </button>
             </header>
             <SalesOrderForm
+              customers={customers}
               discounts={discounts}
               items={items}
               notify={notify}
@@ -524,12 +553,7 @@ export function SalesWorkspace({
         </div>
       ) : null}
 
-      <ActionAlertStack
-        alerts={alerts}
-        onDismiss={(id) =>
-          setAlerts((current) => current.filter((alert) => alert.id !== id))
-        }
-      />
+      {confirmationDialog}
     </>
   );
 }
@@ -543,13 +567,16 @@ function SalesRecordDetailModal({
 }) {
   const showTransactionReference =
     order.paymentMethod !== "Cash" && Boolean(order.transactionReference);
-  const isMarket = order.source === "market";
+  const isLegacyInventorySale = order.source === "market";
+  const remarks = isLegacyInventorySale
+    ? order.marketRemarks
+    : order.remarks;
   const items =
-    isMarket
+    isLegacyInventorySale
       ? [
           {
             id: order.id,
-            itemName: order.marketItemName ?? "Market distribution item",
+            itemName: order.marketItemName ?? "Legacy inventory item",
             unit: order.marketItemUnit ?? "unit",
             quantitySold: order.marketQuantitySold ?? 1,
             unitPrice: order.marketUnitPrice ?? order.totalAmount,
@@ -569,9 +596,9 @@ function SalesRecordDetailModal({
         <header className={styles.modalHeader}>
           <h3 className={styles.modalTitle}>
             <span className={styles.modalTitleIcon} aria-hidden="true">
-              {isMarket ? <Package size={18} /> : <Receipt size={18} />}
+              {isLegacyInventorySale ? <Package size={18} /> : <Receipt size={18} />}
             </span>
-            {isMarket ? "Market Distribution Details" : "Receipt Sale Details"}
+            {isLegacyInventorySale ? "Legacy Inventory Sale Details" : "Receipt Sale Details"}
           </h3>
           <button
             aria-label="Close modal"
@@ -585,11 +612,11 @@ function SalesRecordDetailModal({
 
         <div className={styles.marketDetailHero}>
           <div>
-            <span>Reference</span>
+            <span>{isLegacyInventorySale ? "Legacy reference" : "Receipt number"}</span>
             <strong>{order.receiptNumber}</strong>
           </div>
-          <span className={styles.statusPill} data-status={order.status.toLowerCase()}>
-            {order.status}
+          <span className={styles.statusPill} data-status={displayedSaleStatus(order).toLowerCase()}>
+            {displayedSaleStatus(order)}
           </span>
         </div>
 
@@ -613,8 +640,8 @@ function SalesRecordDetailModal({
           <div className={styles.marketItemsHead}>
             <span>Item bought</span>
             <span>Qty</span>
-            <span>Unit price</span>
-            <span>Total</span>
+            <span>Unit price (PHP)</span>
+            <span>Total (PHP)</span>
           </div>
           {items.length > 0 ? (
             items.map((item) => (
@@ -635,10 +662,16 @@ function SalesRecordDetailModal({
           )}
         </section>
 
-        {order.marketRemarks ? (
+        {order.status === "Voided" && order.voidReason?.trim() ? (
+          <section className={styles.marketRemarks}>
+            <span>Void reason</span>
+            <p>{order.voidReason}</p>
+          </section>
+        ) : null}
+        {remarks?.trim() ? (
           <section className={styles.marketRemarks}>
             <span>Remarks</span>
-            <p>{order.marketRemarks}</p>
+            <p>{remarks}</p>
           </section>
         ) : null}
       </section>

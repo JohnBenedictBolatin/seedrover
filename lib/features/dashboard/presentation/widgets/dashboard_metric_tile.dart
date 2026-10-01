@@ -14,7 +14,7 @@ class DashboardMetricTile extends StatelessWidget {
     required this.color,
     super.key,
     this.caption,
-    this.useMonoText = false,
+    this.useNumericTypography = false,
   });
 
   final String label;
@@ -22,7 +22,7 @@ class DashboardMetricTile extends StatelessWidget {
   final IconData icon;
   final Color color;
   final String? caption;
-  final bool useMonoText;
+  final bool useNumericTypography;
 
   @override
   Widget build(BuildContext context) {
@@ -41,19 +41,21 @@ class DashboardMetricTile extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             AnimatedTypingText(
               label,
-              style: useMonoText ? AppTypography.monoSmall : AppTypography.small,
+              style: useNumericTypography
+                  ? AppTypography.numericSmall
+                  : AppTypography.small,
             ),
             const SizedBox(height: AppSpacing.xs),
             AnimatedMetricText(
               value,
-              style: AppTypography.sensorValue.copyWith(color: color),
+              style: AppTypography.numericValue.copyWith(color: color),
             ),
             if (caption != null) ...[
               const SizedBox(height: AppSpacing.xs),
               AnimatedTypingText(
                 caption!,
-                style: useMonoText
-                    ? AppTypography.monoCaption
+                style: useNumericTypography
+                    ? AppTypography.numericCaption
                     : AppTypography.caption,
               ),
             ],

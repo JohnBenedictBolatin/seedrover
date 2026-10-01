@@ -1,41 +1,61 @@
 enum CropGrowthStage {
   seeded,
+  seedbed,
   germinating,
+  nurserySeedling,
+  transplantReview,
+  establishing,
+  juvenile,
   vegetative,
+  trellising,
   flowering,
+  podFormation,
+  pegging,
+  podDevelopment,
+  maturityCheck,
+  firstBearing,
   fruiting,
   harvestReady,
-  harvested;
+  harvested,
+  other;
 
-  String get label {
-    return switch (this) {
-      CropGrowthStage.seeded => 'Seeded',
-      CropGrowthStage.germinating => 'Germinating',
-      CropGrowthStage.vegetative => 'Vegetative',
-      CropGrowthStage.flowering => 'Flowering',
-      CropGrowthStage.fruiting => 'Fruiting',
-      CropGrowthStage.harvestReady => 'Harvest Ready',
-      CropGrowthStage.harvested => 'Harvested',
-    };
-  }
+  String get label => switch (this) {
+        CropGrowthStage.seeded => 'Seeded',
+        CropGrowthStage.seedbed => 'Seedbed',
+        CropGrowthStage.germinating => 'Germinating',
+        CropGrowthStage.nurserySeedling => 'Nursery Seedling',
+        CropGrowthStage.transplantReview => 'Transplant Review',
+        CropGrowthStage.establishing => 'Establishing',
+        CropGrowthStage.juvenile => 'Juvenile',
+        CropGrowthStage.vegetative => 'Vegetative',
+        CropGrowthStage.trellising => 'Trellising',
+        CropGrowthStage.flowering => 'Flowering',
+        CropGrowthStage.podFormation => 'Pod Formation',
+        CropGrowthStage.pegging => 'Pegging',
+        CropGrowthStage.podDevelopment => 'Pod Development',
+        CropGrowthStage.maturityCheck => 'Maturity Check',
+        CropGrowthStage.firstBearing => 'First Bearing',
+        CropGrowthStage.fruiting => 'Fruiting',
+        CropGrowthStage.harvestReady => 'Harvest Ready',
+        CropGrowthStage.harvested => 'Completed',
+        CropGrowthStage.other => 'Review recorded stage',
+      };
 }
 
 enum CropStatus {
-  healthy,
-  needsWater,
-  needsFertilizer,
+  active,
+  needsAttention,
   readyForHarvest,
-  harvested;
+  harvested,
+  notHarvested;
 
-  String get label {
-    return switch (this) {
-      CropStatus.healthy => 'Healthy',
-      CropStatus.needsWater => 'Needs Water',
-      CropStatus.needsFertilizer => 'Needs Fertilizer',
-      CropStatus.readyForHarvest => 'Ready for Harvest',
-      CropStatus.harvested => 'Harvested',
-    };
-  }
+  String get label => switch (this) {
+        CropStatus.active => 'Active',
+        CropStatus.needsAttention => 'Needs Attention',
+        CropStatus.readyForHarvest => 'Harvest Ready',
+        CropStatus.harvested => 'Harvested',
+        CropStatus.notHarvested => 'Closed without harvest',
+      };
 }
 
 enum CropMaintenanceActivity {
@@ -67,6 +87,8 @@ enum CropMaintenanceActivity {
 class CropWeatherSnapshot {
   const CropWeatherSnapshot({
     required this.currentCondition,
+    this.source = 'Unavailable',
+    this.unavailableMessage,
     this.nextRainAt,
     this.temperatureC,
     this.humidityPercent,
@@ -75,6 +97,8 @@ class CropWeatherSnapshot {
   });
 
   final String currentCondition;
+  final String source;
+  final String? unavailableMessage;
   final DateTime? nextRainAt;
   final double? temperatureC;
   final double? humidityPercent;
@@ -85,17 +109,60 @@ class CropWeatherSnapshot {
 class CropSensorSnapshot {
   const CropSensorSnapshot({
     required this.soilMoisture,
+    this.soilRaw,
     required this.soilTemperature,
     required this.environmentTemperature,
     required this.humidity,
     this.recordedAt,
+    this.source,
+    this.provenanceStatus,
+    this.soilMoistureCalibrated,
+    this.calibrationVersion,
   });
 
-  final double soilMoisture;
-  final double soilTemperature;
-  final double environmentTemperature;
-  final double humidity;
+  final double? soilMoisture;
+  final int? soilRaw;
+  final double? soilTemperature;
+  final double? environmentTemperature;
+  final double? humidity;
   final DateTime? recordedAt;
+  final String? source;
+  final String? provenanceStatus;
+  final bool? soilMoistureCalibrated;
+  final String? calibrationVersion;
+}
+
+class CropSensorReading {
+  const CropSensorReading({
+    required this.id,
+    required this.recordedAt,
+    required this.source,
+    required this.provenanceStatus,
+    this.soilRaw,
+    this.soilMoisture,
+    this.soilTemperature,
+    this.environmentTemperature,
+    this.humidity,
+    this.soilMoistureCalibrated,
+    this.calibrationVersion,
+  });
+
+  final String id;
+  final DateTime recordedAt;
+  final String source;
+  final String provenanceStatus;
+  final int? soilRaw;
+  final double? soilMoisture;
+  final double? soilTemperature;
+  final double? environmentTemperature;
+  final double? humidity;
+  final bool? soilMoistureCalibrated;
+  final String? calibrationVersion;
+
+  bool get isFresh {
+    final age = DateTime.now().difference(recordedAt);
+    return !age.isNegative && age <= const Duration(seconds: 60);
+  }
 }
 
 class CropMaintenanceRecord {
@@ -109,6 +176,8 @@ class CropMaintenanceRecord {
     this.material,
     this.observedStage,
     this.source = 'User',
+    this.id,
+    this.photoPaths = const [],
   });
 
   final CropMaintenanceActivity activity;
@@ -120,6 +189,28 @@ class CropMaintenanceRecord {
   final String? material;
   final String? observedStage;
   final String source;
+  final String? id;
+  final List<String> photoPaths;
+}
+
+class CropCareTask {
+  const CropCareTask({
+    required this.id,
+    required this.title,
+    required this.recommendation,
+    required this.type,
+    required this.dueAt,
+    required this.priority,
+    required this.status,
+  });
+
+  final String id;
+  final String title;
+  final String recommendation;
+  final String type;
+  final DateTime dueAt;
+  final String priority;
+  final String status;
 }
 
 class CropModel {
@@ -134,7 +225,6 @@ class CropModel {
     required this.status,
     required this.maintenanceNotes,
     required this.managerName,
-    required this.progress,
     required this.sensorSnapshot,
     required this.maintenanceHistory,
     required this.reminders,
@@ -142,21 +232,27 @@ class CropModel {
     this.batchCode = '',
     this.imagePath,
     this.imageUrl,
-    this.seedCount,
     this.harvestDate,
     this.lastWateredAt,
     this.plantingSource = 'Legacy',
     this.fieldLabel = 'Field not labeled',
     this.fieldAreaM2,
-    this.completedDrops = 0,
-    this.estimatedSeedMin,
-    this.estimatedSeedMax,
     this.harvestWindowStart,
     this.harvestWindowEnd,
     this.forecastConfidence = 'Low',
     this.expectedStage = 'Review stage',
     this.careStatus = 'Review crop condition',
     this.propagationMethod = 'Unknown',
+    this.recordedGrowthStage,
+    this.assignedManagerId,
+    this.cropProfileKey,
+    this.harvestedQuantity,
+    this.harvestInventoryName,
+    this.harvestTaskCount = 0,
+    this.profileStages = const [],
+    this.careTasks = const [],
+    this.plantingTargetDrops,
+    this.plantingCompletedDrops,
   });
 
   final String id;
@@ -165,47 +261,58 @@ class CropModel {
   final String variety;
   final String location;
   final DateTime plantingDate;
-  final DateTime estimatedHarvest;
+  final DateTime? estimatedHarvest;
   final CropGrowthStage growthStage;
   final CropStatus status;
   final List<String> maintenanceNotes;
   final String managerName;
-  final double progress;
   final CropSensorSnapshot sensorSnapshot;
   final List<CropMaintenanceRecord> maintenanceHistory;
   final List<String> reminders;
   final String notes;
   final String? imagePath;
   final String? imageUrl;
-  final int? seedCount;
   final DateTime? harvestDate;
   final DateTime? lastWateredAt;
   final String plantingSource;
   final String fieldLabel;
   final double? fieldAreaM2;
-  final int completedDrops;
-  final int? estimatedSeedMin;
-  final int? estimatedSeedMax;
   final DateTime? harvestWindowStart;
   final DateTime? harvestWindowEnd;
   final String forecastConfidence;
   final String expectedStage;
   final String careStatus;
   final String propagationMethod;
+  final String? recordedGrowthStage;
+  final String? assignedManagerId;
+  final String? cropProfileKey;
+  final double? harvestedQuantity;
+  final String? harvestInventoryName;
+  final int harvestTaskCount;
+  final List<String> profileStages;
+  final List<CropCareTask> careTasks;
+  final int? plantingTargetDrops;
+  final int? plantingCompletedDrops;
 
-  int get safeSeedCount => seedCount ?? 0;
+  String get growthStageLabel => recordedGrowthStage?.trim().isNotEmpty == true
+      ? recordedGrowthStage!
+      : growthStage.label;
 
   int get cropAgeDays {
     return DateTime.now().difference(plantingDate).inDays;
   }
 
   int get remainingHarvestDays {
-    final remaining = estimatedHarvest.difference(DateTime.now()).inDays;
+    final date = estimatedHarvest;
+    if (date == null) return 0;
+    final remaining = date.difference(DateTime.now()).inDays;
 
     return remaining < 0 ? 0 : remaining;
   }
 
   bool get isHarvested => status == CropStatus.harvested;
+  bool get isCompleted =>
+      status == CropStatus.harvested || status == CropStatus.notHarvested;
   bool get isHarvestReady => status == CropStatus.readyForHarvest;
 
   String get trackingCode {
@@ -228,28 +335,26 @@ class CropModel {
     CropStatus? status,
     List<String>? maintenanceNotes,
     String? managerName,
-    double? progress,
     CropSensorSnapshot? sensorSnapshot,
     List<CropMaintenanceRecord>? maintenanceHistory,
     List<String>? reminders,
     String? notes,
     Object? imagePath = _noChange,
     Object? imageUrl = _noChange,
-    Object? seedCount = _noChange,
     Object? harvestDate = _noChange,
     Object? lastWateredAt = _noChange,
     String? plantingSource,
     String? fieldLabel,
     Object? fieldAreaM2 = _noChange,
-    int? completedDrops,
-    Object? estimatedSeedMin = _noChange,
-    Object? estimatedSeedMax = _noChange,
     Object? harvestWindowStart = _noChange,
     Object? harvestWindowEnd = _noChange,
     String? forecastConfidence,
     String? expectedStage,
     String? careStatus,
     String? propagationMethod,
+    String? recordedGrowthStage,
+    Object? plantingTargetDrops = _noChange,
+    Object? plantingCompletedDrops = _noChange,
   }) {
     return CropModel(
       id: id ?? this.id,
@@ -263,14 +368,12 @@ class CropModel {
       status: status ?? this.status,
       maintenanceNotes: maintenanceNotes ?? this.maintenanceNotes,
       managerName: managerName ?? this.managerName,
-      progress: progress ?? this.progress,
       sensorSnapshot: sensorSnapshot ?? this.sensorSnapshot,
       maintenanceHistory: maintenanceHistory ?? this.maintenanceHistory,
       reminders: reminders ?? this.reminders,
       notes: notes ?? this.notes,
       imagePath: imagePath == _noChange ? this.imagePath : imagePath as String?,
       imageUrl: imageUrl == _noChange ? this.imageUrl : imageUrl as String?,
-      seedCount: seedCount == _noChange ? this.seedCount : seedCount as int?,
       harvestDate: harvestDate == _noChange
           ? this.harvestDate
           : harvestDate as DateTime?,
@@ -281,13 +384,6 @@ class CropModel {
       fieldLabel: fieldLabel ?? this.fieldLabel,
       fieldAreaM2:
           fieldAreaM2 == _noChange ? this.fieldAreaM2 : fieldAreaM2 as double?,
-      completedDrops: completedDrops ?? this.completedDrops,
-      estimatedSeedMin: estimatedSeedMin == _noChange
-          ? this.estimatedSeedMin
-          : estimatedSeedMin as int?,
-      estimatedSeedMax: estimatedSeedMax == _noChange
-          ? this.estimatedSeedMax
-          : estimatedSeedMax as int?,
       harvestWindowStart: harvestWindowStart == _noChange
           ? this.harvestWindowStart
           : harvestWindowStart as DateTime?,
@@ -298,6 +394,13 @@ class CropModel {
       expectedStage: expectedStage ?? this.expectedStage,
       careStatus: careStatus ?? this.careStatus,
       propagationMethod: propagationMethod ?? this.propagationMethod,
+      recordedGrowthStage: recordedGrowthStage ?? this.recordedGrowthStage,
+      plantingTargetDrops: plantingTargetDrops == _noChange
+          ? this.plantingTargetDrops
+          : plantingTargetDrops as int?,
+      plantingCompletedDrops: plantingCompletedDrops == _noChange
+          ? this.plantingCompletedDrops
+          : plantingCompletedDrops as int?,
     );
   }
 }

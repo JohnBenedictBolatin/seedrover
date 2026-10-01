@@ -1,27 +1,15 @@
-import {
-  Activity,
-  Antenna,
-  BatteryCharging,
-  Bluetooth,
-  Camera,
-  Droplets,
-  Gauge,
-  Leaf,
-  Radio,
-  Sun,
-  Thermometer,
-  Wifi,
-} from "lucide-react";
+import { Droplets, Sun, Thermometer } from "lucide-react";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { CountUpValue } from "@/components/count-up-value";
 import { LiveDateTime } from "@/components/live-date-time";
+import { ModuleHeaderIntro } from "@/components/module-header-intro";
+import { RoverCommandHistory } from "@/components/rover-command-history";
 import { RoverLiveRefresh } from "@/components/rover-live-refresh";
+import { SensorHistoryTable } from "@/components/rover-sensor-history";
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
-import { getRoverMonitor, type RoverCommand, type RoverSensorReading, type RoverStatus } from "@/lib/rover";
+import { getRoverMonitor, type RoverSensorReading, type RoverStatus } from "@/lib/rover";
 import styles from "./page.module.css";
-import { pingRoverAction, releaseRoverLeaseAction } from "./actions";
 
 export default async function RoverMonitorPage() {
   const profile = await getCurrentAdminProfile();
@@ -30,132 +18,63 @@ export default async function RoverMonitorPage() {
     redirect("/login");
   }
 
-  if (profile.roleName === "Farm Inventory Manager") {
+  if (["Farm Inventory Manager", "Inventory Staff"].includes(profile.roleName)) {
     redirect("/dashboard");
   }
 
-  const { status, commands, sensors, error } = await getRoverMonitor();
+  const { commands, sensors, sensorHistory, commandError, sensorError } =
+    await getRoverMonitor({ commandLimit: 100 });
 
   return (
     <div className={styles.page}>
       <RoverLiveRefresh />
       <header className={styles.header}>
-        <div>
+        <ModuleHeaderIntro mascot="rover_monitor">
           <p className={styles.eyebrow}>Farm</p>
           <h1>Rover Monitor</h1>
-          <p>Connection status, sensors, planting sessions, and commands.</p>
-        </div>
+          <p>Rover state, sensor readings, and command history.</p>
+        </ModuleHeaderIntro>
         <div className={styles.liveDateTime}>
           <LiveDateTime />
         </div>
       </header>
 
-      {error ? (
-        <section className={styles.notice}>
-          <strong>Rover status is not available yet.</strong>
-          <span>{error}</span>
-        </section>
-      ) : null}
-
-      <section className={styles.metricGrid} aria-label="Rover status summary">
-        <MetricCard icon={<Radio size={20} />} label="Status" value={status?.roverStatus ?? "Unknown"} />
-        <MetricCard icon={<BatteryCharging size={20} />} label="Battery" numeric suffix="%" value={status?.batteryLevel ?? 0} />
-        <MetricCard icon={<Leaf size={20} />} label="Seed level" numeric suffix="%" value={status?.seedLevel ?? 0} />
-        <MetricCard icon={<Gauge size={20} />} label="Speed" numeric suffix="%" value={status?.speed ?? 0} />
-      </section>
-
-      <section className={styles.monitorGrid}>
-        <article className={`${styles.panel} ${styles.cameraPanel}`}>
-          <PanelTitle eyebrow="Camera" title="Field View" icon={<Camera size={18} />} />
-          <div className={styles.cameraPreview} data-connected={status?.cameraConnected ? "true" : "false"}>
-            <Camera size={46} />
-            <strong>{status?.cameraConnected ? "Camera Online" : "Camera Offline"}</strong>
-            <span>{status?.currentActivity ?? "Waiting for rover activity."}</span>
-          </div>
-          <div className={styles.pillRow}>
-            <StatusPill icon={<Wifi size={15} />} label="Wi-Fi" active={status?.wifiConnected === true} />
-            <StatusPill icon={<Bluetooth size={15} />} label="Bluetooth" active={status?.bluetoothConnected === true} />
-            <StatusPill icon={<Camera size={15} />} label="Camera" active={status?.cameraConnected === true} />
-          </div>
-        </article>
-
+      <section className={styles.monitorGrid} aria-label="Rover monitoring details">
         <article className={styles.panel}>
-          <PanelTitle eyebrow="Current state" title="Device health" icon={<Activity size={18} />} />
-          {status ? <DeviceHealth status={status} /> : <EmptyState title="No rover status yet." text="Waiting for the rover to report its status." />}
-        </article>
-
-        <article className={styles.panel}>
-          <PanelTitle eyebrow="Sensors" title="Soil and environment" icon={<Droplets size={18} />} />
-          {sensors ? <SensorGrid sensors={sensors} /> : <EmptyState title="No sensor readings yet." />}
-        </article>
-      </section>
-
-      <section className={styles.commandPanel}>
-        <div className={styles.commandPanelTop}>
-          <PanelTitle eyebrow="Recent activity" title="Command history" icon={<Antenna size={18} />} />
-          <div className={styles.commandActions}>
-            <form action={pingRoverAction}>
-              <button className={styles.pingButton} type="submit">Ping rover</button>
-            </form>
-            <form action={releaseRoverLeaseAction}>
-              <button className={styles.releaseButton} type="submit">Release control</button>
-            </form>
-          </div>
-        </div>
-        <div className={styles.commandLayout}>
-          <div className={styles.historyWrap}>
-            {commands.length === 0 ? (
-              <EmptyState title="No rover commands yet." />
-            ) : (
-              <div className={styles.commandList}>
-                {commands.map((command) => (
-                  <CommandItem command={command} key={command.id} />
-                ))}
+          <PanelTitle title="Sensor readings" icon={<Droplets size={18} />} />
+          {sensorError ? <DataError title="Sensor readings could not be loaded." message={sensorError} /> : null}
+          <LatestSensors history={sensorHistory} sensors={sensors} />
+          <p className={styles.latestMeta}>
+            {sensors ? `Verified hardware · ${sensors.source || "Source unavailable"} · ${formatDateTime(sensors.recordedAt)} · ${sensors.fresh ? "Fresh" : "Stale"}` : "No verified hardware reading is available."}
+          </p>
+          <div className={styles.historySection}>
+            <div className={styles.historyHeading}>
+              <div>
+                <h3>Reading history</h3>
+                <p>Newest first · up to 100 saved readings</p>
               </div>
+              <span>{sensorError ? "Unavailable" : `${sensorHistory.length} readings`}</span>
+            </div>
+            {sensorError ? (
+              <EmptyState title="History unavailable." />
+            ) : (
+              <SensorHistoryTable readings={sensorHistory} />
             )}
           </div>
-        </div>
+        </article>
+
+        <aside className={`${styles.panel} ${styles.commandPanel}`} aria-label="Command history">
+          <RoverCommandHistory commands={commands} error={commandError} />
+        </aside>
       </section>
     </div>
   );
 }
 
-function MetricCard({
-  icon,
-  label,
-  numeric = false,
-  suffix = "",
-  value,
-}: {
-  icon: ReactNode;
-  label: string;
-  numeric?: boolean;
-  suffix?: string;
-  value: number | string;
-}) {
-  return (
-    <article className={styles.metric}>
-      <div className={styles.metricMeta}>
-        <span className={styles.metricIcon}>{icon}</span>
-        <p>{label}</p>
-      </div>
-      {numeric ? (
-        <div className={styles.metricValue}>
-          <CountUpValue className="mono" value={Number(value)} />
-          <span>{suffix}</span>
-        </div>
-      ) : (
-        <strong>{value}</strong>
-      )}
-    </article>
-  );
-}
-
-function PanelTitle({ eyebrow, icon, title }: { eyebrow: string; icon: ReactNode; title: string }) {
+function PanelTitle({ icon, title }: { icon: ReactNode; title: string }) {
   return (
     <div className={styles.panelHeader}>
       <div>
-        <p className={styles.eyebrow}>{eyebrow}</p>
         <h2>
           <span>{icon}</span>
           {title}
@@ -165,135 +84,131 @@ function PanelTitle({ eyebrow, icon, title }: { eyebrow: string; icon: ReactNode
   );
 }
 
-function DeviceHealth({ status }: { status: RoverStatus }) {
-  const items = [
-    ["Current activity", status.currentActivity],
-    ["Emergency stop", status.emergencyStop ? "Active" : "Inactive"],
-    ["Last update", formatDateTime(status.lastUpdated)],
-    ["Connection mode", status.wifiConnected ? "Wi-Fi" : status.bluetoothConnected ? "Bluetooth" : "Offline"],
-  ];
+type SensorField = "soilMoisture" | "soilTemperature" | "environmentalTemperature" | "humidity";
 
-  return (
-    <div className={styles.healthGrid}>
-      {items.map(([label, value]) => (
-        <div key={label}>
-          <span>{label}</span>
-          <strong className={label === "Emergency stop" && value === "Active" ? styles.danger : ""}>
-            {value}
-          </strong>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function SensorGrid({ sensors }: { sensors: RoverSensorReading }) {
-  const sensorItems = [
-    { label: "Soil Moisture", value: sensors.soilMoisture, unit: "%", icon: <Droplets size={20} />, status: moistureStatus(sensors.soilMoisture) },
-    { label: "Soil Temp", value: sensors.soilTemperature, unit: "C", icon: <Thermometer size={20} />, status: "Moderate" },
-    { label: "Environment", value: sensors.environmentalTemperature, unit: "C", icon: <Sun size={20} />, status: "Good" },
-    { label: "Humidity", value: sensors.humidity, unit: "%", icon: <Droplets size={20} />, status: "Good" },
-  ];
-
-  return (
-    <div className={styles.sensorGrid}>
-      {sensorItems.map((sensor) => (
-        <div className={styles.sensorCard} data-status={sensor.status} key={sensor.label}>
-          <span>{sensor.icon}</span>
-          <div>
-            <small>{sensor.label}</small>
-            <strong>
-              {formatSensorValue(sensor.value)}
-              {sensor.unit}
-            </strong>
-          </div>
-          <em>{sensor.status}</em>
-        </div>
-      ))}
-      <time>Recorded {formatDateTime(sensors.recordedAt)}</time>
-    </div>
-  );
-}
-
-function CommandItem({ command }: { command: RoverCommand }) {
-  return (
-    <article className={styles.commandItem}>
-      <div>
-        <strong>{commandLabel(command.command)}</strong>
-        <span>{command.issuedBy}</span>
-      </div>
-      <span className={styles.status} data-status={command.status}>{command.status}</span>
-      <small>{payloadSummary(command)}</small>
-      <time>{formatDateTime(command.executedAt ?? command.createdAt)}</time>
-    </article>
-  );
-}
-
-function StatusPill({
-  active,
-  icon,
-  label,
+function LatestSensors({
+  history,
+  sensors,
 }: {
-  active: boolean;
-  icon: ReactNode;
-  label: string;
+  history: RoverSensorReading[];
+  sensors: RoverSensorReading | null;
 }) {
+  const items: Array<{
+    label: string;
+    field: SensorField;
+    value: number | null;
+    unit: string;
+    tone: "water" | "soil" | "air" | "humidity";
+    icon: ReactNode;
+  }> = [
+    { label: "Soil moisture", field: "soilMoisture", value: sensors?.soilMoisture ?? null, unit: "%", tone: "water", icon: <Droplets size={19} /> },
+    { label: "Soil temperature", field: "soilTemperature", value: sensors?.soilTemperature ?? null, unit: "°C", tone: "soil", icon: <Thermometer size={19} /> },
+    { label: "Air temperature", field: "environmentalTemperature", value: sensors?.environmentalTemperature ?? null, unit: "°C", tone: "air", icon: <Sun size={19} /> },
+    { label: "Humidity", field: "humidity", value: sensors?.humidity ?? null, unit: "%", tone: "humidity", icon: <Droplets size={19} /> },
+  ];
+  const recentHistory = history
+    // Sparklines summarize saved readings, including older samples. Freshness
+    // applies to the live value badge; filtering by it here hid the charts as
+    // soon as the rover stopped sending data for a minute.
+    .filter((reading) => reading.provenanceStatus === "verified_hardware")
+    .slice(0, 12)
+    .reverse();
+
   return (
-    <span className={styles.statusPill} data-active={active ? "true" : "false"}>
-      {icon}
-      {label} {active ? "ON" : "OFF"}
-    </span>
+    <section className={styles.sensorMetrics} aria-label="Latest sensor values">
+      {items.map((sensor) => (
+        <div className={styles.sensorMetric} data-tone={sensor.tone} key={sensor.label}>
+          <div className={styles.sensorMetricTitle}>
+            <span className={styles.sensorIcon}>{sensor.icon}</span>
+            <small>{sensor.label}</small>
+          </div>
+          <div className={styles.sensorValue}>
+            {sensor.value == null ? (
+              <strong className={styles.unavailableValue}>Unavailable</strong>
+            ) : (
+              <>
+                <strong>{formatSensorValue(sensor.value)}</strong>
+                <span>{sensor.unit}</span>
+              </>
+            )}
+          </div>
+          <SensorTrend
+            label={sensor.label}
+            readings={recentHistory
+              .map((reading) => reading[sensor.field])
+              .filter((value): value is number => typeof value === "number")}
+            unit={sensor.unit}
+          />
+        </div>
+      ))}
+    </section>
   );
 }
 
-function EmptyState({ text, title }: { text?: string; title: string }) {
+function SensorTrend({ label, readings, unit }: { label: string; readings: number[]; unit: string }) {
+  const width = 240;
+  const height = 56;
+  const inset = 5;
+  const low = readings.length ? Math.min(...readings) : null;
+  const high = readings.length ? Math.max(...readings) : null;
+  const spread = low == null || high == null || high === low ? 1 : high - low;
+  const points = readings.map((value, index) => ({
+    x: readings.length === 1 ? width - inset : inset + (index / (readings.length - 1)) * (width - inset * 2),
+    y: low === high ? height / 2 : height - inset - ((value - (low ?? 0)) / spread) * (height - inset * 2),
+    value,
+  }));
+  const linePath = points
+    .map((point, index) => `${index === 0 ? "M" : "L"}${point.x.toFixed(1)},${point.y.toFixed(1)}`)
+    .join(" ");
+  const firstPoint = points[0];
+  const lastPoint = points[points.length - 1];
+  const areaPath = firstPoint && lastPoint
+    ? `${linePath} L${lastPoint.x.toFixed(1)},${height} L${firstPoint.x.toFixed(1)},${height} Z`
+    : "";
+
   return (
-    <div className={styles.emptyState}>
-      <strong>{title}</strong>
-      {text ? <span>{text}</span> : null}
+    <div className={styles.sensorTrend}>
+      {points.length ? (
+        <svg
+          aria-label={`${label} trend across ${points.length} recent readings`}
+          className={styles.trendChart}
+          preserveAspectRatio="none"
+          role="img"
+          viewBox={`0 0 ${width} ${height}`}
+        >
+          <path d={areaPath} fill="currentColor" opacity="0.12" />
+          <path d={linePath} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" />
+          {lastPoint ? <circle cx={lastPoint.x} cy={lastPoint.y} fill="currentColor" r="4" /> : null}
+        </svg>
+      ) : (
+        <div className={styles.emptyTrend} aria-hidden="true" />
+      )}
+      <div className={styles.trendMeta}>
+        {low == null || high == null ? (
+          <span>No measurements</span>
+        ) : (
+          <>
+            <span>Low {formatSensorValue(low)}{unit}</span>
+            <span>{readings.length} samples</span>
+            <span>High {formatSensorValue(high)}{unit}</span>
+          </>
+        )}
+      </div>
     </div>
   );
 }
 
-function commandLabel(command: string) {
-  return command
-    .toLowerCase()
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+function DataError({ title, message }: { title: string; message: string }) {
+  return (
+    <div className={styles.dataError} role="status">
+      <strong>{title}</strong>
+      <span>{message}</span>
+    </div>
+  );
 }
 
-function payloadSummary(command: RoverCommand) {
-  const speed = command.payload.speed;
-  const seedName = command.payload.seed_name;
-
-  if (typeof seedName === "string") {
-    return seedName;
-  }
-
-  if (typeof speed === "number") {
-    return `Speed ${speed}%`;
-  }
-
-  if (command.command === "PING" && command.acknowledgedAt) {
-    return `PONG in ${Math.max(0, new Date(command.acknowledgedAt).getTime() - new Date(command.createdAt).getTime())} ms`;
-  }
-
-  if (command.failureDetails) return command.failureDetails;
-
-  return command.executedAt ? "Executed" : "Queued";
-}
-
-function moistureStatus(value: number) {
-  if (value >= 35 && value <= 55) {
-    return "Good";
-  }
-
-  if (value >= 25 && value <= 70) {
-    return "Moderate";
-  }
-
-  return "Needs Attention";
+function EmptyState({ title }: { title: string }) {
+  return <div className={styles.emptyState}>{title}</div>;
 }
 
 function formatSensorValue(value: number) {

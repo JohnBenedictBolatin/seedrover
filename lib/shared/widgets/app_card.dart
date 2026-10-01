@@ -24,8 +24,8 @@ class AppCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: backgroundColor ?? AppColors.cardBackground,
-        border: Border.all(color: borderColor ?? AppColors.inactiveBorder),
+        color: backgroundColor ?? AppColors.secondaryBackground,
+        border: borderColor == null ? null : Border.all(color: borderColor!),
         borderRadius: BorderRadius.circular(radius),
       ),
       child: Padding(

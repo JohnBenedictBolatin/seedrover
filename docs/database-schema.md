@@ -189,8 +189,6 @@ The initial prototype supports one rover, so only one active status row should e
 | Column | Type | Rules |
 | --- | --- | --- |
 | `id` | uuid | Primary key, default `gen_random_uuid()` |
-| `battery_level` | integer | Required, 0 to 100 |
-| `seed_level` | integer | Required, 0 to 100 |
 | `rover_status` | text | Required |
 | `wifi_connected` | boolean | Required, default `false` |
 | `bluetooth_connected` | boolean | Required, default `false` |
@@ -205,8 +203,6 @@ The initial prototype supports one rover, so only one active status row should e
 
 Constraints:
 
-- `battery_level between 0 and 100`
-- `seed_level between 0 and 100`
 - `speed between 0 and 100`
 - Only one row may have `is_active = true`.
 
@@ -231,18 +227,29 @@ Stores historical sensor readings from the rover.
 | Column | Type | Rules |
 | --- | --- | --- |
 | `id` | uuid | Primary key, default `gen_random_uuid()` |
-| `soil_moisture` | numeric(5,2) | Required, 0 to 100 |
-| `soil_temperature` | numeric(5,2) | Required |
-| `humidity` | numeric(5,2) | Required, 0 to 100 |
-| `environmental_temperature` | numeric(5,2) | Required |
-| `recorded_at` | timestamptz | Required, default `now()` |
+| `soil_moisture` | numeric(5,2) | Nullable; calibrated percent, 0 to 100 |
+| `soil_raw` | integer | Nullable; raw probe ADC value, not a percentage |
+| `calibrated_value` | numeric(5,2) | Nullable; calibrated moisture percent |
+| `soil_temperature` | numeric(5,2) | Nullable; °C |
+| `humidity` | numeric(5,2) | Nullable; 0 to 100 |
+| `environmental_temperature` | numeric(5,2) | Nullable; air °C |
+| `recorded_at` | timestamptz | Sensor capture time, not cloud sync time |
+| `source` | text | Origin reported by the capture path |
+| `provenance_status` | text | `verified_hardware`, `unverified`, `simulated`, or `demo` |
+| `soil_moisture_calibrated` | boolean | True only with an explicit calibration version and value |
+| `calibration_version` | text | Probe calibration identifier |
+| `firmware_version` | text | Rover firmware that captured the sample |
+| `client_reading_id` | uuid | Idempotent crop sensor capture identifier |
+| `planting_log_id` | uuid | Optional linked planting run |
 | `created_at` | timestamptz | Required |
 | `updated_at` | timestamptz | Required |
 
 Constraints:
 
-- `soil_moisture between 0 and 100`
-- `humidity between 0 and 100`
+- Verified hardware status requires the Hardware source and a rover capture identifier.
+- Calibrated moisture requires both a value and calibration version.
+- Unverified history is retained but excluded from current sensor values, trends, and sensor-based crop recommendations.
+- Missing, stale, invalid, or uncalibrated measurements display as unavailable; zero is valid.
 
 ---
 
@@ -450,8 +457,6 @@ Stores application notifications.
 
 Allowed `notification_type` values:
 
-- `Battery`
-- `Seed Level`
 - `Inventory`
 - `Robot Status`
 - `Crop Reminder`
@@ -537,7 +542,6 @@ Allowed `command` examples:
 - `REFRESH_CAMERA`
 - `GET_SENSOR_DATA`
 - `GET_ROBOT_STATUS`
-- `GET_SEED_LEVEL`
 - `PING`
 
 Allowed `status` values:
@@ -662,7 +666,7 @@ RLS implementation should avoid recursive policies by using `security definer` h
 - Do not delete roles that are assigned to profiles.
 - Do not delete permissions that are assigned to profiles.
 - Do not allow negative stock quantities.
-- Do not allow invalid battery, seed, humidity, speed, or soil moisture percentages.
+- Do not allow invalid humidity, speed, or soil moisture percentages.
 - Do not expose raw hardware errors directly to users.
 - Store raw command payloads in `robot_commands.payload` only when useful for auditing.
 - Keep activity logs append-only from the application.

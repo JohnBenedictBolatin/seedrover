@@ -46,8 +46,6 @@ class HardwareSimulatorState {
   const HardwareSimulatorState({
     required this.currentActivity,
     required this.plantingStatus,
-    required this.batteryLevel,
-    required this.seedLevel,
     required this.soilMoisture,
     required this.soilTemperature,
     required this.environmentTemperature,
@@ -67,8 +65,6 @@ class HardwareSimulatorState {
     return HardwareSimulatorState(
       currentActivity: 'Idle',
       plantingStatus: 'Ready',
-      batteryLevel: 84,
-      seedLevel: 67,
       soilMoisture: 42,
       soilTemperature: 28,
       environmentTemperature: 31,
@@ -84,8 +80,6 @@ class HardwareSimulatorState {
 
   final String currentActivity;
   final String plantingStatus;
-  final int batteryLevel;
-  final int seedLevel;
   final double soilMoisture;
   final double soilTemperature;
   final double environmentTemperature;
@@ -103,8 +97,6 @@ class HardwareSimulatorState {
   HardwareSimulatorState copyWith({
     String? currentActivity,
     String? plantingStatus,
-    int? batteryLevel,
-    int? seedLevel,
     double? soilMoisture,
     double? soilTemperature,
     double? environmentTemperature,
@@ -121,8 +113,6 @@ class HardwareSimulatorState {
     return HardwareSimulatorState(
       currentActivity: currentActivity ?? this.currentActivity,
       plantingStatus: plantingStatus ?? this.plantingStatus,
-      batteryLevel: batteryLevel ?? this.batteryLevel,
-      seedLevel: seedLevel ?? this.seedLevel,
       soilMoisture: soilMoisture ?? this.soilMoisture,
       soilTemperature: soilTemperature ?? this.soilTemperature,
       environmentTemperature:

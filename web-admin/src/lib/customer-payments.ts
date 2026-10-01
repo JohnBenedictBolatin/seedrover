@@ -33,7 +33,7 @@ export async function getCustomerPayments() {
     .returns<PaymentRow[]>();
 
   const setupError = error?.message?.includes("customer_payments") || error?.message?.includes("schema cache")
-    ? "Installment tracking is not set up yet. Apply the latest Supabase migration, then refresh this page."
+    ? "Customer payment records are not available yet. Apply the latest Supabase migration, then refresh this page."
     : error?.message ?? null;
 
   return {
@@ -51,3 +51,4 @@ export async function getCustomerPayments() {
     error: setupError,
   };
 }
+

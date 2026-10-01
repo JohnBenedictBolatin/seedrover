@@ -24,148 +24,235 @@ class PlantedCropGroup extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.cardTitle.copyWith(
-                  color: AppColors.primaryText,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.md),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
+        Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
           child: Row(
             children: [
-              for (var index = 0; index < crops.length; index++) ...[
-                SizedBox(
-                  width: 128,
-                  child: _PlantedCropTile(
-                    crop: crops[index],
-                    onTap: () => onCropSelected(crops[index]),
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: AppColors.sageSurface,
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                ),
+                child: Icon(
+                  Icons.eco_rounded,
+                  size: 18,
+                  color: AppColors.primaryGreen,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  title,
+                  style: AppTypography.cardTitle.copyWith(
+                    color: AppColors.primaryText,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                if (index != crops.length - 1)
-                  const SizedBox(width: AppSpacing.md),
-              ],
+              ),
             ],
           ),
         ),
+        for (final crop in crops) ...[
+          _CropListTile(crop: crop, onTap: () => onCropSelected(crop)),
+          const SizedBox(height: AppSpacing.sm),
+        ],
       ],
     );
   }
 }
 
-class _PlantedCropTile extends StatelessWidget {
-  const _PlantedCropTile({
-    required this.crop,
-    required this.onTap,
-  });
+class _CropListTile extends StatelessWidget {
+  const _CropListTile({required this.crop, required this.onTap});
 
   final CropModel crop;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final color = _statusColor(crop.status);
+    final statusColor = switch (crop.status) {
+      CropStatus.active => AppColors.information,
+      CropStatus.needsAttention => AppColors.warning,
+      CropStatus.readyForHarvest => AppColors.success,
+      CropStatus.harvested => AppColors.secondaryText,
+      CropStatus.notHarvested => AppColors.danger,
+    };
+    final statusLabel = switch (crop.status) {
+      CropStatus.active => 'Active',
+      CropStatus.needsAttention => 'Needs attention',
+      CropStatus.readyForHarvest => 'Ready for harvest',
+      CropStatus.harvested => 'Harvested',
+      CropStatus.notHarvested => 'Not harvested',
+    };
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppColors.secondaryBackground,
-        border: Border.all(color: AppColors.inactiveBorder),
-        borderRadius: BorderRadius.circular(AppRadius.sm),
+    final largeText = MediaQuery.textScalerOf(context).scale(1) >= 1.5;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      color: AppColors.secondaryBackground,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        side: BorderSide(color: AppColors.inactiveBorder),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.sm),
-        child: Column(
-          children: [
-            Text(
-              'ID: ${crop.id.replaceFirst('crop-', 'PN-')}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTypography.monoCaption.copyWith(
-                color: AppColors.primaryText,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            CropPlantImage(crop: crop, size: 52),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              '${crop.name} (${crop.safeSeedCount})',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: AppTypography.caption.copyWith(
-                color: AppColors.primaryText,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              crop.status.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTypography.monoCaption.copyWith(color: color),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              crop.growthStage.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTypography.monoCaption.copyWith(color: color),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              _formatDate(crop.plantingDate),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTypography.monoCaption,
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: onTap,
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.cardBackground,
-                  foregroundColor: AppColors.primaryGreen,
-                  minimumSize: const Size.fromHeight(32),
-                  side: BorderSide(color: AppColors.primaryGreen),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.sm),
-                  ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.smd,
+          ),
+          child: largeText
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        _CropThumbnail(crop: crop),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                crop.trackingCode,
+                                style: AppTypography.body.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.primaryText,
+                                ),
+                              ),
+                              Text(
+                                crop.fieldLabel,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTypography.caption,
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(Icons.arrow_forward_ios_rounded,
+                            size: 16, color: AppColors.secondaryText),
+                      ],
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 54),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Recorded stage: ${crop.recordedGrowthStage?.trim().isNotEmpty == true ? crop.recordedGrowthStage : 'Not recorded'}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.caption,
+                          ),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: _CropStatusBadge(
+                              label: statusLabel,
+                              color: statusColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    _CropThumbnail(crop: crop),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  crop.trackingCode,
+                                  style: AppTypography.body.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.primaryText,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          Text(
+                            crop.fieldLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.caption,
+                          ),
+                          Text(
+                            'Recorded stage: ${crop.recordedGrowthStage?.trim().isNotEmpty == true ? crop.recordedGrowthStage : 'Not recorded'}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.caption,
+                          ),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: _CropStatusBadge(
+                              label: statusLabel,
+                              color: statusColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Icon(Icons.arrow_forward_ios_rounded,
+                        size: 16, color: AppColors.secondaryText),
+                  ],
                 ),
-                child: Text(
-                  'View',
-                  style: AppTypography.statusBadge.copyWith(
-                    color: AppColors.primaryGreen,
-                  ),
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );
   }
+}
 
-  Color _statusColor(CropStatus status) {
-    return switch (status) {
-      CropStatus.healthy => AppColors.primaryGreen,
-      CropStatus.needsWater => AppColors.warning,
-      CropStatus.needsFertilizer => AppColors.warning,
-      CropStatus.readyForHarvest => AppColors.success,
-      CropStatus.harvested => AppColors.mutedText,
-    };
-  }
+class _CropStatusBadge extends StatelessWidget {
+  const _CropStatusBadge({required this.label, required this.color});
 
-  String _formatDate(DateTime date) {
-    return '${date.month}/${date.day}/${date.year.toString().substring(2)}';
-  }
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.xs,
+          vertical: 2,
+        ),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: .10),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+        ),
+        child: Text(
+          label,
+          style: AppTypography.caption.copyWith(
+            color: color,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+}
+
+class _CropThumbnail extends StatelessWidget {
+  const _CropThumbnail({required this.crop});
+
+  final CropModel crop;
+
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        child: SizedBox.square(
+          dimension: 46,
+          child: ColoredBox(
+            color: AppColors.cardBackground,
+            child: CropPlantImage(crop: crop, size: 42),
+          ),
+        ),
+      );
 }

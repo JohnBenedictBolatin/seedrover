@@ -4,6 +4,8 @@ export const adminRoles = [
   "System Administrator",
   "Farm Planting Manager",
   "Farm Inventory Manager",
+  "Planting Staff",
+  "Inventory Staff",
 ] as const;
 
 export type AdminRole = (typeof adminRoles)[number];
@@ -35,12 +37,26 @@ export function isAdminRole(roleName: string): roleName is AdminRole {
   return adminRoles.some((role) => role === roleName);
 }
 
+export function isPlantingRole(roleName: AdminRole) {
+  return roleName === "Farm Planting Manager" || roleName === "Planting Staff";
+}
+
+export function isInventoryRole(roleName: AdminRole) {
+  return roleName === "Farm Inventory Manager" || roleName === "Inventory Staff";
+}
+
+function roleMatchesAllowedAccess(roleName: AdminRole, allowedRoles: readonly AdminRole[]) {
+  return allowedRoles.includes(roleName)
+    || (roleName === "Planting Staff" && allowedRoles.includes("Farm Planting Manager"))
+    || (roleName === "Inventory Staff" && allowedRoles.includes("Farm Inventory Manager"));
+}
+
 export async function requireAdminRole(
   allowedRoles: readonly AdminRole[] = adminRoles,
 ) {
   const profile = await getCurrentAdminProfile();
 
-  if (!profile || !allowedRoles.includes(profile.roleName)) {
+  if (!profile || !roleMatchesAllowedAccess(profile.roleName, allowedRoles)) {
     throw new Error("You do not have permission to perform this action.");
   }
 

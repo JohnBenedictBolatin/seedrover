@@ -1,16 +1,32 @@
 import Image from "next/image";
 import { LoginForm } from "@/components/login-form";
 import { LoginThemeSwitch } from "@/components/login-theme-switch";
-import { getCurrentAdminProfile } from "@/lib/auth";
-import { redirect } from "next/navigation";
 import styles from "./page.module.css";
 
-export default async function LoginPage() {
-  const profile = await getCurrentAdminProfile();
-
-  if (profile) {
-    redirect("/dashboard");
-  }
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const params = await searchParams;
+  const recoveryError = typeof params.recovery === "string" ? params.recovery : null;
+  const authError = typeof params.error === "string" ? params.error : null;
+  const authErrorCode = typeof params.error_code === "string" ? params.error_code : null;
+  const passwordUpdated = params.passwordUpdated === "1";
+  const mobileRecoveryRequest = params.reset === "1";
+  const sessionEnded = params.session === "ended";
+  const hasRecoveryQueryError = recoveryError === "invalid" || Boolean(authError);
+  const initialResetMessage = passwordUpdated
+    ? "Password changed successfully. You can now sign in with your new password."
+    : recoveryError === "invalid"
+      ? "This password reset link could not be verified. Request a new link and open it again."
+      : authError
+        ? authErrorCode === "otp_expired"
+          ? "This password reset link has expired or was already used. Request a new link."
+          : "We couldn't verify this password reset link. Request a new link and try again."
+        : mobileRecoveryRequest
+          ? "Enter your username, then choose Forgot password to request a reset link."
+          : "";
 
   return (
     <main className={styles.page}>
@@ -21,7 +37,12 @@ export default async function LoginPage() {
 
       <section className={styles.shell} aria-labelledby="login-title">
         <div className={styles.identity}>
-          <Image
+        </div>
+
+        <div className={styles.loginSide}>
+          <div className={styles.loginContent}>
+            <div className={styles.loginBrand}>
+            <Image
             alt="SeedRover"
             className={`${styles.logo} ${styles.logoDark}`}
             height={186}
@@ -29,7 +50,7 @@ export default async function LoginPage() {
             src="/brand/seedrover-logo-dark.png"
             width={278}
           />
-          <Image
+            <Image
             alt="SeedRover"
             className={`${styles.logo} ${styles.logoLight}`}
             height={186}
@@ -37,19 +58,25 @@ export default async function LoginPage() {
             src="/brand/seedrover-logo-light.png"
             width={278}
           />
-          <p>Welcome back!</p>
-          <h1 id="login-title">Manage farm operations from one dashboard.</h1>
-        </div>
+            <p>Welcome back!</p>
+            <h1 id="login-title">Manage your farm in one convenient system.</h1>
+            </div>
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <div>
+                  <h2>Sign in</h2>
+              </div>
+            </div>
 
-        <div className={styles.panel}>
-          <div className={styles.panelHeader}>
-            <div>
-              <p className={styles.eyebrow}>SeedRover web console</p>
-              <h2>Sign in</h2>
+            <LoginForm
+              hasRecoveryQueryError={hasRecoveryQueryError}
+              initialResetMessage={initialResetMessage}
+              initialSessionMessage={sessionEnded
+                ? "Your session ended. Your account may have been signed in on another device. Sign in again to continue."
+                : ""}
+            />
             </div>
           </div>
-
-          <LoginForm />
         </div>
       </section>
     </main>

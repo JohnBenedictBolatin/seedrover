@@ -4,17 +4,12 @@ import { revalidatePath } from "next/cache";
 import { requireAdminRole } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { customerKey } from "@/lib/customers";
+import { writeActivityLog } from "@/lib/activity-log";
+import { normalizeContactNumber } from "@/lib/contact-number.mjs";
+import { parseDatabaseDecimal } from "@/lib/field-validation.mjs";
 
 function text(formData: FormData, key: string, fallback = "") {
   return String(formData.get(key) ?? fallback).trim();
-}
-
-function parseTags(value: string) {
-  return value
-    .split(",")
-    .map((tag) => tag.trim())
-    .filter(Boolean)
-    .slice(0, 8);
 }
 
 function databaseSetupMessage(error: { message?: string }) {
@@ -24,59 +19,11 @@ function databaseSetupMessage(error: { message?: string }) {
     return "Discounts database is not ready yet. Apply the latest Supabase migration, then try releasing the discount again.";
   }
 
-  if (message.includes("customers")) {
-    return "Customers database is not ready yet. Apply the latest Supabase migration, then try saving the profile again.";
-  }
-
   return message;
 }
 
-export async function saveCustomerProfileAction(formData: FormData) {
-  await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
-
-  const supabase = await createSupabaseServerClient();
-
-  if (!supabase) {
-    throw new Error("Supabase is not configured.");
-  }
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    throw new Error("Sign in before saving customer notes.");
-  }
-
-  const displayName = text(formData, "display_name", "Walk-in customer");
-  const contactNumber = text(formData, "contact_number", "Not provided");
-  const payload = {
-    customer_key: customerKey(displayName, contactNumber),
-    display_name: displayName,
-    contact_number: contactNumber,
-    alternate_contact: text(formData, "alternate_contact") || null,
-    customer_type: text(formData, "customer_type", "Farm Buyer"),
-    tags: parseTags(text(formData, "tags")),
-    notes: text(formData, "notes") || null,
-    location: text(formData, "location") || null,
-    created_by: user.id,
-    updated_by: user.id,
-  };
-
-  const { error } = await supabase
-    .from("customers")
-    .upsert(payload, { onConflict: "customer_key" });
-
-  if (error) {
-    throw new Error(databaseSetupMessage(error));
-  }
-
-  revalidatePath("/customers");
-}
-
 function parseNumber(value: FormDataEntryValue | null) {
-  const parsed = Number(String(value ?? "").trim());
-  return Number.isFinite(parsed) ? parsed : 0;
+  return parseDatabaseDecimal(value, "Discount value");
 }
 
 export async function createCustomerDiscountAction(formData: FormData) {
@@ -96,15 +43,17 @@ export async function createCustomerDiscountAction(formData: FormData) {
     throw new Error("Sign in before releasing discounts.");
   }
 
-  const customerName = text(formData, "customer_name");
-  const customerContact = text(formData, "customer_contact", "Not provided");
+  const customerName = "Anyone with the code";
+  const customerContact = normalizeContactNumber("Not provided", {
+    allowLegacy: true,
+  }) ?? "Not provided";
   const code = text(formData, "discount_code").toUpperCase();
   const discountType = text(formData, "discount_type", "Percent");
   const discountValue = parseNumber(formData.get("discount_value"));
   const validUntil = text(formData, "valid_until");
 
-  if (!customerName || !code) {
-    throw new Error("Customer and discount code are required.");
+  if (!code) {
+    throw new Error("Discount code is required.");
   }
 
   if (!/^[A-Z0-9_-]{3,32}$/.test(code)) {
@@ -124,11 +73,14 @@ export async function createCustomerDiscountAction(formData: FormData) {
   }
 
   if (validUntil) {
-    const expiry = new Date(`${validUntil}T23:59:59`);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
 
-    if (Number.isNaN(expiry.getTime()) || expiry < today) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(validUntil) || validUntil < today) {
       throw new Error("Discount validity date cannot be in the past.");
     }
   }
@@ -149,6 +101,13 @@ export async function createCustomerDiscountAction(formData: FormData) {
   if (error) {
     throw new Error(databaseSetupMessage(error));
   }
+
+  await writeActivityLog(supabase, {
+    userId: user.id,
+    activity: "Customer discount released",
+    description: `${code} was released for anyone who enters it.`,
+    module: "Customers",
+  });
 
   revalidatePath("/customers");
   revalidatePath("/sales");

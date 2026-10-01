@@ -1,164 +1,166 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_routes.dart';
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_radius.dart';
+import '../../../../core/constants/permission_keys.dart';
+import '../../../../core/constants/workspace_action.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
-import '../../data/models/dashboard_model.dart';
+import '../../../authentication/providers/auth_providers.dart';
+import '../../../rover/providers/rover_providers.dart';
+import '../../../../core/theme/app_colors.dart';
 
-class DashboardQuickActions extends StatelessWidget {
-  const DashboardQuickActions({required this.rover, super.key});
+class DashboardQuickActions extends ConsumerStatefulWidget {
+  const DashboardQuickActions({super.key});
 
-  final RoverOverviewModel rover;
+  @override
+  ConsumerState<DashboardQuickActions> createState() =>
+      _DashboardQuickActionsState();
+}
+
+class _DashboardQuickActionsState extends ConsumerState<DashboardQuickActions> {
+  bool _hasPlantingReview = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPlantingReview();
+  }
+
+  Future<void> _loadPlantingReview() async {
+    final profile = ref.read(authControllerProvider).profile;
+    if (profile == null ||
+        !(profile.isPlantingManager || profile.isPlantingStaff) ||
+        !profile.hasPermission(PermissionKeys.roverView)) {
+      return;
+    }
+    try {
+      final receipts =
+          await ref.read(plantingReceiptRepositoryProvider).loadPending();
+      if (!mounted) return;
+      setState(() {
+        _hasPlantingReview = receipts.any(
+            (receipt) => receipt.status.isTerminal && !receipt.isConfirmed);
+      });
+    } catch (_) {
+      // The dashboard attention section reports local-record load failures.
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final profile = ref.watch(authControllerProvider).profile;
+    if (profile == null) return const SizedBox.shrink();
+    final isPlanting = profile.isPlantingManager || profile.isPlantingStaff;
+    final candidates = profile.isAdministrator
+        ? [
+            WorkspaceAction.recordSale,
+            WorkspaceAction.recordCare,
+            WorkspaceAction.receiveStock,
+          ]
+        : isPlanting
+            ? [WorkspaceAction.recordCare, WorkspaceAction.observeGrowth]
+            : [
+                WorkspaceAction.recordSale,
+                WorkspaceAction.receiveStock,
+                WorkspaceAction.issueStock,
+              ];
+    final actions = candidates
+        .where((action) =>
+            profile.hasPermission(action.permission) &&
+            profile.hasPermission(action.isInventory
+                ? PermissionKeys.stocksView
+                : PermissionKeys.cropsView))
+        .toList();
+    final showReview = isPlanting &&
+        _hasPlantingReview &&
+        profile.hasPermission(PermissionKeys.roverView);
+    if (actions.isEmpty && !showReview) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: _QuickAction(
-            title: 'Rover',
-            icon: Icons.smart_toy_outlined,
-            route: AppRoutes.rover,
-            color: AppColors.heroIconGreen,
-          ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: _QuickAction(
-            title: 'Crops',
-            icon: Icons.spa_outlined,
-            route: AppRoutes.crops,
-            color: AppColors.heroIconGreen,
-          ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: _QuickAction(
-            title: 'Inventory',
-            icon: Icons.inventory_2_outlined,
-            route: AppRoutes.stocks,
-            color: AppColors.heroIconGreen,
+        Text('Start a task', style: AppTypography.sectionHeading),
+        const SizedBox(height: AppSpacing.sm),
+        SizedBox(
+          height: 48,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (var index = 0; index < actions.length; index++) ...[
+                  if (index > 0) const SizedBox(width: AppSpacing.sm),
+                  _TaskActionButton(
+                    label: actions[index].label,
+                    icon: _iconFor(actions[index]),
+                    onPressed: () => context.push(
+                      actions[index].isInventory
+                          ? AppRoutes.stocks
+                          : AppRoutes.crops,
+                    ),
+                    backgroundColor: AppColors.secondaryBackground,
+                    foregroundColor: AppColors.secondaryGreen,
+                  ),
+                ],
+                if (showReview) ...[
+                  if (actions.isNotEmpty) const SizedBox(width: AppSpacing.sm),
+                  _TaskActionButton(
+                    label: 'Review planting',
+                    icon: Icons.rate_review_outlined,
+                    onPressed: () => context.push(AppRoutes.rover),
+                    backgroundColor: AppColors.secondaryBackground,
+                    foregroundColor: AppColors.warning,
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
       ],
     );
   }
 
+  IconData _iconFor(WorkspaceAction action) => switch (action) {
+        WorkspaceAction.recordSale => Icons.point_of_sale_outlined,
+        WorkspaceAction.receiveStock => Icons.add_box_outlined,
+        WorkspaceAction.issueStock => Icons.outbox_outlined,
+        WorkspaceAction.recordCare => Icons.water_drop_outlined,
+        WorkspaceAction.observeGrowth => Icons.add_a_photo_outlined,
+      };
 }
 
-class _QuickAction extends StatelessWidget {
-  const _QuickAction({
-    required this.title,
+class _TaskActionButton extends StatelessWidget {
+  const _TaskActionButton({
+    required this.label,
     required this.icon,
-    required this.route,
-    required this.color,
+    required this.onPressed,
+    required this.backgroundColor,
+    required this.foregroundColor,
   });
 
-  final String title;
+  final String label;
   final IconData icon;
-  final String route;
-  final Color color;
+  final VoidCallback onPressed;
+  final Color backgroundColor;
+  final Color foregroundColor;
 
   @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(AppRadius.md),
-      child: InkWell(
-        onTap: () => context.go(route),
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          child: Ink(
-            height: 68,
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment.bottomCenter,
-                radius: 1.25,
-                colors: AppColors.heroGradientColors,
-              ),
-              border:
-                  Border.all(color: AppColors.primaryGreen.withOpacity(.34)),
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primaryGreen.withOpacity(.06),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: CustomPaint(painter: _ActionStarFieldPainter()),
-                  ),
-                ),
-                Positioned.fill(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.xs,
-                      vertical: AppSpacing.sm,
-                    ),
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Icon(icon, color: color, size: 20),
-                          const SizedBox(height: AppSpacing.xs),
-                          Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: AppTypography.caption.copyWith(
-                              color: AppColors.heroPrimaryText,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+  Widget build(BuildContext context) => FilledButton.tonalIcon(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 18),
+        label: Text(
+          label,
+          maxLines: 1,
+          softWrap: false,
         ),
-      ),
-    );
-  }
-}
-
-class _ActionStarFieldPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    const stars = <Offset>[
-      Offset(.08, .18),
-      Offset(.18, .54),
-      Offset(.31, .26),
-      Offset(.47, .66),
-      Offset(.62, .2),
-      Offset(.76, .5),
-      Offset(.91, .28),
-    ];
-    final paint = Paint()..color = AppColors.accentGreen.withOpacity(.3);
-    for (var index = 0; index < stars.length; index++) {
-      final star = stars[index];
-      canvas.drawCircle(
-        Offset(star.dx * size.width, star.dy * size.height),
-        index.isEven ? 1 : .65,
-        paint,
+        style: FilledButton.styleFrom(
+          backgroundColor: backgroundColor,
+          foregroundColor: foregroundColor,
+          minimumSize: const Size(0, 48),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.smd),
+          side: BorderSide(color: AppColors.primaryBorder),
+          visualDensity: VisualDensity.compact,
+        ),
       );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

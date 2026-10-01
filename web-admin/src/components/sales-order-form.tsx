@@ -9,12 +9,15 @@ import {
   Plus,
   Receipt,
   Trash2,
-  X,
 } from "lucide-react";
 import { recordSalesOrderAction, type SalesFormState } from "@/app/(portal)/sales/actions";
 import type { AlertTone } from "@/components/action-alert-stack";
-import { CalendarField } from "@/components/calendar-field";
+import { ContactNumberInput, NumericInput } from "@/components/constrained-inputs";
+import { useConfirmationDialog } from "@/components/confirmation-dialog";
+import { PendingActionLabel } from "@/components/pending-action-label";
 import { formatCurrency, formatQuantity } from "@/lib/format";
+import { isContactNumber } from "@/lib/contact-number.mjs";
+import type { ExistingSaleCustomer } from "@/lib/customers";
 import type { ReleasedDiscount, SellableItem } from "@/lib/sales";
 import styles from "./sales-order-form.module.css";
 
@@ -22,21 +25,21 @@ type LineItem = {
   key: string;
   inventoryId: string;
   quantity: string;
-  unitPrice: string;
 };
 
 const initialState: SalesFormState = {
   message: "",
 };
 
-function newLineItem(items: SellableItem[]): LineItem {
-  const firstItem = items[0];
+const paymentMethodOptions = ["Cash", "GCash", "Bank Transfer", "Card", "Other"];
+
+function newLineItem(items: SellableItem[], excludedIds: string[] = []): LineItem {
+  const firstItem = items.find((item) => !excludedIds.includes(item.id));
 
   return {
     key: crypto.randomUUID(),
     inventoryId: firstItem?.id ?? "",
     quantity: "",
-    unitPrice: firstItem ? String(firstItem.sellingPrice) : "0",
   };
 }
 
@@ -48,10 +51,12 @@ function toNumber(value: string) {
 function ItemPicker({
   item,
   items,
+  excludedIds,
   onChange,
 }: {
   item: LineItem;
   items: SellableItem[];
+  excludedIds: string[];
   onChange: (inventoryId: string) => void;
 }) {
   const selectedItem = items.find((entry) => entry.id === item.inventoryId);
@@ -59,10 +64,16 @@ function ItemPicker({
   const [query, setQuery] = useState(selectedItem?.label ?? "");
 
   useEffect(() => {
-    setQuery(selectedItem?.label ?? "");
+    const updateQuery = window.setTimeout(
+      () => setQuery(selectedItem?.label ?? ""),
+      0,
+    );
+
+    return () => window.clearTimeout(updateQuery);
   }, [selectedItem?.label]);
 
   const filteredItems = items.filter((entry) =>
+    (entry.id === item.inventoryId || !excludedIds.includes(entry.id)) &&
     `${entry.label} ${entry.stockCode}`.toLowerCase().includes(query.toLowerCase()),
   );
 
@@ -85,7 +96,7 @@ function ItemPicker({
         {open ? (
           <div className={styles.itemPickerMenu}>
             {filteredItems.length === 0 ? (
-              <span>No matching stock.</span>
+              <span>No matching available stock.</span>
             ) : (
               filteredItems.map((entry) => (
                 <button
@@ -113,23 +124,37 @@ function ItemPicker({
 }
 
 function ThemedSelect({
+  emptyLabel,
   label,
   name,
   onChange,
+  optionLabels,
   options,
+  required = false,
   value,
 }: {
+  emptyLabel?: string;
   label: string;
   name: string;
   onChange?: (value: string) => void;
+  optionLabels?: Record<string, string>;
   options: string[];
+  required?: boolean;
   value: string;
 }) {
   const [open, setOpen] = useState(false);
 
   return (
     <label className={styles.themedSelectLabel}>
-      {label}
+      <span className={styles.themedSelectText}>
+        {label}
+        {required ? (
+          <>
+            <span aria-hidden="true" className={styles.requiredMarker}>*</span>
+            <span className={styles.visuallyHidden}> (required)</span>
+          </>
+        ) : null}
+      </span>
       <input name={name} type="hidden" value={value} />
       <div
         className={styles.themedSelect}
@@ -140,7 +165,7 @@ function ThemedSelect({
           type="button"
           onClick={() => setOpen((current) => !current)}
         >
-          <span>{value}</span>
+          <span>{value ? optionLabels?.[value] ?? value : emptyLabel ?? "Choose an option"}</span>
           <ChevronDown size={17} />
         </button>
         {open ? (
@@ -157,7 +182,7 @@ function ThemedSelect({
                   setOpen(false);
                 }}
               >
-                <span>{option}</span>
+                <span>{optionLabels?.[option] ?? option}</span>
                 {option === value ? <Check size={15} /> : null}
               </button>
             ))}
@@ -169,11 +194,13 @@ function ThemedSelect({
 }
 
 export function SalesOrderForm({
+  customers,
   discounts,
   items,
   notify,
   onRecorded,
 }: {
+  customers: ExistingSaleCustomer[];
   discounts: ReleasedDiscount[];
   items: SellableItem[];
   notify?: (tone: AlertTone, text: string) => void;
@@ -181,7 +208,6 @@ export function SalesOrderForm({
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const confirmedRef = useRef(false);
-  const lastMessageRef = useRef("");
   const router = useRouter();
   const [state, formAction, pending] = useActionState(
     recordSalesOrderAction,
@@ -193,22 +219,45 @@ export function SalesOrderForm({
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [otherPaymentMethod, setOtherPaymentMethod] = useState("");
   const [transactionReference, setTransactionReference] = useState("");
-  const [installmentTerms, setInstallmentTerms] = useState("");
-  const [installmentDueDate, setInstallmentDueDate] = useState("");
-  const [showConfirm, setShowConfirm] = useState(false);
+  const [customerMode, setCustomerMode] = useState<"new" | "existing">("new");
+  const [selectedCustomerKey, setSelectedCustomerKey] = useState("");
+  const idempotencyKeyRef = useRef("");
+  const { confirm, confirmationDialog } = useConfirmationDialog();
 
   const itemById = useMemo(
     () => new Map(items.map((item) => [item.id, item])),
     [items],
   );
+  const selectableCustomers = useMemo(
+    () => customers.filter((customer) => isContactNumber(customer.contact)),
+    [customers],
+  );
+  const selectedCustomer = selectableCustomers.find(
+    (customer) => customer.key === selectedCustomerKey,
+  );
 
   const subtotal = lineItems.reduce(
-    (total, item) => total + toNumber(item.quantity) * toNumber(item.unitPrice),
+    (total, item) =>
+      total +
+      toNumber(item.quantity) * (itemById.get(item.inventoryId)?.sellingPrice ?? 0),
     0,
   );
   const normalizedDiscountCode = discountCode.trim().toUpperCase();
   const selectedDiscount = discounts.find(
     (discount) => discount.code.toUpperCase() === normalizedDiscountCode,
+  );
+  const discountOptions = useMemo(
+    () => ["", ...discounts.map((discount) => discount.code)],
+    [discounts],
+  );
+  const discountOptionLabels = useMemo(
+    () => Object.fromEntries(
+      discounts.map((discount) => [
+        discount.code,
+        `${discount.code} - ${discount.discountType === "Percent" ? `${discount.discountValue}% off` : `${formatCurrency(discount.discountValue)} off`}`,
+      ]),
+    ),
+    [discounts],
   );
   const discountAmount = selectedDiscount
     ? selectedDiscount.discountType === "Amount"
@@ -218,25 +267,23 @@ export function SalesOrderForm({
   const total = Math.max(subtotal - discountAmount, 0);
   const paid = toNumber(amountPaid);
   const change = amountPaid.trim() ? Math.max(paid - total, 0) : 0;
-
   useEffect(() => {
     confirmedRef.current = false;
 
-    if (!state.message || state.message === lastMessageRef.current) {
-      return;
-    }
-
-    lastMessageRef.current = state.message;
+    if (!state.message) return;
 
     if (state.receiptId && state.receiptNumber) {
-      notify?.("success", `Success - Receipt ${state.receiptNumber} recorded.`);
+      notify?.("success", `Receipt ${state.receiptNumber} recorded.`);
+      idempotencyKeyRef.current = "";
+      const idempotencyInput = formRef.current?.elements.namedItem("idempotency_key");
+      if (idempotencyInput instanceof HTMLInputElement) idempotencyInput.value = "";
       onRecorded?.();
       router.refresh();
       return;
     }
 
-    notify?.("error", `Error - ${state.message}`);
-  }, [notify, onRecorded, router, state.message, state.receiptId, state.receiptNumber]);
+    notify?.("error", state.message);
+  }, [notify, onRecorded, router, state]);
 
   function updateLineItem(key: string, patch: Partial<LineItem>) {
     setLineItems((current) =>
@@ -247,18 +294,16 @@ export function SalesOrderForm({
 
         const next = { ...item, ...patch };
 
-        if (patch.inventoryId) {
-          const selectedItem = itemById.get(patch.inventoryId);
-          next.unitPrice = String(selectedItem?.sellingPrice ?? 0);
-        }
-
         return next;
       }),
     );
   }
 
   function addLineItem() {
-    setLineItems((current) => [...current, newLineItem(items)]);
+    setLineItems((current) => [
+      ...current,
+      newLineItem(items, current.map((item) => item.inventoryId).filter(Boolean)),
+    ]);
   }
 
   function removeLineItem(key: string) {
@@ -268,6 +313,10 @@ export function SalesOrderForm({
   }
 
   function validateTransaction() {
+    if (customerMode === "existing" && !selectedCustomer) {
+      return "Select an existing customer for this receipt.";
+    }
+
     if (lineItems.length === 0) {
       return "Add at least one item.";
     }
@@ -289,16 +338,12 @@ export function SalesOrderForm({
       }
     }
 
-    if (paymentMethod !== "Installment" && amountPaid.trim() && paid < total) {
+    if (amountPaid.trim() && paid < total) {
       return "Amount paid cannot be lower than the total.";
     }
 
-    if (paymentMethod === "Installment" && !installmentTerms.trim()) {
-      return "Enter the installment terms.";
-    }
-
-    if (paymentMethod === "Installment" && !installmentDueDate) {
-      return "Enter the installment due date.";
+    if (paymentMethod !== "Cash" && amountPaid.trim() && paid > total) {
+      return "Non-cash payment cannot exceed the sale total.";
     }
 
     if (paymentMethod === "Other" && !otherPaymentMethod.trim()) {
@@ -316,7 +361,7 @@ export function SalesOrderForm({
     return "";
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     if (confirmedRef.current) {
       confirmedRef.current = false;
       return;
@@ -326,11 +371,24 @@ export function SalesOrderForm({
     const error = validateTransaction();
 
     if (error) {
-      notify?.("error", `Error - ${error}`);
+      notify?.("error", error);
       return;
     }
 
-    setShowConfirm(true);
+    const approved = await confirm({
+      title: "Record this sale?",
+      message: "This will create the receipt and deduct the sold quantities from inventory.",
+      summary: <strong>Total amount: {formatCurrency(total)}</strong>,
+      confirmLabel: "Record sale",
+    });
+    if (!approved) return;
+    const idempotencyInput = formRef.current?.elements.namedItem("idempotency_key");
+    if (idempotencyInput instanceof HTMLInputElement) {
+      if (!idempotencyKeyRef.current) idempotencyKeyRef.current = crypto.randomUUID();
+      idempotencyInput.value = idempotencyKeyRef.current;
+    }
+    confirmedRef.current = true;
+    formRef.current?.requestSubmit();
   }
 
   if (items.length === 0) {
@@ -344,6 +402,10 @@ export function SalesOrderForm({
 
   return (
     <form ref={formRef} className={styles.form} action={formAction} onSubmit={handleSubmit}>
+      <input name="customer_mode" type="hidden" value={customerMode} />
+      <input name="idempotency_key" type="hidden" defaultValue="" />
+      <input name="existing_customer_id" type="hidden" value={selectedCustomer?.customerId ?? ""} />
+      <input name="payment_method" type="hidden" value={paymentMethod} />
       <section className={styles.panel}>
         <div className={styles.panelHeader}>
           <div>
@@ -367,6 +429,7 @@ export function SalesOrderForm({
                 <ItemPicker
                   item={lineItem}
                   items={items}
+                  excludedIds={lineItems.filter((entry) => entry.key !== lineItem.key).map((entry) => entry.inventoryId).filter(Boolean)}
                   onChange={(inventoryId) =>
                     updateLineItem(lineItem.key, {
                       inventoryId,
@@ -374,13 +437,18 @@ export function SalesOrderForm({
                   }
                 />
 
+                <input
+                  name="unit_price"
+                  type="hidden"
+                  value={selectedItem?.sellingPrice ?? 0}
+                />
+
                 <label>
                   Quantity
-                  <input
+                  <NumericInput
                     min="0.01"
                     name="quantity"
                     step="0.01"
-                    type="number"
                     value={lineItem.quantity}
                     onChange={(event) =>
                       updateLineItem(lineItem.key, { quantity: event.target.value })
@@ -388,28 +456,18 @@ export function SalesOrderForm({
                   />
                 </label>
 
-                <label>
-                  Unit price
-                  <input
-                    min="0"
-                    name="unit_price"
-                    step="0.01"
-                    type="number"
-                    value={lineItem.unitPrice}
-                    onChange={(event) =>
-                      updateLineItem(lineItem.key, { unitPrice: event.target.value })
-                    }
-                  />
-                </label>
-
                 <div className={styles.lineMeta}>
                   <span>
-                    Available:{" "}
+                    Available: {" "}
                     {selectedItem
                       ? formatQuantity(selectedItem.quantity, selectedItem.unit)
-                      : "0"}
+                      : "0 kg"} ({formatCurrency(selectedItem?.sellingPrice ?? 0)}/kg)
                   </span>
-                  <strong>{formatCurrency(toNumber(lineItem.quantity) * toNumber(lineItem.unitPrice))}</strong>
+                  <strong>
+                    {formatCurrency(
+                      toNumber(lineItem.quantity) * (selectedItem?.sellingPrice ?? 0),
+                    )}
+                  </strong>
                 </div>
 
                 <button
@@ -432,76 +490,66 @@ export function SalesOrderForm({
             <div>
               <p>Customer and payment</p>
               <h2>Receipt details</h2>
+              <span className={styles.panelHint}>
+                Select a saved customer to add this receipt to their purchase history, or enter a new buyer.
+              </span>
             </div>
           </div>
 
           <div className={styles.fields}>
-            <label>
-              Customer name
-              <input name="customer_name" placeholder="Walk-in customer" type="text" />
-            </label>
-            <label>
-              Customer contact
-              <input name="customer_contact" placeholder="e.g. 0917 123 4567" type="text" />
-            </label>
-            <ThemedSelect
-              label="Payment method"
-              name="payment_method"
-              options={["Cash", "GCash", "Bank Transfer", "Card", "Installment", "Other"]}
-              value={paymentMethod}
-              onChange={(value) => {
-                setPaymentMethod(value);
-                if (value === "Cash" || value === "Installment") {
-                  setTransactionReference("");
-                }
-                if (value !== "Other") {
-                  setOtherPaymentMethod("");
-                }
-              }}
-            />
-            {paymentMethod === "Other" ? (
-              <label>
-                Other payment method
-                <input
-                  name="other_payment_method"
-                  placeholder="e.g. Maya, cheque, farm credit"
-                  required
-                  type="text"
-                  value={otherPaymentMethod}
-                  onChange={(event) => setOtherPaymentMethod(event.target.value)}
-                />
-              </label>
-            ) : null}
-            {paymentMethod !== "Cash" ? (
-              paymentMethod !== "Installment" ? (
-              <label>
-                Transaction ID
-                <input
-                  name="transaction_reference"
-                  placeholder="e.g. TXN-2026-0012"
-                  required
-                  type="text"
-                  value={transactionReference}
-                  onChange={(event) => setTransactionReference(event.target.value)}
-                />
-              </label>
-              ) : null
-            ) : null}
-            {paymentMethod === "Installment" ? (
+            <div className={styles.customerMode} aria-label="Customer type" role="group">
+              <button
+                aria-pressed={customerMode === "new"}
+                className={customerMode === "new" ? styles.customerModeActive : ""}
+                type="button"
+                onClick={() => setCustomerMode("new")}
+              >
+                New customer
+              </button>
+              <button
+                aria-pressed={customerMode === "existing"}
+                className={customerMode === "existing" ? styles.customerModeActive : ""}
+                type="button"
+                onClick={() => setCustomerMode("existing")}
+              >
+                Existing customer
+              </button>
+            </div>
+            {customerMode === "new" ? (
               <>
+                <label>First name<input name="customer_first_name" placeholder="e.g. Juan" required type="text" /></label>
+                <label>Middle initial<input name="customer_middle_initial" placeholder="e.g. D" maxLength={1} type="text" /></label>
+                <label>Last name<input name="customer_last_name" placeholder="e.g. Cruz" required type="text" /></label>
                 <label>
-                  Installment terms
-                  <input name="installment_terms" placeholder="e.g. 3 monthly payments of PHP 2,500" required type="text" value={installmentTerms} onChange={(event) => setInstallmentTerms(event.target.value)} />
+                  Customer contact
+                  <ContactNumberInput autoComplete="tel-national" name="customer_contact" placeholder="e.g. 09171234567" required />
                 </label>
-                <CalendarField
-                  label="Next payment due"
-                  name="installment_due_date"
-                  required
-                  value={installmentDueDate}
-                  onChange={setInstallmentDueDate}
-                />
               </>
-            ) : null}
+            ) : (
+              <>
+                <input name="existing_customer_name" type="hidden" value={selectedCustomer?.name ?? ""} />
+                <input name="customer_contact" type="hidden" value={selectedCustomer?.contact ?? ""} />
+                <ThemedSelect
+                  emptyLabel="Choose a customer"
+                  label="Select customer"
+                  name="existing_customer_key"
+                  optionLabels={Object.fromEntries(selectableCustomers.map((customer) => [customer.key, `${customer.name} · ${customer.contact}`]))}
+                  options={selectableCustomers.map((customer) => customer.key)}
+                  required
+                  value={selectedCustomerKey}
+                  onChange={setSelectedCustomerKey}
+                />
+                {selectableCustomers.length === 0 ? (
+                  <p className={styles.customerPickerHint}>
+                    No saved customer with a valid contact number is available. Choose New customer to enter receipt details.
+                  </p>
+                ) : null}
+                {selectedCustomer ? <p className={styles.customerPickerHint}>This sale will be recorded for {selectedCustomer.name} and included in their customer history.</p> : null}
+              </>
+            )}
+            <ThemedSelect label="Payment method" name="payment_method_display" options={paymentMethodOptions} required value={paymentMethod} onChange={(value) => { setPaymentMethod(value); setTransactionReference(""); setOtherPaymentMethod(""); }} />
+            {paymentMethod === "Other" ? <label>Other payment method<input name="other_payment_method" placeholder="e.g. Maya or cheque" required value={otherPaymentMethod} onChange={(event) => setOtherPaymentMethod(event.target.value)} type="text" /></label> : null}
+            {paymentMethod !== "Cash" ? <label>Transaction ID<input name="transaction_reference" placeholder="e.g. TXN-2026-0012" required value={transactionReference} onChange={(event) => setTransactionReference(event.target.value)} type="text" /></label> : null}
             <label>
               Remarks
               <textarea name="remarks" placeholder="e.g. Customer requested delivery on Friday" rows={4} />
@@ -509,7 +557,7 @@ export function SalesOrderForm({
           </div>
         </div>
 
-        <div className={styles.panel}>
+        <div className={`${styles.panel} ${styles.summaryPanel}`}>
           <div className={styles.panelHeader}>
             <div>
               <p>Payment summary</p>
@@ -518,118 +566,69 @@ export function SalesOrderForm({
           </div>
 
           <div className={styles.fields}>
-            <label>
-              Discount code
-              <input
-                name="discount_code"
-                placeholder="e.g. Save10"
-                type="text"
-                value={discountCode}
-                onChange={(event) => setDiscountCode(event.target.value)}
-              />
-            </label>
-            {normalizedDiscountCode ? (
-              <p className={selectedDiscount ? styles.discountCodeHint : styles.discountCodeError}>
-                {selectedDiscount
-                  ? `${selectedDiscount.discountType}: ${selectedDiscount.discountValue}${selectedDiscount.discountType === "Percent" ? "%" : " PHP"} for ${selectedDiscount.customerName}`
-                  : "Code not found or already used."}
+            <ThemedSelect
+              emptyLabel={discounts.length > 0 ? "No discount" : "No discounts available"}
+              label="Discount"
+              name="discount_code"
+              onChange={setDiscountCode}
+              optionLabels={discountOptionLabels}
+              options={discountOptions}
+              value={discountCode}
+            />
+            {selectedDiscount ? (
+              <p className={styles.discountCodeHint}>
+                {selectedDiscount.discountType === "Percent"
+                  ? `${selectedDiscount.discountValue}% discount applied.`
+                  : `${formatCurrency(selectedDiscount.discountValue)} discount applied.`}
+                {" "}Anyone with the code can use this offer.
               </p>
             ) : null}
-            <label>
-              Amount paid
-              <input
-                min="0"
-                name="amount_paid"
-                step="0.01"
-                type="number"
-                value={amountPaid}
-                onChange={(event) => setAmountPaid(event.target.value)}
-              />
-            </label>
+              <label>
+                Amount paid (PHP)
+                <NumericInput
+                  min="0"
+                  name="amount_paid"
+                  step="0.01"
+                  value={amountPaid}
+                  onChange={(event) => setAmountPaid(event.target.value)}
+                />
+              </label>
           </div>
 
           <div className={styles.totals}>
             <div>
-              <span>Subtotal</span>
+              <span>Subtotal (PHP)</span>
               <strong>{formatCurrency(subtotal)}</strong>
             </div>
             <div>
-              <span>Discount</span>
+              <span>Discount (PHP)</span>
               <strong>{formatCurrency(discountAmount)}</strong>
             </div>
             <div className={styles.grandTotal}>
-              <span>Total</span>
+              <span>Total (PHP)</span>
               <strong>{formatCurrency(total)}</strong>
             </div>
             <div>
-              <span>Change</span>
+              <span>Change (PHP)</span>
               <strong>{formatCurrency(change)}</strong>
             </div>
           </div>
 
           <button className={styles.submitButton} disabled={pending} type="submit">
-            <span>{pending ? "Recording sale..." : "Record sale"}</span>
+            <PendingActionLabel pending={pending} pendingText="Recording sale...">Record sale</PendingActionLabel>
             <span aria-hidden="true">
               <Receipt size={18} />
             </span>
           </button>
+          {state.message && !state.receiptId ? (
+            <p className={styles.message} data-tone="error" role="alert">
+              {state.message}
+            </p>
+          ) : null}
         </div>
       </section>
 
-      {showConfirm ? (
-        <div className={styles.confirmBackdrop} data-ui-backdrop="true" role="presentation">
-          <div className={styles.confirmModal} role="dialog" aria-modal="true">
-            <button
-              aria-label="Close confirmation"
-              className={styles.confirmClose}
-              type="button"
-              onClick={() => setShowConfirm(false)}
-            >
-              <X size={20} />
-            </button>
-            <div className={styles.confirmIcon}>
-              <ReceiptIcon />
-            </div>
-            <h2>Record this sale?</h2>
-            <p>
-              This will create the receipt and deduct the sold quantities from inventory.
-            </p>
-            <div className={styles.confirmTotals}>
-              <span>Total amount</span>
-              <strong>{formatCurrency(total)}</strong>
-            </div>
-            <div className={styles.confirmActions}>
-              <button type="button" onClick={() => setShowConfirm(false)}>
-                <span>Review</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  confirmedRef.current = true;
-                  setShowConfirm(false);
-                  formRef.current?.requestSubmit();
-                }}
-              >
-                <span>Confirm sale</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {confirmationDialog}
     </form>
-  );
-}
-
-function ReceiptIcon() {
-  return (
-    <svg aria-hidden="true" fill="none" height="24" viewBox="0 0 24 24" width="24">
-      <path
-        d="M6 3h12v18l-2.4-1.3L13.2 21 12 19.7 10.8 21l-2.4-1.3L6 21V3Z"
-        stroke="currentColor"
-        strokeLinejoin="round"
-        strokeWidth="2"
-      />
-      <path d="M9 8h6M9 12h6M9 16h4" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
-    </svg>
   );
 }

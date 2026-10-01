@@ -1,12 +1,7 @@
 import { redirect } from "next/navigation";
-import {
-  deleteNotificationAction,
-  markNotificationReadAction,
-} from "@/app/(portal)/notifications/actions";
-import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { getCurrentAdminProfile } from "@/lib/auth";
-import { formatDateTime } from "@/lib/format";
 import { getNotificationsDashboard } from "@/lib/notifications";
+import { NotificationsWorkspace } from "@/components/notifications-workspace";
 import styles from "./page.module.css";
 
 export default async function NotificationsPage() {
@@ -66,66 +61,7 @@ export default async function NotificationsPage() {
           </div>
         </div>
 
-        {notifications.length === 0 ? (
-          <div className={styles.emptyState}>
-            <strong>No notifications found.</strong>
-          </div>
-        ) : (
-          <div className={styles.notificationList}>
-            {notifications.map((notification) => (
-              <article
-                className={styles.notificationCard}
-                data-read={notification.isRead}
-                key={notification.id}
-              >
-                <div className={styles.notificationCopy}>
-                  <div>
-                    <strong>{notification.title}</strong>
-                    <span>{notification.notificationType}</span>
-                  </div>
-                  <p>{notification.message}</p>
-                  <small>
-                    {notification.recipientName} · {formatDateTime(notification.createdAt)}
-                  </small>
-                </div>
-                <div className={styles.status}>
-                  {notification.isRead ? "Read" : "Unread"}
-                </div>
-                <div className={styles.actions}>
-                  <form action={markNotificationReadAction}>
-                    <input
-                      name="notification_id"
-                      type="hidden"
-                      value={notification.id}
-                    />
-                    <input
-                      name="is_read"
-                      type="hidden"
-                      value={String(!notification.isRead)}
-                    />
-                    <button type="submit">
-                      {notification.isRead ? "Mark unread" : "Mark read"}
-                    </button>
-                  </form>
-                  <form action={deleteNotificationAction}>
-                    <input
-                      name="notification_id"
-                      type="hidden"
-                      value={notification.id}
-                    />
-                    <ConfirmSubmitButton
-                      className={styles.dangerButton}
-                      confirmMessage="Are you sure you want to delete this notification?"
-                      type="submit"
-                    >
-                      Delete
-                    </ConfirmSubmitButton>
-                  </form>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
+        <NotificationsWorkspace notifications={notifications} />
       </section>
     </div>
   );

@@ -11,7 +11,6 @@ class AppRoutes {
   static const notifications = '/notifications';
   static const notificationDetails = '/notifications/:notificationId';
   static const plantingLogDetails = '/planting-logs/:logId';
-  static const userDetails = '/users/:userId';
   static const profile = '/profile';
 
   static String cropDetailsPath(String cropId) {
@@ -30,9 +29,6 @@ class AppRoutes {
     return '/planting-logs/$logId';
   }
 
-  static String userDetailsPath(String userId) {
-    return '/users/$userId';
-  }
 }
 
 class AppRouteNames {
@@ -48,6 +44,5 @@ class AppRouteNames {
   static const notifications = 'notifications';
   static const notificationDetails = 'notification-details';
   static const plantingLogDetails = 'planting-log-details';
-  static const userDetails = 'user-details';
   static const profile = 'profile';
 }

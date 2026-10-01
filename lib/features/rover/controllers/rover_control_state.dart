@@ -12,6 +12,7 @@ enum PlantingStatus {
   completed,
   failed,
   emergencyStopped,
+  interrupted,
 }
 
 extension PlantingStatusLabel on PlantingStatus {
@@ -26,6 +27,7 @@ extension PlantingStatusLabel on PlantingStatus {
       PlantingStatus.completed => 'Row Completed',
       PlantingStatus.failed => 'Planting Failed',
       PlantingStatus.emergencyStopped => 'Emergency Stopped',
+      PlantingStatus.interrupted => 'Interrupted - Review Required',
     };
   }
 }
@@ -47,10 +49,18 @@ class RoverControlState {
     this.isPinging = false,
     this.localWifiConnected = false,
     this.localWifiConnecting = false,
+    this.localWifiDisconnecting = false,
     this.plantingOperation,
     this.activePlantingConfig,
     this.pendingReceiptCount = 0,
     this.syncingReceipts = false,
+    this.lastCreatedCropId,
+    this.pendingConfirmationSessionId,
+    this.obstacleWarning,
+    this.obstacleAlertSequence = 0,
+    this.confirmedPlantingSessionId,
+    this.lastSyncedPlantingSessionId,
+    this.lastConfirmedSyncedSessionId,
   });
 
   const RoverControlState.loading()
@@ -69,10 +79,18 @@ class RoverControlState {
         isPinging = false,
         localWifiConnected = false,
         localWifiConnecting = false,
+        localWifiDisconnecting = false,
         plantingOperation = null,
         activePlantingConfig = null,
         pendingReceiptCount = 0,
-        syncingReceipts = false;
+        syncingReceipts = false,
+        lastCreatedCropId = null,
+        pendingConfirmationSessionId = null,
+        obstacleWarning = null,
+        obstacleAlertSequence = 0,
+        confirmedPlantingSessionId = null,
+        lastSyncedPlantingSessionId = null,
+        lastConfirmedSyncedSessionId = null;
 
   final bool isLoading;
   final RoverControlModel? telemetry;
@@ -89,10 +107,18 @@ class RoverControlState {
   final bool isPinging;
   final bool localWifiConnected;
   final bool localWifiConnecting;
+  final bool localWifiDisconnecting;
   final PlantingOperationStatus? plantingOperation;
   final PlantingRowConfig? activePlantingConfig;
   final int pendingReceiptCount;
   final bool syncingReceipts;
+  final String? lastCreatedCropId;
+  final String? pendingConfirmationSessionId;
+  final String? obstacleWarning;
+  final int obstacleAlertSequence;
+  final String? confirmedPlantingSessionId;
+  final String? lastSyncedPlantingSessionId;
+  final String? lastConfirmedSyncedSessionId;
 
   bool get isConnected {
     return localWifiConnected ||
@@ -137,12 +163,24 @@ class RoverControlState {
     bool? isPinging,
     bool? localWifiConnected,
     bool? localWifiConnecting,
+    bool? localWifiDisconnecting,
     PlantingOperationStatus? plantingOperation,
     bool clearPlantingOperation = false,
     PlantingRowConfig? activePlantingConfig,
     bool clearActivePlantingConfig = false,
     int? pendingReceiptCount,
     bool? syncingReceipts,
+    String? lastCreatedCropId,
+    bool clearLastCreatedCropId = false,
+    String? pendingConfirmationSessionId,
+    bool clearPendingConfirmationSessionId = false,
+    String? obstacleWarning,
+    bool clearObstacleWarning = false,
+    int? obstacleAlertSequence,
+    String? confirmedPlantingSessionId,
+    bool clearConfirmedPlantingSessionId = false,
+    String? lastSyncedPlantingSessionId,
+    String? lastConfirmedSyncedSessionId,
   }) {
     return RoverControlState(
       isLoading: isLoading ?? this.isLoading,
@@ -163,6 +201,8 @@ class RoverControlState {
       isPinging: isPinging ?? this.isPinging,
       localWifiConnected: localWifiConnected ?? this.localWifiConnected,
       localWifiConnecting: localWifiConnecting ?? this.localWifiConnecting,
+      localWifiDisconnecting:
+          localWifiDisconnecting ?? this.localWifiDisconnecting,
       plantingOperation: clearPlantingOperation
           ? null
           : plantingOperation ?? this.plantingOperation,
@@ -171,6 +211,23 @@ class RoverControlState {
           : activePlantingConfig ?? this.activePlantingConfig,
       pendingReceiptCount: pendingReceiptCount ?? this.pendingReceiptCount,
       syncingReceipts: syncingReceipts ?? this.syncingReceipts,
+      lastCreatedCropId: clearLastCreatedCropId
+          ? null
+          : lastCreatedCropId ?? this.lastCreatedCropId,
+      pendingConfirmationSessionId: clearPendingConfirmationSessionId
+          ? null
+          : pendingConfirmationSessionId ?? this.pendingConfirmationSessionId,
+      obstacleWarning:
+          clearObstacleWarning ? null : obstacleWarning ?? this.obstacleWarning,
+      obstacleAlertSequence:
+          obstacleAlertSequence ?? this.obstacleAlertSequence,
+      confirmedPlantingSessionId: clearConfirmedPlantingSessionId
+          ? null
+          : confirmedPlantingSessionId ?? this.confirmedPlantingSessionId,
+      lastSyncedPlantingSessionId:
+          lastSyncedPlantingSessionId ?? this.lastSyncedPlantingSessionId,
+      lastConfirmedSyncedSessionId:
+          lastConfirmedSyncedSessionId ?? this.lastConfirmedSyncedSessionId,
     );
   }
 }

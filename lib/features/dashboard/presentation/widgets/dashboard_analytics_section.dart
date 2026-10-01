@@ -25,7 +25,7 @@ class DashboardAnalyticsSection extends ConsumerStatefulWidget {
 
 class _DashboardAnalyticsSectionState
     extends ConsumerState<DashboardAnalyticsSection> {
-  _AnalyticsRange _selectedRange = _AnalyticsRange.month;
+  _AnalyticsRange _selectedRange = _AnalyticsRange.year;
 
   @override
   Widget build(BuildContext context) {
@@ -98,7 +98,8 @@ class _DashboardAnalyticsSectionState
                         ? (constraints.maxWidth - AppSpacing.md) / 2
                         : (constraints.maxWidth - AppSpacing.md * 3) / 4,
                     label: 'Units Sold',
-                    value: _formatAnalyticsQuantity(analytics.unitsSoldThisMonth),
+                    value:
+                        _formatAnalyticsQuantity(analytics.unitsSoldThisMonth),
                     caption: 'this month',
                     color: AppColors.warning,
                     icon: Icons.scale_outlined,
@@ -127,9 +128,9 @@ class _DashboardAnalyticsSectionState
                     width: compact
                         ? (constraints.maxWidth - AppSpacing.md) / 2
                         : (constraints.maxWidth - AppSpacing.md * 3) / 4,
-                    label: 'Seeds',
-                    value: analytics.totalSeeds.toString(),
-                    caption: 'planted',
+                    label: 'Crop Types',
+                    value: analytics.cropTypes.toString(),
+                    caption: 'tracked',
                     color: AppColors.primaryGreen,
                     icon: Icons.grass_outlined,
                   ),
@@ -173,7 +174,7 @@ class _DashboardAnalyticsSectionState
                     width: chartWidth,
                     child: _AnalyticsChartCard(
                       title: 'Crops Planted',
-                      subtitle: '${analytics.rangeLabel} by seed type',
+                      subtitle: '${analytics.rangeLabel} crop records by type',
                       icon: Icons.spa_outlined,
                       child: _BarChart(
                         entries: analytics.cropsByName,
@@ -196,19 +197,6 @@ class _DashboardAnalyticsSectionState
                   SizedBox(
                     width: chartWidth,
                     child: _AnalyticsChartCard(
-                      title: 'Crop Progress',
-                      subtitle: '${analytics.rangeLabel} average by seed type',
-                      icon: Icons.timeline,
-                      child: _BarChart(
-                        entries: analytics.averageProgressByName,
-                        color: AppColors.warning,
-                        suffix: '%',
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: chartWidth,
-                    child: _AnalyticsChartCard(
                       title: 'Sales Trend',
                       subtitle: analytics.trendLabel,
                       icon: Icons.show_chart,
@@ -223,7 +211,6 @@ class _DashboardAnalyticsSectionState
       ),
     );
   }
-
 }
 
 enum _AnalyticsRange {
@@ -366,7 +353,7 @@ class _KpiCard extends StatelessWidget {
               caption,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: AppTypography.monoCaption,
+              style: AppTypography.numericCaption,
             ),
           ],
         ),
@@ -425,12 +412,10 @@ class _BarChart extends StatelessWidget {
   const _BarChart({
     required this.entries,
     required this.color,
-    this.suffix = '',
   });
 
   final List<_ChartEntry> entries;
   final Color color;
-  final String suffix;
 
   @override
   Widget build(BuildContext context) {
@@ -480,9 +465,9 @@ class _BarChart extends StatelessWidget {
               SizedBox(
                 width: 48,
                 child: AnimatedMetricText(
-                  '${_formatAnalyticsQuantity(entry.value)}$suffix',
+                  _formatAnalyticsQuantity(entry.value),
                   textAlign: TextAlign.end,
-                  style: AppTypography.monoCaption.copyWith(
+                  style: AppTypography.numericCaption.copyWith(
                     color: AppColors.primaryText,
                   ),
                 ),
@@ -494,7 +479,6 @@ class _BarChart extends StatelessWidget {
       ],
     );
   }
-
 }
 
 class _LineChart extends StatelessWidget {
@@ -528,7 +512,7 @@ class _LineChart extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   for (final entry in entries)
-                    Text(entry.label, style: AppTypography.monoCaption),
+                    Text(entry.label, style: AppTypography.numericCaption),
                 ],
               ),
             ),
@@ -620,14 +604,13 @@ class _DashboardAnalytics {
     required this.unitsSoldThisMonth,
     required this.salesTransactions,
     required this.totalCrops,
-    required this.totalSeeds,
+    required this.cropTypes,
     required this.totalSold,
     required this.topSoldItem,
     required this.topSoldItemCount,
     required this.rangeLabel,
     required this.trendLabel,
     required this.cropsByName,
-    required this.averageProgressByName,
     required this.soldByItem,
     required this.salesTrend,
   });
@@ -637,14 +620,13 @@ class _DashboardAnalytics {
   final double unitsSoldThisMonth;
   final int salesTransactions;
   final int totalCrops;
-  final int totalSeeds;
+  final int cropTypes;
   final double totalSold;
   final String topSoldItem;
   final String topSoldItemCount;
   final String rangeLabel;
   final String trendLabel;
   final List<_ChartEntry> cropsByName;
-  final List<_ChartEntry> averageProgressByName;
   final List<_ChartEntry> soldByItem;
   final List<_ChartEntry> salesTrend;
 
@@ -655,8 +637,6 @@ class _DashboardAnalytics {
     required _AnalyticsRange range,
   }) {
     final cropCounts = <String, double>{};
-    final seedCounts = <String, double>{};
-    final progressTotals = <String, double>{};
     final soldByItem = <String, double>{};
     final trendByDay = <DateTime, double>{};
     final referenceDate = _latestDataDate(crops, stocks) ?? DateTime.now();
@@ -672,16 +652,6 @@ class _DashboardAnalytics {
 
     for (final crop in filteredCrops) {
       cropCounts.update(crop.name, (value) => value + 1, ifAbsent: () => 1);
-      seedCounts.update(
-        crop.name,
-        (value) => value + crop.safeSeedCount,
-        ifAbsent: () => crop.safeSeedCount.toDouble(),
-      );
-      progressTotals.update(
-        crop.name,
-        (value) => value + crop.progress,
-        ifAbsent: () => crop.progress,
-      );
     }
 
     final trendBuckets = _trendBuckets(referenceDate, range);
@@ -748,13 +718,6 @@ class _DashboardAnalytics {
       }
     }
 
-    final cropProgress = [
-      for (final entry in progressTotals.entries)
-        _ChartEntry(
-          entry.key,
-          ((entry.value / (cropCounts[entry.key] ?? 1)) * 100).roundToDouble(),
-        ),
-    ]..sort((left, right) => right.value.compareTo(left.value));
     final sales = _entriesFromMap(soldByItem);
     final topSale = sales.isEmpty ? null : sales.first;
 
@@ -764,18 +727,15 @@ class _DashboardAnalytics {
       unitsSoldThisMonth: salesSummary.unitsSoldThisMonth,
       salesTransactions: salesSummary.salesTransactions,
       totalCrops: filteredCrops.length,
-      totalSeeds: filteredCrops.fold<int>(
-        0,
-        (total, crop) => total + crop.safeSeedCount,
-      ),
-      totalSold: soldByItem.values.fold<double>(0, (total, value) => total + value),
+      cropTypes: filteredCrops.map((crop) => crop.name).toSet().length,
+      totalSold:
+          soldByItem.values.fold<double>(0, (total, value) => total + value),
       topSoldItem: topSale?.label ?? 'None',
       topSoldItemCount:
           topSale == null ? '0' : _formatAnalyticsQuantity(topSale.value),
       rangeLabel: range.label,
       trendLabel: _trendLabel(range, amountBased: hasRecordedSales),
-      cropsByName: _entriesFromMap(seedCounts),
-      averageProgressByName: cropProgress,
+      cropsByName: _entriesFromMap(cropCounts),
       soldByItem: sales,
       salesTrend: [
         for (final entry in trendByDay.entries)
@@ -790,7 +750,8 @@ class _DashboardAnalytics {
     ]..sort((left, right) => right.value.compareTo(left.value));
   }
 
-  static DateTime? _latestDataDate(List<CropModel> crops, List<StockModel> stocks) {
+  static DateTime? _latestDataDate(
+      List<CropModel> crops, List<StockModel> stocks) {
     DateTime? latest;
 
     void visit(DateTime date) {
@@ -825,7 +786,8 @@ class _DashboardAnalytics {
 
     return switch (range) {
       _AnalyticsRange.week => day.subtract(const Duration(days: 6)),
-      _AnalyticsRange.month => DateTime(referenceDate.year, referenceDate.month),
+      _AnalyticsRange.month =>
+        DateTime(referenceDate.year, referenceDate.month),
       _AnalyticsRange.year => DateTime(referenceDate.year),
     };
   }
@@ -853,8 +815,8 @@ class _DashboardAnalytics {
         ],
       _AnalyticsRange.month => _monthTrendBuckets(referenceDate),
       _AnalyticsRange.year => [
-          for (var index = 5; index >= 0; index--)
-            DateTime(referenceDate.year, referenceDate.month - index),
+          for (var month = 1; month <= 12; month++)
+            DateTime(referenceDate.year, month),
         ],
     };
   }
@@ -868,7 +830,8 @@ class _DashboardAnalytics {
     );
 
     for (var index = 0; index < 5; index++) {
-      final bucket = DateTime(referenceDate.year, referenceDate.month, 1 + (index * 7));
+      final bucket =
+          DateTime(referenceDate.year, referenceDate.month, 1 + (index * 7));
 
       if (!bucket.isAfter(referenceDay)) {
         buckets.add(bucket);
@@ -933,7 +896,8 @@ class _DashboardAnalytics {
     return '${date.month}/${date.day}';
   }
 
-  static String _trendLabel(_AnalyticsRange range, {required bool amountBased}) {
+  static String _trendLabel(_AnalyticsRange range,
+      {required bool amountBased}) {
     final metric = amountBased ? 'sales value' : 'stock out';
 
     return switch (range) {

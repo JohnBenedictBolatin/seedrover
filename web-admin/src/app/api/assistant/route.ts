@@ -3,6 +3,9 @@ import { getCurrentAdminProfile } from "@/lib/auth";
 import { askRovie, type AssistantChatMessage } from "@/lib/assistant";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
+const maxQuestionLength = 2000;
+const maxHistoryMessageLength = 4000;
+
 export async function POST(request: Request) {
   const rateLimit = await checkRateLimit({
     limit: 20,
@@ -33,6 +36,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Question is required." }, { status: 400 });
   }
 
+  if (question.length > maxQuestionLength) {
+    return NextResponse.json(
+      { error: `Please keep questions under ${maxQuestionLength} characters.` },
+      { status: 400 },
+    );
+  }
+
   const result = await askRovie({ history, profile, question });
 
   return NextResponse.json(result);
@@ -48,6 +58,7 @@ function isAssistantMessage(value: unknown): value is AssistantChatMessage {
   return (
     (message.role === "user" || message.role === "assistant") &&
     typeof message.content === "string" &&
-    message.content.trim().length > 0
+    message.content.trim().length > 0 &&
+    message.content.length <= maxHistoryMessageLength
   );
 }

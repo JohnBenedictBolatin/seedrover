@@ -44,7 +44,7 @@
 
 .receipt h1 {
   margin: 0;
-  font-size: 2rem;
+  font-size: 2.2rem;
   line-height: 1;
 }
 
@@ -54,7 +54,7 @@
 .totals span,
 .remarks span {
   color: #616161;
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   font-weight: 800;
 }
 
@@ -66,7 +66,7 @@
 
 .receiptMeta strong {
   font-family: var(--font-roboto-mono);
-  font-size: 1rem;
+  font-size: 1.1rem;
 }
 
 .infoGrid {
@@ -95,7 +95,7 @@
 
 .items th {
   color: #616161;
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   text-transform: uppercase;
 }
 
@@ -117,7 +117,7 @@
 }
 
 .grandTotal strong {
-  font-size: 1.35rem;
+  font-size: 1.49rem;
 }
 
 .remarks {
@@ -142,6 +142,7 @@
   .receiptMeta {
     text-align: left;
   }
+
 }
 
 @media print {

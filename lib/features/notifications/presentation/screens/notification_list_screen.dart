@@ -7,7 +7,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
-import '../../../../shared/widgets/animated_content.dart';
+import '../../../../shared/widgets/app_page_header.dart';
 import '../../data/models/notification_model.dart';
 import '../../providers/notification_providers.dart';
 import '../widgets/notification_card.dart';
@@ -15,17 +15,50 @@ import '../widgets/notification_empty_state.dart';
 import '../widgets/notification_filter_bar.dart';
 import '../widgets/notification_loading_list.dart';
 
-class NotificationListScreen extends ConsumerWidget {
+class NotificationListScreen extends ConsumerStatefulWidget {
   const NotificationListScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NotificationListScreen> createState() =>
+      _NotificationListScreenState();
+}
+
+class _NotificationListScreenState extends ConsumerState<NotificationListScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(_handleTabChange);
+  }
+
+  void _handleTabChange() {
+    if (mounted && !_tabController.indexIsChanging) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _tabController
+      ..removeListener(_handleTabChange)
+      ..dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(notificationControllerProvider);
     final controller = ref.read(notificationControllerProvider.notifier);
+    final isUnreadTab = _tabController.index == 0;
+    final notifications = state.filteredNotifications
+        .where((notification) => notification.isRead != isUnreadTab)
+        .toList(growable: false);
 
     ref.listen(notificationControllerProvider, (previous, next) {
       final error = next.errorMessage;
-      if (error != null && error != previous?.errorMessage &&
+      if (error != null &&
+          error != previous?.errorMessage &&
           next.notifications.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(error)),
@@ -60,38 +93,64 @@ class NotificationListScreen extends ConsumerWidget {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: AnimatedTypingText(
-                  'Notifications',
-                  style: AppTypography.screenTitle.copyWith(
-                    color: AppColors.primaryGreen,
-                  ),
-                ),
-              ),
-              _UnreadCounter(count: state.unreadCount),
+          AppPageHeader(
+              title: 'Notifications',
+              actions: _UnreadCounter(count: state.unreadCount)),
+          const SizedBox(height: AppSpacing.md),
+          TabBar(
+            controller: _tabController,
+            isScrollable: false,
+            tabAlignment: TabAlignment.fill,
+            labelColor: AppColors.primaryGreen,
+            unselectedLabelColor: AppColors.secondaryText,
+            indicatorColor: AppColors.primaryGreen,
+            labelStyle:
+                AppTypography.small.copyWith(fontWeight: FontWeight.w700),
+            tabs: const [
+              Tab(text: 'Unread'),
+              Tab(text: 'Read'),
             ],
           ),
-          const SizedBox(height: AppSpacing.xl),
+          const SizedBox(height: AppSpacing.md),
           NotificationFilterBar(
             searchQuery: state.searchQuery,
             selectedCategory: state.selectedCategory,
             selectedPriority: state.selectedPriority,
-            selectedStatus: state.selectedStatus,
+            selectedDate: state.selectedDate,
+            selectedSort: state.selectedSort,
             onSearchChanged: controller.updateSearch,
             onCategoryChanged: controller.updateCategory,
             onPriorityChanged: controller.updatePriority,
-            onStatusChanged: controller.updateStatus,
-            onClear: controller.clearFilters,
+            onDateChanged: controller.updateDate,
+            onSortChanged: controller.updateSort,
           ),
           const SizedBox(height: AppSpacing.xl),
-          if (state.filteredNotifications.isEmpty)
-            const NotificationEmptyState()
+          if (notifications.isEmpty)
+            NotificationEmptyState(
+              hasNotifications: state.notifications.isNotEmpty,
+              hasActiveFilters: state.searchQuery.trim().isNotEmpty ||
+                  state.selectedCategory != null ||
+                  state.selectedPriority != null ||
+                  state.selectedDate != NotificationDateFilter.all,
+              emptyTitle: state.notifications.isEmpty
+                  ? 'No notifications yet'
+                  : isUnreadTab
+                      ? 'No unread notifications'
+                      : 'No read notifications',
+              emptyDescription: state.notifications.isEmpty
+                  ? 'New updates will appear here.'
+                  : isUnreadTab
+                      ? 'You’re all caught up.'
+                      : 'Read notifications will appear here.',
+              onClearFilters: controller.clearFilters,
+            )
           else
             _NotificationList(
-              notifications: state.filteredNotifications,
+              notifications: notifications,
               onView: (notification) async {
+                if (context.mounted) {
+                  context.push(controller.routeForNotification(notification));
+                }
                 if (!notification.isRead) {
                   try {
                     await controller.markAsRead(notification.id);
@@ -99,14 +158,10 @@ class NotificationListScreen extends ConsumerWidget {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                            content: Text('Unable to open notification.')),
+                            content: Text('Couldn’t update read status.')),
                       );
                     }
-                    return;
                   }
-                }
-                if (context.mounted) {
-                  context.push(controller.routeForNotification(notification));
                 }
               },
             ),
@@ -127,16 +182,28 @@ class _NotificationList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    var readDividerShown = false;
+    DateTime? previousDate;
     final children = <Widget>[];
 
     for (var index = 0; index < notifications.length; index++) {
       final notification = notifications[index];
-
-      if (notification.isRead && !readDividerShown) {
-        children.add(const _AlreadyReadDivider());
-        children.add(const SizedBox(height: AppSpacing.md));
-        readDividerShown = true;
+      final date = notification.createdAt.toLocal();
+      if (previousDate == null || !DateUtils.isSameDay(previousDate, date)) {
+        children.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                _dateGroupLabel(date),
+                style: AppTypography.cardTitle.copyWith(
+                  color: AppColors.secondaryText,
+                ),
+              ),
+            ),
+          ),
+        );
+        previousDate = date;
       }
 
       children.add(
@@ -155,32 +222,14 @@ class _NotificationList extends StatelessWidget {
       children: children,
     );
   }
-}
 
-class _AlreadyReadDivider extends StatelessWidget {
-  const _AlreadyReadDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Divider(color: AppColors.inactiveBorder, thickness: 1),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-          child: Text(
-            'Already read',
-            style: AppTypography.statusBadge.copyWith(
-              color: AppColors.secondaryText,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Divider(color: AppColors.inactiveBorder, thickness: 1),
-        ),
-      ],
-    );
+  String _dateGroupLabel(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    if (DateUtils.isSameDay(date, today)) return 'Today';
+    if (DateUtils.isSameDay(date, yesterday)) return 'Yesterday';
+    return '${date.month}/${date.day}/${date.year}';
   }
 }
 
@@ -204,7 +253,7 @@ class _UnreadCounter extends StatelessWidget {
         ),
         child: Text(
           '$count unread',
-          style: AppTypography.statusBadge.copyWith(
+          style: AppTypography.numericCaption.copyWith(
             color: AppColors.primaryText,
           ),
         ),

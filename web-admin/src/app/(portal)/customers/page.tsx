@@ -1,10 +1,9 @@
 import { redirect } from "next/navigation";
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { getCustomersDashboard } from "@/lib/customers";
-import { getCustomerPayments } from "@/lib/customer-payments";
 import { CustomersWorkspace } from "@/components/customers-workspace";
-import { CustomerPaymentsPanel } from "@/components/customer-payments-panel";
 import { LiveDateTime } from "@/components/live-date-time";
+import { ModuleHeaderIntro } from "@/components/module-header-intro";
 import styles from "./page.module.css";
 
 export default async function CustomersPage() {
@@ -14,23 +13,20 @@ export default async function CustomersPage() {
     redirect("/login");
   }
 
-  if (profile.roleName === "Farm Planting Manager") {
+  if (["Farm Planting Manager", "Planting Staff"].includes(profile.roleName)) {
     redirect("/dashboard");
   }
 
-  const [{ customers, discounts, stats, error, profileError }, paymentData] = await Promise.all([
-    getCustomersDashboard(),
-    getCustomerPayments(),
-  ]);
+  const { customers, discounts, stats, error } = await getCustomersDashboard();
 
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <div>
-          <p className={styles.eyebrow}>Operations</p>
-          <h1>Customers</h1>
-          <p>Buyer profiles, purchase history, discounts, and payments.</p>
-        </div>
+          <ModuleHeaderIntro mascot="customers">
+            <p className={styles.eyebrow}>Operations</p>
+            <h1>Customers</h1>
+            <p>Customer records and purchase history are built from completed sales.</p>
+          </ModuleHeaderIntro>
         <div className={styles.liveDateTime}>
           <LiveDateTime />
         </div>
@@ -43,16 +39,7 @@ export default async function CustomersPage() {
         </section>
       ) : null}
 
-      {profileError ? (
-        <section className={styles.notice}>
-          <strong>Saved customer profiles are not available yet.</strong>
-          <span>{profileError}</span>
-        </section>
-      ) : null}
-
       <CustomersWorkspace customers={customers} discounts={discounts} stats={stats} />
-      {paymentData.error ? <section className={styles.notice}><strong>Installment tracking is unavailable.</strong><span>{paymentData.error}</span></section> : null}
-      <CustomerPaymentsPanel payments={paymentData.payments} />
     </div>
   );
 }

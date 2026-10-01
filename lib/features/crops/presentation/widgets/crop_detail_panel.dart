@@ -1,226 +1,184 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
-import '../../../../shared/widgets/animated_content.dart';
+import '../../../../core/utils/date_time_formatter.dart';
 import '../../../../shared/widgets/app_card.dart';
-import '../../../../shared/widgets/status_badge.dart';
 import '../../data/models/crop_model.dart';
-import 'crop_detail_metric.dart';
-import 'crop_plant_image.dart';
 
 class CropDetailPanel extends StatelessWidget {
   const CropDetailPanel({
     required this.crop,
-    this.actions,
+    this.onRecordCare,
     super.key,
   });
 
   final CropModel crop;
-  final Widget? actions;
+  final VoidCallback? onRecordCare;
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = _statusColor(crop.status);
+    final careTasks = crop.careTasks
+        .where((task) =>
+            const ['Overdue', 'Due', 'Upcoming'].contains(task.status))
+        .toList()
+      ..sort((left, right) {
+        int urgency(String status) => switch (status) {
+              'Overdue' => 0,
+              'Due' => 1,
+              _ => 2,
+            };
+        final priority = urgency(left.status).compareTo(urgency(right.status));
+        return priority == 0 ? left.dueAt.compareTo(right.dueAt) : priority;
+      });
+    final nextTask = careTasks.isEmpty ? null : careTasks.first;
 
     return AppCard(
       backgroundColor: AppColors.secondaryBackground,
       borderColor: AppColors.inactiveBorder,
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    AnimatedTypingText(
-                      crop.name,
-                      style: AppTypography.sectionHeading,
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    AnimatedTypingText(
-                      crop.growthStage.label,
-                      style: AppTypography.small,
-                    ),
-                  ],
-                ),
-              ),
-              StatusBadge(label: crop.status.label, color: statusColor),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final gap = AppSpacing.xs;
+              final tileWidth = (constraints.maxWidth - gap) / 2;
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: [
+                  _OverviewFact(
+                    width: tileWidth,
+                    label: 'Planted',
+                    value: DateTimeFormatter.formatDate(crop.plantingDate),
+                    icon: Icons.event_outlined,
+                  ),
+                  _OverviewFact(
+                    width: tileWidth,
+                    label: 'Observed stage',
+                    value: crop.recordedGrowthStage?.trim().isNotEmpty == true
+                        ? crop.recordedGrowthStage!
+                        : 'Not recorded',
+                    icon: Icons.eco_outlined,
+                  ),
+                  _OverviewFact(
+                    width: tileWidth,
+                    label: 'Planted by',
+                    value: crop.managerName.trim().isEmpty
+                        ? 'Unassigned'
+                        : crop.managerName,
+                    icon: Icons.person_outline_rounded,
+                  ),
+                  _OverviewFact(
+                    width: tileWidth,
+                    label: 'Next care',
+                    value: nextTask == null
+                        ? 'No task scheduled'
+                        : _compactCareTaskTitle(nextTask.title, crop.name),
+                    icon: nextTask?.status == 'Overdue'
+                        ? Icons.warning_amber_rounded
+                        : Icons.task_alt_rounded,
+                    accentColor: nextTask?.status == 'Overdue'
+                        ? AppColors.warning
+                        : null,
+                  ),
+                  _OverviewFact(
+                    width: tileWidth,
+                    label: 'Planting location',
+                    value: crop.location.trim().isEmpty
+                        ? 'Not recorded'
+                        : crop.location,
+                    icon: Icons.location_on_outlined,
+                  ),
+                  _OverviewFact(
+                    width: tileWidth,
+                    label: 'Planting drops',
+                    value: _plantingDropLabel(crop),
+                    icon: Icons.water_drop_outlined,
+                  ),
+                ],
+              );
+            },
           ),
-          const SizedBox(height: AppSpacing.lg),
-          Center(
-            child: CropPlantImage(crop: crop, size: 160),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          _CropProgress(crop: crop, color: statusColor),
-          const SizedBox(height: AppSpacing.lg),
-          _OwnerDetailsGrid(crop: crop, formatDate: _formatDate),
-          const SizedBox(height: AppSpacing.lg),
-          if (actions != null) ...[
-            actions!,
-            const SizedBox(height: AppSpacing.lg),
-          ],
-          if (crop.notes.trim().isNotEmpty &&
-              !crop.notes.contains('loaded from Supabase')) ...[
-            AnimatedTypingText('Farm notes', style: AppTypography.cardTitle),
+          if (onRecordCare != null) ...[
             const SizedBox(height: AppSpacing.sm),
-            AnimatedTypingText(crop.notes, style: AppTypography.small),
+            FilledButton.icon(
+              onPressed: onRecordCare,
+              icon: const Icon(Icons.add_task_rounded),
+              label: const Text('Record care'),
+            ),
           ],
         ],
       ),
     );
   }
-
-  Color _statusColor(CropStatus status) {
-    return switch (status) {
-      CropStatus.healthy => AppColors.success,
-      CropStatus.needsWater => AppColors.warning,
-      CropStatus.needsFertilizer => AppColors.warning,
-      CropStatus.readyForHarvest => AppColors.primaryGreen,
-      CropStatus.harvested => AppColors.mutedText,
-    };
-  }
-
-  String _formatDate(DateTime date) {
-    final month = date.month.toString().padLeft(2, '0');
-    final day = date.day.toString().padLeft(2, '0');
-    final year = date.year.toString().substring(2);
-
-    return '$month/$day/$year';
-  }
 }
 
-class _CropProgress extends StatelessWidget {
-  const _CropProgress({required this.crop, required this.color});
-
-  final CropModel crop;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final progress = crop.progress.clamp(0.0, 1.0).toDouble();
-    final percent = (progress * 100).round();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('GROWTH PROGRESS', style: AppTypography.monoCaption),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(crop.growthStage.label, style: AppTypography.small),
-                ],
-              ),
-            ),
-            AnimatedMetricText(
-              '$percent%',
-              style: AppTypography.cardTitle.copyWith(color: color),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(999),
-          child: AnimatedProgressBar(
-            value: progress,
-            minHeight: 9,
-            color: color,
-            backgroundColor: AppColors.inactiveBorder,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          'Updates when the crop advances to a new growth stage.',
-          style: AppTypography.caption.copyWith(color: AppColors.secondaryText),
-        ),
-      ],
-    );
-  }
+String _plantingDropLabel(CropModel crop) {
+  final completed = crop.plantingCompletedDrops;
+  final target = crop.plantingTargetDrops;
+  if (completed == null && target == null) return 'Not recorded';
+  if (completed == null) return '$target planned cycles';
+  if (target == null) return '$completed completed cycles';
+  return '$completed of $target cycles';
 }
 
-class _OwnerDetailsGrid extends StatelessWidget {
-  const _OwnerDetailsGrid({
-    required this.crop,
-    required this.formatDate,
+String _compactCareTaskTitle(String title, String cropName) {
+  final cleanTitle = title.trim();
+  final suffix = 'for ${cropName.trim()}';
+  final prefixEnd = cleanTitle.length - suffix.length;
+  if (prefixEnd > 0 &&
+      cleanTitle[prefixEnd - 1].trim().isEmpty &&
+      cleanTitle.substring(prefixEnd).toLowerCase() == suffix.toLowerCase()) {
+    return cleanTitle.substring(0, prefixEnd).trimRight();
+  }
+  return cleanTitle;
+}
+
+class _OverviewFact extends StatelessWidget {
+  const _OverviewFact({
+    required this.width,
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.accentColor,
   });
 
-  final CropModel crop;
-  final String Function(DateTime date) formatDate;
+  final double width;
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color? accentColor;
 
   @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const columns = 2;
-        final spacing = AppSpacing.xs * (columns - 1);
-        final tileWidth = (constraints.maxWidth - spacing) / columns;
-
-        return Wrap(
-          spacing: AppSpacing.xs,
-          runSpacing: AppSpacing.xs,
-          children: [
-            CropDetailMetric(
-              width: tileWidth,
-              label: 'Batch ID',
-              value: crop.trackingCode,
-              icon: Icons.tag_outlined,
-            ),
-            CropDetailMetric(
-              width: tileWidth,
-              label: 'Field',
-              value: crop.fieldLabel,
-              icon: Icons.location_on_outlined,
-            ),
-            CropDetailMetric(
-              width: tileWidth,
-              label: 'Manager',
-              value: crop.managerName,
-              icon: Icons.person_outline,
-            ),
-            CropDetailMetric(
-              width: tileWidth,
-              label: 'Planted',
-              value: formatDate(crop.plantingDate),
-              icon: Icons.event_outlined,
-            ),
-            CropDetailMetric(
-              width: tileWidth,
-              label: 'Stage',
-              value: crop.growthStage.label,
-              icon: Icons.timeline,
-            ),
-            CropDetailMetric(
-              width: tileWidth,
-              label: 'Latest Soil',
-              value: crop.sensorSnapshot.recordedAt == null
-                  ? 'No recent reading'
-                  : '${crop.sensorSnapshot.soilMoisture.toStringAsFixed(0)}%',
-              icon: Icons.water_drop_outlined,
-            ),
-            CropDetailMetric(
-              width: tileWidth,
-              label: crop.name.toLowerCase().contains('calamansi') &&
-                      crop.harvestWindowStart == null
-                  ? 'Next Milestone'
-                  : 'Harvest',
-              value: crop.harvestWindowStart == null
-                  ? crop.expectedStage
-                  : formatDate(crop.harvestWindowStart!),
-              icon: Icons.content_cut,
-            ),
-          ],
-        );
-      },
-    );
-  }
+  Widget build(BuildContext context) => SizedBox(
+        width: width,
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          decoration: BoxDecoration(
+            color: AppColors.cardBackground,
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(icon,
+                      color: accentColor ?? AppColors.primaryGreen, size: 16),
+                  const SizedBox(width: AppSpacing.xs),
+                  Expanded(child: Text(label, style: AppTypography.caption)),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(value,
+                  style: AppTypography.small
+                      .copyWith(fontWeight: FontWeight.w700)),
+            ],
+          ),
+        ),
+      );
 }

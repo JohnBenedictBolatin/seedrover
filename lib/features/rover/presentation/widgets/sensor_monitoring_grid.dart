@@ -31,7 +31,7 @@ class SensorMonitoringGrid extends StatelessWidget {
             RoverSensorCard(
               sensor: sensor,
               icon: _iconFor(sensor.label),
-              color: _colorFor(sensor.status),
+              gradientColors: _gradientFor(sensor.label),
               compact: true,
             ),
         ],
@@ -54,7 +54,7 @@ class SensorMonitoringGrid extends StatelessWidget {
                 child: RoverSensorCard(
                   sensor: sensor,
                   icon: _iconFor(sensor.label),
-                  color: _colorFor(sensor.status),
+                  gradientColors: _gradientFor(sensor.label),
                 ),
               ),
           ],
@@ -72,18 +72,22 @@ class SensorMonitoringGrid extends StatelessWidget {
       return CupertinoIcons.cloud;
     }
 
-    if (label.contains('Environmental')) {
+    if (label.contains('Air') || label.contains('Environmental')) {
       return CupertinoIcons.sun_max;
     }
 
     return CupertinoIcons.thermometer;
   }
 
-  Color _colorFor(String status) {
-    return switch (status) {
-      'Good' => AppColors.success,
-      'Moderate' => AppColors.warning,
-      _ => AppColors.danger,
-    };
+  List<Color> _gradientFor(String label) {
+    if (label.contains('Moisture')) return AppColors.soilMoistureGradient;
+    if (label.contains('Soil Temperature')) {
+      return AppColors.soilTemperatureGradient;
+    }
+    if (label.contains('Humidity')) return AppColors.humidityGradient;
+    if (label.contains('Air') || label.contains('Environmental')) {
+      return AppColors.airTemperatureGradient;
+    }
+    return AppColors.heroGradientColors;
   }
 }

@@ -1,13 +1,11 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_colors.dart';
-import '../../core/theme/app_radius.dart';
-import '../../core/theme/app_spacing.dart';
-import '../../core/theme/theme_mode_controller.dart';
+import '../../core/theme/app_typography.dart';
 
+/// Shared authenticated shell with a stable, role-aware bottom bar.
+/// Detail routes can select their parent destination without changing URLs.
 class AuthenticatedScaffold extends StatelessWidget {
   const AuthenticatedScaffold({
     required this.child,
@@ -15,60 +13,116 @@ class AuthenticatedScaffold extends StatelessWidget {
     required this.items,
     super.key,
     this.showNavigation = true,
-    this.floatingAction,
   });
 
   final Widget child;
   final String currentLocation;
   final List<NavigationItemData> items;
   final bool showNavigation;
-  final Widget? floatingAction;
 
   @override
   Widget build(BuildContext context) {
-    final compactNavigation =
-        MediaQuery.orientationOf(context) == Orientation.landscape;
+    final roverItems =
+        items.where((item) => item.label == 'Rover').toList(growable: false);
+    final rover = roverItems.isEmpty ? null : roverItems.first;
+    final destinations = items.where((item) => item != rover).toList();
+    final middle = (destinations.length + 1) ~/ 2;
+    final compact = MediaQuery.orientationOf(context) == Orientation.landscape;
+    final barHeight = compact ? 66.0 : 78.0;
+    final barTop = compact ? 12.0 : 16.0;
 
     return Scaffold(
       body: SafeArea(
-        child: Stack(
-          children: [
-            Padding(
-              padding: EdgeInsets.only(
-                bottom: showNavigation ? (compactNavigation ? 68 : 88) : 0,
-              ),
-              child: child,
-            ),
-            if (showNavigation)
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: Padding(
-                  padding: EdgeInsets.all(
-                    compactNavigation ? AppSpacing.xs : AppSpacing.sm,
-                  ),
-                  child: FloatingBottomNavigation(
-                    currentLocation: currentLocation,
-                    items: items,
-                    compact: compactNavigation,
-                  ),
-                ),
-              ),
-            if (floatingAction != null)
-              Align(
-                alignment: Alignment.bottomRight,
-                child: Padding(
-                  padding: EdgeInsets.only(
-                    right: compactNavigation ? AppSpacing.sm : AppSpacing.md,
-                    bottom: showNavigation
-                        ? (compactNavigation ? 78 : 100)
-                        : AppSpacing.md,
-                  ),
-                  child: floatingAction,
-                ),
-              ),
-          ],
-        ),
+        bottom: false,
+        child: child,
       ),
+      bottomNavigationBar: showNavigation && items.isNotEmpty
+          ? Container(
+              color: AppColors.secondaryBackground,
+              child: SafeArea(
+                top: false,
+                child: SizedBox(
+                  height: barHeight,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Positioned(
+                        top: barTop,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: AppColors.secondaryBackground,
+                            border: Border(
+                              top: BorderSide(color: AppColors.inactiveBorder),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: barTop,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: Row(
+                          children: [
+                            for (final item in destinations.take(middle))
+                              Expanded(
+                                child: _BottomNavigationItem(
+                                  item: item,
+                                  selected: item.location == currentLocation,
+                                  onTap: () => context.go(item.location),
+                                ),
+                              ),
+                            if (rover != null)
+                              SizedBox(
+                                width: 76,
+                                child: Align(
+                                  alignment: Alignment.bottomCenter,
+                                  child: Padding(
+                                    padding: EdgeInsets.only(
+                                      bottom: compact ? 5 : 7,
+                                    ),
+                                    child: _NavigationLabel(
+                                      label: rover.label,
+                                      selected:
+                                          rover.location == currentLocation,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            for (final item in destinations.skip(middle))
+                              Expanded(
+                                child: _BottomNavigationItem(
+                                  item: item,
+                                  selected: item.location == currentLocation,
+                                  onTap: () => context.go(item.location),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      if (rover != null)
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          child: Center(
+                            child: _RoverNavigationButton(
+                              item: rover,
+                              selected: rover.location == currentLocation,
+                              dimension: compact ? 50 : 56,
+                              onTap: () => context.go(rover.location),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          : null,
     );
   }
 }
@@ -78,66 +132,73 @@ class NavigationItemData {
     required this.label,
     required this.location,
     required this.icon,
+    this.selectedIcon,
     this.badgeCount = 0,
   });
 
   final String label;
   final String location;
   final IconData icon;
+  final IconData? selectedIcon;
   final int badgeCount;
 }
 
-class FloatingBottomNavigation extends ConsumerWidget {
-  const FloatingBottomNavigation({
-    required this.currentLocation,
-    required this.items,
-    super.key,
-    this.compact = false,
+class _BottomNavigationItem extends StatelessWidget {
+  const _BottomNavigationItem({
+    required this.item,
+    required this.selected,
+    required this.onTap,
   });
 
-  final String currentLocation;
-  final List<NavigationItemData> items;
-  final bool compact;
+  final NavigationItemData item;
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final themeMode = ref.watch(themeModeControllerProvider);
-    AppColors.useLightPalette(themeMode == ThemeMode.light);
-
-    return SizedBox(
-      width: double.infinity,
-      height: compact ? 56 : 70,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: AppColors.secondaryBackground,
-          border: Border.all(color: AppColors.inactiveBorder),
-          borderRadius: BorderRadius.circular(AppRadius.xl),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primaryBackground.withOpacity(0.32),
-              blurRadius: 24,
-              offset: const Offset(0, 12),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppRadius.xl),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.sm,
-              vertical: AppSpacing.sm,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+  Widget build(BuildContext context) {
+    final icon = selected ? item.selectedIcon ?? item.icon : item.icon;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: item.label,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: SizedBox.expand(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                for (final item in items)
-                  Expanded(
-                    child: _NavigationButton(
-                      item: item,
-                      isSelected: currentLocation == item.location,
-                      compact: compact,
+                Badge(
+                  isLabelVisible: item.badgeCount > 0,
+                  label: Text(
+                    item.badgeCount > 9 ? '9+' : '${item.badgeCount}',
+                    style: AppTypography.numericCaption.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontVariations: const [FontVariation('wght', 700)],
                     ),
                   ),
+                  child: Container(
+                    width: 42,
+                    height: 30,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color:
+                          selected ? AppColors.sageSurface : Colors.transparent,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Icon(
+                      icon,
+                      size: 22,
+                      color: selected
+                          ? AppColors.secondaryGreen
+                          : AppColors.mutedText,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                _NavigationLabel(label: item.label, selected: selected),
               ],
             ),
           ),
@@ -147,91 +208,41 @@ class FloatingBottomNavigation extends ConsumerWidget {
   }
 }
 
-class _NavigationButton extends StatelessWidget {
-  const _NavigationButton({
+class _RoverNavigationButton extends StatelessWidget {
+  const _RoverNavigationButton({
     required this.item,
-    required this.isSelected,
-    required this.compact,
+    required this.selected,
+    required this.dimension,
+    required this.onTap,
   });
 
   final NavigationItemData item;
-  final bool isSelected;
-  final bool compact;
+  final bool selected;
+  final double dimension;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: item.label,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        onTap: () => context.go(item.location),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          height: compact ? 44 : 56,
-          padding: const EdgeInsets.all(AppSpacing.xs),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            fit: StackFit.expand,
-            clipBehavior: Clip.none,
-            children: [
-              _SelectedGradient(
-                isSelected: isSelected,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(item.icon, size: compact ? 22 : 23),
-                    if (!compact) ...[
-                      const SizedBox(height: 3),
-                      Text(item.label, maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500)),
-                    ],
-                  ],
-                ),
-              ),
-              if (item.badgeCount > 0)
-                Positioned(
-                  right: compact ? 3 : 4,
-                  top: compact ? 2 : 3,
-                  child: _NavigationBadge(count: item.badgeCount),
-                ),
-            ],
-          ),
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: item.label,
+      child: Material(
+        elevation: 3,
+        color: AppColors.secondaryBackground,
+        shape: CircleBorder(
+          side: BorderSide(color: AppColors.primaryGreen, width: 2.5),
         ),
-      ),
-    );
-  }
-}
-
-class _NavigationBadge extends StatelessWidget {
-  const _NavigationBadge({required this.count});
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final label = count > 9 ? '9+' : count.toString();
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppColors.danger,
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-        border: Border.all(color: AppColors.primaryBackground),
-      ),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 3),
-          child: Center(
-            child: Text(
-              label,
-              style: TextStyle(
-                color: AppColors.primaryText,
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
-              ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox.square(
+            dimension: dimension,
+            child: Icon(
+              selected ? item.selectedIcon ?? item.icon : item.icon,
+              size: dimension * 0.5,
+              color: AppColors.secondaryGreen,
             ),
           ),
         ),
@@ -240,43 +251,26 @@ class _NavigationBadge extends StatelessWidget {
   }
 }
 
-class _SelectedGradient extends StatelessWidget {
-  const _SelectedGradient({
-    required this.isSelected,
-    required this.child,
-  });
+class _NavigationLabel extends StatelessWidget {
+  const _NavigationLabel({required this.label, required this.selected});
 
-  final bool isSelected;
-  final Widget child;
+  final String label;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
-    if (!isSelected) {
-      return IconTheme(
-        data: IconThemeData(color: AppColors.primaryText),
-        child: DefaultTextStyle.merge(
-          style: TextStyle(color: AppColors.primaryText),
-          child: child,
-        ),
-      );
-    }
-
-    return ShaderMask(
-      blendMode: BlendMode.srcIn,
-      shaderCallback: (bounds) {
-        return LinearGradient(
-          colors: [
-            AppColors.buttonGradientStart,
-            AppColors.buttonGradientEnd,
-          ],
-        ).createShader(bounds);
-      },
-      child: IconTheme(
-        data: IconThemeData(color: AppColors.primaryText),
-        child: DefaultTextStyle.merge(
-          style: TextStyle(color: AppColors.primaryText),
-          child: child,
-        ),
+    return Text(
+      label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: AppTypography.caption.copyWith(
+        fontSize: 10,
+        height: 1.1,
+        fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+        color: selected ? AppColors.secondaryGreen : AppColors.mutedText,
+        fontVariations: [
+          FontVariation('wght', selected ? 600 : 400),
+        ],
       ),
     );
   }
@@ -285,10 +279,11 @@ class _SelectedGradient extends StatelessWidget {
 class NavigationIcons {
   const NavigationIcons._();
 
-  static const dashboard = CupertinoIcons.square_grid_2x2;
-  static const rover = Icons.settings_outlined;
-  static const crops = Icons.spa_outlined;
-  static const stocks = CupertinoIcons.cube_box;
-  static const notifications = CupertinoIcons.bell;
-  static const profile = CupertinoIcons.person;
+  static const dashboard = Icons.space_dashboard_outlined;
+  static const rover = Icons.agriculture_outlined;
+  static const roverSelected = Icons.agriculture;
+  static const crops = Icons.grass_outlined;
+  static const stocks = Icons.inventory_2_outlined;
+  static const notifications = Icons.notifications_outlined;
+  static const profile = Icons.person_outline;
 }

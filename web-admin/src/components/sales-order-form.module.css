@@ -42,6 +42,16 @@
   font-size: 1.15rem;
 }
 
+.panelHint {
+  display: block;
+  max-width: 42ch;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
 .actionButton,
 .submitButton,
 .removeButton {
@@ -213,7 +223,7 @@
 
 .lineItem {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 120px 120px minmax(130px, 0.6fr) 46px;
+  grid-template-columns: minmax(220px, 1fr) 120px minmax(130px, 0.6fr) 46px;
   gap: 10px;
   align-items: end;
   border: 1px solid var(--border-soft);
@@ -298,13 +308,108 @@
   gap: 16px;
 }
 
+.summaryPanel {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+}
+
 .fields {
   display: grid;
   gap: 12px;
 }
 
+.customerMode {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  background: var(--surface);
+  padding: 4px;
+}
+
+.customerMode button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: transparent;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.customerMode .customerModeActive {
+  color: var(--text);
+  background: rgba(141, 255, 42, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(141, 255, 42, 0.24);
+}
+
+.customerPickerHint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.customerPickerHint[data-tone="warning"],
+.customerPickerHint[data-tone="error"] {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 11px 12px;
+  color: var(--text);
+  background: var(--surface);
+}
+
+.customerPickerHint[data-tone="warning"] {
+  border-color: rgba(239, 160, 54, 0.5);
+  background: rgba(239, 160, 54, 0.1);
+}
+
+.customerPickerHint[data-tone="error"] {
+  border-color: rgba(214, 78, 78, 0.45);
+}
+
+.customerPickerHint a {
+  width: fit-content;
+  color: var(--text);
+  font-weight: 800;
+  text-decoration: underline;
+}
+
+.customerPickerHint button {
+  width: fit-content;
+}
+
 .themedSelectLabel {
   position: relative;
+}
+
+.themedSelectText {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.requiredMarker {
+  color: var(--danger, #ff3b30);
+  font-size: 0.82em;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .themedSelect {
@@ -443,7 +548,6 @@
 .form textarea {
   min-height: 96px;
   padding-top: 12px;
-  resize: vertical;
 }
 
 .form input:focus,
@@ -474,12 +578,14 @@
   display: grid;
   gap: 7px;
   color: var(--text-muted);
-  font-size: 0.8rem;
-  font-weight: 800;
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 .lineMeta strong {
   color: var(--text);
+  font-size: 1.02rem;
+  font-weight: 950;
 }
 
 .removeButton {
@@ -545,9 +651,15 @@
   text-underline-offset: 4px;
 }
 
+.message[data-tone="error"] {
+  border-color: rgba(255, 77, 69, 0.45);
+  color: #ffe8e8;
+  background: rgba(102, 27, 27, 0.22);
+}
+
 .submitButton {
   width: 100%;
-  margin-top: 16px;
+  margin-top: auto;
 }
 
 .submitButton:disabled {
@@ -558,8 +670,8 @@
 .toastAlert {
   position: fixed;
   right: 24px;
-  bottom: 24px;
-  z-index: 70;
+  bottom: 116px;
+  z-index: 2147483600;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -570,6 +682,13 @@
   font-weight: 900;
   padding: 16px 18px;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+}
+
+@media (max-width: 640px) {
+  .toastAlert {
+    right: 14px;
+    bottom: 102px;
+  }
 }
 
 .toastAlert p {
@@ -1037,3 +1156,4 @@
     grid-template-columns: 1fr;
   }
 }
+

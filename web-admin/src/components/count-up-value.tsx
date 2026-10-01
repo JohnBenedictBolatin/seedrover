@@ -23,8 +23,6 @@ export function CountUpValue({
     let frame = 0;
     let startTime = 0;
 
-    setDisplayValue(0);
-
     function step(timestamp: number) {
       if (!startTime) {
         startTime = timestamp;

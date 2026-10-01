@@ -396,10 +396,10 @@
 .tableHead,
 .tableRow {
   display: grid;
-  min-width: 1220px;
-  grid-template-columns: minmax(155px,.9fr) minmax(180px,1fr) minmax(230px,1.25fr) minmax(210px,1.1fr) minmax(110px,.65fr) minmax(190px,1fr) 54px;
+  min-width: 1280px;
+  grid-template-columns: minmax(160px,.85fr) minmax(190px,1fr) minmax(240px,1.25fr) minmax(210px,1.05fr) 120px 205px 64px;
   align-items: center;
-  gap: 16px;
+  column-gap: 20px;
 }
 
 .tableHead {
@@ -408,6 +408,15 @@
   font-size: 0.72rem;
   font-weight: 950;
   text-transform: uppercase;
+}
+
+.tableHead > span,
+.tableRow > * {
+  min-width: 0;
+}
+
+.tableHead > span:last-child {
+  text-align: right;
 }
 
 .tableRow {
@@ -448,7 +457,7 @@
 }
 
 .tableActionCell {
-  justify-content: center;
+  justify-content: flex-end;
 }
 
 .badge,
@@ -697,6 +706,34 @@
   color: var(--text-secondary);
   font-size: 0.82rem;
   font-weight: 950;
+}
+
+.passwordLabel {
+  position: relative;
+}
+
+.passwordLabel input {
+  padding-right: 46px;
+}
+
+.passwordToggle {
+  position: absolute;
+  right: 10px;
+  bottom: 4px;
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.passwordToggle:hover {
+  color: var(--green-accent);
 }
 
 .manageForm input,
@@ -1032,8 +1069,8 @@
 .toast {
   position: fixed;
   right: 24px;
-  bottom: 24px;
-  z-index: 160;
+  bottom: 116px;
+  z-index: 2147483600;
   display: flex;
   max-width: min(420px, calc(100vw - 48px));
   align-items: center;
@@ -1045,6 +1082,13 @@
   padding: 14px 16px;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
   font-weight: 900;
+}
+
+@media (max-width: 640px) {
+  .toast {
+    right: 14px;
+    bottom: 102px;
+  }
 }
 
 .toast p {
@@ -1176,6 +1220,7 @@
   border-color: rgba(18, 60, 27, 0.42);
   background: rgba(18, 60, 27, 0.04);
 }
+
 
 :global(html[data-theme="light"]) .manageForm select option {
   color: #123c1b;

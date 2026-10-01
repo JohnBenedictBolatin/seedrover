@@ -3,9 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { requireAdminRole } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { writeActivityLog } from "@/lib/activity-log";
+import { parseDatabaseDecimal } from "@/lib/field-validation.mjs";
 
-function text(formData: FormData, key: string) {
-  return String(formData.get(key) ?? "").trim();
+function text(formData: FormData, key: string, fallback = "") {
+  return String(formData.get(key) ?? fallback).trim();
 }
 
 export async function createCustomerPaymentAction(formData: FormData) {
@@ -14,8 +16,8 @@ export async function createCustomerPaymentAction(formData: FormData) {
   if (!supabase) throw new Error("Supabase is not configured.");
 
   const customerName = text(formData, "customer_name");
-  const amount = Number(formData.get("amount"));
-  if (!customerName || !Number.isFinite(amount) || amount <= 0) {
+  const amount = parseDatabaseDecimal(formData.get("amount"), "Amount");
+  if (!customerName || amount <= 0) {
     throw new Error("Customer name and a positive amount are required.");
   }
 
@@ -29,17 +31,33 @@ export async function createCustomerPaymentAction(formData: FormData) {
     recorded_by: profile.id,
   });
   if (error) throw new Error(error.message);
+  await writeActivityLog(supabase, {
+    userId: profile.id,
+    activity: "Customer payment created",
+    description: `A payment record for ${customerName} was created.`,
+    module: "Customers",
+  });
   revalidatePath("/customers");
 }
 
 export async function markCustomerPaymentPaidAction(formData: FormData) {
-  await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
+  const profile = await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
   const supabase = await createSupabaseServerClient();
   if (!supabase) throw new Error("Supabase is not configured.");
-  const { error } = await supabase
+  const paymentId = text(formData, "id");
+  const { data: payment, error } = await supabase
     .from("customer_payments")
     .update({ status: "Paid", paid_at: new Date().toISOString() })
-    .eq("id", text(formData, "id"));
+    .eq("id", paymentId)
+    .select("customer_name, amount")
+    .single<{ customer_name: string; amount: number }>();
   if (error) throw new Error(error.message);
+  await writeActivityLog(supabase, {
+    userId: profile.id,
+    activity: "Customer payment marked paid",
+    description: `A PHP ${Number(payment.amount).toFixed(2)} payment from ${payment.customer_name} was marked as paid.`,
+    module: "Customers",
+  });
   revalidatePath("/customers");
 }
+

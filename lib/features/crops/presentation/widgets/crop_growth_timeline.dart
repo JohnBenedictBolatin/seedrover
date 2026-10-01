@@ -63,7 +63,9 @@ class _GrowthStageTile extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         decoration: BoxDecoration(
-          color: current ? AppColors.cardBackground : AppColors.secondaryBackground,
+          color: current
+              ? AppColors.cardBackground
+              : AppColors.secondaryBackground,
           border: Border.all(color: color),
           borderRadius: BorderRadius.circular(AppRadius.sm),
         ),
@@ -82,7 +84,7 @@ class _GrowthStageTile extends StatelessWidget {
                   child: Center(
                     child: Text(
                       '$index',
-                      style: AppTypography.statusBadge.copyWith(
+                      style: AppTypography.numericCaption.copyWith(
                         color: active
                             ? AppColors.primaryBackground
                             : AppColors.mutedText,
@@ -109,7 +111,11 @@ class _GrowthStageTile extends StatelessWidget {
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
-                      current ? 'Current' : active ? 'Done' : 'Pending',
+                      current
+                          ? 'Current'
+                          : active
+                              ? 'Done'
+                              : 'Pending',
                       style: AppTypography.statusBadge.copyWith(color: color),
                     ),
                   ],

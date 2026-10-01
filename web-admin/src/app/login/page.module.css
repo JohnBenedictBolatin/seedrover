@@ -3,12 +3,14 @@
   display: grid;
   min-height: 100vh;
   overflow: hidden;
-  place-items: center;
-  padding: 28px;
-  font-family: var(--font-roboto-mono);
+  place-items: stretch;
+  padding: 0;
+  background: var(--background);
+  font-family: var(--font-inter);
 }
 
 .background {
+  display: none;
   position: absolute;
   inset: 0;
   overflow: hidden;
@@ -376,16 +378,21 @@
   position: relative;
   z-index: 1;
   display: grid;
-  width: min(100%, 540px);
-  justify-items: center;
-  gap: 18px;
-  transform: translateY(-34px);
+  width: 100%;
+  min-height: 100vh;
+  grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.65fr);
+  align-items: stretch;
+  gap: 0;
 }
 
 .identity {
   display: grid;
+  align-content: center;
   justify-items: center;
+  padding: clamp(32px, 6vw, 84px);
   text-align: center;
+  background: url("/brand/farm-background.png") center / cover no-repeat;
+  border-right: 1px solid rgba(141, 255, 42, 0.16);
 }
 
 .logo {
@@ -408,8 +415,24 @@
   filter: none;
 }
 
-.identity p {
-  margin: 14px 0 6px;
+.loginBrand {
+  display: grid;
+  width: min(100%, 500px);
+  justify-items: center;
+  text-align: center;
+  transform: translateY(-18px);
+}
+
+.loginContent {
+  display: grid;
+  width: 100%;
+  justify-items: center;
+  gap: 12px;
+  transform: translateY(-22px);
+}
+
+.loginBrand p {
+  margin: 34px 0 6px;
   color: var(--text);
   font-size: clamp(1.75rem, 3.4vw, 2.55rem);
   font-weight: 900;
@@ -418,7 +441,7 @@
     0 0 22px rgba(0, 0, 0, 0.6);
 }
 
-.identity h1 {
+.loginBrand h1 {
   max-width: 560px;
   margin: 0;
   color: var(--text-secondary);
@@ -430,9 +453,18 @@
     0 0 18px rgba(0, 0, 0, 0.58);
 }
 
+.loginSide {
+  display: grid;
+  min-width: 0;
+  align-items: center;
+  justify-items: center;
+  padding: clamp(28px, 5vw, 76px);
+  background: var(--surface);
+}
+
 .panel {
   display: grid;
-  width: 100%;
+  width: min(100%, 570px);
   gap: 22px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
@@ -445,8 +477,8 @@
   display: grid;
   gap: 10px;
   align-items: center;
-  justify-items: center;
-  text-align: center;
+  justify-items: start;
+  text-align: left;
 }
 
 .eyebrow {
@@ -460,7 +492,7 @@
 
 .panel h2 {
   margin: 0;
-  font-size: clamp(1.45rem, 2.35vw, 1.72rem);
+  font-size: clamp(1.9rem, 3vw, 2.35rem);
   line-height: 1.3;
 }
 
@@ -510,13 +542,34 @@
   opacity: 0.78;
 }
 
-:global(html[data-theme="light"]) .identity p,
+:global(html[data-theme="light"]) .loginBrand p,
 :global(html[data-theme="light"]) .panel h2 {
   color: #122312;
   text-shadow: none;
 }
 
-:global(html[data-theme="light"]) .identity h1 {
+:global(html[data-theme="light"]) .illustrationFrame {
+  border-color: rgba(31, 111, 36, 0.2);
+  background: linear-gradient(135deg, rgba(31, 111, 36, 0.08), rgba(31, 111, 36, 0.02));
+  box-shadow: 0 24px 70px rgba(51, 93, 45, 0.14);
+  color: #35623a;
+}
+
+:global(html[data-theme="light"]) .illustrationFrame span {
+  border-color: rgba(31, 111, 36, 0.3);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+:global(html[data-theme="light"]) .identity {
+  background: url("/brand/farm-background.png") center / cover no-repeat;
+  border-color: rgba(31, 111, 36, 0.14);
+}
+
+:global(html[data-theme="light"]) .loginSide {
+  background: var(--surface);
+}
+
+:global(html[data-theme="light"]) .loginBrand h1 {
   color: #526651;
   text-shadow: none;
 }
@@ -531,17 +584,34 @@
 
 @media (max-width: 900px) {
   .page {
-    padding: 24px 16px;
+    overflow: auto;
   }
 
   .shell {
-    gap: 28px;
-    transform: translateY(-20px);
+    grid-template-columns: 1fr;
+    min-height: 100vh;
+    gap: 0;
+    transform: none;
+  }
+
+  .identity {
+    min-height: 58vh;
+    border-right: 0;
+    border-bottom: 1px solid rgba(141, 255, 42, 0.16);
+  }
+
+  .illustrationFrame {
+    width: min(100%, 560px);
+    min-height: 260px;
+  }
+
+  .loginSide {
+    min-height: 42vh;
+    padding: 32px 20px 48px;
   }
 
   .panel {
     width: min(100%, 540px);
-    justify-self: center;
   }
 }
 

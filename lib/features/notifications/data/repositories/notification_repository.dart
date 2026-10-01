@@ -19,6 +19,7 @@ class NotificationRepository {
         .map(
           (rows) => rows
               .map((row) => _notificationFromRow(row))
+              .where(_isUserFacingNotification)
               .toList(growable: false),
         );
   }
@@ -26,12 +27,31 @@ class NotificationRepository {
   Future<List<SeedRoverNotification>> getNotifications() async {
     final rows = await _client
         .from(DatabaseTables.notifications)
-        .select()
+        .select(
+          '*, actor:profiles!notifications_actor_id_fkey(first_name,last_name,full_name)',
+        )
         .order('created_at', ascending: false) as List<dynamic>;
 
     return rows
         .map((row) => _notificationFromRow(row as Map<String, dynamic>))
+        .where(_isUserFacingNotification)
         .toList(growable: false);
+  }
+
+  bool _isUserFacingNotification(SeedRoverNotification notification) {
+    final title = notification.title.trim().toLowerCase();
+    final message = notification.shortDescription.trim().toLowerCase();
+
+    return !{
+          'login',
+          'logout',
+          'web login',
+          'web logout',
+          'notification read',
+          'notification deleted',
+        }.contains(title) &&
+        !message.contains('signed in') &&
+        !message.contains('signed out');
   }
 
   Future<void> markAsRead(String notificationId) async {
@@ -76,6 +96,7 @@ class NotificationRepository {
   SeedRoverNotification _notificationFromRow(Map<String, dynamic> row) {
     final type = row['notification_type'] as String? ?? 'System';
     final route = row['action_route'] as String? ?? AppRoutes.notifications;
+    final actorName = _displayName(row['actor']);
 
     return SeedRoverNotification(
       id: row['id'] as String,
@@ -90,8 +111,45 @@ class NotificationRepository {
       relatedId: _relatedIdFromRoute(route),
       relatedItem: row['title'] as String?,
       actionRoute: route,
+      actorName: actorName,
       isRead: row['is_read'] as bool? ?? false,
     );
+  }
+
+  String? _displayName(Object? value) {
+    if (value is List && value.isNotEmpty) {
+      return _displayName(value.first);
+    }
+
+    if (value is! Map) {
+      return null;
+    }
+
+    final firstName = (value['first_name'] as String?)?.trim();
+    final lastName = (value['last_name'] as String?)?.trim();
+    final fullName = (value['full_name'] as String?)?.trim() ?? '';
+    final nameParts = fullName
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .toList();
+    final resolvedFirstName = (firstName?.isNotEmpty == true)
+        ? firstName!
+        : nameParts.isNotEmpty
+            ? nameParts.first
+            : null;
+    final resolvedLastName = (lastName?.isNotEmpty == true)
+        ? lastName!
+        : nameParts.length > 1
+            ? nameParts.last
+            : null;
+
+    if (resolvedFirstName == null) {
+      return null;
+    }
+
+    return resolvedLastName == null || resolvedLastName.isEmpty
+        ? resolvedFirstName
+        : '$resolvedFirstName ${resolvedLastName[0].toUpperCase()}.';
   }
 
   Future<void> _recordActivity(String activity) async {
@@ -105,8 +163,6 @@ class NotificationRepository {
 
   NotificationCategory _categoryFromDb(String type) {
     return switch (type) {
-      'Battery' => NotificationCategory.battery,
-      'Seed Level' => NotificationCategory.robot,
       'Inventory' => NotificationCategory.inventory,
       'Robot Status' => NotificationCategory.robot,
       'Crop Reminder' => NotificationCategory.cropMonitoring,
@@ -122,7 +178,7 @@ class NotificationRepository {
       return NotificationPriority.critical;
     }
 
-    if (normalizedTitle.contains('low') || type == 'Battery') {
+    if (normalizedTitle.contains('low')) {
       return NotificationPriority.high;
     }
 
@@ -171,10 +227,7 @@ class NotificationRepository {
     return switch (type) {
       'Inventory' => NotificationRelatedModule.inventory,
       'Crop Reminder' => NotificationRelatedModule.crops,
-      'Battery' ||
-      'Seed Level' ||
-      'Robot Status' =>
-        NotificationRelatedModule.rover,
+      'Robot Status' => NotificationRelatedModule.rover,
       'Camera' => NotificationRelatedModule.camera,
       _ => NotificationRelatedModule.system,
     };

@@ -17,14 +17,8 @@ export type CustomerPurchasedItem = {
 
 export type CustomerSummary = {
   key: string;
-  profileId: string | null;
   name: string;
   contact: string;
-  alternateContact: string;
-  location: string;
-  customerType: string;
-  tags: string[];
-  notes: string;
   receiptCount: number;
   totalSpent: number;
   averageSpend: number;
@@ -32,6 +26,13 @@ export type CustomerSummary = {
   paymentMethods: string[];
   purchasedItems: CustomerPurchasedItem[];
   receipts: CustomerReceipt[];
+};
+
+export type ExistingSaleCustomer = {
+  key: string;
+  customerId: string | null;
+  name: string;
+  contact: string;
 };
 
 export type CustomerStats = {
@@ -56,6 +57,7 @@ export type CustomerDiscount = {
 
 type SalesOrderRow = {
   id: string;
+  customer_id: string | null;
   receipt_number: string;
   customer_name: string | null;
   customer_contact: string | null;
@@ -72,6 +74,7 @@ type SalesOrderRow = {
 
 type MarketSaleRow = {
   id: string;
+  customer_id: string | null;
   sale_date: string;
   customer_name: string | null;
   payment_method?: string | null;
@@ -86,18 +89,6 @@ type MarketSaleRow = {
         item_name: string;
       }[]
     | null;
-};
-
-type CustomerProfileRow = {
-  id: string;
-  customer_key: string;
-  display_name: string;
-  contact_number: string | null;
-  alternate_contact: string | null;
-  customer_type: string | null;
-  tags: string[] | null;
-  notes: string | null;
-  location: string | null;
 };
 
 type CustomerDiscountRow = {
@@ -131,12 +122,47 @@ export function customerKey(name: string, contact: string) {
   return `${normalizeText(name).toLowerCase()}::${normalizeText(contact).toLowerCase()}`;
 }
 
-function isMissingCustomerTable(error: { message?: string; code?: string } | null | undefined) {
-  return (
-    error?.code === "42P01" ||
-    error?.message?.includes("customers") ||
-    error?.message?.includes("schema cache")
-  );
+export async function getExistingSaleCustomers() {
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) {
+    return { customers: [] as ExistingSaleCustomer[], error: "Supabase is not configured." };
+  }
+
+  const [ordersResult, marketResult] = await Promise.all([
+    supabase
+      .from("sales_orders")
+      .select("customer_id, customer_name, customer_contact")
+      .eq("status", "Completed")
+      .order("sale_date", { ascending: false })
+      .returns<Array<Pick<SalesOrderRow, "customer_id" | "customer_name" | "customer_contact">>>(),
+    supabase
+      .from("sales_transactions")
+      .select("customer_id, customer_name, customer_contact")
+      .eq("status", "Completed")
+      .order("sale_date", { ascending: false })
+      .returns<Array<{ customer_id: string | null; customer_name: string | null; customer_contact: string | null }>>(),
+  ]);
+
+  if (ordersResult.error) {
+    return { customers: [] as ExistingSaleCustomer[], error: ordersResult.error.message };
+  }
+  if (marketResult.error) {
+    return { customers: [] as ExistingSaleCustomer[], error: marketResult.error.message };
+  }
+
+  const customers = new Map<string, ExistingSaleCustomer>();
+  for (const row of [...(ordersResult.data ?? []), ...(marketResult.data ?? [])]) {
+    const name = normalizeText(row.customer_name ?? "");
+    if (!name) continue;
+    const contact = normalizeText(row.customer_contact || "Not provided");
+    const key = row.customer_id ?? customerKey(name, contact);
+    if (!customers.has(key)) customers.set(key, { key, customerId: row.customer_id, name, contact });
+  }
+
+  return {
+    customers: Array.from(customers.values()).sort((left, right) => left.name.localeCompare(right.name)),
+    error: null,
+  };
 }
 
 function isMissingDiscountTable(error: { message?: string; code?: string } | null | undefined) {
@@ -151,35 +177,11 @@ function isMissingPaymentMethodColumn(error: { message?: string } | null | undef
   return error?.message?.includes("sales_transactions.payment_method") ?? false;
 }
 
-function defaultTags(customer: CustomerSummary) {
-  const tags = new Set(customer.tags);
-
-  if (customer.name.toLowerCase().includes("walk-in")) {
-    tags.add("Walk-in");
-  }
-
-  if (customer.receiptCount > 1) {
-    tags.add("Repeat Buyer");
-  }
-
-  if (customer.receipts.some((receipt) => receipt.source === "market")) {
-    tags.add("Market Buyer");
-  }
-
-  return [...tags];
-}
-
 function createCustomer(key: string, name: string, contact: string): CustomerSummary {
   return {
     key,
-    profileId: null,
     name,
     contact,
-    alternateContact: "",
-    location: "",
-    customerType: "Farm Buyer",
-    tags: [],
-    notes: "",
     receiptCount: 0,
     totalSpent: 0,
     averageSpend: 0,
@@ -231,16 +233,15 @@ export async function getCustomersDashboard() {
       discounts: [],
       stats: null,
       error: "Supabase is not configured.",
-      profileError: null,
     };
   }
 
-  const [ordersResult, marketResultWithPayment, profilesResult, discountsResult] =
+  const [ordersResult, marketResultWithPayment, discountsResult] =
     await Promise.all([
     supabase
       .from("sales_orders")
       .select(
-        "id, receipt_number, customer_name, customer_contact, payment_method, total_amount, sale_date, status, sales_order_items(item_name_snapshot, quantity_sold, line_total)",
+        "id, customer_id, receipt_number, customer_name, customer_contact, payment_method, total_amount, sale_date, status, sales_order_items(item_name_snapshot, quantity_sold, line_total)",
       )
       .eq("status", "Completed")
       .order("sale_date", { ascending: false })
@@ -248,17 +249,11 @@ export async function getCustomersDashboard() {
     supabase
       .from("sales_transactions")
       .select(
-        "id, sale_date, customer_name, payment_method, quantity_sold, total_amount, status, inventory(item_name)",
+        "id, customer_id, sale_date, customer_name, payment_method, quantity_sold, total_amount, status, inventory(item_name)",
       )
       .eq("status", "Completed")
       .order("sale_date", { ascending: false })
       .returns<MarketSaleRow[]>(),
-    supabase
-      .from("customers")
-      .select(
-        "id, customer_key, display_name, contact_number, alternate_contact, customer_type, tags, notes, location",
-      )
-      .returns<CustomerProfileRow[]>(),
     supabase
       .from("customer_discounts")
       .select("id, discount_code, customer_name, discount_type, discount_value, released_at, used_at, status")
@@ -270,7 +265,7 @@ export async function getCustomersDashboard() {
     ? await supabase
         .from("sales_transactions")
         .select(
-          "id, sale_date, customer_name, quantity_sold, total_amount, status, inventory(item_name)",
+          "id, customer_id, sale_date, customer_name, quantity_sold, total_amount, status, inventory(item_name)",
         )
         .eq("status", "Completed")
         .order("sale_date", { ascending: false })
@@ -283,34 +278,27 @@ export async function getCustomersDashboard() {
       discounts: [],
       stats: null,
       error: ordersResult.error.message,
-      profileError: null,
     };
   }
 
-  const profileError =
-    profilesResult.error && !isMissingCustomerTable(profilesResult.error)
-      ? profilesResult.error.message
-      : null;
-  const profileRows = profilesResult.error ? [] : profilesResult.data ?? [];
   const discounts = discountsResult.error
     ? []
     : (discountsResult.data ?? []).map<CustomerDiscount>((discount) => ({
         id: discount.id,
         code: discount.discount_code,
-        customerName: discount.customer_name,
+        customerName: "Anyone with the code",
         discountType: discount.discount_type,
         discountValue: toNumber(discount.discount_value),
         releasedAt: discount.released_at,
         usedAt: discount.used_at,
         status: discount.status,
       }));
-  const profilesByKey = new Map(profileRows.map((profile) => [profile.customer_key, profile]));
   const customersByKey = new Map<string, CustomerSummary>();
 
   for (const row of ordersResult.data ?? []) {
     const name = normalizeText(row.customer_name || "Walk-in customer");
     const contact = normalizeText(row.customer_contact || "Not provided");
-    const key = customerKey(name, contact);
+    const key = row.customer_id ?? customerKey(name, contact);
     const customer = customersByKey.get(key) ?? createCustomer(key, name, contact);
     const totalAmount = toNumber(row.total_amount);
 
@@ -342,7 +330,7 @@ export async function getCustomersDashboard() {
     }
 
     const contact = "Not provided";
-    const key = customerKey(name, contact);
+    const key = row.customer_id ?? customerKey(name, contact);
     const customer = customersByKey.get(key) ?? createCustomer(key, name, contact);
     const totalAmount = toNumber(row.total_amount);
     const inventory = firstRelation(row.inventory);
@@ -351,7 +339,7 @@ export async function getCustomersDashboard() {
       customer,
       {
         id: row.id,
-        receiptNumber: `SR-${row.id.slice(0, 8).toUpperCase()}`,
+        receiptNumber: `LEGACY-${row.id.slice(0, 8).toUpperCase()}`,
         saleDate: row.sale_date,
         paymentMethod: row.payment_method ?? "Not recorded",
         totalAmount,
@@ -359,7 +347,7 @@ export async function getCustomersDashboard() {
       },
       [
         {
-          itemName: inventory?.item_name ?? "Market distribution",
+          itemName: inventory?.item_name ?? "Legacy inventory sale",
           quantity: toNumber(row.quantity_sold),
           totalAmount,
         },
@@ -370,20 +358,6 @@ export async function getCustomersDashboard() {
   }
 
   for (const [key, customer] of customersByKey) {
-    const profile = profilesByKey.get(key);
-
-    if (profile) {
-      customer.profileId = profile.id;
-      customer.name = profile.display_name || customer.name;
-      customer.contact = profile.contact_number || customer.contact;
-      customer.alternateContact = profile.alternate_contact ?? "";
-      customer.customerType = profile.customer_type ?? "Farm Buyer";
-      customer.tags = profile.tags ?? [];
-      customer.notes = profile.notes ?? "";
-      customer.location = profile.location ?? "";
-    }
-
-    customer.tags = defaultTags(customer);
     customer.purchasedItems.sort((left, right) => right.totalAmount - left.totalAmount);
     customer.receipts.sort(
       (left, right) =>
@@ -423,6 +397,5 @@ export async function getCustomersDashboard() {
       (discountsResult.error && !isMissingDiscountTable(discountsResult.error)
         ? discountsResult.error.message
         : null),
-    profileError,
   };
 }

@@ -38,20 +38,16 @@ class ProfileDetailTile extends StatelessWidget {
                 Icon(icon, size: 14, color: AppColors.primaryGreen),
                 const SizedBox(width: AppSpacing.xs),
                 Flexible(
-                  child: AnimatedTypingText(
+                  child: Text(
                     label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                     style: AppTypography.caption,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: AppSpacing.xs),
-            AnimatedTypingText(
+            Text(
               value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
               style: AppTypography.small.copyWith(
                 color: AppColors.primaryText,
               ),

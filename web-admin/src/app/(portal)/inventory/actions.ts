@@ -3,27 +3,53 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requireAdminRole } from "@/lib/auth";
+import { MAX_UPLOAD_SIZE_BYTES } from "@/lib/upload-limits";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { writeActivityLog } from "@/lib/activity-log";
+import { parseDatabaseDecimal } from "@/lib/field-validation.mjs";
 
 const STOCK_IMAGE_BUCKET = "stock-images";
-const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const ITEM_ALREADY_EXISTS_MESSAGE = "Item already exists.";
+
+function isDuplicateInventoryName(error: {
+  code?: string;
+  message?: string;
+  details?: string | null;
+  hint?: string | null;
+}) {
+  const diagnostic = `${error.message ?? ""} ${error.details ?? ""} ${error.hint ?? ""}`.toLowerCase();
+  return diagnostic.includes("inventory item with this name already exists") ||
+    diagnostic.includes("item already exists") ||
+    diagnostic.includes("inventory_item_name_normalized_idx") ||
+    (error.code === "23505" && /inventory.*item_name|item_name.*inventory/.test(diagnostic));
+}
 
 function text(formData: FormData, key: string, fallback = "") {
   return String(formData.get(key) ?? fallback).trim();
 }
 
-function optionalText(formData: FormData, key: string) {
+function requiredText(formData: FormData, key: string, label: string) {
   const value = text(formData, key);
-  return value.length === 0 ? null : value;
+  if (!value) {
+    throw new Error(`${label} is required.`);
+  }
+  return value;
+}
+
+function requiredNumber(formData: FormData, key: string, label: string) {
+  const raw = text(formData, key);
+  if (!raw) {
+    throw new Error(`${label} is required.`);
+  }
+
+  return parseDatabaseDecimal(raw, label);
 }
 
 function numberValue(formData: FormData, key: string, fallback = 0) {
   const raw = text(formData, key);
   if (!raw) return fallback;
-  const value = Number(raw);
-  if (!Number.isFinite(value)) throw new Error(`${key.replaceAll("_", " ")} must be a valid number.`);
-  return value;
+  return parseDatabaseDecimal(raw, key.replaceAll("_", " "));
 }
 
 function optionalNumber(formData: FormData, key: string) {
@@ -32,9 +58,7 @@ function optionalNumber(formData: FormData, key: string) {
     return null;
   }
 
-  const value = Number(raw);
-  if (!Number.isFinite(value)) throw new Error(`${key.replaceAll("_", " ")} must be a valid number.`);
-  return value;
+  return parseDatabaseDecimal(raw, key.replaceAll("_", " "));
 }
 
 function validateQuantity(value: number, unit: string, label: string, allowZero = true) {
@@ -54,124 +78,12 @@ async function currentUserId() {
 }
 
 async function logInventoryActivity(
+  supabase: NonNullable<Awaited<ReturnType<typeof createSupabaseServerClient>>>,
   activity: string,
   description: string,
   userId: string | null,
 ) {
-  const supabase = await createSupabaseServerClient();
-  if (!supabase || !userId) {
-    return;
-  }
-
-  try {
-    await supabase.from("activity_logs").insert({
-      user_id: userId,
-      activity,
-      description,
-      module: "Stocks",
-    });
-  } catch {
-    // Activity logging should not block the inventory action itself.
-  }
-}
-
-type StockSnapshot = {
-  item_name: string;
-  quantity: number;
-  minimum_quantity: number;
-  unit: string;
-};
-
-function stockStatus(snapshot: StockSnapshot | null) {
-  if (!snapshot) {
-    return "Unknown";
-  }
-
-  if (snapshot.quantity <= 0) {
-    return "Out of Stock";
-  }
-
-  if (snapshot.minimum_quantity > 0 && snapshot.quantity <= snapshot.minimum_quantity * 0.5) {
-    return "Critical Stock";
-  }
-
-  if (snapshot.minimum_quantity > 0 && snapshot.quantity <= snapshot.minimum_quantity) {
-    return "Low Stock";
-  }
-
-  return "In Stock";
-}
-
-async function stockSnapshot(inventoryId: string) {
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) {
-    return null;
-  }
-
-  const { data } = await supabase
-    .from("inventory")
-    .select("item_name, quantity, minimum_quantity, unit")
-    .eq("id", inventoryId)
-    .single<StockSnapshot>();
-
-  return data ?? null;
-}
-
-async function notifyIfStockNeedsReplenishment(
-  inventoryId: string,
-  userId: string | null,
-  previous: StockSnapshot | null,
-) {
-  if (!userId) {
-    return;
-  }
-
-  const current = await stockSnapshot(inventoryId);
-  const previousStatus = stockStatus(previous);
-  const currentStatus = stockStatus(current);
-  const alertStatuses = new Set(["Low Stock", "Critical Stock", "Out of Stock"]);
-
-  if (!current || !alertStatuses.has(currentStatus) || previousStatus === currentStatus) {
-    return;
-  }
-
-  const minimumText =
-    current.minimum_quantity > 0
-      ? ` Minimum level is ${current.minimum_quantity} ${current.unit}.`
-      : "";
-
-  try {
-    const supabase = await createSupabaseServerClient();
-    await supabase?.from("notifications").insert({
-      recipient_id: userId,
-      title: `${currentStatus}: ${current.item_name}`,
-      message: `${current.item_name} needs replenishment. Current stock is ${current.quantity} ${current.unit}.${minimumText}`,
-      notification_type: "Inventory",
-      action_route: "/inventory",
-    });
-  } catch {
-    // Notifications should not block the stock action itself.
-  }
-}
-
-async function nextStockCode() {
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) {
-    throw new Error("Supabase is not configured.");
-  }
-
-  const { data } = await supabase.from("inventory").select("stock_code");
-  let max = 0;
-
-  for (const row of data ?? []) {
-    const match = /^STK-(\d+)$/.exec(String(row.stock_code ?? ""));
-    const value = Number(match?.[1] ?? 0);
-    if (value > max) {
-      max = value;
-    }
-  }
-
-  return `STK-${String(max + 1).padStart(3, "0")}`;
+  await writeActivityLog(supabase, { userId, activity, description, module: "Stocks" });
 }
 
 async function uploadImage(inventoryId: string, file: FormDataEntryValue | null) {
@@ -179,7 +91,7 @@ async function uploadImage(inventoryId: string, file: FormDataEntryValue | null)
     return null;
   }
 
-  if (file.size > MAX_IMAGE_SIZE_BYTES) {
+  if (file.size > MAX_UPLOAD_SIZE_BYTES) {
     throw new Error("Stock image must be 5MB or smaller.");
   }
 
@@ -218,14 +130,23 @@ async function uploadImage(inventoryId: string, file: FormDataEntryValue | null)
 }
 
 function inventoryPayload(formData: FormData, options?: { includeQuantity?: boolean }) {
-  const unit = text(formData, "unit", "kg").toLowerCase();
+  const isCreate = options?.includeQuantity === true;
+  const unit = (isCreate ? requiredText(formData, "unit", "Unit") : text(formData, "unit", "kg")).toLowerCase();
   if (unit !== "kg") {
     throw new Error("Inventory quantities must use kg as the unit.");
   }
-  const quantity = numberValue(formData, "quantity");
-  const minimumQuantity = numberValue(formData, "minimum_quantity");
-  const unitCost = optionalNumber(formData, "unit_cost");
-  const sellingPrice = optionalNumber(formData, "selling_price");
+  const quantity = isCreate
+    ? requiredNumber(formData, "quantity", "Quantity")
+    : numberValue(formData, "quantity");
+  const minimumQuantity = isCreate
+    ? requiredNumber(formData, "minimum_quantity", "Minimum stock level")
+    : numberValue(formData, "minimum_quantity");
+  const unitCost = isCreate
+    ? requiredNumber(formData, "unit_cost", "Unit cost")
+    : optionalNumber(formData, "unit_cost");
+  const sellingPrice = isCreate
+    ? requiredNumber(formData, "selling_price", "Selling price")
+    : optionalNumber(formData, "selling_price");
 
   if (options?.includeQuantity) validateQuantity(quantity, unit, "Current quantity");
   validateQuantity(minimumQuantity, unit, "Minimum quantity");
@@ -239,12 +160,19 @@ function inventoryPayload(formData: FormData, options?: { includeQuantity?: bool
   }
 
   return {
-    item_name: text(formData, "item_name"),
-    category: text(formData, "category", "Fruit Vegetables"),
+    item_name: isCreate
+      ? requiredText(formData, "item_name", "Item name")
+      : text(formData, "item_name"),
+    category: isCreate
+      ? requiredText(formData, "category", "Category")
+      : text(formData, "category", "Fruit Vegetables"),
     ...(options?.includeQuantity ? { quantity } : {}),
     unit,
     minimum_quantity: minimumQuantity,
-    storage_location: text(formData, "storage_location", "Unassigned"),
+    storage_location: isCreate
+      ? requiredText(formData, "storage_location", "Storage location")
+      : text(formData, "storage_location", "Unassigned"),
+    notes: text(formData, "notes").trim() || null,
     unit_cost: unitCost,
     selling_price: sellingPrice,
   };
@@ -262,29 +190,63 @@ export async function createInventoryItemAction(formData: FormData) {
   const payload = inventoryPayload(formData, { includeQuantity: true });
   const id = randomUUID();
 
-  if (!payload.item_name) {
-    throw new Error("Item name is required.");
+  const { data: existingItems, error: duplicateLookupError } = await supabase
+    .from("inventory")
+    .select("id, item_name");
+
+  if (duplicateLookupError) {
+    throw new Error(duplicateLookupError.message);
   }
 
-  const imagePath = await uploadImage(id, formData.get("image"));
+  const normalizedName = payload.item_name.trim().toLowerCase();
+  if (
+    (existingItems ?? []).some(
+      (item) => item.item_name.trim().toLowerCase() === normalizedName,
+    )
+  ) {
+    return { error: ITEM_ALREADY_EXISTS_MESSAGE };
+  }
+
+  const image = formData.get("image");
+  if (!(image instanceof File) || image.size === 0) {
+    throw new Error("Stock image is required.");
+  }
+
+  const imagePath = await uploadImage(id, image);
 
   const { error } = await supabase
     .from("inventory")
     .insert({
       id,
       ...payload,
-      stock_code: await nextStockCode(),
-      ...(imagePath ? { image_path: imagePath } : {}),
+      image_path: imagePath,
       updated_by: userId,
     })
     .select("id")
     .single();
 
   if (error) {
+    // The database trigger is the final duplicate guard. Translate its error
+    // (and any duplicate-name constraint error from a deployed schema) into
+    // the same message used by the form's pre-insert check.
+    if (isDuplicateInventoryName(error)) return { error: ITEM_ALREADY_EXISTS_MESSAGE };
+
+    // Recheck after an insert failure to catch a duplicate that was added
+    // concurrently or was not visible in the initial paginated read.
+    const { data: currentItems } = await supabase
+      .from("inventory")
+      .select("id, item_name");
+    if ((currentItems ?? []).some(
+      (item) => item.item_name.trim().toLowerCase() === normalizedName,
+    )) {
+      return { error: ITEM_ALREADY_EXISTS_MESSAGE };
+    }
+
     throw new Error(error.message);
   }
 
   await logInventoryActivity(
+    supabase,
     "Inventory item created",
     `${payload.item_name} was added to the stock list with ${payload.quantity} ${payload.unit}.`,
     userId,
@@ -304,24 +266,45 @@ export async function updateInventoryItemAction(formData: FormData) {
 
   const id = text(formData, "id");
   const userId = await currentUserId();
+  const payload = inventoryPayload(formData);
+  const normalizedName = payload.item_name.trim().toLowerCase();
+  const { data: otherItems, error: duplicateLookupError } = await supabase
+    .from("inventory")
+    .select("id, item_name")
+    .neq("id", id);
+  if (duplicateLookupError) throw new Error(duplicateLookupError.message);
+  if ((otherItems ?? []).some((item) => item.item_name.trim().toLowerCase() === normalizedName)) {
+    return { error: ITEM_ALREADY_EXISTS_MESSAGE };
+  }
+
   const imagePath = await uploadImage(id, formData.get("image"));
 
   const { error } = await supabase
     .from("inventory")
     .update({
-      ...inventoryPayload(formData),
+      ...payload,
       ...(imagePath ? { image_path: imagePath } : {}),
       updated_by: userId,
     })
     .eq("id", id);
 
   if (error) {
+    if (isDuplicateInventoryName(error)) return { error: ITEM_ALREADY_EXISTS_MESSAGE };
+
+    const { data: currentItems } = await supabase
+      .from("inventory")
+      .select("id, item_name")
+      .neq("id", id);
+    if ((currentItems ?? []).some((item) => item.item_name.trim().toLowerCase() === normalizedName)) {
+      return { error: ITEM_ALREADY_EXISTS_MESSAGE };
+    }
     throw new Error(error.message);
   }
 
   await logInventoryActivity(
+    supabase,
     "Inventory item updated",
-    `${inventoryPayload(formData).item_name || "Inventory item"} profile was updated.`,
+    `${payload.item_name || "Inventory item"} profile was updated.`,
     userId,
   );
 
@@ -353,6 +336,7 @@ export async function deleteInventoryItemAction(formData: FormData) {
   }
 
   await logInventoryActivity(
+    supabase,
     "Inventory item deleted",
     `${item?.item_name ?? "Inventory item"} was removed from the stock list.`,
     userId,
@@ -362,15 +346,83 @@ export async function deleteInventoryItemAction(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
+export async function correctInventoryBatchAction(formData: FormData) {
+  await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const batchId = requiredText(formData, "batch_id", "Stock batch");
+  const receivedOn = requiredText(formData, "received_on", "Receipt date");
+  const harvestOn = text(formData, "harvest_on") || null;
+  const profileId = text(formData, "profile_id") || null;
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
+  if (receivedOn > today) throw new Error("Receipt date cannot be in the future.");
+  if (harvestOn && harvestOn > receivedOn) throw new Error("Harvest date cannot be after receipt date.");
+  if (profileId) {
+    const { data: profile, error: profileError } = await supabase
+      .from("inventory_spoilage_profiles")
+      .select("id")
+      .eq("id", profileId)
+      .eq("enabled", true)
+      .maybeSingle();
+    if (profileError || !profile) throw new Error("Choose a supported produce profile.");
+  }
+  const { error } = await supabase.rpc("correct_inventory_stock_batch", {
+    p_batch_id: batchId,
+    p_received_on: receivedOn,
+    p_harvest_on: harvestOn,
+    p_age_known: true,
+    p_profile_id: profileId,
+  });
+  if (error) throw new Error(error.message);
+  const userId = await currentUserId();
+  await logInventoryActivity(supabase, "Stock batch estimate updated", "A stock batch receipt date, harvest date, or produce profile was confirmed.", userId);
+  revalidatePath("/inventory");
+}
+
+export async function splitInventoryBatchAction(formData: FormData) {
+  await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const batchId = requiredText(formData, "batch_id", "Stock batch");
+  const quantity = requiredNumber(formData, "split_quantity", "Split quantity");
+  const receivedOn = requiredText(formData, "received_on", "Receipt date");
+  const harvestOn = text(formData, "harvest_on") || null;
+  const profileId = text(formData, "profile_id") || null;
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
+  if (receivedOn > today) throw new Error("Receipt date cannot be in the future.");
+  if (harvestOn && harvestOn > receivedOn) throw new Error("Harvest date cannot be after receipt date.");
+  if (profileId) {
+    const { data: profile, error: profileError } = await supabase
+      .from("inventory_spoilage_profiles")
+      .select("id")
+      .eq("id", profileId)
+      .eq("enabled", true)
+      .maybeSingle();
+    if (profileError || !profile) throw new Error("Choose a supported produce profile.");
+  }
+  const { error } = await supabase.rpc("split_inventory_stock_batch", {
+    p_batch_id: batchId,
+    p_split_quantity: quantity,
+    p_received_on: receivedOn,
+    p_harvest_on: harvestOn,
+    p_profile_id: profileId,
+  });
+  if (error) throw new Error(error.message);
+  const userId = await currentUserId();
+  await logInventoryActivity(supabase, "Inventory batch split", `Split ${quantity} units from a stock batch.`, userId);
+  revalidatePath("/inventory");
+  revalidatePath("/dashboard");
+}
+
 export async function stockInAction(formData: FormData) {
   const quantity = numberValue(formData, "quantity");
-  if (quantity <= 0) throw new Error("Stock in quantity must be greater than zero.");
+  if (quantity <= 0) throw new Error("Quantity must be greater than zero.");
   await createMovement(formData, "IN", quantity);
 }
 
 export async function stockOutAction(formData: FormData) {
   const quantity = numberValue(formData, "quantity");
-  if (quantity <= 0) throw new Error("Stock out quantity must be greater than zero.");
+  if (quantity <= 0) throw new Error("Quantity must be greater than zero.");
   await createMovement(formData, "OUT", quantity);
 }
 
@@ -395,15 +447,14 @@ async function createMovement(
   const userId = await currentUserId();
   const reason = text(formData, "reason");
   const remarks = text(formData, "remarks", "Inventory updated.");
-  const combinedRemarks = reason ? `${reason} - ${remarks}` : remarks;
   const inventoryId = text(formData, "id");
-  const previousStock = await stockSnapshot(inventoryId);
 
-  const { data: movementItem } = await supabase
+  const { data: movementItem, error: movementItemError } = await supabase
     .from("inventory")
     .select("unit")
     .eq("id", inventoryId)
     .single<{ unit: string }>();
+  if (movementItemError) throw new Error(movementItemError.message);
   if (movementItem?.unit !== "kg") {
     throw new Error("Inventory quantities must use kg as the unit. Update this item before stocking it.");
   }
@@ -413,15 +464,20 @@ async function createMovement(
     throw new Error("Sign in before changing inventory.");
   }
 
-  const { error } = await supabase.from("inventory_transactions").insert({
-    inventory_id: inventoryId,
-    transaction_type: transactionType,
-    quantity,
-    remarks: combinedRemarks,
-    performed_by: userId,
+  const { error } = await supabase.rpc("record_inventory_movement_with_batch", {
+    p_inventory_id: inventoryId,
+    p_transaction_type: transactionType,
+    p_quantity: quantity,
+    p_reason: reason || null,
+    p_remarks: remarks || null,
+    p_request_id: text(formData, "request_id") || randomUUID(),
+    p_target_batch_id: transactionType === "OUT" ? text(formData, "target_batch_id") || null : null,
   });
 
   if (error) {
+    if (error.message.includes("record_inventory_movement") || error.message.includes("schema cache")) {
+      throw new Error("Inventory movement support is not deployed yet. Apply the latest Supabase migration, then try again.");
+    }
     throw new Error(error.message);
   }
 
@@ -432,124 +488,20 @@ async function createMovement(
     .single<{ item_name: string; unit: string }>();
 
   await logInventoryActivity(
+    supabase,
     transactionType === "IN"
-      ? "Stock in recorded"
+      ? "Receive stock recorded"
       : transactionType === "OUT"
-        ? "Stock out recorded"
+        ? "Issue stock recorded"
         : "Stock quantity adjusted",
     `${item?.item_name ?? "Inventory item"} ${
       transactionType === "ADJUSTMENT" ? "was adjusted to" : "moved"
-    } ${quantity} ${item?.unit ?? "unit"}. Reason: ${combinedRemarks}`,
+    } ${quantity} ${item?.unit ?? "unit"}. ${reason ? `${transactionType === "IN" ? "Source" : "Reason"}: ${reason}. ` : ""}${remarks}`,
     userId,
   );
-
-  await notifyIfStockNeedsReplenishment(inventoryId, userId, previousStock);
 
   revalidatePath("/inventory");
   revalidatePath("/dashboard");
   revalidatePath("/notifications");
   revalidatePath("/", "layout");
-}
-
-export async function recordInventorySaleAction(formData: FormData) {
-  await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
-
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) {
-    throw new Error("Supabase is not configured.");
-  }
-
-  const payload = {
-    p_inventory_id: text(formData, "id"),
-    p_quantity_sold: numberValue(formData, "quantity"),
-    p_unit_price: numberValue(formData, "unit_price"),
-    p_sale_date: text(formData, "sale_date", new Date().toISOString()),
-    p_customer_name: optionalText(formData, "customer_name"),
-    p_remarks: optionalText(formData, "remarks"),
-  };
-  const paymentMethod = text(formData, "payment_method", "Cash");
-  const transactionReference = optionalText(formData, "transaction_reference");
-  const otherPaymentMethod = optionalText(formData, "other_payment_method");
-
-  if (payload.p_quantity_sold <= 0) {
-    throw new Error("Sale quantity must be greater than zero.");
-  }
-
-  const { data: saleItem } = await supabase
-    .from("inventory")
-    .select("unit")
-    .eq("id", payload.p_inventory_id)
-    .single<{ unit: string }>();
-  if (saleItem?.unit !== "kg") {
-    throw new Error("Inventory quantities must use kg as the unit. Update this item before selling it.");
-  }
-  validateQuantity(payload.p_quantity_sold, saleItem?.unit ?? "kg", "Sale quantity", false);
-
-  if (payload.p_unit_price < 0) {
-    throw new Error("Sale unit price cannot be negative.");
-  }
-
-  if (paymentMethod === "Other" && !otherPaymentMethod) {
-    throw new Error("Enter the other payment method used.");
-  }
-
-  if (paymentMethod !== "Cash" && !transactionReference) {
-    throw new Error("Transaction ID is required for non-cash market distribution sales.");
-  }
-
-  const { error } = await supabase.rpc("record_inventory_sale", {
-    ...payload,
-    p_payment_method: paymentMethod,
-    p_transaction_reference: transactionReference,
-    p_other_payment_method: otherPaymentMethod,
-  });
-
-  if (error) {
-    const canRetryWithoutTransactionReference =
-      error.message.includes("record_inventory_sale") &&
-      (error.message.includes("p_transaction_reference") ||
-        error.message.includes("p_other_payment_method"));
-  
-    if (canRetryWithoutTransactionReference && paymentMethod !== "Other") {
-      const fallback = await supabase.rpc("record_inventory_sale", {
-        ...payload,
-        p_payment_method: paymentMethod,
-      });
-
-      if (!fallback.error) {
-        revalidatePath("/inventory");
-        revalidatePath("/sales");
-        revalidatePath("/customers");
-        revalidatePath("/dashboard");
-        return;
-      }
-
-      throw new Error(fallback.error.message);
-    }
-
-    const canRetryWithoutPayment =
-      error.message.includes("record_inventory_sale") &&
-      error.message.includes("p_payment_method");
-
-    if (canRetryWithoutPayment) {
-      const fallback = await supabase.rpc("record_inventory_sale", payload);
-
-      if (!fallback.error) {
-        revalidatePath("/inventory");
-        revalidatePath("/sales");
-        revalidatePath("/customers");
-        revalidatePath("/dashboard");
-        return;
-      }
-
-      throw new Error(fallback.error.message);
-    }
-
-    throw new Error(error.message);
-  }
-
-  revalidatePath("/inventory");
-  revalidatePath("/sales");
-  revalidatePath("/customers");
-  revalidatePath("/dashboard");
 }

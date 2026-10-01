@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ActionFeedbackProvider } from "@/components/action-feedback";
+import { ConnectivityStatus } from "@/components/connectivity-status";
 
 export const metadata: Metadata = {
   title: "SeedRover Admin",
@@ -27,7 +29,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body>{children}</body>
+      <body><ActionFeedbackProvider><ConnectivityStatus>{children}</ConnectivityStatus></ActionFeedbackProvider></body>
     </html>
   );
 }

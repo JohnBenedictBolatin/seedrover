@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { LiveDateTime } from "@/components/live-date-time";
+import { ModuleHeaderIntro } from "@/components/module-header-intro";
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { getUsersDashboard } from "@/lib/users";
 import { UsersWorkspace } from "./users-workspace";
@@ -21,11 +22,11 @@ export default async function UsersPage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <div>
-          <p className={styles.eyebrow}>System</p>
-          <h1>User Management</h1>
-          <p>Staff accounts, roles, permissions, and account status.</p>
-        </div>
+          <ModuleHeaderIntro mascot="users">
+            <p className={styles.eyebrow}>System</p>
+            <h1>User Management</h1>
+            <p>Staff accounts, roles, permissions, and account status.</p>
+          </ModuleHeaderIntro>
         <div className={styles.liveDateTime}>
           <LiveDateTime />
         </div>
