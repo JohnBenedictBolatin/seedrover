@@ -88,16 +88,16 @@ class _SummaryTile extends StatelessWidget {
           Icon(icon, color: color),
           const SizedBox(width: AppSpacing.md),
           Expanded(
-            child: AnimatedTypingText(
+            child: Text(
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTypography.small,
             ),
           ),
-          AnimatedMetricText(
+          Text(
             value,
-            style: AppTypography.sensorValue.copyWith(color: color),
+            style: AppTypography.numericValue.copyWith(color: color),
           ),
         ],
       ),

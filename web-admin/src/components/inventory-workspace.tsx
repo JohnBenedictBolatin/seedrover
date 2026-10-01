@@ -43,6 +43,7 @@ import { useActionFeedback } from "@/components/action-feedback";
 import { PendingActionLabel } from "@/components/pending-action-label";
 import { FileUploadField } from "@/components/file-upload-field";
 import { formatCurrency, formatDateTime, formatQuantity } from "@/lib/format";
+import { displayDate } from "@/lib/spoilage-estimates";
 import { sharedWorkflowChoices, sharedWorkflowTerms } from "@/lib/shared-workflow-terms";
 import type { InventoryItem } from "@/lib/inventory";
 import styles from "@/app/(portal)/inventory/page.module.css";
@@ -193,6 +194,9 @@ export function InventoryWorkspace({
     const initialItem = items.find((item) => item.id === initialItemId);
     return initialItem ? { type: "details", item: initialItem } : null;
   });
+  const currentDialog = dialog && "item" in dialog
+    ? { ...dialog, item: items.find((item) => item.id === dialog.item.id) ?? dialog.item }
+    : dialog;
   const { notify: sendFeedback } = useActionFeedback();
   const notify = (tone: AlertTone, text: string) => sendFeedback({ tone, text });
 
@@ -313,7 +317,7 @@ export function InventoryWorkspace({
       )}
 
       <InventoryDialog
-        dialog={dialog}
+        dialog={currentDialog}
         items={items}
         notify={notify}
         onAction={setDialog}
@@ -633,8 +637,8 @@ function InventoryDialog({
         )
         .sort(
           (a, b) =>
-            new Date(b.transaction.createdAt).getTime() -
-            new Date(a.transaction.createdAt).getTime(),
+            (b.transaction.createdAt ? new Date(b.transaction.createdAt).getTime() : Number.NEGATIVE_INFINITY) -
+            (a.transaction.createdAt ? new Date(a.transaction.createdAt).getTime() : Number.NEGATIVE_INFINITY),
         ),
     [items],
   );
@@ -755,8 +759,8 @@ function InventoryDialog({
               <div className={styles.inventoryHistoryRecords}>
               {visibleHistoryRecords.map(({ item, transaction }) => (
                 <div className={styles.historyItem} key={transaction.id}>
-                  <div><strong data-type={transaction.type}>{transaction.type === "IN" ? sharedWorkflowTerms.receiveStock : transaction.type === "OUT" ? sharedWorkflowTerms.issueStock : sharedWorkflowTerms.adjustQuantity}</strong><span>{item.itemName} · {transaction.quantity} {item.unit}</span></div>
-                  <div><small>{formatDateTime(transaction.createdAt)}</small></div>
+                  <div><strong data-type={transaction.type}>{transaction.type === "OPENING" ? "Opening stock" : transaction.type === "HISTORICAL" ? "Historical batch" : transaction.source === "harvest" ? "Harvest" : transaction.type === "IN" ? sharedWorkflowTerms.receiveStock : transaction.type === "OUT" ? sharedWorkflowTerms.issueStock : sharedWorkflowTerms.adjustQuantity}</strong><span>{item.itemName} · {transaction.quantity} {item.unit}</span></div>
+                  <div><small>{transaction.createdAt ? formatDateTime(transaction.createdAt) : "Date unknown"}</small></div>
                   <p>{transaction.remarks || "—"}</p>
                 </div>
               ))}
@@ -900,6 +904,7 @@ function InventoryForm({
             adjustFormData.set("new_quantity", String(nextQuantity));
             adjustFormData.set("reason", "Edit Item");
             adjustFormData.set("remarks", "Quantity updated from edit item.");
+            adjustFormData.set("request_id", crypto.randomUUID());
             await adjustStockAction(adjustFormData);
           }
         }
@@ -1016,6 +1021,15 @@ function InventoryForm({
   );
 }
 
+function MovementBatchEstimate({ batch }: { batch: InventoryItem["batches"][number] }) {
+  const estimate = !batch.ageKnown
+    ? "Age unknown"
+    : batch.estimatedSpoilageOn
+      ? displayDate(batch.estimatedSpoilageOn)
+      : "Estimate unavailable";
+
+  return <div className={styles.movementBatchEstimate}>Estimated spoilage: {estimate}</div>;
+}
 function MovementForm({
   item,
   mode,
@@ -1032,6 +1046,7 @@ function MovementForm({
   const [quantity, setQuantity] = useState("");
   const [formError, setFormError] = useState("");
   const [pending, startTransition] = useTransition();
+  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
 
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const router = useRouter();
@@ -1065,6 +1080,7 @@ function MovementForm({
           notify("success", "Stock quantity deducted.");
         }
 
+        setRequestId(crypto.randomUUID());
         onSuccess();
         router.refresh();
       } catch (error) {
@@ -1080,8 +1096,22 @@ function MovementForm({
     <>
       <form className={styles.formGrid} onSubmit={handleSubmit}>
         <input name="id" type="hidden" value={item.id} />
+        <input name="request_id" type="hidden" value={requestId} />
         <ReadOnly label="Item" value={item.itemName} />
         <ReadOnly label="Available" value={formatQuantity(item.quantity, item.unit)} />
+        {mode === "out" && item.batches.some((batch) => batch.remainingQuantity > 0) ? (
+          <details className={styles.batchChoice}>
+            <summary>Choose batch (optional; default is oldest first)</summary>
+            <select name="target_batch_id" defaultValue="">
+              <option value="">Oldest batch first (FIFO)</option>
+              {item.batches.filter((batch) => batch.remainingQuantity > 0).map((batch) => (
+                <option key={batch.id} value={batch.id}>
+                  {formatQuantity(batch.remainingQuantity, item.unit)} {item.unit} · {batch.profileName ?? "Unknown product"} · {batch.harvestOn ? `harvested ${displayDate(batch.harvestOn)}` : `received ${displayDate(batch.receivedOn)}`}
+                </option>
+              ))}
+            </select>
+          </details>
+        ) : null}
         <Field
           label={`Quantity (${item.unit})`}
           name="quantity"
@@ -1249,10 +1279,10 @@ function InventoryMovementTable({ item }: { item: InventoryItem }) {
           </div>
           {visibleTransactions.map((transaction) => (
             <div className={styles.itemHistoryTableRow} role="row" key={transaction.id}>
-              <strong data-label="Movement">{transaction.type === "IN" ? sharedWorkflowTerms.receiveStock : transaction.type === "OUT" ? sharedWorkflowTerms.issueStock : sharedWorkflowTerms.adjustQuantity}</strong>
+              <strong data-label="Movement">{transaction.type === "OPENING" ? "Opening stock" : transaction.type === "HISTORICAL" ? "Historical batch" : transaction.source === "harvest" ? "Harvest" : transaction.type === "IN" ? sharedWorkflowTerms.receiveStock : transaction.type === "OUT" ? sharedWorkflowTerms.issueStock : sharedWorkflowTerms.adjustQuantity}</strong>
               <span data-label="Quantity">{formatQuantity(transaction.quantity, item.unit)}</span>
-              <span data-label="Date / time">{formatDateTime(transaction.createdAt)}</span>
-              <span data-label="Notes">{transaction.remarks || "—"}</span>
+              <span data-label="Date / time">{transaction.createdAt ? formatDateTime(transaction.createdAt) : "Date unknown"}</span>
+              <div data-label="Notes">{transaction.remarks || "—"}{transaction.batch ? <MovementBatchEstimate batch={transaction.batch} /> : null}</div>
             </div>
           ))}
         </div>

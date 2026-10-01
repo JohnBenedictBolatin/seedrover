@@ -13,6 +13,8 @@ class DatabaseTables {
   static const inventory = 'inventory';
   static const inventoryTransactions = 'inventory_transactions';
   static const salesTransactions = 'sales_transactions';
+  static const salesOrders = 'sales_orders';
+  static const salesOrderItems = 'sales_order_items';
   static const notifications = 'notifications';
   static const activityLogs = 'activity_logs';
   static const robotCommands = 'robot_commands';

@@ -3,224 +3,475 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_routes.dart';
+import '../../../../core/constants/permission_keys.dart';
+import '../../../../core/services/supabase_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/content_skeleton.dart';
 import '../../data/models/crop_model.dart';
+import '../../controllers/crop_monitoring_controller.dart';
 import '../../controllers/crop_monitoring_state.dart';
 import '../../providers/crop_providers.dart';
 import '../widgets/crop_empty_state.dart';
 import '../widgets/crop_filter_bar.dart';
 import '../widgets/crop_overview_hero.dart';
+import '../widgets/crop_history_button.dart';
 import '../widgets/crop_screen_header.dart';
+import '../widgets/crop_weather_card.dart';
 import '../widgets/planted_crop_group.dart';
+import '../../../../shared/widgets/seedrover_mascot.dart';
+import '../../../../shared/widgets/startup_recovery.dart';
+import '../../../rover/data/models/rover_command_model.dart';
+import '../../../rover/data/models/planting_session_model.dart';
+import '../../../rover/providers/rover_providers.dart';
+import '../../../authentication/providers/auth_providers.dart';
+import '../../../rover/presentation/widgets/planting_sync_progress_dialog.dart';
 
-class CropMonitoringScreen extends ConsumerWidget {
+class CropMonitoringScreen extends ConsumerStatefulWidget {
   const CropMonitoringScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CropMonitoringScreen> createState() =>
+      _CropMonitoringScreenState();
+}
+
+class _CropMonitoringScreenState extends ConsumerState<CropMonitoringScreen>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.read(cropMonitoringControllerProvider.notifier).retryPendingDrafts();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(cropMonitoringControllerProvider);
     final controller = ref.read(cropMonitoringControllerProvider.notifier);
-    final today = DateTime.now();
+    final profile = ref.watch(authControllerProvider).profile;
+    final plantingRunsAwaitingSync =
+        ref.watch(plantingRunsAwaitingSyncProvider).asData?.value ?? const [];
 
-    if (state.isLoading) {
-      return const _CropLoadingSkeleton();
+    if (state.crops.isEmpty &&
+        (state.isLoading || state.errorMessage != null)) {
+      return StartupRecovery(
+        loading: const _CropLoadingSkeleton(),
+        errorMessage: state.errorMessage,
+        onRetry: controller.loadCrops,
+        destinations: [
+          (label: 'Continue to Dashboard', route: AppRoutes.dashboard),
+          if (profile?.hasPermission(PermissionKeys.roverView) == true)
+            (label: 'Continue to Rover Control', route: AppRoutes.rover),
+        ],
+      );
     }
 
     return RefreshIndicator(
-      onRefresh: controller.refreshCrops,
+      onRefresh: () async {
+        ref.invalidate(plantingRunsAwaitingSyncProvider);
+        ref.invalidate(cropWeatherProvider);
+        await controller.refreshCrops();
+      },
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(AppSpacing.lg),
+        padding: const EdgeInsets.only(bottom: AppSpacing.lg),
         children: [
-          const CropScreenHeader(),
-          const SizedBox(height: AppSpacing.lg),
-          CropOverviewHero(
-            activeCrops: state.activeCrops,
-            needsAttention: state.crops
-                .where((crop) =>
-                    crop.status == CropStatus.needsWater ||
-                    crop.status == CropStatus.needsFertilizer)
-                .length,
-            upcomingHarvests: state.crops
-                .where((crop) =>
-                    crop.harvestWindowStart != null &&
-                    crop.harvestWindowStart!.difference(today).inDays <= 14 &&
-                    crop.harvestWindowStart!.isAfter(today))
-                .length,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          _CropQuickActions(
-            onStartRover: () => context.push(AppRoutes.rover),
-            onPastCrops: () =>
-                controller.updateFilter(CropFilterType.harvested),
-          ),
-          const SizedBox(height: AppSpacing.xl),
-          CropFilterBar(
-            searchQuery: state.searchQuery,
-            selectedFilter: state.selectedFilter,
-            selectedSort: state.selectedSort,
-            onSearchChanged: controller.updateSearch,
-            onFilterChanged: controller.updateFilter,
-            onSortChanged: controller.updateSort,
-            onClear: controller.clearFilters,
-          ),
-          const SizedBox(height: AppSpacing.xl),
-          if (state.filteredCrops.isEmpty)
-            const CropEmptyState()
-          else
-            _CropContent(
-              crops: state.filteredCrops,
-              onCropSelected: (crop) {
-                context.push(AppRoutes.cropDetailsPath(crop.id));
-              },
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              AppSpacing.lg,
+              AppSpacing.md,
+              0,
             ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const CropScreenHeader(),
+                const SizedBox(height: AppSpacing.md),
+                CropOverviewHero(activeCrops: state.activeCrops),
+                const SizedBox(height: AppSpacing.sm),
+                CropHistoryButton(
+                  client: ref.read(supabaseClientProvider),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                const CropWeatherCard(),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (state.errorMessage != null) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  _OfflineCropNotice(
+                    message: state.errorMessage!,
+                    onRetry: controller.loadCrops,
+                    onDismiss: controller.clearErrorMessage,
+                  ),
+                ],
+                _CareDraftsPanel(controller: controller),
+                if (plantingRunsAwaitingSync.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  _PlantingRunsAwaitingSync(
+                    runs: plantingRunsAwaitingSync,
+                    onSync: _syncPlantingRuns,
+                  ),
+                ],
+                const SizedBox(height: AppSpacing.md),
+                CropFilterBar(
+                  searchQuery: state.searchQuery,
+                  selectedFilter: state.selectedFilter,
+                  selectedSort: state.selectedSort,
+                  onSearchChanged: controller.updateSearch,
+                  onFilterChanged: controller.updateFilter,
+                  onSortChanged: controller.updateSort,
+                ),
+                _CropActiveFilters(
+                  state: state,
+                  onStatusRemoved: () =>
+                      controller.updateFilter(CropFilterType.all),
+                  onSortRemoved: () =>
+                      controller.updateSort(CropSortType.newest),
+                  onClear: controller.clearFilters,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                if (state.filteredCrops.isEmpty)
+                  state.crops.isEmpty
+                      ? const CropEmptyState()
+                      : _NoCropResults(onClear: controller.clearFilters)
+                else
+                  _CropContent(
+                    crops: state.filteredCrops,
+                    onCropSelected: (crop) {
+                      context.push(AppRoutes.cropDetailsPath(crop.id));
+                    },
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _syncPlantingRuns() async {
+    final roverController = ref.read(roverControlControllerProvider.notifier);
+    await showPlantingSyncProgressDialog(
+      context,
+      synchronize: roverController.synchronizePendingReceipts,
+    );
+    ref.invalidate(plantingRunsAwaitingSyncProvider);
+    await ref.read(cropMonitoringControllerProvider.notifier).loadCrops();
+    final syncError = ref.read(roverControlControllerProvider).errorMessage;
+    if (syncError != null && mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(syncError)));
+    }
+  }
+}
+
+class _PlantingRunsAwaitingSync extends StatelessWidget {
+  const _PlantingRunsAwaitingSync({
+    required this.runs,
+    required this.onSync,
+  });
+
+  final List<PendingPlantingReceipt> runs;
+  final Future<void> Function() onSync;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: AppColors.sunSurface,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: AppColors.warning.withValues(alpha: .45)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.cloud_upload_outlined, color: AppColors.warning),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    '${runs.length} confirmed planting run${runs.length == 1 ? '' : 's'} waiting to sync',
+                    style: AppTypography.cardTitle,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'Saved on this device. Results sync when the app has internet; planted runs appear in your crop list after sync.',
+              style: AppTypography.small,
+            ),
+            for (final run in runs.take(3)) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                '${run.config.seed.label} • ${run.config.fieldLabel.isEmpty ? 'Field not labeled' : run.config.fieldLabel}',
+                style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
+              ),
+              Text(
+                '${run.status.completedDrops} of ${run.status.targetDrops} planting cycles • ${_plantingOutcomeLabel(run.confirmationOutcome)}',
+                style: AppTypography.small,
+              ),
+            ],
+            if (runs.length > 3) ...[
+              const SizedBox(height: AppSpacing.xs),
+              Text('And ${runs.length - 3} more', style: AppTypography.small),
+            ],
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: onSync,
+                icon: const Icon(Icons.sync_rounded),
+                label: const Text('Retry sync'),
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+String _plantingOutcomeLabel(String? outcome) => switch (outcome) {
+      'row_planted' => 'Row planted',
+      'some_planted' => 'Some planted',
+      'none_planted' => 'None planted',
+      _ => 'Confirmation pending',
+    };
+
+class _OfflineCropNotice extends StatelessWidget {
+  const _OfflineCropNotice({
+    required this.message,
+    required this.onRetry,
+    required this.onDismiss,
+  });
+
+  final String message;
+  final VoidCallback onRetry;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.sunSurface,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.cloud_off_outlined, color: AppColors.warning),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                'Showing saved crop records. $message',
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.small,
+              ),
+            ),
+            IconButton(
+              tooltip: 'Retry crop sync',
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+            ),
+            IconButton(
+              tooltip: 'Dismiss message',
+              onPressed: onDismiss,
+              icon: const Icon(Icons.close),
+            ),
+          ],
+        ),
+      );
+}
+
+class _CropActiveFilters extends StatelessWidget {
+  const _CropActiveFilters({
+    required this.state,
+    required this.onStatusRemoved,
+    required this.onSortRemoved,
+    required this.onClear,
+  });
+
+  final CropMonitoringState state;
+  final VoidCallback onStatusRemoved;
+  final VoidCallback onSortRemoved;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasStatus = state.selectedFilter != CropFilterType.all;
+    final hasSort = state.selectedSort != CropSortType.newest;
+    if (!hasStatus && !hasSort) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.xs),
+      child: Wrap(
+        spacing: AppSpacing.xs,
+        runSpacing: AppSpacing.xs,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          if (hasStatus)
+            InputChip(
+              label: Text(state.selectedFilter.label),
+              onDeleted: onStatusRemoved,
+              visualDensity: VisualDensity.compact,
+            ),
+          if (hasSort)
+            InputChip(
+              label: Text('Sort: ${state.selectedSort.label}'),
+              onDeleted: onSortRemoved,
+              visualDensity: VisualDensity.compact,
+            ),
+          TextButton(onPressed: onClear, child: const Text('Reset')),
         ],
       ),
     );
   }
 }
 
-class _CropQuickActions extends StatelessWidget {
-  const _CropQuickActions(
-      {required this.onStartRover, required this.onPastCrops});
-  final VoidCallback onStartRover;
-  final VoidCallback onPastCrops;
+class _NoCropResults extends StatelessWidget {
+  const _NoCropResults({required this.onClear});
+  final VoidCallback onClear;
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _CropQuickActionTile(
-            icon: Icons.agriculture_outlined,
-            label: 'START ROVER PLANTING',
-            onPressed: onStartRover,
-          ),
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: AppColors.secondaryBackground,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: AppColors.inactiveBorder),
         ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: _CropQuickActionTile(
-            icon: Icons.history,
-            label: 'VIEW PAST CROPS',
-            onPressed: onPastCrops,
-          ),
+        child: Row(
+          children: [
+            const SeedRoverMascot(
+              expression: SeedRoverMascotExpression.emptyCurious,
+              size: 48,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                'No crops match this search or filter.',
+                style: AppTypography.body,
+              ),
+            ),
+            TextButton(onPressed: onClear, child: const Text('Clear')),
+          ],
         ),
-      ],
-    );
-  }
+      );
 }
 
-class _CropQuickActionTile extends StatelessWidget {
-  const _CropQuickActionTile({
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onPressed;
+class _CareDraftsPanel extends StatefulWidget {
+  const _CareDraftsPanel({required this.controller});
+  final CropMonitoringController controller;
 
   @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(AppRadius.md),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        child: Ink(
-          height: 68,
-          decoration: BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment.bottomCenter,
-              radius: 1.25,
-              colors: AppColors.heroGradientColors,
-            ),
-            border: Border.all(
-              color: AppColors.primaryGreen.withValues(alpha: .34),
-            ),
-            borderRadius: BorderRadius.circular(AppRadius.md),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primaryGreen.withValues(alpha: .06),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: CustomPaint(painter: _CropActionStarFieldPainter()),
-                ),
-              ),
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
-                    vertical: AppSpacing.xs,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+  State<_CareDraftsPanel> createState() => _CareDraftsPanelState();
+}
+
+class _CareDraftsPanelState extends State<_CareDraftsPanel> {
+  late Future<List<Map<String, dynamic>>> _drafts;
+
+  @override
+  void initState() {
+    super.initState();
+    _drafts = widget.controller.careDrafts();
+  }
+
+  Future<void> _reload() async {
+    setState(() => _drafts = widget.controller.careDrafts());
+    await _drafts;
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      FutureBuilder<List<Map<String, dynamic>>>(
+        future: _drafts,
+        builder: (context, snapshot) {
+          final drafts = snapshot.data ?? const <Map<String, dynamic>>[];
+          if (drafts.isEmpty) return const SizedBox.shrink();
+          return Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.md),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(icon, color: AppColors.heroIconGreen, size: 20),
-                      const SizedBox(width: AppSpacing.sm),
-                      Flexible(
-                        child: Text(
-                          label,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: AppTypography.caption.copyWith(
-                            color: AppColors.heroPrimaryText,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
+                      Row(
+                        children: [
+                          Icon(Icons.sync_problem_outlined,
+                              color: AppColors.warning),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: Text(
+                              '${drafts.length} saved record${drafts.length == 1 ? '' : 's'} on this phone',
+                              style: AppTypography.cardTitle,
+                            ),
+                          ),
+                        ],
+                      ),
+                      for (final draft in drafts)
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                          minVerticalPadding: AppSpacing.xs,
+                          title: Text(
+                            '${draft['activity_type'] ?? 'Crop activity'} • ${draft['status'] == 'Needs review' ? 'Needs attention' : 'Saved on this phone'}',
+                          ),
+                          subtitle: Text(
+                            '${widget.controller.cropById(draft['crop_id'] as String? ?? '')?.trackingCode ?? 'Crop record'}\n'
+                            '${draft['status'] == 'Needs review' ? 'This record needs attention before it can sync.' : 'Waiting for an internet connection.'}',
+                          ),
+                          trailing: IconButton(
+                            tooltip: 'Retry sync',
+                            onPressed: () async {
+                              await widget.controller
+                                  .retryDraft(draft['submission_id'] as String);
+                              await _reload();
+                            },
+                            icon: const Icon(Icons.sync),
                           ),
                         ),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          onPressed: () async {
+                            await widget.controller.retryPendingDrafts();
+                            await _reload();
+                          },
+                          icon: const Icon(Icons.sync),
+                          label: const Text('Retry saved records'),
+                        ),
                       ),
-                    ],
-                  ),
-                ),
+                    ]),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CropActionStarFieldPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    const stars = <Offset>[
-      Offset(.08, .18),
-      Offset(.18, .54),
-      Offset(.31, .26),
-      Offset(.47, .66),
-      Offset(.62, .2),
-      Offset(.76, .5),
-      Offset(.91, .28),
-    ];
-    final paint = Paint()..color = AppColors.accentGreen.withValues(alpha: .3);
-    for (var index = 0; index < stars.length; index++) {
-      final star = stars[index];
-      canvas.drawCircle(
-        Offset(star.dx * size.width, star.dy * size.height),
-        index.isEven ? 1 : .65,
-        paint,
+            ),
+          );
+        },
       );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _CropLoadingSkeleton extends StatelessWidget {
@@ -230,72 +481,24 @@ class _CropLoadingSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
+      ),
       children: [
-        const SkeletonLine(widthFactor: 0.28, height: 28),
-        const SizedBox(height: AppSpacing.lg),
-        const SkeletonCard(
-          height: 138,
-          children: [],
-        ),
-        const SizedBox(height: AppSpacing.xl),
-        const SkeletonCard(
-          children: [
-            SkeletonLine(widthFactor: 0.9),
-            SizedBox(height: AppSpacing.md),
-            Row(
-              children: [
-                Expanded(child: SkeletonBlock(height: 34)),
-                SizedBox(width: AppSpacing.sm),
-                Expanded(child: SkeletonBlock(height: 34)),
-              ],
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.xl),
-        const SkeletonLine(widthFactor: 0.62, height: 18),
+        const CropScreenHeader(),
         const SizedBox(height: AppSpacing.md),
-        const SkeletonCard(
-          children: [
-            SkeletonLine(widthFactor: 0.68),
-            SizedBox(height: AppSpacing.md),
-            SkeletonBlock(height: 72),
-          ],
-        ),
+        const SkeletonCard(height: 116, children: []),
         const SizedBox(height: AppSpacing.lg),
-        const SkeletonLine(widthFactor: 0.3, height: 18),
+        const SkeletonBlock(height: 48),
         const SizedBox(height: AppSpacing.md),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: const [
-              SizedBox(width: 128, child: _CropTileSkeleton()),
-              SizedBox(width: AppSpacing.md),
-              SizedBox(width: 128, child: _CropTileSkeleton()),
-              SizedBox(width: AppSpacing.md),
-              SizedBox(width: 128, child: _CropTileSkeleton()),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _CropTileSkeleton extends StatelessWidget {
-  const _CropTileSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    return const SkeletonCard(
-      children: [
-        SkeletonLine(widthFactor: 0.7),
-        SizedBox(height: AppSpacing.md),
-        Center(child: SkeletonBlock(height: 58, width: 58)),
-        SizedBox(height: AppSpacing.md),
-        SkeletonLine(widthFactor: 0.85),
-        SizedBox(height: AppSpacing.sm),
-        SkeletonBlock(height: 28),
+        const SkeletonLine(widthFactor: 0.34, height: 18),
+        const SizedBox(height: AppSpacing.sm),
+        const SkeletonCard(height: 96, children: []),
+        const SizedBox(height: AppSpacing.sm),
+        const SkeletonCard(height: 96, children: []),
       ],
     );
   }

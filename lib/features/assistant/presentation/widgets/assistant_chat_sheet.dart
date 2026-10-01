@@ -37,7 +37,18 @@ class _AssistantChatSheetState extends ConsumerState<AssistantChatSheet> {
     if (!mounted) {
       return;
     }
-    _messageController.clear();
+    if (ref.read(assistantControllerProvider).errorMessage == null) {
+      _messageController.clear();
+    }
+    _scrollToBottom();
+  }
+
+  Future<void> _retryLastMessage() async {
+    await ref.read(assistantControllerProvider.notifier).retryLastMessage();
+    if (!mounted) return;
+    if (ref.read(assistantControllerProvider).errorMessage == null) {
+      _messageController.clear();
+    }
     _scrollToBottom();
   }
 
@@ -83,6 +94,7 @@ class _AssistantChatSheetState extends ConsumerState<AssistantChatSheet> {
             maxHeight: MediaQuery.sizeOf(context).height * 0.78,
           ),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const AssistantHeader(),
               Expanded(
@@ -98,7 +110,12 @@ class _AssistantChatSheetState extends ConsumerState<AssistantChatSheet> {
                 ),
               ),
               if (state.errorMessage != null)
-                AssistantNotice(message: state.errorMessage!),
+                AssistantNotice(
+                  message: state.errorMessage,
+                  onRetry: state.canRetry
+                      ? _retryLastMessage
+                      : null,
+                ),
               if (state.messages.length == 1)
                 AssistantSuggestionRow(
                   suggestions: _suggestions,

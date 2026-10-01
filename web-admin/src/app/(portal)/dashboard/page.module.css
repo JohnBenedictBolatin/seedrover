@@ -28,7 +28,7 @@
 .eyebrow {
   margin: 0 0 8px;
   color: var(--green-accent);
-  font-size: 0.76rem;
+  font-size: 0.84rem;
   font-weight: 900;
   text-transform: uppercase;
 }
@@ -41,7 +41,7 @@
 }
 
 .header h1 {
-  font-size: clamp(2rem, 4vw, 3.3rem);
+  font-size: clamp(2.2rem, 4.4vw, 3.63rem);
   line-height: 1.04;
 }
 
@@ -60,14 +60,14 @@
 .liveDateTime p {
   margin: 0 0 6px;
   color: var(--text-muted);
-  font-size: 1rem;
+  font-size: 1.1rem;
   font-weight: 800;
 }
 
 .liveDateTime strong {
   color: var(--green-accent);
   font-family: var(--font-roboto-mono);
-  font-size: 1.34rem;
+  font-size: 1.47rem;
   font-weight: 900;
 }
 
@@ -82,7 +82,7 @@
   align-items: center;
   gap: 9px;
   color: var(--text-secondary);
-  font-size: 0.9rem;
+  font-size: 0.99rem;
   font-weight: 800;
 }
 
@@ -114,9 +114,9 @@
 
 .plantingPanelHeader h2,
 .plantingPanelHeader p { margin: 0; }
-.plantingPanelHeader h2 { font-size: 1.12rem; }
-.plantingPanelHeader p { margin-top: 5px; color: var(--text-muted); font-size: 0.82rem; }
-.plantingPanelHeader a { flex: 0 0 auto; color: var(--green-accent); font-size: 0.8rem; font-weight: 850; text-decoration: none; }
+.plantingPanelHeader h2 { font-size: 1.23rem; }
+.plantingPanelHeader p { margin-top: 5px; color: var(--text-muted); font-size: 0.9rem; }
+.plantingPanelHeader a { flex: 0 0 auto; color: var(--green-accent); font-size: 0.88rem; font-weight: 850; text-decoration: none; }
 
 .stageChart,
 .careCropList {
@@ -132,7 +132,7 @@
   align-items: center;
   gap: 10px;
   color: var(--text-secondary);
-  font-size: 0.84rem;
+  font-size: 0.92rem;
 }
 
 .stageBarRow > div { height: 10px; overflow: hidden; border-radius: 999px; background: rgba(var(--dashboard-green-rgb), 0.1); }
@@ -154,16 +154,16 @@
   justify-items: center;
   gap: 7px;
 }
-.harvestMonth > strong { color: var(--text-secondary); font-family: var(--font-roboto-mono); font-size: 0.8rem; }
+.harvestMonth > strong { color: var(--text-secondary); font-family: var(--font-roboto-mono); font-size: 0.88rem; }
 .harvestMonth > div { display: flex; width: min(100%, 42px); height: 100%; align-items: end; overflow: hidden; border-radius: 8px 8px 2px 2px; background: rgba(var(--dashboard-green-rgb), 0.08); }
 .harvestMonth i { display: block; width: 100%; min-height: 0; border-radius: 8px 8px 2px 2px; background: linear-gradient(180deg, var(--green-accent), var(--green-secondary)); }
-.harvestMonth > span { color: var(--text-muted); font-size: 0.75rem; font-weight: 800; }
+.harvestMonth > span { color: var(--text-muted); font-size: 0.83rem; font-weight: 800; }
 .statusChart { display: grid; gap: 18px; }
-.statusBarRow { display: grid; grid-template-columns: 10px minmax(100px, 0.55fr) minmax(0, 1fr) 24px; align-items: center; gap: 10px; color: var(--text-secondary); font-size: 0.84rem; }
+.statusBarRow { display: grid; grid-template-columns: 10px minmax(100px, 0.55fr) minmax(0, 1fr) 24px; align-items: center; gap: 10px; color: var(--text-secondary); font-size: 0.92rem; }
 .statusBarRow > span { width: 9px; height: 9px; border-radius: 50%; background: var(--green-accent); }
 .statusBarRow > span[data-status="Needs Attention"] { background: var(--warning); }
 .statusBarRow > span[data-status="Harvest Ready"] { background: #71b8ff; }
-.statusBarRow > strong { color: var(--text-secondary); font-size: 0.82rem; }
+.statusBarRow > strong { color: var(--text-secondary); font-size: 0.9rem; }
 .statusBarRow > div { height: 10px; overflow: hidden; border-radius: 999px; background: rgba(var(--dashboard-green-rgb), 0.1); }
 .statusBarRow i { display: block; height: 100%; min-width: 5px; border-radius: inherit; background: var(--green-accent); }
 .statusBarRow i[data-status="Needs Attention"] { background: var(--warning); }
@@ -173,10 +173,10 @@
 .careCropList li { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--border-soft); padding: 12px 0; }
 .careCropList li:first-child { border-top: 0; padding-top: 0; }
 .careCropList li div { display: grid; gap: 4px; min-width: 0; }
-.careCropList strong { color: var(--text); font-size: 0.9rem; }
+.careCropList strong { color: var(--text); font-size: 0.99rem; }
 .careCropList span,
 .careCropList small,
-.plantingEmpty { color: var(--text-muted); font-size: 0.8rem; }
+.plantingEmpty { color: var(--text-muted); font-size: 0.88rem; }
 .careCropList small { max-width: 45%; text-align: right; }
 .plantingEmpty { margin: 0; }
 
@@ -283,7 +283,7 @@
 }
 
 .rangePanel h2 {
-  font-size: 1.5rem;
+  font-size: 1.65rem;
 }
 
 .rangePanel span {
@@ -313,7 +313,7 @@
   border-radius: 8px;
   color: var(--text-secondary);
   background: rgba(24, 24, 24, 0.62);
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   font-weight: 900;
   text-decoration: none;
   text-transform: uppercase;
@@ -375,7 +375,7 @@
 .metric p {
   margin: 0;
   color: var(--text-muted);
-  font-size: 0.98rem;
+  font-size: 1.08rem;
   font-weight: 800;
   line-height: 1.15;
 }
@@ -383,7 +383,7 @@
 .metric strong {
   color: var(--text);
   font-family: var(--font-roboto-mono);
-  font-size: clamp(1.28rem, 1.65vw, 1.78rem);
+  font-size: clamp(1.41rem, 1.82vw, 1.96rem);
   line-height: 1.05;
   text-align: right;
 }
@@ -414,7 +414,7 @@
 }
 
 .chartHeader h2 {
-  font-size: 1.2rem;
+  font-size: 1.32rem;
 }
 
 .chartBox {
@@ -450,7 +450,7 @@
 
 .pieChartCenter span {
   color: var(--text-secondary);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -461,7 +461,7 @@
   overflow: hidden;
   color: var(--text);
   font-family: var(--font-roboto-mono);
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -503,7 +503,7 @@
 .pieLegendLabel span {
   overflow: hidden;
   color: var(--text);
-  font-size: 0.86rem;
+  font-size: 0.95rem;
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -511,14 +511,14 @@
 
 .pieLegendLabel small {
   color: var(--text-secondary);
-  font-size: 0.72rem;
+  font-size: 0.79rem;
   font-weight: 700;
 }
 
 .pieLegendItem > strong {
   color: var(--text);
   font-family: var(--font-roboto-mono);
-  font-size: 0.78rem;
+  font-size: 0.86rem;
 }
 
 .chartTooltip {
@@ -533,14 +533,14 @@
 
 .chartTooltip strong {
   color: var(--green-accent);
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   text-transform: uppercase;
 }
 
 .chartTooltip span {
   color: var(--text-secondary);
   font-family: var(--font-roboto-mono);
-  font-size: 0.82rem;
+  font-size: 0.9rem;
 }
 
 .listPanel {
@@ -568,7 +568,7 @@
   border-radius: 999px;
   color: var(--green-accent);
   background: rgba(var(--dashboard-green-secondary-rgb), 0.08);
-  font-size: 0.72rem;
+  font-size: 0.79rem;
   font-weight: 900;
   padding: 7px 10px;
   text-transform: uppercase;
@@ -604,7 +604,7 @@
 .riskItem span {
   margin: 4px 0 0;
   color: var(--text-muted);
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   font-weight: 800;
 }
 
@@ -619,14 +619,14 @@
 
 .riskQuantity strong {
   font-family: var(--font-roboto-mono);
-  font-size: 0.96rem;
+  font-size: 1.06rem;
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
 
 .riskQuantity span {
   margin: 0;
-  font-size: 0.72rem;
+  font-size: 0.79rem;
   line-height: 1;
 }
 
@@ -667,7 +667,7 @@
   border-radius: 999px;
   color: var(--warning);
   background: rgba(255, 176, 0, 0.08);
-  font-size: 0.7rem;
+  font-size: 0.77rem;
   font-style: normal;
   font-weight: 900;
   padding: 6px 9px;
@@ -742,7 +742,7 @@
 }
 
 .activityHeading strong {
-  font-size: 1rem;
+  font-size: 1.1rem;
   line-height: 1.25;
 }
 
@@ -752,7 +752,7 @@
   overflow: hidden;
   color: var(--text-muted);
   font-family: var(--font-roboto-mono);
-  font-size: 0.76rem;
+  font-size: 0.84rem;
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -769,7 +769,7 @@
 
 .activityValue strong {
   font-family: var(--font-roboto-mono);
-  font-size: 0.96rem;
+  font-size: 1.06rem;
   line-height: 1.1;
   white-space: nowrap;
 }
@@ -777,7 +777,7 @@
 .activityValue p {
   margin: 0;
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   font-weight: 700;
   line-height: 1.15;
   white-space: nowrap;
@@ -800,7 +800,7 @@
 
 .activityPagination span {
   color: var(--text-muted);
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   font-weight: 800;
 }
 
@@ -866,7 +866,7 @@
 
 .emptyState span {
   color: var(--text-muted);
-  font-size: 2rem;
+  font-size: 2.2rem;
 }
 
 .emptyState p {

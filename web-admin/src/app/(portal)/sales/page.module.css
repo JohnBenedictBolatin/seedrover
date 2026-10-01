@@ -13,7 +13,7 @@
 .eyebrow {
   margin: 0 0 8px;
   color: var(--green-accent);
-  font-size: 0.76rem;
+  font-size: 0.84rem;
   font-weight: 900;
   text-transform: uppercase;
 }
@@ -24,7 +24,7 @@
 }
 
 .header h1 {
-  font-size: clamp(2rem, 4vw, 3.3rem);
+  font-size: clamp(2.2rem, 4.4vw, 3.63rem);
   line-height: 1.04;
 }
 
@@ -43,14 +43,14 @@
 .liveDateTime p {
   margin: 0 0 6px;
   color: var(--text-muted);
-  font-size: 1rem;
+  font-size: 1.1rem;
   font-weight: 800;
 }
 
 .liveDateTime strong {
   color: var(--green-accent);
   font-family: var(--font-roboto-mono);
-  font-size: 1.34rem;
+  font-size: 1.47rem;
   font-weight: 900;
 }
 
@@ -145,7 +145,8 @@
   --record-sale-bg-hover: linear-gradient(135deg, var(--green-accent), var(--green));
   position: relative;
   display: flex;
-  width: 170px;
+  width: 210px;
+  min-width: 210px;
   min-height: 46px;
   flex: 0 0 auto;
   align-items: center;
@@ -185,8 +186,9 @@
   align-items: center;
   justify-content: center;
   padding: 0 8px;
+  white-space: nowrap;
   color: var(--green-accent);
-  font-size: 0.84rem;
+  font-size: 0.92rem;
   font-weight: 900;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -246,13 +248,13 @@
 .metricMeta p {
   margin: 0;
   color: var(--text-muted);
-  font-size: 0.98rem;
+  font-size: 1.08rem;
   font-weight: 800;
 }
 
 .metric strong {
   font-family: var(--font-roboto-mono);
-  font-size: clamp(1.85rem, 2.2vw, 2.35rem);
+  font-size: clamp(2.04rem, 2.42vw, 2.59rem);
   line-height: 1.05;
   text-align: right;
 }
@@ -325,7 +327,7 @@
   display: grid;
   gap: 7px;
   color: var(--text-secondary);
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   font-weight: 900;
 }
 
@@ -391,7 +393,7 @@
 
 .themedSelectLabel {
   color: var(--text-muted);
-  font-size: 0.72rem;
+  font-size: 0.79rem;
   font-weight: 900;
   text-transform: uppercase;
 }
@@ -433,7 +435,7 @@
   background: transparent;
   cursor: pointer;
   font: inherit;
-  font-size: 0.9rem;
+  font-size: 0.99rem;
   padding: 0 10px;
   text-align: left;
 }
@@ -479,7 +481,7 @@
 
 .salesTableHead {
   color: var(--text-muted);
-  font-size: 0.74rem;
+  font-size: 0.81rem;
   font-weight: 950;
   padding: 0 14px;
   text-transform: uppercase;
@@ -552,7 +554,7 @@
 
 .paymentCell small {
   color: var(--text-muted);
-  font-size: 0.7rem;
+  font-size: 0.77rem;
   font-weight: 700;
   line-height: 1.25;
 }
@@ -604,7 +606,7 @@
   border-radius: 999px;
   color: var(--success);
   background: rgba(65, 215, 91, 0.08);
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   font-weight: 900;
   line-height: 1;
   padding: 7px 10px;
@@ -676,7 +678,7 @@
   background: rgba(255, 255, 255, 0.03);
   cursor: pointer;
   font-family: var(--font-roboto-mono);
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   font-weight: 900;
   transition:
     border-color 0.2s ease,
@@ -732,7 +734,7 @@
 .analyticsTitle h3 {
   margin: 0;
   color: var(--text);
-  font-size: 1rem;
+  font-size: 1.1rem;
 }
 
 .analyticsRows {
@@ -746,7 +748,7 @@
   gap: 10px;
   align-items: center;
   color: var(--text-secondary);
-  font-size: 0.86rem;
+  font-size: 0.95rem;
   font-weight: 850;
 }
 
@@ -893,7 +895,7 @@
 .marketItemsHead,
 .marketRemarks span {
   color: var(--text-muted);
-  font-size: 0.74rem;
+  font-size: 0.81rem;
   font-weight: 950;
   text-transform: uppercase;
 }
@@ -901,7 +903,7 @@
 .marketDetailHero strong {
   color: var(--text);
   font-family: var(--font-roboto-mono);
-  font-size: 1.45rem;
+  font-size: 1.6rem;
 }
 
 .marketDetailGrid {
@@ -1442,7 +1444,7 @@
     content: attr(data-label);
     color: var(--text-muted);
     font-family: inherit;
-    font-size: .66rem;
+    font-size: 0.73rem;
     font-weight: 900;
     letter-spacing: .04em;
     text-transform: uppercase;

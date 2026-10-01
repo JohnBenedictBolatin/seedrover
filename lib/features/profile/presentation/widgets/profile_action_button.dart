@@ -24,17 +24,17 @@ class ProfileActionButton extends StatelessWidget {
     return OutlinedButton.icon(
       onPressed: onPressed,
       icon: Icon(icon, size: 15, color: color),
-      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+      label: Text(label),
       style: OutlinedButton.styleFrom(
         backgroundColor: AppColors.cardBackground,
         foregroundColor: color,
-        minimumSize: const Size(0, 36),
+        minimumSize: const Size(0, 48),
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
         side: BorderSide(color: color),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.sm),
         ),
-        textStyle: AppTypography.statusBadge,
+        textStyle: AppTypography.small,
       ),
     );
   }

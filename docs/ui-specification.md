@@ -60,13 +60,12 @@ Instead, use them only as references for motion, transitions, spacing, and polis
 
 # Theme
 
-Dark Mode First
+Light-led, with an equally considered dark theme.
 
-SeedRover is designed primarily for dark mode.
-
-All interfaces should assume a dark environment.
-
-Light mode is not required during initial development.
+New installs start in light mode. Existing saved theme preferences remain in effect.
+Use warm ivory backgrounds, white surfaces, forest green actions, deep green text,
+and restrained sage, sky, sunflower, and lilac section accents. Dark mode uses
+deep botanical backgrounds and layered green-gray surfaces.
 
 # Design Principles
 
@@ -99,39 +98,39 @@ Only the information relevant to the user's current task should receive visual e
 
 Primary Background
 
-#1B1B1B
+#F7F8F2
 
 Secondary Background
 
-#252525
+#FFFFFF
 
 Card Background
 
-#313131
+#F0F4EB
 
 Primary Border
 
-#53D11E
+#246B45
 
 Inactive Border
 
-#505050
+#DCE5D7
 
 Primary Text
 
-#FFFFFF
+#183329
 
 Secondary Text
 
-#D4D4D4
+#506453
 
 Muted Text
 
-#9A9A9A
+#687764
 
 Primary Green
 
-#53D11E
+#246B45
 
 Secondary Green
 
@@ -323,10 +322,6 @@ Secondary
 
 Sensor information
 
-Battery
-
-Seed level
-
 Connection
 
 Tertiary
@@ -441,9 +436,7 @@ Includes:
 
 • Environmental temperature
 
-• Battery percentage
 
-• Seed level percentage
 
 • Robot status
 
@@ -837,15 +830,11 @@ Weight
 
 Usage
 
-Battery
-
 Moisture
 
 Temperature
 
 Humidity
-
-Seed Percentage
 
 ---
 
@@ -985,13 +974,11 @@ This prevents layout shifting during live updates.
 
 Examples include:
 
-• Battery percentage
 
 • Temperature
 
 • Soil moisture
 
-• Seed level
 
 • Inventory count
 
@@ -1135,9 +1122,7 @@ Primary Sections
 
 • Live Sensor Values
 
-• Battery Level
 
-• Seed Level
 
 • Current Activity
 
@@ -1167,7 +1152,6 @@ Display
 
 • Camera Status
 
-• Battery
 
 • Soil Moisture
 
@@ -1175,7 +1159,6 @@ Display
 
 • Humidity
 
-• Seed Level
 
 The interface should always prioritize camera visibility during manual operation.
 
@@ -1421,8 +1404,6 @@ Staggered appearance
 # Live Data
 
 Sensor values should animate.
-
-Battery percentages should animate.
 
 Progress indicators should animate.
 

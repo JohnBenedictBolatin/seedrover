@@ -1,147 +1,66 @@
 # SeedRover Web Admin
 
-Fresh Next.js admin console for SeedRover farm managers and system administrators.
+The web admin is the office-facing management portal for SeedRover. It is a Next.js application backed by Supabase Auth, PostgreSQL, Storage, and Edge Functions. Rover pages provide status and activity monitoring; rover operation is handled by the mobile app.
 
-This website is intentionally focused on:
+## Features
 
-- sales and inventory management
-- receipt-ready multi-item transactions
-- customer details, discounts, and payment methods
-- sales-derived customer tracking
-- crop supervision
-- read-only rover status and activity monitoring
-- role-based access for farm/admin responsibilities
-- admin-only existing user profile management
-- admin notification supervision
-- admin activity log auditing
+- Operational dashboards and activity history
+- Crop monitoring and crop outcomes
+- Inventory, stock movement, sales, receipts, and payment collection
+- Customer profiles, discounts, investments, and reports/exports
+- Role-scoped notifications and user administration
+- Read-only rover status, sensor, and command history
+- Rovie assistant and farm weather integrations when configured
 
-The mobile app remains the field-first SeedRover experience. This web app is the office/manager console.
+## Requirements
 
-## Run Locally
+- Node.js `22.x`
+- npm
+- A configured Supabase project and an authorized user account
 
-This workspace currently uses the portable Node runtime stored in `../tmp/node-runtime/`.
+## Local development
 
-Create `web-admin/.env.local` with the same Supabase project values used by the mobile app:
+Create `.env.local` in this directory. The `.env.example` template lists the supported settings:
 
 ```text
-NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-SUPABASE_SERVICE_ROLE_KEY=...
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY
+SITE_URL
+WEATHERAPI_API_KEY (optional)
+OPENAI_API_KEY (optional)
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` is server-only and is required for System Administrator
-user creation. Never prefix it with `NEXT_PUBLIC_`.
+The service-role key is server-only. Never prefix it with `NEXT_PUBLIC_`. Weather and external AI keys are optional; current Edge Function providers and server configuration are described in the deployment documentation.
 
-```powershell
-$nodeRoot = Resolve-Path '..\tmp\node-runtime\node-v24.18.0-win-x64'
-$env:PATH = "$nodeRoot;$env:PATH"
+Install and run:
+
+```sh
+npm ci
 npm run dev
 ```
 
-Then open:
+Open <http://localhost:3000>. The Supabase project must have the required migrations, Auth configuration, and Row Level Security policies applied for authenticated workflows to work.
 
-```text
-http://localhost:3000
-```
+## Verification
 
-Useful routes:
-
-```text
-/login
-/dashboard
-```
-
-## Verify
-
-```powershell
+```sh
+npm run check:tracked-secrets
 npm run lint
 npm run build
 ```
 
-The UI uses local/system font fallbacks so builds do not depend on downloading remote font files.
+`npm run verify` runs lint and the production build. `npm run check:shared-workflows` checks the generated shared workflow contract, and `npm run test:input-contract` runs the contact number contract tests.
 
-## Production Auth Checklist
+## Database and deployment
 
-Before deploying publicly:
+Apply timestamped files from `../supabase/migrations/` in order to the intended project. Use staging for release validation. Edge Functions live in `../supabase/functions/`; their secrets belong in Supabase, not in browser environment variables.
 
-1. Apply every file in `../supabase/migrations` to the production Supabase project.
-2. Confirm Row Level Security is enabled on production tables, especially:
-   - `profiles`
-   - `roles`
-   - `inventory`
-   - `inventory_transactions`
-   - `sales_transactions`
-   - `sales_orders`
-   - `sales_order_items`
-   - `customers`
-   - `customer_discounts`
-   - `crops`
-   - `notifications`
-   - `activity_logs`
-3. In Vercel, set these environment variables for the `web-admin` project:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY`
-   - `SITE_URL` (the canonical public web-admin origin, such as `https://farm.example.com`)
-   - `OPENAI_API_KEY`, if Rovie uses an external AI provider
-4. In Supabase Auth URL configuration, set:
-   - Site URL: your Vercel production URL
-   - Redirect URLs:
-     - the exact `${SITE_URL}/auth/recovery` URL (for example `https://your-domain.vercel.app/auth/recovery`)
-     - the exact `${SITE_URL}/login` URL (for example `https://your-domain.vercel.app/login`)
-     - the exact `${SITE_URL}/dashboard` URL (for example `https://your-domain.vercel.app/dashboard`)
-     - `http://localhost:3000/auth/recovery` for local recovery testing
-     - your custom production domain equivalents, if used
-5. Keep `web-admin/.env.local` local only. Do not commit real secrets.
+For Vercel, set the project root to `web-admin`, use Node.js `22.x`, install with `npm ci`, and build with `npm run build`. Set `SITE_URL` to the canonical site origin and configure the matching Supabase Auth redirect URLs. Follow the full [Vercel deployment guide](../docs/web-admin-vercel-deployment.md) and [staging checklist](../docs/web-admin-staging-checklist.md) before a release.
 
-Password recovery uses `SITE_URL` as its redirect origin and returns through
-`/auth/recovery` before opening the dedicated `/reset-password` page. Vercel's
-`VERCEL_URL` is used when `SITE_URL` is unset; local development can use the
-request host. Production reset requests fail safely if neither production
-origin is configured.
+## Related documentation
 
-## Build Order
-
-1. Foundation UI and routing
-2. Supabase connection and admin authentication
-3. Role-based portal access
-4. Inventory items, batches, stock movements, and low-stock alerts
-5. Sales transaction builder with customer details, discounts, payments, and receipts
-6. Reports and exports for CSV, Excel, PDF, and print
-7. Crop supervision pages
-8. Read-only rover status/activity pages
-9. Deployment to Vercel with `web-admin` as the project root
-
-## Database Notes
-
-Multi-item web sales require the migration:
-
-```text
-../supabase/migrations/20260714090000_sales_orders.sql
-```
-
-Apply it to Supabase before recording web sales. The page can load before the migration, but submitting a receipt needs the `record_sales_order` RPC.
-
-For staging/demo testing, use:
-
-```text
-../docs/web-admin-staging-checklist.md
-../supabase/seed_demo_data.sql
-```
-
-## Exports
-
-Reports are available at:
-
-```text
-/reports
-```
-
-Current export formats:
-
-- Inventory CSV: `/api/exports/inventory.csv`
-- Inventory Excel-compatible file: `/api/exports/inventory.xls`
-- Sales CSV: `/api/exports/sales.csv`
-- Sales Excel-compatible file: `/api/exports/sales.xls`
-- Inventory PDF: open `/reports/inventory/print`, then print or save as PDF
-- Sales PDF: open `/reports/sales/print`, then print or save as PDF
+- [SeedRover repository overview](../README.md)
+- [Documentation index](../docs/README.md)
+- [Vercel deployment guide](../docs/web-admin-vercel-deployment.md)
+- [Staging checklist](../docs/web-admin-staging-checklist.md)

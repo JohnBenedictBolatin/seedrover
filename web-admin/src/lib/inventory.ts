@@ -25,6 +25,29 @@ export type InventoryItem = {
   createdAt: string;
   transactions: InventoryTransaction[];
   sales: InventorySale[];
+  spoilageProfileId: string | null;
+  batches: InventoryBatch[];
+};
+
+export type InventoryBatch = {
+  id: string;
+  sourceTransactionId: string | null;
+  originType: "opening" | "receipt" | "harvest" | "adjustment" | "reversal" | "historical";
+  initialQuantity: number;
+  remainingQuantity: number;
+  receivedOn: string;
+  harvestOn: string | null;
+  ageKnown: boolean;
+  profileId: string | null;
+  profileName: string | null;
+  dateBasis: string;
+  referenceVersion: number | null;
+  referenceDays: number | null;
+  referenceSourceTitle: string | null;
+  referenceSource: string | null;
+  referenceConditions: string | null;
+  referenceNote: string | null;
+  estimatedSpoilageOn: string | null;
 };
 
 export type InventorySummary = {
@@ -45,11 +68,34 @@ export type SalesSummary = {
 export type InventoryTransaction = {
   id: string;
   inventoryId: string;
-  type: "IN" | "OUT" | "ADJUSTMENT";
+  type: "IN" | "OUT" | "ADJUSTMENT" | "OPENING" | "HISTORICAL";
   quantity: number;
   remarks: string;
   source: string;
-  createdAt: string;
+  createdAt: string | null;
+  batch: InventoryBatch | null;
+  allocatedBatches: InventoryBatchAllocation[];
+};
+
+export type InventoryBatchAllocation = {
+  batchId: string;
+  quantity: number;
+  originType: InventoryBatch["originType"] | null;
+  initialQuantity: number | null;
+  remainingQuantity: number | null;
+  ageKnown: boolean;
+  receivedOn: string | null;
+  harvestOn: string | null;
+  dateBasis: string;
+  profileId: string | null;
+  profileName: string | null;
+  referenceVersion: number | null;
+  referenceDays: number | null;
+  referenceSourceTitle: string | null;
+  referenceSource: string | null;
+  referenceConditions: string | null;
+  referenceNote: string | null;
+  estimatedSpoilageOn: string | null;
 };
 
 export type InventorySale = {
@@ -81,6 +127,59 @@ type InventoryRow = {
   image_path: string | null;
   updated_at: string;
   created_at: string;
+  spoilage_profile_id: string | null;
+};
+
+type MovementBatchDetailsRow = {
+  event_id: string;
+  movement_id: string | null;
+  inventory_id: string;
+  event_kind: "movement" | "opening" | "historical";
+  transaction_type: "IN" | "OUT" | "ADJUSTMENT" | null;
+  quantity: number | string;
+  remarks: string | null;
+  source: string | null;
+  source_id: string | null;
+  created_at: string | null;
+  performed_by: string | null;
+  performed_by_name: string | null;
+  batch_id: string | null;
+  batch_origin: InventoryBatch["originType"] | null;
+  batch_initial_quantity: number | string | null;
+  batch_remaining_quantity: number | string | null;
+  batch_received_on: string | null;
+  batch_harvest_on: string | null;
+  batch_age_known: boolean | null;
+  batch_profile_id: string | null;
+  batch_profile_name: string | null;
+  batch_date_basis: string;
+  batch_reference_version: number | string | null;
+  batch_reference_days: number | string | null;
+  batch_reference_source_title: string | null;
+  batch_reference_source_url: string | null;
+  batch_reference_conditions: string | null;
+  batch_reference_note: string | null;
+  batch_estimated_spoilage_on: string | null;
+  allocated_batches: Array<{
+    batch_id: string;
+    quantity: number | string;
+    origin_type: InventoryBatch["originType"] | null;
+    initial_quantity: number | string | null;
+    remaining_quantity: number | string | null;
+    age_known: boolean;
+    received_on: string | null;
+    harvest_on: string | null;
+    date_basis: string;
+    profile_id: string | null;
+    profile_name: string | null;
+    reference_version: number | string | null;
+    reference_days: number | string | null;
+    reference_source_title: string | null;
+    reference_source_url: string | null;
+    reference_conditions: string | null;
+    reference_note: string | null;
+    estimated_spoilage_on: string | null;
+  }> | null;
 };
 
 type SaleRow = {
@@ -143,16 +242,6 @@ type SalesOrderTotalRow = {
   total_amount: number | string;
   sale_date: string;
   status: string;
-};
-
-type TransactionRow = {
-  id: string;
-  inventory_id: string;
-  transaction_type: "IN" | "OUT" | "ADJUSTMENT";
-  quantity: number | string;
-  remarks: string | null;
-  source: string | null;
-  created_at: string;
 };
 
 function toNumber(value: number | string | null | undefined) {
@@ -238,7 +327,7 @@ export async function getInventoryDashboard() {
   try {
     inventoryRows = await fetchAllPages<InventoryRow>((from, to) => supabase
       .from("inventory")
-      .select("id, stock_code, item_name, category, quantity, unit, minimum_quantity, storage_location, unit_cost, selling_price, image_path, notes, created_at, updated_at")
+      .select("id, stock_code, item_name, category, quantity, unit, minimum_quantity, storage_location, unit_cost, selling_price, image_path, notes, spoilage_profile_id, created_at, updated_at")
       .order("item_name", { ascending: true })
       .order("id", { ascending: true })
       .range(from, to)
@@ -254,20 +343,85 @@ export async function getInventoryDashboard() {
 
   const inventoryIds = inventoryRows.map((row) => row.id);
 
-  let transactionRows: TransactionRow[] = [];
+  let transactionRows: MovementBatchDetailsRow[] = [];
   try {
     if (inventoryIds.length) {
-      transactionRows = await fetchAllPages<TransactionRow>((from, to) => supabase
-        .from("inventory_transactions")
-        .select("id, inventory_id, transaction_type, quantity, remarks, source, created_at")
+      transactionRows = await fetchAllPages<MovementBatchDetailsRow>((from, to) => supabase
+        .from("inventory_movement_batch_details")
+        .select("*")
         .in("inventory_id", inventoryIds)
-        .order("created_at", { ascending: false })
-        .order("id", { ascending: true })
+        .order("created_at", { ascending: false, nullsFirst: false })
+        .order("event_id", { ascending: true })
         .range(from, to)
-        .returns<TransactionRow[]>());
+        .returns<MovementBatchDetailsRow[]>());
     }
   } catch (error) {
-    return { items: [], summary: null, sales: null, error: error instanceof Error ? error.message : "Inventory transaction history is unavailable." };
+    return { items: [], summary: null, sales: null, error: error instanceof Error ? error.message : "Inventory movement and batch history is unavailable." };
+  }
+
+  const batchesByItem = new Map<string, InventoryBatch[]>();
+  const transactionById = new Map<string, InventoryTransaction>();
+  for (const row of transactionRows) {
+    let batch: InventoryBatch | null = null;
+    if (row.batch_id && row.batch_origin && row.batch_received_on) {
+      batch = {
+        id: row.batch_id,
+        sourceTransactionId: row.movement_id,
+        originType: row.batch_origin,
+        initialQuantity: toNumber(row.batch_initial_quantity),
+        remainingQuantity: toNumber(row.batch_remaining_quantity),
+        receivedOn: row.batch_received_on,
+        harvestOn: row.batch_harvest_on,
+        ageKnown: row.batch_age_known ?? false,
+        profileId: row.batch_profile_id,
+        profileName: row.batch_profile_name,
+        dateBasis: row.batch_date_basis,
+        referenceVersion: row.batch_reference_version == null ? null : toNumber(row.batch_reference_version),
+        referenceDays: row.batch_reference_days == null ? null : toNumber(row.batch_reference_days),
+        referenceSourceTitle: row.batch_reference_source_title,
+        referenceSource: row.batch_reference_source_url,
+        referenceConditions: row.batch_reference_conditions,
+        referenceNote: row.batch_reference_note,
+        estimatedSpoilageOn: row.batch_estimated_spoilage_on,
+      };
+      const existing = batchesByItem.get(row.inventory_id) ?? [];
+      if (!existing.some((entry) => entry.id === batch!.id)) {
+        batchesByItem.set(row.inventory_id, [...existing, batch]);
+      }
+    }
+
+    const isMovement = row.event_kind === "movement" && row.movement_id !== null;
+    const transaction: InventoryTransaction = {
+      id: row.event_id,
+      inventoryId: row.inventory_id,
+      type: isMovement ? row.transaction_type ?? "ADJUSTMENT" : row.event_kind === "opening" ? "OPENING" : "HISTORICAL",
+      quantity: toNumber(isMovement ? row.quantity : row.batch_initial_quantity ?? row.quantity),
+      remarks: row.remarks ?? "No remarks.",
+      source: row.source ?? "batch",
+      createdAt: row.created_at,
+      batch,
+      allocatedBatches: (row.allocated_batches ?? []).map((allocation) => ({
+        batchId: allocation.batch_id,
+        quantity: toNumber(allocation.quantity),
+        originType: allocation.origin_type,
+        initialQuantity: allocation.initial_quantity == null ? null : toNumber(allocation.initial_quantity),
+        remainingQuantity: allocation.remaining_quantity == null ? null : toNumber(allocation.remaining_quantity),
+        ageKnown: allocation.age_known,
+        receivedOn: allocation.received_on,
+        harvestOn: allocation.harvest_on,
+        dateBasis: allocation.date_basis,
+        profileId: allocation.profile_id,
+        profileName: allocation.profile_name,
+        referenceVersion: allocation.reference_version == null ? null : toNumber(allocation.reference_version),
+        referenceDays: allocation.reference_days == null ? null : toNumber(allocation.reference_days),
+        referenceSourceTitle: allocation.reference_source_title,
+        referenceSource: allocation.reference_source_url,
+        referenceConditions: allocation.reference_conditions,
+        referenceNote: allocation.reference_note,
+        estimatedSpoilageOn: allocation.estimated_spoilage_on,
+      })),
+    };
+    transactionById.set(row.event_id, transaction);
   }
 
   let itemSaleRows: SaleRow[] = [];
@@ -332,19 +486,9 @@ export async function getInventoryDashboard() {
   }
 
   const transactionsByItem = new Map<string, InventoryTransaction[]>();
-  for (const row of transactionRows ?? []) {
-    const transaction: InventoryTransaction = {
-      id: row.id,
-      inventoryId: row.inventory_id,
-      type: row.transaction_type,
-      quantity: toNumber(row.quantity),
-      remarks: row.remarks ?? "No remarks.",
-      source: row.source ?? "manual",
-      createdAt: row.created_at,
-    };
-
-    transactionsByItem.set(row.inventory_id, [
-      ...(transactionsByItem.get(row.inventory_id) ?? []),
+  for (const transaction of transactionById.values()) {
+    transactionsByItem.set(transaction.inventoryId, [
+      ...(transactionsByItem.get(transaction.inventoryId) ?? []),
       transaction,
     ]);
   }
@@ -403,6 +547,8 @@ export async function getInventoryDashboard() {
     updatedAt: row.updated_at,
     transactions: transactionsByItem.get(row.id) ?? [],
     sales: salesByItem.get(row.id) ?? [],
+    spoilageProfileId: row.spoilage_profile_id ?? null,
+    batches: batchesByItem.get(row.id) ?? [],
   }));
 
   const summary: InventorySummary = {

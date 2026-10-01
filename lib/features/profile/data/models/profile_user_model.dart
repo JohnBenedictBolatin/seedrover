@@ -2,14 +2,12 @@ import 'dart:typed_data';
 
 enum ProfileAccountStatus {
   active,
-  inactive,
-  suspended;
+  inactive;
 
   String get label {
     return switch (this) {
       ProfileAccountStatus.active => 'Active',
       ProfileAccountStatus.inactive => 'Inactive',
-      ProfileAccountStatus.suspended => 'Suspended',
     };
   }
 }
@@ -61,6 +59,9 @@ class ProfileUserModel {
     required this.roleName,
     required this.dateJoined,
     required this.status,
+    this.firstName,
+    this.middleInitial,
+    this.lastName,
     this.profileImagePath,
     this.profileImageUrl,
     this.hasProfilePicture = true,
@@ -75,14 +76,20 @@ class ProfileUserModel {
   final String roleName;
   final DateTime dateJoined;
   final ProfileAccountStatus status;
+  final String? firstName;
+  final String? middleInitial;
+  final String? lastName;
   final String? profileImagePath;
   final String? profileImageUrl;
   final bool hasProfilePicture;
 
-  bool get isOnline => status == ProfileAccountStatus.active;
+  bool get isActive => status == ProfileAccountStatus.active;
 
   ProfileUserModel copyWith({
     String? fullName,
+    String? firstName,
+    String? middleInitial,
+    String? lastName,
     String? contactNumber,
     String? roleName,
     ProfileAccountStatus? status,
@@ -94,6 +101,9 @@ class ProfileUserModel {
       id: id,
       employeeId: employeeId,
       fullName: fullName ?? this.fullName,
+      firstName: firstName ?? this.firstName,
+      middleInitial: middleInitial ?? this.middleInitial,
+      lastName: lastName ?? this.lastName,
       username: username,
       email: email,
       contactNumber: contactNumber ?? this.contactNumber,

@@ -155,9 +155,9 @@ void setupCamera() {
 void setup() {
   Serial.begin(115200);
   setupCamera();
-  if (!connectToRover()) {
-    Serial.println("Could not join SeedRover-01. Check the camera password.");
-    while (true) delay(1000);
+  while (!connectToRover()) {
+    Serial.println("Could not join SeedRover-01. Check the camera password; retrying in 5 seconds.");
+    delay(5000);
   }
 
   server.on("/", HTTP_GET, handleRoot);

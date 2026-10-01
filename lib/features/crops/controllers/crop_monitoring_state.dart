@@ -2,18 +2,16 @@ import '../data/models/crop_model.dart';
 
 enum CropFilterType {
   all,
-  healthy,
-  needsWater,
-  needsFertilizer,
+  active,
+  needsAttention,
   readyForHarvest,
   harvested;
 
   String get label {
     return switch (this) {
       CropFilterType.all => 'All',
-      CropFilterType.healthy => 'Healthy',
-      CropFilterType.needsWater => 'Needs Water',
-      CropFilterType.needsFertilizer => 'Needs Fertilizer',
+      CropFilterType.active => 'Active',
+      CropFilterType.needsAttention => 'Needs Attention',
       CropFilterType.readyForHarvest => 'Harvest Ready',
       CropFilterType.harvested => 'Harvested',
     };
@@ -129,11 +127,12 @@ class CropMonitoringState {
   List<DateTime> get harvestDates {
     return {
       for (final crop in crops)
-        DateTime(
-          crop.estimatedHarvest.year,
-          crop.estimatedHarvest.month,
-          crop.estimatedHarvest.day,
-        ),
+        if (crop.estimatedHarvest != null)
+          DateTime(
+            crop.estimatedHarvest!.year,
+            crop.estimatedHarvest!.month,
+            crop.estimatedHarvest!.day,
+          ),
     }.toList()
       ..sort((left, right) => right.compareTo(left));
   }

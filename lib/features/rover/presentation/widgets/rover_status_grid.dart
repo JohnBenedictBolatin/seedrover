@@ -25,18 +25,6 @@ class RoverStatusGrid extends StatelessWidget {
         runSpacing: 3,
         children: [
           _CompactStatusPill(
-            label: 'BAT',
-            value: '${telemetry.batteryLevel}%',
-            icon: CupertinoIcons.battery_100,
-            color: AppColors.primaryGreen,
-          ),
-          _CompactStatusPill(
-            label: 'SEED',
-            value: '${telemetry.seedLevel}%',
-            icon: CupertinoIcons.circle_grid_hex,
-            color: AppColors.accentGreen,
-          ),
-          _CompactStatusPill(
             label: 'WIFI',
             value: telemetry.wifiConnected ? 'ON' : 'OFF',
             icon: CupertinoIcons.wifi,
@@ -59,18 +47,6 @@ class RoverStatusGrid extends StatelessWidget {
     }
 
     final cards = [
-      RoverStatusCard(
-        label: 'Battery',
-        value: '${telemetry.batteryLevel}%',
-        icon: CupertinoIcons.battery_100,
-        color: AppColors.primaryGreen,
-      ),
-      RoverStatusCard(
-        label: 'Seed Level',
-        value: '${telemetry.seedLevel}%',
-        icon: CupertinoIcons.circle_grid_hex,
-        color: AppColors.accentGreen,
-      ),
       RoverStatusCard(
         label: 'Wi-Fi',
         value: telemetry.wifiConnected ? 'Online' : 'Offline',
@@ -146,7 +122,7 @@ class _CompactStatusPill extends StatelessWidget {
             const SizedBox(width: 3),
             Text(
               '$label $value',
-              style: AppTypography.monoCaption.copyWith(fontSize: 10),
+              style: AppTypography.numericCaption.copyWith(fontSize: 10),
             ),
           ],
         ),

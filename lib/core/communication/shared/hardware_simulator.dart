@@ -20,14 +20,9 @@ class HardwareSimulator {
   void Function()? onConnectionLost;
   HardwareSimulatorState _state = HardwareSimulatorState.initial();
   Timer? _sensorTimer;
-  Timer? _drainTimer;
   Timer? _cameraTimer;
   Timer? _plantingTimer;
   Timer? _randomErrorTimer;
-  bool _lowBatterySent = false;
-  bool _criticalBatterySent = false;
-  bool _lowSeedSent = false;
-  bool _outOfSeedSent = false;
   bool _running = false;
   bool _disposed = false;
 
@@ -45,10 +40,6 @@ class HardwareSimulator {
       const Duration(seconds: 3),
       (_) => _updateSensors(),
     );
-    _drainTimer = Timer.periodic(
-      const Duration(seconds: 4),
-      (_) => _drainBattery(),
-    );
     _cameraTimer = Timer.periodic(
       const Duration(seconds: 5),
       (_) => _advanceCameraFrame(),
@@ -62,7 +53,6 @@ class HardwareSimulator {
   void dispose() {
     _disposed = true;
     _sensorTimer?.cancel();
-    _drainTimer?.cancel();
     _cameraTimer?.cancel();
     _plantingTimer?.cancel();
     _randomErrorTimer?.cancel();
@@ -101,12 +91,6 @@ class HardwareSimulator {
       CommunicationCommandType.emergencyStop => _emergencyStop(command),
       CommunicationCommandType.statusRequest => _statusPayload(),
       CommunicationCommandType.sensorRequest => _sensorPayload(),
-      CommunicationCommandType.batteryRequest => {
-          'battery_level': _state.batteryLevel,
-        },
-      CommunicationCommandType.seedLevelRequest => {
-          'seed_level': _state.seedLevel,
-        },
       CommunicationCommandType.startCamera => _setCamera(command, 'Loading'),
       CommunicationCommandType.stopCamera => _setCamera(command, 'Disconnected'),
       CommunicationCommandType.refreshCamera => _refreshCamera(command),
@@ -122,30 +106,6 @@ class HardwareSimulator {
       if (payload != null) 'data': payload,
       if (payload == null) 'message': 'Unsupported command.',
     });
-  }
-
-  void setBatteryLevel(int value) {
-    _emit(_state.copyWith(batteryLevel: value.clamp(0, 100).toInt()));
-    _evaluateBatteryNotifications();
-  }
-
-  void rechargeBattery() {
-    _lowBatterySent = false;
-    _criticalBatterySent = false;
-    _emit(_state.copyWith(
-      batteryLevel: 100,
-      lastError: null,
-    ));
-    _recordActivity(
-      CommunicationCommandType.batteryRequest,
-      'Battery Recharged',
-      'Simulator battery was manually recharged.',
-    );
-  }
-
-  void setSeedLevel(int value) {
-    _emit(_state.copyWith(seedLevel: value.clamp(0, 100).toInt()));
-    _evaluateSeedNotifications();
   }
 
   void setCurrentActivity(String value) {
@@ -164,14 +124,6 @@ class HardwareSimulator {
       environmentTemperature: environmentTemperature?.clamp(18, 45).toDouble(),
       humidity: humidity?.clamp(30, 95).toDouble(),
     ));
-  }
-
-  void triggerLowBattery() {
-    setBatteryLevel(19);
-  }
-
-  void triggerCriticalBattery() {
-    setBatteryLevel(8);
   }
 
   void triggerConnectionLost() {
@@ -253,11 +205,9 @@ class HardwareSimulator {
 
   Map<String, Object?> _startPlanting(CommunicationCommand command) {
     final seedName = command.payload['seed_name'] as String? ?? 'selected seed';
-    final nextSeedLevel = (_state.seedLevel - 8).clamp(0, 100).toInt();
     _emit(_state.copyWith(
       currentActivity: 'Planting $seedName',
       plantingStatus: 'Planting Started',
-      seedLevel: nextSeedLevel,
       isMoving: false,
       isPlanting: true,
       lastError: null,
@@ -267,7 +217,6 @@ class HardwareSimulator {
       'Planting Started',
       'Simulated planting operation started for $seedName.',
     );
-    _evaluateSeedNotifications();
     _plantingTimer?.cancel();
     _plantingTimer = Timer(const Duration(seconds: 12), _completePlanting);
 
@@ -275,7 +224,6 @@ class HardwareSimulator {
       'planting_status': _state.plantingStatus,
       'seed_name': seedName,
       'seed_type': command.payload['seed_type'],
-      'seed_level': _state.seedLevel,
       'current_activity': _state.currentActivity,
     };
   }
@@ -385,8 +333,6 @@ class HardwareSimulator {
 
   Map<String, Object?> _statusPayload() {
     return {
-      'battery_level': _state.batteryLevel,
-      'seed_level': _state.seedLevel,
       'current_activity': _state.currentActivity,
       'planting_status': _state.plantingStatus,
       'wifi_connected': true,
@@ -446,28 +392,6 @@ class HardwareSimulator {
     );
   }
 
-  void _drainBattery() {
-    var drain = 0;
-    if (_state.isMoving) {
-      drain += 1;
-    }
-    if (_state.isPlanting) {
-      drain += 1;
-    }
-    if (_state.cameraStatus == 'Connected') {
-      drain += 1;
-    }
-
-    if (drain == 0 || _state.batteryLevel == 0) {
-      return;
-    }
-
-    _emit(_state.copyWith(
-      batteryLevel: (_state.batteryLevel - drain).clamp(0, 100).toInt(),
-    ));
-    _evaluateBatteryNotifications();
-  }
-
   void _advanceCameraFrame() {
     if (_state.cameraStatus != 'Connected') {
       return;
@@ -491,56 +415,6 @@ class HardwareSimulator {
       triggerCameraFailure();
     } else if (roll < 6) {
       triggerSensorFailure();
-    }
-  }
-
-  void _evaluateBatteryNotifications() {
-    if (_state.batteryLevel <= 10 && !_criticalBatterySent) {
-      _criticalBatterySent = true;
-      _addNotification(
-        title: 'Critical Battery',
-        message: 'SeedRover simulator battery is critically low.',
-        type: 'critical_battery',
-        relatedModule: 'rover',
-        actionRoute: '/rover',
-      );
-      return;
-    }
-
-    if (_state.batteryLevel <= 20 && !_lowBatterySent) {
-      _lowBatterySent = true;
-      _addNotification(
-        title: 'Low Battery',
-        message: 'SeedRover simulator battery is getting low.',
-        type: 'low_battery',
-        relatedModule: 'rover',
-        actionRoute: '/rover',
-      );
-    }
-  }
-
-  void _evaluateSeedNotifications() {
-    if (_state.seedLevel == 0 && !_outOfSeedSent) {
-      _outOfSeedSent = true;
-      _addNotification(
-        title: 'Out of Seed',
-        message: 'The simulated seed container is empty.',
-        type: 'out_of_seed',
-        relatedModule: 'inventory',
-        actionRoute: '/stocks',
-      );
-      return;
-    }
-
-    if (_state.seedLevel <= 20 && !_lowSeedSent) {
-      _lowSeedSent = true;
-      _addNotification(
-        title: 'Low Seed Level',
-        message: 'The simulated seed container is running low.',
-        type: 'low_seed',
-        relatedModule: 'inventory',
-        actionRoute: '/stocks',
-      );
     }
   }
 
@@ -600,8 +474,6 @@ class HardwareSimulator {
     return switch (type) {
       CommunicationCommandType.statusRequest ||
       CommunicationCommandType.sensorRequest ||
-      CommunicationCommandType.batteryRequest ||
-      CommunicationCommandType.seedLevelRequest ||
       CommunicationCommandType.ping =>
         const Duration(milliseconds: 180),
       CommunicationCommandType.startCamera => const Duration(milliseconds: 260),

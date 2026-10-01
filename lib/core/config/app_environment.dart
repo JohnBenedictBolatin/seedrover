@@ -7,9 +7,10 @@ class AppEnvironment {
     required this.roverToken,
     required this.roverBaseUrl,
     required this.cameraBaseUrl,
+    this.webAdminUrl = '',
   });
 
-  factory AppEnvironment.fromDotEnv(Map<String, String> values) {
+  factory AppEnvironment.fromValues(Map<String, String> values) {
     final supabaseUrl = values['SUPABASE_URL'];
     final supabaseAnonKey = values['SUPABASE_ANON_KEY'];
 
@@ -29,14 +30,25 @@ class AppEnvironment {
       roverToken: values['ROVER_TOKEN']?.trim() ?? '',
       roverBaseUrl: values['ROVER_BASE_URL']?.trim() ?? '',
       cameraBaseUrl: values['CAMERA_BASE_URL']?.trim() ?? '',
+      webAdminUrl: values['WEB_ADMIN_URL']?.trim() ?? '',
     );
   }
+
+  factory AppEnvironment.fromDartDefines() => AppEnvironment.fromValues({
+        'SUPABASE_URL': const String.fromEnvironment('SUPABASE_URL'),
+        'SUPABASE_ANON_KEY': const String.fromEnvironment('SUPABASE_ANON_KEY'),
+        'ROVER_TOKEN': const String.fromEnvironment('ROVER_TOKEN'),
+        'ROVER_BASE_URL': const String.fromEnvironment('ROVER_BASE_URL'),
+        'CAMERA_BASE_URL': const String.fromEnvironment('CAMERA_BASE_URL'),
+        'WEB_ADMIN_URL': const String.fromEnvironment('WEB_ADMIN_URL'),
+      });
 
   final String supabaseUrl;
   final String supabaseAnonKey;
   final String roverToken;
   final String roverBaseUrl;
   final String cameraBaseUrl;
+  final String webAdminUrl;
 }
 
 class AppEnvironmentException implements Exception {

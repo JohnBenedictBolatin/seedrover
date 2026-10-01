@@ -48,7 +48,7 @@ class AuthRepository {
       await _recordActivity(
         userId: user.id,
         activity: 'Login',
-        description: '${profile.username} signed in.',
+        description: 'Signed in.',
       );
 
       return profile;
@@ -69,12 +69,6 @@ class AuthRepository {
     }
 
     await _client.auth.signOut();
-  }
-
-  Future<void> sendPasswordResetEmail(String username) async {
-    final email = await _resolveEmail(username);
-
-    await _client.auth.resetPasswordForEmail(email);
   }
 
   Future<String> _resolveEmail(String username) async {
@@ -110,19 +104,16 @@ class AuthRepository {
         .select('permissions(id, permission_key, module, description)')
         .eq('profile_id', userId) as List<dynamic>;
 
-    final permissions = permissionsJson
-        .map<AuthPermissionModel>((row) {
-          final permissionRow = row as Map<String, dynamic>;
-          final permission =
-              permissionRow['permissions'] as Map<String, dynamic>?;
+    final permissions = permissionsJson.map<AuthPermissionModel>((row) {
+      final permissionRow = row as Map<String, dynamic>;
+      final permission = permissionRow['permissions'] as Map<String, dynamic>?;
 
-          if (permission == null) {
-            throw const AppException('Unable to load user permissions.');
-          }
+      if (permission == null) {
+        throw const AppException('Unable to load user permissions.');
+      }
 
-          return AuthPermissionModel.fromJson(permission);
-        })
-        .toList(growable: false);
+      return AuthPermissionModel.fromJson(permission);
+    }).toList(growable: false);
 
     final profile = AuthProfileModel.fromJson(
       profileJson,

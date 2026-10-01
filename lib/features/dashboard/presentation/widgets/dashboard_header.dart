@@ -2,77 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/theme/app_typography.dart';
-import '../../../../core/utils/date_time_formatter.dart';
-import '../../../../shared/widgets/animated_content.dart';
+import '../../../../shared/widgets/app_page_header.dart';
 import '../../../../shared/widgets/page_header_actions.dart';
 
 class DashboardHeader extends ConsumerWidget {
   const DashboardHeader({
-    required this.fullName,
-    required this.roleName,
-    required this.timestamp,
+    this.onGradient = false,
     super.key,
   });
 
-  final String fullName;
-  final String roleName;
-  final DateTime timestamp;
+  final bool onGradient;
+
+  Color get _foregroundColor =>
+      onGradient ? Colors.white : AppColors.primaryText;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              AnimatedTypingText(
-                _greeting(timestamp),
-                style: AppTypography.small.copyWith(
-                  color: AppColors.mutedText,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              AnimatedTypingText(
-                _firstName(fullName),
-                style: AppTypography.displayHeading.copyWith(
-                  fontSize: 28,
-                  height: 34 / 28,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              AnimatedTypingText(
-                '${DateTimeFormatter.formatDate(timestamp)} '
-                '${DateTimeFormatter.formatTime(timestamp)}',
-                style: AppTypography.monoCaption.copyWith(
-                  color: AppColors.mutedText,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: AppSpacing.md),
-        const PageHeaderActions(),
-      ],
+    return AppPageHeader(
+      title: 'Dashboard',
+      titleColor: _foregroundColor,
+      actions: PageHeaderActions(
+        foregroundColor: onGradient ? Colors.white : null,
+      ),
     );
-  }
-
-  String _firstName(String value) {
-    return value.trim().split(' ').first;
-  }
-
-  String _greeting(DateTime value) {
-    if (value.hour < 12) {
-      return 'Good morning,';
-    }
-
-    if (value.hour < 18) {
-      return 'Good afternoon,';
-    }
-
-    return 'Good evening,';
   }
 }

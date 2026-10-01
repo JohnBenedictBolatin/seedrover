@@ -2,7 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/database_tables.dart';
+import '../../../../core/constants/shared_workflow_terms.dart';
 import '../../../../core/services/supabase_service.dart';
+import '../../../../core/utils/app_input_formatters.dart';
 import '../models/profile_user_model.dart';
 
 class ProfileRepository {
@@ -18,7 +20,7 @@ class ProfileRepository {
       rows = await _client
           .from(DatabaseTables.profiles)
           .select(
-            'id, username, email, full_name, contact_number, profile_image_path, is_active, created_at, roles(role_name)',
+            'id, username, email, full_name, first_name, middle_initial, last_name, contact_number, profile_image_path, is_active, created_at, roles(role_name)',
           )
           .order('created_at', ascending: false) as List<dynamic>;
     } catch (_) {
@@ -27,7 +29,7 @@ class ProfileRepository {
       rows = await _client
           .from(DatabaseTables.profiles)
           .select(
-            'id, username, email, full_name, profile_image_path, is_active, created_at, roles(role_name)',
+            'id, username, email, full_name, first_name, middle_initial, last_name, profile_image_path, is_active, created_at, roles(role_name)',
           )
           .order('created_at', ascending: false) as List<dynamic>;
     }
@@ -40,57 +42,57 @@ class ProfileRepository {
   Future<List<ProfileActivityModel>> getActivities() async {
     final rows = await _client
         .from(DatabaseTables.activityLogs)
-        .select('activity, description, module, created_at')
+        .select(
+          'activity, description, module, created_at, actor:profiles!activity_logs_user_id_fkey(full_name)',
+        )
         .order('created_at', ascending: false)
         .limit(30) as List<dynamic>;
 
     return rows.map((row) {
       final data = row as Map<String, dynamic>;
+      final activity = data['activity'] as String? ?? 'SeedRover Activity';
+      final description =
+          data['description'] as String? ?? 'Activity recorded.';
+      final actor = data['actor'] as Map<String, dynamic>?;
+      final actorName = (actor?['full_name'] as String?)?.trim();
 
       return ProfileActivityModel(
-        title: data['activity'] as String? ?? 'SeedRover Activity',
-        description: data['description'] as String? ?? 'Activity recorded.',
+        title: activity,
+        description: activity.toLowerCase() == 'login'
+            ? actorName?.isNotEmpty == true
+                ? '$actorName signed in.'
+                : 'Signed in.'
+            : description,
         timestamp: _parseDate(data['created_at']) ?? DateTime.now(),
         module: data['module'] as String? ?? 'System',
       );
     }).toList(growable: false);
   }
 
-  Future<ProfileUserModel> updateUser(ProfileUserModel user) async {
-    final roleId = await _roleIdFor(user.roleName);
-    final row = await _client
-        .from(DatabaseTables.profiles)
-        .update({
-          'full_name': user.fullName,
-          'role_id': roleId,
-          'is_active': user.status == ProfileAccountStatus.active,
-        })
-        .eq('id', user.id)
-        .select(
-          'id, username, email, full_name, profile_image_path, is_active, created_at, roles(role_name)',
-        )
-        .single();
-
-    await recordActivity(
-      activity: 'User Updated',
-      description: '${user.fullName} profile updated.',
-      module: 'Users',
-    );
-
-    return _userFromRow(row);
-  }
-
   Future<ProfileUserModel> updateCurrentProfile({
     required String profileId,
     required String fullName,
     required String contactNumber,
+    String? firstName,
+    String? middleInitial,
+    String? lastName,
   }) async {
+    final normalizedContact = AppInputFormatters.normalizeContactNumber(
+      contactNumber,
+      allowLegacy: true,
+    );
     final row = await _client
         .from(DatabaseTables.profiles)
-        .update({'full_name': fullName, 'contact_number': contactNumber})
+        .update({
+          'full_name': fullName,
+          'first_name': firstName,
+          'middle_initial': middleInitial,
+          'last_name': lastName,
+          'contact_number': normalizedContact,
+        })
         .eq('id', profileId)
         .select(
-          'id, username, email, full_name, contact_number, profile_image_path, is_active, created_at, roles(role_name)',
+          'id, username, email, full_name, first_name, middle_initial, last_name, contact_number, profile_image_path, is_active, created_at, roles(role_name)',
         )
         .single();
 
@@ -101,61 +103,6 @@ class ProfileRepository {
     );
 
     return _userFromRow(row);
-  }
-
-  Future<void> changePassword({
-    required String currentPassword,
-    required String newPassword,
-  }) async {
-    final email = _client.auth.currentUser?.email;
-    if (email == null) throw StateError('No authenticated user.');
-
-    await _client.auth
-        .signInWithPassword(email: email, password: currentPassword);
-    await _client.auth.updateUser(UserAttributes(password: newPassword));
-  }
-
-  Future<void> createUser({
-    required String fullName,
-    required String username,
-    required String email,
-    required String contactNumber,
-    required String roleName,
-    required String temporaryPassword,
-  }) async {
-    await _client.functions.invoke(
-      'user-admin',
-      body: {
-        'action': 'create',
-        'full_name': fullName,
-        'username': username,
-        'email': email,
-        'contact_number': contactNumber,
-        'role_name': roleName,
-        'temporary_password': temporaryPassword,
-      },
-    );
-  }
-
-  Future<void> resetUserPassword({
-    required String userId,
-    required String temporaryPassword,
-  }) async {
-    await _client.functions.invoke(
-      'user-admin',
-      body: {
-        'action': 'reset_password',
-        'user_id': userId,
-        'temporary_password': temporaryPassword,
-      },
-    );
-  }
-
-  Future<void> deleteUser(String userId) async {
-    await _client.functions.invoke(
-      'user-admin',
-      body: {'action': 'delete', 'user_id': userId},
-    );
   }
 
   Future<ProfileUserModel> updateProfileImage({
@@ -171,7 +118,7 @@ class ProfileRepository {
         .update({'profile_image_path': imagePath})
         .eq('id', profileId)
         .select(
-          'id, username, email, full_name, profile_image_path, is_active, created_at, roles(role_name)',
+          'id, username, email, full_name, first_name, middle_initial, last_name, profile_image_path, is_active, created_at, roles(role_name)',
         )
         .single();
 
@@ -201,7 +148,7 @@ class ProfileRepository {
         .update({'profile_image_path': null})
         .eq('id', profileId)
         .select(
-          'id, username, email, full_name, profile_image_path, is_active, created_at, roles(role_name)',
+          'id, username, email, full_name, first_name, middle_initial, last_name, profile_image_path, is_active, created_at, roles(role_name)',
         )
         .single();
 
@@ -227,16 +174,6 @@ class ProfileRepository {
     });
   }
 
-  Future<String> _roleIdFor(String roleName) async {
-    final row = await _client
-        .from(DatabaseTables.roles)
-        .select('id')
-        .eq('role_name', roleName)
-        .single();
-
-    return row['id'] as String;
-  }
-
   ProfileUserModel _userFromRow(Map<String, dynamic> row) {
     final role = row['roles'] as Map<String, dynamic>?;
     final isActive = row['is_active'] as bool? ?? false;
@@ -246,6 +183,9 @@ class ProfileRepository {
       id: row['id'] as String,
       employeeId: 'EMP-${(row['id'] as String).substring(0, 8).toUpperCase()}',
       fullName: row['full_name'] as String? ?? 'SeedRover User',
+      firstName: row['first_name'] as String?,
+      middleInitial: row['middle_initial'] as String?,
+      lastName: row['last_name'] as String?,
       username: row['username'] as String? ?? 'operator',
       email: row['email'] as String? ?? '',
       contactNumber: row['contact_number'] as String? ?? '',
@@ -264,6 +204,9 @@ class ProfileRepository {
     required String profileId,
     required ProfileImageUpload upload,
   }) async {
+    if (upload.bytes.length > SharedWorkflowRules.photoMaxBytes) {
+      throw Exception('Profile photos must be 5 MB or smaller.');
+    }
     final extension = _extensionFor(upload.fileName, upload.mimeType);
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final normalizedName = upload.fileName

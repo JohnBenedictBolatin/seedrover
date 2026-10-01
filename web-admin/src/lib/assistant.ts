@@ -114,7 +114,7 @@ export async function buildWebAssistantContext(profile: AdminProfile): Promise<A
       recentTransactions: item.transactions.slice(0, 3).map((transaction) => ({
         type: transaction.type,
         quantity: transaction.quantity,
-        createdAt: transaction.createdAt,
+        createdAt: transaction.createdAt ?? "",
       })),
       recentSales: item.sales.slice(0, 3).map((sale) => ({
         quantitySold: sale.quantitySold,

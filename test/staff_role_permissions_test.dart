@@ -1,15 +1,19 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seedrover/core/constants/permission_keys.dart';
+import 'package:seedrover/features/authentication/data/models/auth_permission_model.dart';
 import 'package:seedrover/features/authentication/data/models/auth_profile_model.dart';
 
-AuthProfileModel profileFor(String roleName) => AuthProfileModel(
+AuthProfileModel profileFor(
+  String roleName, {
+  List<AuthPermissionModel> permissions = const [],
+}) => AuthProfileModel(
       id: 'profile-id',
       username: 'staff',
       email: 'staff@example.com',
       fullName: 'Staff User',
       roleName: roleName,
       isActive: true,
-      permissions: const [],
+      permissions: permissions,
     );
 
 void main() {
@@ -31,6 +35,19 @@ void main() {
     }
     expect(staff.hasPermission(PermissionKeys.dashboardView), isFalse);
     expect(manager.hasPermission(PermissionKeys.dashboardView), isFalse);
+    expect(
+      profileFor(
+        'Planting Staff',
+        permissions: const [
+          AuthPermissionModel(
+            id: 'dashboard',
+            permissionKey: PermissionKeys.dashboardView,
+            module: 'Dashboard',
+          ),
+        ],
+      ).hasPermission(PermissionKeys.dashboardView),
+      isFalse,
+    );
     expect(staff.hasPermission(PermissionKeys.stocksManage), isFalse);
   });
 
@@ -40,7 +57,6 @@ void main() {
     final manager = profileFor('Farm Inventory Manager');
 
     for (final permission in [
-      PermissionKeys.dashboardView,
       PermissionKeys.stocksView,
       PermissionKeys.stocksManage,
       PermissionKeys.stocksTransactionsView,
@@ -51,6 +67,21 @@ void main() {
       expect(
           staff.hasPermission(permission), manager.hasPermission(permission));
     }
+    expect(manager.hasPermission(PermissionKeys.dashboardView), isTrue);
+    expect(staff.hasPermission(PermissionKeys.dashboardView), isFalse);
+    expect(
+      profileFor(
+        'Inventory Staff',
+        permissions: const [
+          AuthPermissionModel(
+            id: 'dashboard',
+            permissionKey: PermissionKeys.dashboardView,
+            module: 'Dashboard',
+          ),
+        ],
+      ).hasPermission(PermissionKeys.dashboardView),
+      isFalse,
+    );
     expect(staff.hasPermission(PermissionKeys.cropsManage), isFalse);
   });
 }

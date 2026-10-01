@@ -44,7 +44,7 @@ class RoverStatusCard extends StatelessWidget {
                   value,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTypography.sensorValue.copyWith(color: color),
+                  style: AppTypography.numericValue.copyWith(color: color),
                 ),
               ],
             ),

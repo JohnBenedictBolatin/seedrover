@@ -113,18 +113,6 @@ class CommunicationController extends StateNotifier<CommunicationState> {
     );
   }
 
-  void setSimulatorBatteryLevel(int value) {
-    _repository.setSimulatorBatteryLevel(value);
-  }
-
-  void rechargeSimulatorBattery() {
-    _repository.rechargeSimulatorBattery();
-  }
-
-  void setSimulatorSeedLevel(int value) {
-    _repository.setSimulatorSeedLevel(value);
-  }
-
   void setSimulatorCurrentActivity(String value) {
     _repository.setSimulatorCurrentActivity(value);
   }
@@ -141,14 +129,6 @@ class CommunicationController extends StateNotifier<CommunicationState> {
       environmentTemperature: environmentTemperature,
       humidity: humidity,
     );
-  }
-
-  void triggerSimulatorLowBattery() {
-    _repository.triggerSimulatorLowBattery();
-  }
-
-  void triggerSimulatorCriticalBattery() {
-    _repository.triggerSimulatorCriticalBattery();
   }
 
   void triggerSimulatorConnectionLost() {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -5,13 +7,35 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../data/models/dashboard_model.dart';
 import 'dashboard_metric_tile.dart';
 
-class SensorSummaryGrid extends StatelessWidget {
+class SensorSummaryGrid extends StatefulWidget {
   const SensorSummaryGrid({
     required this.sensors,
     super.key,
   });
 
   final List<SensorSummaryModel> sensors;
+
+  @override
+  State<SensorSummaryGrid> createState() => _SensorSummaryGridState();
+}
+
+class _SensorSummaryGridState extends State<SensorSummaryGrid> {
+  Timer? _freshnessTimer;
+  DateTime _now = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _freshnessTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) setState(() => _now = DateTime.now());
+    });
+  }
+
+  @override
+  void dispose() {
+    _freshnessTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,17 +49,33 @@ class SensorSummaryGrid extends StatelessWidget {
           spacing: AppSpacing.md,
           runSpacing: AppSpacing.md,
           children: [
-            for (final sensor in sensors)
+            for (final sensor in widget.sensors)
               SizedBox(
                 width: tileWidth,
-                child: DashboardMetricTile(
-                  label: sensor.label,
-                  value: '${sensor.value}${sensor.unit}',
-                  caption: sensor.interpretation,
-                  icon: _iconFor(sensor.label),
-                  color: _colorFor(sensor.condition),
-                  useMonoText: true,
-                ),
+                child: Builder(builder: (context) {
+                  final age = sensor.recordedAt == null
+                      ? null
+                      : _now.difference(sensor.recordedAt!);
+                  final timestampFresh = age != null &&
+                      !age.isNegative &&
+                      age <= const Duration(seconds: 60);
+                  final valueAvailable = sensor.value != '?' &&
+                      sensor.condition != SensorCondition.unavailable;
+                  return DashboardMetricTile(
+                    label: sensor.label,
+                    value: timestampFresh && valueAvailable
+                        ? '${sensor.value}${sensor.unit}'
+                        : 'Unavailable',
+                    caption: timestampFresh
+                        ? sensor.interpretation
+                        : 'Stale · no fresh verified reading',
+                    icon: _iconFor(sensor.label),
+                    color: timestampFresh && valueAvailable
+                        ? _colorFor(sensor.condition)
+                        : AppColors.mutedText,
+                    useNumericTypography: true,
+                  );
+                }),
               ),
           ],
         );
@@ -61,9 +101,8 @@ class SensorSummaryGrid extends StatelessWidget {
 
   Color _colorFor(SensorCondition condition) {
     return switch (condition) {
-      SensorCondition.excellent => AppColors.success,
-      SensorCondition.moderate => AppColors.warning,
-      SensorCondition.poor => AppColors.danger,
+      SensorCondition.recorded => AppColors.secondaryText,
+      SensorCondition.unavailable => AppColors.mutedText,
     };
   }
 }

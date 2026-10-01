@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+  <title id="title">SeedRover System Architecture</title>
+  <desc id="desc">A system diagram showing field operators using the Flutter mobile app to connect locally to SeedRover hardware and sync data to Supabase, while managers use a web admin portal hosted on Vercel.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L10,5 L0,10 z" fill="#46635A"/></marker>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L10,5 L0,10 z" fill="#3975A5"/></marker>
+    <style>
+      text { font-family: Inter, "Segoe UI", Arial, sans-serif; fill: #18352D; }
+      .title { font-size: 34px; font-weight: 700; }
+      .subtitle { font-size: 17px; fill: #5B716A; }
+      .section { font-size: 15px; font-weight: 700; letter-spacing: 1.5px; fill: #668076; }
+      .box-title { font-size: 20px; font-weight: 700; }
+      .body { font-size: 15px; fill: #456158; }
+      .small { font-size: 13px; fill: #5B716A; }
+      .label { font-size: 13px; font-weight: 700; fill: #3F6155; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1000" fill="#F7FAF5"/>
+  <circle cx="1510" cy="90" r="150" fill="#EAF2E8"/>
+  <circle cx="78" cy="930" r="115" fill="#EEF4E9"/>
+  <text x="80" y="78" class="title">SeedRover System Architecture</text>
+  <text x="80" y="110" class="subtitle">Major components, subsystem links, and external interfaces</text>
+
+  <text x="80" y="168" class="section">PEOPLE &amp; EXTERNAL INTERFACES</text>
+  <text x="80" y="365" class="section">CLIENT APPLICATIONS</text>
+  <text x="80" y="625" class="section">CLOUD SERVICES</text>
+  <text x="650" y="365" class="section">FIELD HARDWARE</text>
+
+  <!-- External users -->
+  <rect x="80" y="195" width="310" height="112" rx="18" fill="#FFFFFF" stroke="#C8D9CD" stroke-width="2"/>
+  <circle cx="123" cy="251" r="24" fill="#E6F0E4"/>
+  <circle cx="123" cy="243" r="8" fill="#4B8065"/>
+  <path d="M107 270c2-12 10-18 16-18s14 6 16 18" fill="none" stroke="#4B8065" stroke-width="4" stroke-linecap="round"/>
+  <text x="163" y="239" class="box-title">Field operator</text>
+  <text x="163" y="266" class="body">Android phone user</text>
+  <text x="163" y="288" class="small">Planting, rover control, sensor review</text>
+
+  <rect x="1210" y="195" width="310" height="112" rx="18" fill="#FFFFFF" stroke="#C8D9CD" stroke-width="2"/>
+  <circle cx="1253" cy="251" r="24" fill="#E6F0E4"/>
+  <circle cx="1253" cy="243" r="8" fill="#4B8065"/>
+  <path d="M1237 270c2-12 10-18 16-18s14 6 16 18" fill="none" stroke="#4B8065" stroke-width="4" stroke-linecap="round"/>
+  <text x="1293" y="239" class="box-title">Farm manager</text>
+  <text x="1293" y="266" class="body">Browser user</text>
+  <text x="1293" y="288" class="small">Operations, crops, inventory, users</text>
+
+  <!-- Applications -->
+  <rect x="80" y="395" width="430" height="178" rx="20" fill="#EAF4E9" stroke="#8DB69B" stroke-width="2.5"/>
+  <rect x="105" y="420" width="54" height="88" rx="10" fill="#FFFFFF" stroke="#6B9A7A" stroke-width="3"/>
+  <rect x="113" y="432" width="38" height="59" rx="3" fill="#DDEBDD"/>
+  <circle cx="132" cy="500" r="3" fill="#6B9A7A"/>
+  <text x="180" y="438" class="box-title">Flutter mobile app</text>
+  <text x="180" y="466" class="body">Riverpod + GoRouter</text>
+  <text x="180" y="493" class="body">Rover controls • camera view</text>
+  <text x="180" y="517" class="body">Planting receipts • sensor history</text>
+  <text x="180" y="544" class="small">Local records queue for later cloud sync</text>
+
+  <rect x="1090" y="395" width="430" height="178" rx="20" fill="#EAF4E9" stroke="#8DB69B" stroke-width="2.5"/>
+  <rect x="1120" y="423" width="72" height="52" rx="5" fill="#FFFFFF" stroke="#6B9A7A" stroke-width="3"/>
+  <path d="M1110 485h92l-8 10h-76z" fill="#CFE2D1" stroke="#6B9A7A" stroke-width="2"/>
+  <text x="1220" y="438" class="box-title">Web admin portal</text>
+  <text x="1220" y="466" class="body">Next.js • hosted on Vercel</text>
+  <text x="1220" y="493" class="body">Dashboard • crops • inventory</text>
+  <text x="1220" y="517" class="body">Sales • reports • user access</text>
+  <text x="1220" y="544" class="small">Browser interface for farm management</text>
+
+  <!-- Cloud boundary and services -->
+  <rect x="300" y="652" width="1000" height="255" rx="26" fill="#F0F5FA" stroke="#A9C3D8" stroke-width="2" stroke-dasharray="9 7"/>
+  <text x="335" y="684" class="section" fill="#547897">SUPABASE CLOUD BACKEND</text>
+  <rect x="345" y="711" width="270" height="145" rx="16" fill="#FFFFFF" stroke="#B6CCDD" stroke-width="2"/>
+  <circle cx="386" cy="751" r="17" fill="#E4F0F7"/>
+  <path d="M381 751h10M386 746v10" stroke="#3975A5" stroke-width="3" stroke-linecap="round"/>
+  <text x="417" y="750" class="box-title">Auth &amp; permissions</text>
+  <text x="370" y="790" class="body">Sign-in • user profiles</text>
+  <text x="370" y="814" class="body">Roles • row-level security</text>
+  <text x="370" y="838" class="small">Protected access to farm data</text>
+
+  <rect x="665" y="711" width="270" height="145" rx="16" fill="#FFFFFF" stroke="#B6CCDD" stroke-width="2"/>
+  <ellipse cx="707" cy="743" rx="19" ry="8" fill="#DCEAF4" stroke="#3975A5" stroke-width="2"/>
+  <path d="M688 743v25c0 5 9 9 19 9s19-4 19-9v-25M688 755c0 5 9 9 19 9s19-4 19-9" fill="none" stroke="#3975A5" stroke-width="2"/>
+  <text x="742" y="750" class="box-title">Postgres database</text>
+  <text x="690" y="790" class="body">Planting runs • sensor readings</text>
+  <text x="690" y="814" class="body">Crops • inventory • activity</text>
+  <text x="690" y="838" class="small">Shared source for mobile + portal</text>
+
+  <rect x="985" y="711" width="270" height="145" rx="16" fill="#FFFFFF" stroke="#B6CCDD" stroke-width="2"/>
+  <path d="M1027 735h30l-4 34h-22zM1031 729h22v7h-22z" fill="#E4F0F7" stroke="#3975A5" stroke-width="2"/>
+  <text x="1070" y="750" class="box-title">Storage &amp; functions</text>
+  <text x="1010" y="790" class="body">Images • server actions</text>
+  <text x="1010" y="814" class="body">Assistant • notifications</text>
+  <text x="1010" y="838" class="small">Scheduled crop monitoring</text>
+
+  <!-- Connection routes -->
+  <path d="M235 307v43h165v45" fill="none" stroke="#46635A" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="256" y="343" class="label">Touch UI</text>
+  <path d="M1365 307v43h-60v45" fill="none" stroke="#46635A" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="1320" y="343" class="label">Browser</text>
+
+  <!-- Mobile to hardware local link -->
+  <path d="M510 485h140" fill="none" stroke="#46635A" stroke-width="4" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <text x="580" y="463" text-anchor="middle" class="label">Local Wi-Fi / Bluetooth</text>
+
+  <!-- Rover hardware subsystem -->
+  <rect x="650" y="395" width="360" height="178" rx="20" fill="#F4F0E4" stroke="#C9B77E" stroke-width="2.5"/>
+  <rect x="675" y="422" width="72" height="48" rx="7" fill="#D8C993" stroke="#8C7A45" stroke-width="2"/>
+  <circle cx="689" cy="477" r="11" fill="#52685A"/><circle cx="733" cy="477" r="11" fill="#52685A"/>
+  <path d="M688 421v-17h24v17M742 434h18v-17" fill="none" stroke="#8C7A45" stroke-width="4" stroke-linecap="round"/>
+  <text x="780" y="438" class="box-title">SeedRover hardware</text>
+  <text x="780" y="466" class="body">ESP32 controller</text>
+  <text x="780" y="493" class="body">Motors • planting mechanism</text>
+  <text x="780" y="517" class="body">Soil + environment sensors</text>
+  <text x="675" y="548" class="small">ESP32-CAM joins rover Wi-Fi for live video</text>
+
+  <!-- Cloud internet paths -->
+  <path d="M295 573v56h575v82" fill="none" stroke="#3975A5" stroke-width="3.5" marker-end="url(#arrowBlue)"/>
+  <text x="530" y="617" class="label" fill="#3975A5">Internet when available • sync saved records</text>
+  <path d="M1305 573v56h-365v82" fill="none" stroke="#3975A5" stroke-width="3.5" marker-end="url(#arrowBlue)"/>
+  <text x="1050" y="617" class="label" fill="#3975A5">HTTPS / Supabase client</text>
+
+  <!-- External network label -->
+  <rect x="80" y="919" width="1440" height="45" rx="14" fill="#EAF0E8"/>
+  <text x="110" y="947" class="small">External interfaces: phone ↔ rover over local Wi-Fi/Bluetooth • app ↔ cloud over internet for sync • browser ↔ cloud over HTTPS</text>
+</svg>

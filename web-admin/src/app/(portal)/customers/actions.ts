@@ -43,18 +43,17 @@ export async function createCustomerDiscountAction(formData: FormData) {
     throw new Error("Sign in before releasing discounts.");
   }
 
-  const customerName = text(formData, "customer_name");
-  const customerContact = normalizeContactNumber(
-    text(formData, "customer_contact", "Not provided") || "Not provided",
-    { allowLegacy: true },
-  ) ?? "Not provided";
+  const customerName = "Anyone with the code";
+  const customerContact = normalizeContactNumber("Not provided", {
+    allowLegacy: true,
+  }) ?? "Not provided";
   const code = text(formData, "discount_code").toUpperCase();
   const discountType = text(formData, "discount_type", "Percent");
   const discountValue = parseNumber(formData.get("discount_value"));
   const validUntil = text(formData, "valid_until");
 
-  if (!customerName || !code) {
-    throw new Error("Customer and discount code are required.");
+  if (!code) {
+    throw new Error("Discount code is required.");
   }
 
   if (!/^[A-Z0-9_-]{3,32}$/.test(code)) {
@@ -106,7 +105,7 @@ export async function createCustomerDiscountAction(formData: FormData) {
   await writeActivityLog(supabase, {
     userId: user.id,
     activity: "Customer discount released",
-    description: `${code} was released for ${customerName}.`,
+    description: `${code} was released for anyone who enters it.`,
     module: "Customers",
   });
 

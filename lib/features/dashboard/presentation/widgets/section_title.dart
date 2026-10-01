@@ -7,19 +7,15 @@ class SectionTitle extends StatelessWidget {
   const SectionTitle({
     required this.title,
     super.key,
-    this.mono = false,
   });
 
   final String title;
-  final bool mono;
 
   @override
   Widget build(BuildContext context) {
     return AnimatedTypingText(
       title,
-      style: mono
-          ? AppTypography.monoSectionHeading
-          : AppTypography.sectionHeading,
+      style: AppTypography.sectionHeading,
     );
   }
 }

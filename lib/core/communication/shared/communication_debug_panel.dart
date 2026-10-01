@@ -31,8 +31,11 @@ class CommunicationDebugPanel extends ConsumerWidget {
           children: [
             Text('Communication Debug', style: AppTypography.cardTitle),
             const SizedBox(height: AppSpacing.md),
-            _DebugRow(label: 'Current Connection', value: state.connectionState.label),
-            _DebugRow(label: 'Current Service', value: state.activeTransport.label),
+            _DebugRow(
+                label: 'Current Connection',
+                value: state.connectionState.label),
+            _DebugRow(
+                label: 'Current Service', value: state.activeTransport.label),
             _DebugRow(
               label: 'Current Device',
               value: state.connectedDevice?.name ?? 'None',
@@ -96,36 +99,12 @@ class _SimulatorControls extends StatelessWidget {
               label: 'Latest Error',
               value: simulator.lastError ?? 'None',
             ),
-            _SimulatorSlider(
-              label: 'Battery',
-              value: simulator.batteryLevel.toDouble(),
-              onChanged: (value) {
-                controller.setSimulatorBatteryLevel(value.round());
-              },
-            ),
-            _SimulatorSlider(
-              label: 'Seed Level',
-              value: simulator.seedLevel.toDouble(),
-              onChanged: (value) {
-                controller.setSimulatorSeedLevel(value.round());
-              },
-            ),
-            _SimulatorSlider(
-              label: 'Soil Moisture',
-              value: simulator.soilMoisture.toDouble(),
-              onChanged: (value) {
-                controller.setSimulatorSensorValues(soilMoisture: value);
-              },
-            ),
+            const Text('Sensor readings unavailable in simulation.'),
             const SizedBox(height: AppSpacing.sm),
             Wrap(
               spacing: AppSpacing.xs,
               runSpacing: AppSpacing.xs,
               children: [
-                _DebugButton(
-                  label: 'Recharge',
-                  onPressed: controller.rechargeSimulatorBattery,
-                ),
                 _DebugButton(
                   label: 'Disconnect',
                   onPressed: controller.disconnect,
@@ -133,14 +112,6 @@ class _SimulatorControls extends StatelessWidget {
                 _DebugButton(
                   label: 'Reconnect',
                   onPressed: controller.reconnect,
-                ),
-                _DebugButton(
-                  label: 'Low Battery',
-                  onPressed: controller.triggerSimulatorLowBattery,
-                ),
-                _DebugButton(
-                  label: 'Critical',
-                  onPressed: controller.triggerSimulatorCriticalBattery,
                 ),
                 _DebugButton(
                   label: 'Conn Lost',
@@ -168,51 +139,6 @@ class _SimulatorControls extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _SimulatorSlider extends StatelessWidget {
-  const _SimulatorSlider({
-    required this.label,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final String label;
-  final double value;
-  final ValueChanged<double> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 104,
-          child: Text(label, style: AppTypography.caption),
-        ),
-        Expanded(
-          child: Slider(
-            value: value.clamp(0, 100).toDouble(),
-            min: 0,
-            max: 100,
-            divisions: 100,
-            activeColor: AppColors.primaryGreen,
-            inactiveColor: AppColors.inactiveBorder,
-            onChanged: onChanged,
-          ),
-        ),
-        SizedBox(
-          width: 38,
-          child: Text(
-            value.round().toString(),
-            textAlign: TextAlign.right,
-            style: AppTypography.caption.copyWith(
-              color: AppColors.primaryText,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

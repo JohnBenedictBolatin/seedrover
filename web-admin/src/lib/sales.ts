@@ -16,8 +16,6 @@ export type SellableItem = {
 
 export type ReleasedDiscount = {
   code: string;
-  customerName: string;
-  customerContact: string;
   discountType: "Amount" | "Percent";
   discountValue: number;
   validUntil: string | null;
@@ -116,8 +114,6 @@ type SellableRow = {
 
 type ReleasedDiscountRow = {
   discount_code: string;
-  customer_name: string;
-  customer_contact: string | null;
   discount_type: "Amount" | "Percent";
   discount_value: number | string;
   valid_until: string | null;
@@ -288,7 +284,7 @@ export async function getReleasedDiscounts() {
 
   const { data, error } = await supabase
     .from("customer_discounts")
-    .select("discount_code, customer_name, customer_contact, discount_type, discount_value, valid_until")
+    .select("discount_code, discount_type, discount_value, valid_until")
     .eq("status", "Released")
     .order("created_at", { ascending: false })
     .returns<ReleasedDiscountRow[]>();
@@ -315,8 +311,6 @@ export async function getReleasedDiscounts() {
       })
       .map<ReleasedDiscount>((discount) => ({
         code: discount.discount_code,
-        customerName: discount.customer_name,
-        customerContact: discount.customer_contact ?? "",
         discountType: discount.discount_type,
         discountValue: toNumber(discount.discount_value),
         validUntil: discount.valid_until,

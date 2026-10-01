@@ -3,11 +3,17 @@ class DashboardModel {
     required this.rover,
     required this.sensors,
     required this.recentActivities,
+    this.roverError,
+    this.sensorError,
+    this.activityError,
   });
 
   final RoverOverviewModel rover;
   final List<SensorSummaryModel> sensors;
   final List<ActivityPreviewModel> recentActivities;
+  final String? roverError;
+  final String? sensorError;
+  final String? activityError;
 }
 
 class RoverOverviewModel {
@@ -15,27 +21,21 @@ class RoverOverviewModel {
     required this.unitName,
     required this.status,
     required this.plantingStatus,
-    required this.batteryLevel,
-    required this.seedLevel,
     required this.wifiConnected,
     required this.bluetoothConnected,
     required this.cameraConnected,
     required this.isInUse,
-    required this.usageDuration,
     required this.lastCommunication,
   });
 
   final String unitName;
   final String status;
   final String plantingStatus;
-  final int batteryLevel;
-  final int seedLevel;
   final bool wifiConnected;
   final bool bluetoothConnected;
   final bool cameraConnected;
   final bool isInUse;
-  final Duration usageDuration;
-  final DateTime lastCommunication;
+  final DateTime? lastCommunication;
 }
 
 class SensorSummaryModel {
@@ -45,6 +45,8 @@ class SensorSummaryModel {
     required this.unit,
     required this.interpretation,
     required this.condition,
+    this.recordedAt,
+    this.source,
   });
 
   final String label;
@@ -52,6 +54,8 @@ class SensorSummaryModel {
   final String unit;
   final String interpretation;
   final SensorCondition condition;
+  final DateTime? recordedAt;
+  final String? source;
 }
 
 class ActivityPreviewModel {
@@ -64,12 +68,11 @@ class ActivityPreviewModel {
 
   final String title;
   final String description;
-  final DateTime timestamp;
+  final DateTime? timestamp;
   final String module;
 }
 
 enum SensorCondition {
-  excellent,
-  moderate,
-  poor,
+  recorded,
+  unavailable,
 }

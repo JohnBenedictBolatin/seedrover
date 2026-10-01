@@ -8,6 +8,7 @@ import '../data/repositories/rover_repository.dart';
 import '../data/repositories/planting_receipt_repository.dart';
 import '../data/services/simulated_rover_communication_service.dart';
 import '../data/services/local_wifi_rover_service.dart';
+import '../data/models/planting_session_model.dart';
 
 final localWifiRoverServiceProvider = Provider<LocalWifiRoverService>((ref) {
   final environment = ref.watch(appEnvironmentProvider);
@@ -19,6 +20,12 @@ final localWifiRoverServiceProvider = Provider<LocalWifiRoverService>((ref) {
     service.dispose();
   });
   return service;
+});
+
+final localRoverWifiNetworkProvider = StreamProvider<bool>((ref) async* {
+  final service = ref.watch(localWifiRoverServiceProvider);
+  yield service.isLocalNetworkActive;
+  yield* service.localNetworkStream;
 });
 
 final simulatedRoverCommunicationServiceProvider =
@@ -36,6 +43,19 @@ final roverRepositoryProvider = Provider<RoverRepository>(
 final plantingReceiptRepositoryProvider = Provider<PlantingReceiptRepository>(
   (ref) => PlantingReceiptRepository(ref.watch(supabaseClientProvider)),
 );
+
+final plantingRunsAwaitingSyncProvider =
+    FutureProvider<List<PendingPlantingReceipt>>((ref) async {
+  final receipts =
+      await ref.watch(plantingReceiptRepositoryProvider).loadPending();
+  return receipts
+      .where((receipt) =>
+          receipt.status.isTerminal &&
+          receipt.isConfirmed &&
+          !receipt.confirmationSynced)
+      .toList()
+    ..sort((left, right) => right.completedAt.compareTo(left.completedAt));
+});
 
 final roverControlControllerProvider =
     StateNotifierProvider<RoverControlController, RoverControlState>(

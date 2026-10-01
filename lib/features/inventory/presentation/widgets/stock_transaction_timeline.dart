@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../data/models/stock_model.dart';
@@ -9,10 +9,12 @@ import '../../data/models/stock_model.dart';
 class StockTransactionTimeline extends StatelessWidget {
   const StockTransactionTimeline({
     required this.transactions,
+    this.unit,
     super.key,
   });
 
   final List<StockTransactionModel> transactions;
+  final String? unit;
 
   @override
   Widget build(BuildContext context) {
@@ -25,76 +27,102 @@ class StockTransactionTimeline extends StatelessWidget {
 
     return Column(
       children: [
-        for (final transaction in sortedTransactions) ...[
-          _TransactionTile(transaction: transaction),
-          const SizedBox(height: AppSpacing.sm),
-        ],
+        for (var index = 0; index < sortedTransactions.length; index++)
+          _TransactionTile(
+            transaction: sortedTransactions[index],
+            unit: unit,
+            isLast: index == sortedTransactions.length - 1,
+          ),
       ],
     );
   }
 }
 
 class _TransactionTile extends StatelessWidget {
-  const _TransactionTile({required this.transaction});
+  const _TransactionTile({
+    required this.transaction,
+    required this.isLast,
+    this.unit,
+  });
 
   final StockTransactionModel transaction;
+  final String? unit;
+  final bool isLast;
 
   @override
   Widget build(BuildContext context) {
     final color = _transactionColor(transaction.type);
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(_transactionIcon(transaction.type), color: color, size: 18),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          transaction.type.label,
-                          style: AppTypography.statusBadge.copyWith(
-                            color: color,
-                          ),
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : AppSpacing.md),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: .12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(_transactionIcon(transaction.type),
+                color: color, size: 19),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        transaction.type.label,
+                        style: AppTypography.body.copyWith(
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                      Text(
-                        _formatQuantity(transaction.quantity),
-                        style: AppTypography.monoSmall.copyWith(color: color),
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Text(
+                      '${_formatQuantity(transaction.quantity)}${unit == null || unit!.isEmpty ? '' : ' $unit'}',
+                      style: AppTypography.numericSmall.copyWith(color: color),
+                    ),
+                  ],
+                ),
+                if (transaction.remarks.trim().isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.xs),
                   Text(transaction.remarks, style: AppTypography.small),
+                ],
+                if (transaction.batch != null) ...[
                   const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    '${_formatDate(transaction.performedAt)} '
-                    '${_formatTime(transaction.performedAt)}',
-                    style: AppTypography.monoCaption,
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    'By ${transaction.performedBy}',
-                    style: AppTypography.caption.copyWith(
-                      color: AppColors.secondaryText,
-                    ),
+                  _BatchEstimateTile(
+                    batch: transaction.batch!,
                   ),
                 ],
-              ),
+                const SizedBox(height: AppSpacing.xs),
+                Wrap(
+                  spacing: AppSpacing.xs,
+                  runSpacing: 2,
+                  children: [
+                    Text(
+                      transaction.dateKnown
+                          ? '${_formatDate(transaction.performedAt)} ${_formatTime(transaction.performedAt)}'
+                          : 'Date unknown',
+                      style: AppTypography.caption,
+                    ),
+                    if (transaction.performedBy.isNotEmpty)
+                      Text('· By ${transaction.performedBy}',
+                          style: AppTypography.caption.copyWith(
+                            color: AppColors.secondaryText,
+                          )),
+                  ],
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -106,6 +134,8 @@ class _TransactionTile extends StatelessWidget {
       StockTransactionType.sale => AppColors.primaryGreen,
       StockTransactionType.adjustment => AppColors.information,
       StockTransactionType.harvest => AppColors.primaryGreen,
+      StockTransactionType.opening => AppColors.information,
+      StockTransactionType.historical => AppColors.secondaryText,
     };
   }
 
@@ -116,6 +146,8 @@ class _TransactionTile extends StatelessWidget {
       StockTransactionType.sale => Icons.point_of_sale_outlined,
       StockTransactionType.adjustment => Icons.tune,
       StockTransactionType.harvest => Icons.agriculture_outlined,
+      StockTransactionType.opening => Icons.inventory_2_outlined,
+      StockTransactionType.historical => Icons.history_outlined,
     };
   }
 
@@ -131,7 +163,27 @@ class _TransactionTile extends StatelessWidget {
     final hour = date.hour % 12 == 0 ? 12 : date.hour % 12;
     final minute = date.minute.toString().padLeft(2, '0');
     final marker = date.hour >= 12 ? 'PM' : 'AM';
-
     return '$hour:$minute $marker';
+  }
+}
+
+class _BatchEstimateTile extends StatelessWidget {
+  const _BatchEstimateTile({required this.batch});
+
+  final InventoryStockBatch batch;
+
+  @override
+  Widget build(BuildContext context) {
+    final estimate = !batch.ageKnown
+        ? 'Age unknown'
+        : batch.estimatedSpoilageOn == null
+            ? 'Estimate unavailable'
+            : DateFormat.yMMMd().format(batch.estimatedSpoilageOn!);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child:
+          Text('Estimated spoilage: $estimate', style: AppTypography.caption),
+    );
   }
 }

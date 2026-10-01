@@ -106,7 +106,10 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
         </article>
       </section>
 
-      <InventoryWorkspace initialItemId={initialItemId} items={items} />
+      <InventoryWorkspace
+        initialItemId={initialItemId}
+        items={items}
+      />
     </div>
   );
 }

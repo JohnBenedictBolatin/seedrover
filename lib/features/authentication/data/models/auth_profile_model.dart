@@ -49,6 +49,10 @@ class AuthProfileModel {
       return true;
     }
 
+    if (isFarmStaff && permissionKey == PermissionKeys.dashboardView) {
+      return false;
+    }
+
     if (_roleDefaultPermissions.contains(permissionKey)) {
       return true;
     }
@@ -75,10 +79,12 @@ class AuthProfileModel {
 
     if (isInventoryManager || isInventoryStaff) {
       return {
-        PermissionKeys.dashboardView,
+        if (isInventoryManager) PermissionKeys.dashboardView,
         PermissionKeys.stocksView,
         PermissionKeys.stocksManage,
         PermissionKeys.stocksTransactionsView,
+        PermissionKeys.stocksSalesRecord,
+        PermissionKeys.stocksPricingManage,
         PermissionKeys.notificationsView,
         PermissionKeys.profileView,
         PermissionKeys.profileManageSelf,

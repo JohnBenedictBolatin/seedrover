@@ -346,6 +346,74 @@ export async function deleteInventoryItemAction(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
+export async function correctInventoryBatchAction(formData: FormData) {
+  await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const batchId = requiredText(formData, "batch_id", "Stock batch");
+  const receivedOn = requiredText(formData, "received_on", "Receipt date");
+  const harvestOn = text(formData, "harvest_on") || null;
+  const profileId = text(formData, "profile_id") || null;
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
+  if (receivedOn > today) throw new Error("Receipt date cannot be in the future.");
+  if (harvestOn && harvestOn > receivedOn) throw new Error("Harvest date cannot be after receipt date.");
+  if (profileId) {
+    const { data: profile, error: profileError } = await supabase
+      .from("inventory_spoilage_profiles")
+      .select("id")
+      .eq("id", profileId)
+      .eq("enabled", true)
+      .maybeSingle();
+    if (profileError || !profile) throw new Error("Choose a supported produce profile.");
+  }
+  const { error } = await supabase.rpc("correct_inventory_stock_batch", {
+    p_batch_id: batchId,
+    p_received_on: receivedOn,
+    p_harvest_on: harvestOn,
+    p_age_known: true,
+    p_profile_id: profileId,
+  });
+  if (error) throw new Error(error.message);
+  const userId = await currentUserId();
+  await logInventoryActivity(supabase, "Stock batch estimate updated", "A stock batch receipt date, harvest date, or produce profile was confirmed.", userId);
+  revalidatePath("/inventory");
+}
+
+export async function splitInventoryBatchAction(formData: FormData) {
+  await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const batchId = requiredText(formData, "batch_id", "Stock batch");
+  const quantity = requiredNumber(formData, "split_quantity", "Split quantity");
+  const receivedOn = requiredText(formData, "received_on", "Receipt date");
+  const harvestOn = text(formData, "harvest_on") || null;
+  const profileId = text(formData, "profile_id") || null;
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
+  if (receivedOn > today) throw new Error("Receipt date cannot be in the future.");
+  if (harvestOn && harvestOn > receivedOn) throw new Error("Harvest date cannot be after receipt date.");
+  if (profileId) {
+    const { data: profile, error: profileError } = await supabase
+      .from("inventory_spoilage_profiles")
+      .select("id")
+      .eq("id", profileId)
+      .eq("enabled", true)
+      .maybeSingle();
+    if (profileError || !profile) throw new Error("Choose a supported produce profile.");
+  }
+  const { error } = await supabase.rpc("split_inventory_stock_batch", {
+    p_batch_id: batchId,
+    p_split_quantity: quantity,
+    p_received_on: receivedOn,
+    p_harvest_on: harvestOn,
+    p_profile_id: profileId,
+  });
+  if (error) throw new Error(error.message);
+  const userId = await currentUserId();
+  await logInventoryActivity(supabase, "Inventory batch split", `Split ${quantity} units from a stock batch.`, userId);
+  revalidatePath("/inventory");
+  revalidatePath("/dashboard");
+}
+
 export async function stockInAction(formData: FormData) {
   const quantity = numberValue(formData, "quantity");
   if (quantity <= 0) throw new Error("Quantity must be greater than zero.");
@@ -396,12 +464,14 @@ async function createMovement(
     throw new Error("Sign in before changing inventory.");
   }
 
-  const { error } = await supabase.rpc("record_inventory_movement", {
+  const { error } = await supabase.rpc("record_inventory_movement_with_batch", {
     p_inventory_id: inventoryId,
     p_transaction_type: transactionType,
     p_quantity: quantity,
     p_reason: reason || null,
     p_remarks: remarks || null,
+    p_request_id: text(formData, "request_id") || randomUUID(),
+    p_target_batch_id: transactionType === "OUT" ? text(formData, "target_batch_id") || null : null,
   });
 
   if (error) {

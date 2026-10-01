@@ -1,0 +1,3 @@
+-- Retired feature migration retained for version-history parity.
+-- This migration was already applied to the linked database; fresh databases
+-- skip installment setup and are cleaned by 20261010100000_remove_installment_sales.sql.

@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/config/app_environment.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/primary_button.dart';
+import '../../../../shared/widgets/seedrover_mascot.dart';
 import '../../providers/auth_providers.dart';
-
-const _loginIllustrationHeight = 280.0;
-const _loginPanelTop = 200.0;
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -103,239 +103,317 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     await preferences.remove(_rememberUsernameKey);
   }
 
-  Future<void> _sendPasswordResetEmail() async {
-    final username = _usernameController.text.trim();
-
-    if (username.isEmpty) {
+  Future<void> _openPasswordRecoveryWebsite() async {
+    final configuredOrigin = ref.read(appEnvironmentProvider).webAdminUrl;
+    final origin = Uri.tryParse(configuredOrigin);
+    if (origin == null ||
+        !origin.hasAuthority ||
+        origin.host.isEmpty ||
+        !const {'http', 'https'}.contains(origin.scheme) ||
+        origin.userInfo.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter your username first.')),
+        const SnackBar(
+          content: Text('Password recovery website is not configured.'),
+        ),
       );
       return;
     }
 
-    await ref
-        .read(authControllerProvider.notifier)
-        .sendPasswordResetEmail(username);
+    final loginUri = origin.replace(
+      path: '/login',
+      queryParameters: const {'reset': '1'},
+    );
+    try {
+      final opened = await launchUrl(
+        loginUri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (opened || !mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not open the SeedRover recovery website.'),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not open the SeedRover recovery website.'),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 80;
 
     return Scaffold(
       backgroundColor: AppColors.primaryBackground,
-      body: SafeArea(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AppColors.primaryBackground,
-                AppColors.secondaryBackground,
-                AppColors.primaryBackground,
-              ],
-            ),
-          ),
-          child: Stack(
-            children: [
-              const Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: _LoginIllustrationPlaceholder(),
-              ),
-              SingleChildScrollView(
-                padding: const EdgeInsets.only(
-                  top: _loginPanelTop,
-                  bottom: AppSpacing.lg,
-                ),
+      body: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          if (!keyboardOpen && MediaQuery.sizeOf(context).height > 700)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: -120,
+              child: const IgnorePointer(
                 child: Center(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: 430,
-                      minHeight: MediaQuery.sizeOf(context).height >
-                              _loginPanelTop
-                          ? MediaQuery.sizeOf(context).height - _loginPanelTop
-                          : 0,
-                    ),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: AppColors.secondaryBackground.withValues(
-                          alpha: 0.96,
+                  child: SeedRoverMascot(
+                    expression: SeedRoverMascotExpression.happy,
+                    size: 240,
+                  ),
+                ),
+              ),
+            ),
+          SafeArea(
+            bottom: false,
+            child: Stack(
+              children: [
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: _LoginHero(compact: keyboardOpen),
+                ),
+                SingleChildScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: EdgeInsets.fromLTRB(
+                    AppSpacing.md,
+                    keyboardOpen ? 84 : 144,
+                    AppSpacing.md,
+                    keyboardOpen ? AppSpacing.lg : 132,
+                  ),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 430),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: AppColors.secondaryBackground,
+                          borderRadius: BorderRadius.circular(AppRadius.lg),
+                          border: Border.all(color: AppColors.inactiveBorder),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: .08),
+                              blurRadius: 24,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
                         ),
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(36),
-                        ),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.lg,
-                          AppSpacing.xl,
-                          AppSpacing.lg,
-                          AppSpacing.lg,
-                        ),
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Center(
-                                child: Image.asset(
-                                  'assets/images/SeedRover Logo Light.png',
-                                  width: 226,
-                                  fit: BoxFit.contain,
+                        child: Padding(
+                          padding: const EdgeInsets.all(AppSpacing.md),
+                          child: Form(
+                            key: _formKey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text('Welcome back',
+                                      style: AppTypography.sectionHeading),
                                 ),
-                              ),
-                              const SizedBox(height: AppSpacing.md),
-                              Text(
-                                'Welcome back!',
-                                textAlign: TextAlign.center,
-                                style: AppTypography.sectionHeading.copyWith(
-                                  color: AppColors.primaryText,
+                                const SizedBox(height: AppSpacing.sm),
+                                Text(
+                                  'Sign in to your SeedRover workspace.',
+                                  style: AppTypography.small.copyWith(
+                                    color: AppColors.secondaryText,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: AppSpacing.xs),
-                              Text(
-                                'Your planting tools are set, and the fields are waiting.',
-                                textAlign: TextAlign.center,
-                                style: AppTypography.body.copyWith(
-                                  color: AppColors.secondaryText,
-                                ),
-                              ),
-                              const SizedBox(height: AppSpacing.xl),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: AppSpacing.xs,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    TextFormField(
-                                      controller: _usernameController,
-                                      enabled: !authState.isLoading,
-                                      textInputAction: TextInputAction.next,
-                                      decoration: const InputDecoration(
-                                        labelText: 'Username',
-                                        prefixIcon: Icon(Icons.person_outline),
-                                      ),
-                                      validator: (value) {
-                                        if (value == null ||
-                                            value.trim().isEmpty) {
-                                          return 'Enter your username.';
-                                        }
+                                const SizedBox(height: AppSpacing.lg),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: AppSpacing.xs,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      TextFormField(
+                                        controller: _usernameController,
+                                        enabled: !authState.isLoading,
+                                        autofillHints: const [
+                                          AutofillHints.username
+                                        ],
+                                        textInputAction: TextInputAction.next,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Username',
+                                          prefixIcon:
+                                              Icon(Icons.person_outline),
+                                        ),
+                                        validator: (value) {
+                                          if (value == null ||
+                                              value.trim().isEmpty) {
+                                            return 'Enter your username.';
+                                          }
 
-                                        return null;
-                                      },
-                                    ),
-                                    const SizedBox(height: AppSpacing.md),
-                                    TextFormField(
-                                      controller: _passwordController,
-                                      enabled: !authState.isLoading,
-                                      obscureText: _obscurePassword,
-                                      textInputAction: TextInputAction.done,
-                                      onFieldSubmitted: (_) => _submit(),
-                                      decoration: InputDecoration(
-                                        labelText: 'Password',
-                                        prefixIcon:
-                                            const Icon(Icons.lock_outline),
-                                        suffixIcon: IconButton(
-                                          tooltip: _obscurePassword
-                                              ? 'Show password'
-                                              : 'Hide password',
-                                          onPressed: authState.isLoading
-                                              ? null
-                                              : () {
-                                                  setState(() {
-                                                    _obscurePassword =
-                                                        !_obscurePassword;
-                                                  });
-                                                },
-                                          icon: Icon(
-                                            _obscurePassword
-                                                ? Icons.visibility_outlined
-                                                : Icons.visibility_off_outlined,
+                                          return null;
+                                        },
+                                      ),
+                                      const SizedBox(height: AppSpacing.md),
+                                      TextFormField(
+                                        controller: _passwordController,
+                                        enabled: !authState.isLoading,
+                                        obscureText: _obscurePassword,
+                                        autofillHints: const [
+                                          AutofillHints.password
+                                        ],
+                                        textInputAction: TextInputAction.done,
+                                        onFieldSubmitted: (_) => _submit(),
+                                        decoration: InputDecoration(
+                                          labelText: 'Password',
+                                          prefixIcon:
+                                              const Icon(Icons.lock_outline),
+                                          suffixIcon: IconButton(
+                                            tooltip: _obscurePassword
+                                                ? 'Show password'
+                                                : 'Hide password',
+                                            onPressed: authState.isLoading
+                                                ? null
+                                                : () {
+                                                    setState(() {
+                                                      _obscurePassword =
+                                                          !_obscurePassword;
+                                                    });
+                                                  },
+                                            icon: Icon(
+                                              _obscurePassword
+                                                  ? Icons.visibility_outlined
+                                                  : Icons
+                                                      .visibility_off_outlined,
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                      validator: (value) {
-                                        if (value == null || value.isEmpty) {
-                                          return 'Enter your password.';
-                                        }
+                                        validator: (value) {
+                                          if (value == null || value.isEmpty) {
+                                            return 'Enter your password.';
+                                          }
 
-                                        return null;
-                                      },
-                                    ),
-                                    const SizedBox(height: AppSpacing.sm),
-                                    _RememberMeRow(
-                                      value: _rememberMe,
-                                      enabled: !authState.isLoading,
-                                      onChanged: (value) {
-                                        _setRememberMe(value);
-                                      },
-                                      onForgotPassword: _sendPasswordResetEmail,
-                                    ),
-                                    if (authState.errorMessage != null) ...[
-                                      const SizedBox(height: AppSpacing.md),
-                                      _LoginMessage(
-                                        message: authState.errorMessage!,
-                                        color: AppColors.danger,
+                                          return null;
+                                        },
+                                      ),
+                                      const SizedBox(height: AppSpacing.smd),
+                                      _RememberMeRow(
+                                        value: _rememberMe,
+                                        enabled: !authState.isLoading,
+                                        onChanged: (value) {
+                                          _setRememberMe(value);
+                                        },
+                                        onForgotPassword:
+                                            _openPasswordRecoveryWebsite,
+                                      ),
+                                      if (authState.errorMessage != null) ...[
+                                        const SizedBox(height: AppSpacing.md),
+                                        _LoginMessage(
+                                          message: authState.errorMessage!,
+                                          color: AppColors.danger,
+                                        ),
+                                      ],
+                                      if (authState.successMessage != null) ...[
+                                        const SizedBox(height: AppSpacing.md),
+                                        _LoginMessage(
+                                          message: authState.successMessage!,
+                                          color: AppColors.success,
+                                        ),
+                                      ],
+                                      const SizedBox(height: AppSpacing.lg),
+                                      PrimaryButton(
+                                        label: 'LOG IN',
+                                        isLoading: authState.isLoading,
+                                        onPressed: _submit,
                                       ),
                                     ],
-                                    if (authState.successMessage != null) ...[
-                                      const SizedBox(height: AppSpacing.md),
-                                      _LoginMessage(
-                                        message: authState.successMessage!,
-                                        color: AppColors.success,
-                                      ),
-                                    ],
-                                    const SizedBox(height: AppSpacing.lg),
-                                    PrimaryButton(
-                                      label: 'LOG IN',
-                                      isLoading: authState.isLoading,
-                                      onPressed: _submit,
-                                    ),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: AppSpacing.xl),
-                              Text(
-                                'Version ${AppConstants.appVersion}',
-                                textAlign: TextAlign.center,
-                                style: AppTypography.caption,
-                              ),
-                            ],
+                                const SizedBox(height: AppSpacing.lg),
+                                Text(
+                                  'Version ${AppConstants.appVersion}',
+                                  textAlign: TextAlign.center,
+                                  style: AppTypography.caption,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 }
 
-class _LoginIllustrationPlaceholder extends StatelessWidget {
-  const _LoginIllustrationPlaceholder();
+class _LoginHero extends StatelessWidget {
+  const _LoginHero({required this.compact});
+
+  final bool compact;
 
   @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: _loginIllustrationHeight,
-      width: double.infinity,
-      child: Image.asset(
-        'assets/images/illustration_mobile.png',
-        fit: BoxFit.cover,
-        filterQuality: FilterQuality.high,
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Container(
+        height: compact ? 96 : 158,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: AppColors.heroGradientColors,
+          ),
+          borderRadius: const BorderRadius.vertical(
+            bottom: Radius.circular(32),
+          ),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              right: -52,
+              top: compact ? -82 : -96,
+              child: Container(
+                width: 230,
+                height: 230,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: .10),
+                    width: 24,
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              right: compact ? 24 : 48,
+              bottom: compact ? -72 : -88,
+              child: Icon(
+                Icons.eco_rounded,
+                size: compact ? 164 : 220,
+                color: Colors.white.withValues(alpha: .06),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.only(top: compact ? 12 : 30),
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: Semantics(
+                  image: true,
+                  label: 'SeedRover',
+                  child: Image.asset(
+                    'assets/images/SeedRover Logo White Mobile.png',
+                    width: compact ? 150 : 190,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 class _RememberMeRow extends StatelessWidget {
@@ -372,7 +450,7 @@ class _RememberMeRow extends StatelessWidget {
           child: GestureDetector(
             onTap: enabled ? () => onChanged(!value) : null,
             child: Text(
-              'Remember me',
+              'Remember username',
               style: AppTypography.small.copyWith(
                 color: AppColors.secondaryText,
                 fontSize: 11,
@@ -416,7 +494,7 @@ class _LoginMessage extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(color: color),
       ),

@@ -22,8 +22,12 @@ class AssistantFloatingButton extends ConsumerWidget {
       child: GestureDetector(
         onTap: state.isOpen
             ? null
-            : () {
-                ref.read(assistantControllerProvider.notifier).open();
+            : () async {
+                final assistant =
+                    ref.read(assistantControllerProvider.notifier);
+                await assistant.restoreSavedConversation();
+                if (!context.mounted) return;
+                assistant.open();
                 showModalBottomSheet<void>(
                   context: context,
                   isScrollControlled: true,

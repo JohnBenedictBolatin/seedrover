@@ -43,7 +43,6 @@ type CustomersWorkspaceProps = {
 };
 
 const CUSTOMER_ROWS_PER_PAGE = 5;
-const GENERAL_DISCOUNT_CUSTOMER = "No specific customer";
 
 function todayInputValue(offsetDays = 0) {
   const date = new Date();
@@ -332,8 +331,8 @@ export function CustomersWorkspace({ customers, discounts, stats }: CustomersWor
       <section className={styles.quickActions}>
         <div>
           <p className={styles.eyebrow}>Quick action</p>
-          <h2>Create a customer discount</h2>
-          <span>Create buyer discounts and review released discount codes.</span>
+          <h2>Create a discount code</h2>
+          <span>Release codes any customer can use at checkout.</span>
         </div>
         <div className={styles.quickActionButtons}>
           <button
@@ -501,7 +500,6 @@ export function CustomersWorkspace({ customers, discounts, stats }: CustomersWor
 
       {discountModalOpen ? (
         <CreateDiscountModal
-          customers={customers}
           notify={notify}
           onClose={() => setDiscountModalOpen(false)}
         />
@@ -552,7 +550,7 @@ function DiscountListModal({
           <div className={styles.discountListTable}>
             <div className={styles.discountListHead}>
               <span>Code</span>
-              <span>Name</span>
+              <span>Available to</span>
               <span>Amount / %</span>
               <span>Date redeemed</span>
               <span>Status</span>
@@ -563,7 +561,7 @@ function DiscountListModal({
               return (
                 <article className={styles.discountListRow} key={discount.id}>
                   <strong data-label="Code">{discount.code}</strong>
-                  <span data-label="Name">{discount.customerName}</span>
+                  <span data-label="Available to">Anyone with the code</span>
                   <span data-label="Amount / %">{formatDiscountAmount(discount)}</span>
                   <span data-label="Date redeemed">{discount.usedAt ? formatDateTime(discount.usedAt) : "Not redeemed"}</span>
                   <div className={styles.discountStatusCell} data-label="Status">
@@ -588,22 +586,17 @@ function DiscountListModal({
 }
 
 function CreateDiscountModal({
-  customers,
   notify,
   onClose,
 }: {
-  customers: CustomerSummary[];
   notify: (tone: AlertTone, text: string) => void;
   onClose: () => void;
 }) {
-  const customerOptions = [GENERAL_DISCOUNT_CUSTOMER, ...customers.map((customer) => customer.name)];
-  const [customerName, setCustomerName] = useState(GENERAL_DISCOUNT_CUSTOMER);
   const [discountType, setDiscountType] = useState("Choose discount type");
   const [discountValue, setDiscountValue] = useState("");
   const [validUntil, setValidUntil] = useState("");
   const [notes, setNotes] = useState("");
   const [coupon, setCoupon] = useState<{
-    customerName: string;
     discountType: string;
     discountValue: string;
     validUntil: string;
@@ -614,10 +607,8 @@ function CreateDiscountModal({
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [pending, startTransition] = useTransition();
   const router = useRouter();
-  const selectedCustomer = customers.find((customer) => customer.name === customerName);
   const parsedDiscountValue = Number(discountValue.trim());
   const canCreateDiscount =
-    customerName.trim().length > 0 &&
     ["Percent", "Amount"].includes(discountType) &&
     Number.isFinite(parsedDiscountValue) &&
     parsedDiscountValue > 0;
@@ -628,7 +619,6 @@ function CreateDiscountModal({
     }
 
     setCoupon({
-      customerName,
       discountType,
       discountValue: discountValue.trim() || "0",
       validUntil,
@@ -645,10 +635,7 @@ function CreateDiscountModal({
 
     const confirmed = await confirm({
       title: "Release this discount?",
-      message:
-        coupon.customerName === GENERAL_DISCOUNT_CUSTOMER
-          ? `Discount ${coupon.code} will be available for general use.`
-          : `Discount ${coupon.code} will be released to ${coupon.customerName}.`,
+      message: `Discount ${coupon.code} will be available to anyone who enters it.`,
       confirmLabel: "Release discount",
     });
 
@@ -657,8 +644,6 @@ function CreateDiscountModal({
     }
 
     const formData = new FormData();
-    formData.set("customer_name", coupon.customerName);
-    formData.set("customer_contact", selectedCustomer?.contact ?? "Not provided");
     formData.set("discount_code", coupon.code);
     formData.set("discount_type", coupon.discountType);
     formData.set("discount_value", coupon.discountValue);
@@ -703,14 +688,6 @@ function CreateDiscountModal({
               handleCreateDiscount();
             }}
           >
-            <FormSelect
-              label="Customer or general use"
-              name="customer_name"
-              options={customerOptions}
-              value={customerName}
-              onChange={setCustomerName}
-            />
-
             <FormSelect
               label="Discount type"
               name="discount_type"
@@ -807,7 +784,6 @@ function DiscountCoupon({
   coupon,
 }: {
   coupon: {
-    customerName: string;
     discountType: string;
     discountValue: string;
     validUntil: string;
@@ -842,12 +818,12 @@ function DiscountCoupon({
               </div>
 
               <div className={styles.couponTitle}>{discountLabel}</div>
-              <div className={styles.couponSubtitle}>Customer buyer offer</div>
+              <div className={styles.couponSubtitle}>Available to anyone with the code</div>
 
               <div className={styles.couponDetails}>
                 <div>
-                  <span>Customer</span>
-                  <strong>{coupon.customerName}</strong>
+                  <span>Available to</span>
+                  <strong>Anyone with the code</strong>
                 </div>
                 <div>
                   <span>Valid until</span>

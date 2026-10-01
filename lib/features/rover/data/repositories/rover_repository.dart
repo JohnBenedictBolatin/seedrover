@@ -9,6 +9,7 @@ import '../../../../core/communication/shared/communication_service.dart';
 import '../../../../core/communication/shared/hardware_simulator_state.dart';
 import '../../../../core/communication/shared/simulated_communication_service.dart';
 import '../../../../core/constants/database_tables.dart';
+import '../../../../shared/utils/soil_moisture_reference_label.dart';
 import '../models/rover_command_model.dart';
 import '../models/rover_control_model.dart';
 
@@ -62,7 +63,9 @@ class RoverRepository {
             .timeout(const Duration(seconds: 2)),
         (_client
                 .from(DatabaseTables.sensorReadings)
-                .select()
+                .select(
+                    'soil_moisture, calibrated_value, soil_moisture_calibrated, calibration_version, soil_temperature, environmental_temperature, humidity, recorded_at, source')
+                .eq('provenance_status', 'verified_hardware')
                 .order('recorded_at', ascending: false)
                 .limit(1) as Future<List<dynamic>>)
             .timeout(const Duration(seconds: 2)),
@@ -79,43 +82,98 @@ class RoverRepository {
     final sensors = sensorRows.isEmpty
         ? <String, dynamic>{}
         : sensorRows.first as Map<String, dynamic>;
+    final sensorTime =
+        DateTime.tryParse(sensors['recorded_at']?.toString() ?? '')?.toLocal();
+    final now = DateTime.now();
+    final sensorFresh = sensorTime != null &&
+        !now.isBefore(sensorTime) &&
+        now.difference(sensorTime) <= const Duration(seconds: 60);
+    final sensorAgeKnown = sensorTime != null &&
+        !sensorTime.isAfter(now.add(const Duration(minutes: 1)));
+    String freshnessStatus() {
+      if (!sensorAgeKnown) return 'Verified hardware reading · age unknown';
+      return sensorFresh
+          ? 'Fresh verified hardware reading'
+          : 'Stale verified hardware reading';
+    }
+
+    final moistureCalibrationState =
+        sensors['soil_moisture_calibrated'] as bool?;
+    final moistureCalibrated = moistureCalibrationState == true &&
+        (sensors['calibration_version'] as String?)?.trim().isNotEmpty == true;
+    final sensorSource = sensors['source']?.toString();
     final lastUpdated =
         DateTime.tryParse(status['last_updated']?.toString() ?? '');
     final heartbeatFresh = lastUpdated != null &&
-        DateTime.now().difference(lastUpdated) <= const Duration(seconds: 9);
+        DateTime.now().difference(lastUpdated).abs() <=
+            const Duration(seconds: 9);
 
     return RoverControlModel(
-      batteryLevel: status['battery_level'] as int? ?? 0,
-      seedLevel: status['seed_level'] as int? ?? 0,
       wifiConnected:
           heartbeatFresh && (status['wifi_connected'] as bool? ?? false),
-      bluetoothConnected: status['bluetooth_connected'] as bool? ?? false,
-      cameraConnected: status['camera_connected'] as bool? ?? false,
+      bluetoothConnected:
+          heartbeatFresh && (status['bluetooth_connected'] as bool? ?? false),
+      cameraConnected:
+          heartbeatFresh && (status['camera_connected'] as bool? ?? false),
       cameraLoading: false,
       sensors: [
         RoverSensorModel(
           label: 'Soil Moisture',
-          value: _toDouble(sensors['soil_moisture']),
+          value: moistureCalibrated
+              ? _sensorNumber(
+                  sensors['calibrated_value'] ?? sensors['soil_moisture'],
+                  0,
+                  100)
+              : null,
           unit: '%',
-          status: 'Good',
+          status: sensorTime == null
+              ? 'Unavailable · no fresh verified reading'
+              : moistureCalibrationState != true
+                  ? 'Unavailable'
+                  : _sensorNumber(
+                              sensors['calibrated_value'] ??
+                                  sensors['soil_moisture'],
+                              0,
+                              100) ==
+                          null
+                      ? 'Unavailable · invalid moisture reading'
+                      : freshnessStatus(),
+          recordedAt: sensorTime,
+          source: sensorSource,
+          calibrationVersion: sensors['calibration_version']?.toString(),
+          soilMoistureCalibrated: moistureCalibrationState,
         ),
         RoverSensorModel(
           label: 'Soil Temperature',
-          value: _toDouble(sensors['soil_temperature']),
+          value: _sensorNumber(sensors['soil_temperature'], -55, 125),
           unit: 'C',
-          status: 'Moderate',
+          status: _sensorNumber(sensors['soil_temperature'], -55, 125) == null
+              ? 'Unavailable'
+              : freshnessStatus(),
+          recordedAt: sensorTime,
+          source: sensorSource,
         ),
         RoverSensorModel(
-          label: 'Environmental Temperature',
-          value: _toDouble(sensors['environmental_temperature']),
+          label: 'Air Temperature',
+          value: _sensorNumber(sensors['environmental_temperature'], -40, 80),
           unit: 'C',
-          status: 'Good',
+          status:
+              _sensorNumber(sensors['environmental_temperature'], -40, 80) ==
+                      null
+                  ? 'Unavailable'
+                  : freshnessStatus(),
+          recordedAt: sensorTime,
+          source: sensorSource,
         ),
         RoverSensorModel(
           label: 'Humidity',
-          value: _toDouble(sensors['humidity']),
+          value: _sensorNumber(sensors['humidity'], 0, 100),
           unit: '%',
-          status: 'Good',
+          status: _sensorNumber(sensors['humidity'], 0, 100) == null
+              ? 'Unavailable'
+              : freshnessStatus(),
+          recordedAt: sensorTime,
+          source: sensorSource,
         ),
       ],
     );
@@ -123,33 +181,43 @@ class RoverRepository {
 
   Future<SoilCheckResultModel> checkSoilState() async {
     if (isSimulationConnected) {
-      final response = await _sendMessage('GET_SENSOR_DATA');
-      final soilMoisture = _toDouble(response.payload['soil_moisture']);
-      final isSuitable = soilMoisture >= 35 && soilMoisture <= 55;
-
-      return SoilCheckResultModel(
-        isSuitable: isSuitable,
-        message: isSuitable
-            ? 'Soil is good for planting.'
-            : 'Soil is not ready for planting yet.',
-      );
+      return const SoilCheckResultModel(
+          isSuitable: false,
+          message:
+              'Simulated sensor values cannot be used as a field observation.');
     }
 
     final rows = await _client
         .from(DatabaseTables.sensorReadings)
-        .select('soil_moisture')
+        .select(
+            'soil_moisture, calibrated_value, soil_moisture_calibrated, calibration_version')
+        .eq('provenance_status', 'verified_hardware')
+        .eq('soil_moisture_calibrated', true)
+        .gte(
+            'recorded_at',
+            DateTime.now()
+                .subtract(const Duration(seconds: 60))
+                .toUtc()
+                .toIso8601String())
+        .lte('recorded_at', DateTime.now().toUtc().toIso8601String())
         .order('recorded_at', ascending: false)
         .limit(1) as List<dynamic>;
     final sensors =
         rows.isEmpty ? <String, dynamic>{} : rows.first as Map<String, dynamic>;
-    final soilMoisture = _toDouble(sensors['soil_moisture']);
-    final isSuitable = soilMoisture >= 35 && soilMoisture <= 55;
+    final soilMoisture = sensors['calibration_version'] == null
+        ? null
+        : _sensorNumber(
+            sensors['calibrated_value'] ?? sensors['soil_moisture'], 0, 100);
+    if (soilMoisture == null) {
+      return const SoilCheckResultModel(
+          isSuitable: false,
+          message: 'No fresh soil-moisture reading is available.');
+    }
 
     return SoilCheckResultModel(
-      isSuitable: isSuitable,
-      message: isSuitable
-          ? 'Soil is good for planting.'
-          : 'Soil is not ready for planting yet.',
+      isSuitable: false,
+      message:
+          'Soil moisture: ${soilMoisture.toStringAsFixed(1)}%. ${soilMoistureReferenceLabel(soilMoisture)}.',
     );
   }
 
@@ -248,41 +316,38 @@ class RoverRepository {
     }
 
     final statusResponse = await _sendMessage('GET_ROBOT_STATUS');
-    final sensorResponse = await _sendMessage('GET_SENSOR_DATA');
     final status = statusResponse.payload;
-    final sensors = sensorResponse.payload;
 
     return RoverControlModel(
-      batteryLevel: _toInt(status['battery_level']),
-      seedLevel: _toInt(status['seed_level']),
       wifiConnected: status['wifi_connected'] as bool? ?? false,
       bluetoothConnected: status['bluetooth_connected'] as bool? ?? false,
       cameraConnected: status['camera_connected'] as bool? ?? false,
       cameraLoading: status['camera_status'] == 'Loading',
+      isSimulated: true,
       sensors: [
         RoverSensorModel(
           label: 'Soil Moisture',
-          value: _toDouble(sensors['soil_moisture']),
+          value: null,
           unit: '%',
-          status: 'Good',
+          status: 'Simulation · value withheld',
         ),
         RoverSensorModel(
           label: 'Soil Temperature',
-          value: _toDouble(sensors['soil_temperature']),
+          value: null,
           unit: 'C',
-          status: 'Moderate',
+          status: 'Simulation · value withheld',
         ),
         RoverSensorModel(
-          label: 'Environmental Temperature',
-          value: _toDouble(sensors['environment_temperature']),
+          label: 'Air Temperature',
+          value: null,
           unit: 'C',
-          status: 'Good',
+          status: 'Simulation · value withheld',
         ),
         RoverSensorModel(
           label: 'Humidity',
-          value: _toDouble(sensors['humidity']),
+          value: null,
           unit: '%',
-          status: 'Good',
+          status: 'Simulation · value withheld',
         ),
       ],
     );
@@ -327,46 +392,49 @@ class RoverRepository {
     });
   }
 
-  double _toDouble(Object? value) {
-    return (value as num?)?.toDouble() ?? 0;
-  }
+  double? _nullableDouble(Object? value) => (value as num?)?.toDouble();
 
-  int _toInt(Object? value) {
-    return (value as num?)?.toInt() ?? 0;
+  double? _sensorNumber(Object? value, double minimum, double maximum) {
+    final number = _nullableDouble(value);
+    return number != null &&
+            number.isFinite &&
+            number >= minimum &&
+            number <= maximum
+        ? number
+        : null;
   }
 
   RoverControlModel _modelFromSimulatorState(HardwareSimulatorState state) {
     return RoverControlModel(
-      batteryLevel: state.batteryLevel,
-      seedLevel: state.seedLevel,
       wifiConnected: isSimulationConnected,
       bluetoothConnected: isSimulationConnected,
       cameraConnected: state.cameraStatus == 'Connected',
       cameraLoading: state.cameraStatus == 'Loading',
+      isSimulated: true,
       sensors: [
         RoverSensorModel(
           label: 'Soil Moisture',
-          value: state.soilMoisture,
+          value: null,
           unit: '%',
-          status: 'Good',
+          status: 'Simulated',
         ),
         RoverSensorModel(
           label: 'Soil Temperature',
-          value: state.soilTemperature,
+          value: null,
           unit: 'C',
-          status: 'Moderate',
+          status: 'Simulated',
         ),
         RoverSensorModel(
           label: 'Environmental Temperature',
-          value: state.environmentTemperature,
+          value: null,
           unit: 'C',
-          status: 'Good',
+          status: 'Simulated',
         ),
         RoverSensorModel(
           label: 'Humidity',
-          value: state.humidity,
+          value: null,
           unit: '%',
-          status: 'Good',
+          status: 'Simulated',
         ),
       ],
     );

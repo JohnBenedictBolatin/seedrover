@@ -286,7 +286,7 @@ export async function getCustomersDashboard() {
     : (discountsResult.data ?? []).map<CustomerDiscount>((discount) => ({
         id: discount.id,
         code: discount.discount_code,
-        customerName: discount.customer_name,
+        customerName: "Anyone with the code",
         discountType: discount.discount_type,
         discountValue: toNumber(discount.discount_value),
         releasedAt: discount.released_at,

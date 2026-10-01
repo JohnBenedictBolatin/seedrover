@@ -50,7 +50,8 @@ code in the Phase 1 firmware.
 ## Deployment secrets
 
 Store the rover token only in the ignored firmware `secrets.h`. Store the same
-token in the ignored Flutter `.env` as `ROVER_TOKEN`. Production actuator
+token in the ignored Flutter `.env.mobile.json` and pass it to the build with
+`--dart-define-from-file=.env.mobile.json`. Production actuator
 control will also require BLE bonding/encryption and a hardware fail-safe.
 
 This document defines the official communication protocol between the SeedRover mobile application and the ESP32-based robotic system.
@@ -200,11 +201,26 @@ GET_SENSOR_DATA
 Expected response
 
 {
-    "soil_moisture": 63,
-    "soil_temperature": 28,
-    "environment_temperature": 31,
-    "humidity": 72
+    "status": "success",
+    "data": {
+        "soil_raw": 2310,
+        "soil_sample_available": true,
+        "soil_moisture_percent": null,
+        "soil_moisture_calibrated": false,
+        "calibration_version": null,
+        "soil_temperature_c": 28.1,
+        "air_temperature_c": 31.0,
+        "humidity_percent": 72.0,
+        "firmware_version": "...",
+        "sampled_at_ms": 123456
+    }
 }
+
+The moisture percentage remains null until the probe has valid calibration.
+Disconnected or invalid sensors return null; zero remains a valid value for
+measured percentages and temperatures. `sampled_at_ms` is the rover's monotonic
+clock. The mobile client records the UTC capture/receive timestamp with the
+reading. Simulator values are never saved as hardware readings.
 
 ---
 
@@ -217,27 +233,11 @@ GET_ROBOT_STATUS
 Expected response
 
 {
-    "battery_level": 84,
-    "seed_level": 67,
     "current_activity": "Planting",
     "wifi_connected": true,
     "bluetooth_connected": false,
     "camera_connected": true,
     "emergency_stop": false
-}
-
----
-
-# Inventory Commands
-
-Request current seed level
-
-GET_SEED_LEVEL
-
-Expected response
-
-{
-    "seed_level": 62
 }
 
 ---
@@ -288,10 +288,6 @@ If three consecutive heartbeat requests fail:
 The rover should automatically send updated values whenever they change.
 
 Examples
-
-Battery changed
-
-Seed level changed
 
 Current activity changed
 

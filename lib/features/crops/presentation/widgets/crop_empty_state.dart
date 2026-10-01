@@ -22,10 +22,10 @@ class CropEmptyState extends StatelessWidget {
             size: 88,
           ),
           const SizedBox(height: AppSpacing.md),
-          Text("You're all caught up.", style: AppTypography.cardTitle),
+          Text('No crop batches yet', style: AppTypography.cardTitle),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'No crop records match the current view.',
+            'Crop records will appear here when a batch is planted.',
             textAlign: TextAlign.center,
             style: AppTypography.caption,
           ),

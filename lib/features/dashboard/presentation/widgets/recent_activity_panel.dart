@@ -5,16 +5,18 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/utils/date_time_formatter.dart';
-import '../../../../shared/widgets/app_card.dart';
+import '../../../../shared/widgets/history_pagination.dart';
 import '../../data/models/dashboard_model.dart';
 
 class RecentActivityPanel extends StatelessWidget {
   const RecentActivityPanel({
     required this.activities,
+    this.errorMessage,
     super.key,
   });
 
   final List<ActivityPreviewModel> activities;
+  final String? errorMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +53,9 @@ class RecentActivityPanel extends StatelessWidget {
           ],
         ),
         const SizedBox(height: AppSpacing.sm),
-        if (previewActivities.isEmpty)
+        if (errorMessage != null)
+          Text(errorMessage!, style: AppTypography.caption)
+        else if (previewActivities.isEmpty)
           const _RecentActivityEmptyState()
         else
           for (var index = 0; index < previewActivities.length; index++) ...[
@@ -64,189 +68,113 @@ class RecentActivityPanel extends StatelessWidget {
   }
 
   void _showAllActivities(BuildContext context) {
-    showDialog<void>(
+    showModalBottomSheet<void>(
       context: context,
-      builder: (_) => _ActivityHistoryDialog(activities: activities),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ActivityHistorySheet(activities: activities),
     );
   }
 }
 
-class _ActivityHistoryDialog extends StatefulWidget {
-  const _ActivityHistoryDialog({required this.activities});
+class _ActivityHistorySheet extends StatefulWidget {
+  const _ActivityHistorySheet({required this.activities});
 
   final List<ActivityPreviewModel> activities;
 
   @override
-  State<_ActivityHistoryDialog> createState() => _ActivityHistoryDialogState();
+  State<_ActivityHistorySheet> createState() => _ActivityHistorySheetState();
 }
 
-class _ActivityHistoryDialogState extends State<_ActivityHistoryDialog> {
-  static const int _pageSize = 6;
+class _ActivityHistorySheetState extends State<_ActivityHistorySheet> {
+  static const int _pageSize = 5;
 
   int _page = 0;
 
   @override
   Widget build(BuildContext context) {
-    final totalPages = widget.activities.isEmpty
-        ? 1
-        : ((widget.activities.length + _pageSize - 1) ~/ _pageSize);
     final startIndex = _page * _pageSize;
     final pageActivities =
         widget.activities.skip(startIndex).take(_pageSize).toList();
-    final maxContentHeight = MediaQuery.of(context).size.height * 0.62;
-
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(AppSpacing.lg),
-      child: AppCard(
-        backgroundColor: AppColors.secondaryBackground,
-        borderColor: AppColors.inactiveBorder,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Recent Activities',
-                        style: AppTypography.cardTitle.copyWith(
-                          color: AppColors.primaryText,
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(
-                        '${widget.activities.length} activity records',
-                        style: AppTypography.caption,
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Close',
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: Icon(
-                    Icons.close,
-                    color: AppColors.primaryText,
-                  ),
-                ),
-              ],
+    return SafeArea(
+      top: false,
+      child: FractionallySizedBox(
+        heightFactor: .88,
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.primaryBackground,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(24),
             ),
-            const SizedBox(height: AppSpacing.md),
-            ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: maxContentHeight),
-              child: pageActivities.isEmpty
-                  ? const _RecentActivityEmptyState()
-                  : ListView.separated(
-                      shrinkWrap: true,
-                      itemBuilder: (_, index) => _RecentActivityTile(
-                        activity: pageActivities[index],
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: AppSpacing.sm),
+              Container(
+                key: const Key('recent-activity-history-drag-handle'),
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.inactiveBorder,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  AppSpacing.sm,
+                  AppSpacing.xs,
+                  AppSpacing.sm,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Recent Activities',
+                              style: AppTypography.sectionHeading),
+                          Text('${widget.activities.length} activity records',
+                              style: AppTypography.caption),
+                        ],
                       ),
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: AppSpacing.sm),
-                      itemCount: pageActivities.length,
                     ),
-            ),
-            if (widget.activities.length > _pageSize) ...[
-              const SizedBox(height: AppSpacing.lg),
-              _ActivityPager(
-                currentPage: _page + 1,
-                totalPages: totalPages,
-                onPrevious: _page == 0
-                    ? null
-                    : () => setState(() => _page -= 1),
-                onNext: _page >= totalPages - 1
-                    ? null
-                    : () => setState(() => _page += 1),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ActivityPager extends StatelessWidget {
-  const _ActivityPager({
-    required this.currentPage,
-    required this.totalPages,
-    required this.onPrevious,
-    required this.onNext,
-  });
-
-  final int currentPage;
-  final int totalPages;
-  final VoidCallback? onPrevious;
-  final VoidCallback? onNext;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppColors.secondaryBackground,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(
-          color: AppColors.primaryGreen.withOpacity(0.16),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm,
-          vertical: AppSpacing.xs,
-        ),
-        child: Row(
-          children: [
-            _PagerButton(
-              icon: Icons.chevron_left_rounded,
-              onPressed: onPrevious,
-            ),
-            Expanded(
-              child: Text(
-                'Page $currentPage of $totalPages',
-                textAlign: TextAlign.center,
-                style: AppTypography.caption.copyWith(
-                  color: AppColors.secondaryText,
-                  fontWeight: FontWeight.w600,
+                    IconButton(
+                      tooltip: 'Close recent activities',
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
                 ),
               ),
-            ),
-            _PagerButton(
-              icon: Icons.chevron_right_rounded,
-              onPressed: onNext,
-            ),
-          ],
+              Expanded(
+                child: pageActivities.isEmpty
+                    ? const _RecentActivityEmptyState()
+                    : ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.md,
+                          AppSpacing.xs,
+                          AppSpacing.md,
+                          AppSpacing.md,
+                        ),
+                        itemBuilder: (_, index) => _RecentActivityTile(
+                          activity: pageActivities[index],
+                        ),
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: AppSpacing.sm),
+                        itemCount: pageActivities.length,
+                      ),
+              ),
+              if (widget.activities.length > _pageSize)
+                HistoryPagination(
+                  pageIndex: _page,
+                  totalRecords: widget.activities.length,
+                  pageSize: _pageSize,
+                  onPageChanged: (page) => setState(() => _page = page),
+                ),
+            ],
+          ),
         ),
-      ),
-    );
-  }
-}
-
-class _PagerButton extends StatelessWidget {
-  const _PagerButton({
-    required this.icon,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = onPressed != null;
-
-    return IconButton(
-      onPressed: onPressed,
-      icon: Icon(icon),
-      color: enabled ? AppColors.primaryGreen : AppColors.mutedText,
-      style: IconButton.styleFrom(
-        backgroundColor: enabled
-            ? AppColors.primaryGreen.withOpacity(0.12)
-            : AppColors.cardBackground.withOpacity(0.72),
-        shape: const CircleBorder(),
       ),
     );
   }
@@ -271,7 +199,7 @@ class _RecentActivityEmptyState extends StatelessWidget {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: AppColors.primaryGreen.withOpacity(0.10),
+                color: AppColors.primaryGreen.withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(AppRadius.sm),
               ),
               child: Icon(
@@ -306,7 +234,7 @@ class _RecentActivityTile extends StatelessWidget {
         color: AppColors.secondaryBackground,
         borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(
-          color: AppColors.primaryGreen.withOpacity(0.14),
+          color: AppColors.primaryGreen.withValues(alpha: 0.14),
         ),
       ),
       child: Padding(
@@ -318,7 +246,7 @@ class _RecentActivityTile extends StatelessWidget {
               width: 34,
               height: 34,
               decoration: BoxDecoration(
-                color: AppColors.primaryGreen.withOpacity(0.10),
+                color: AppColors.primaryGreen.withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(AppRadius.sm),
               ),
               child: Icon(
@@ -337,9 +265,10 @@ class _RecentActivityTile extends StatelessWidget {
                   Text(activity.description, style: AppTypography.small),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
-                    '${activity.module} - '
-                    '${DateTimeFormatter.formatTime(activity.timestamp)}',
-                    style: AppTypography.monoCaption,
+                    activity.timestamp == null
+                        ? activity.module
+                        : '${activity.module} - ${DateTimeFormatter.formatTime(activity.timestamp!)}',
+                    style: AppTypography.numericCaption,
                   ),
                 ],
               ),

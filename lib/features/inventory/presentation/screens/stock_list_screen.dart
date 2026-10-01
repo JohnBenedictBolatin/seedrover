@@ -1,9 +1,8 @@
-import 'dart:typed_data';
+import '../widgets/inventory_task_forms.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/constants/permission_keys.dart';
@@ -11,23 +10,24 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
-import '../../../../shared/widgets/animated_content.dart';
-import '../../../../shared/widgets/app_card.dart';
 import '../../../../shared/widgets/content_skeleton.dart';
 import '../../../../shared/widgets/page_header_actions.dart';
 import '../../../authentication/providers/auth_providers.dart';
-import '../../controllers/stock_inventory_controller.dart';
 import '../../data/models/stock_model.dart';
 import '../../providers/stock_providers.dart';
-import '../widgets/stock_card.dart';
 import '../widgets/stock_empty_state.dart';
+import '../widgets/stock_card.dart';
 import '../widgets/stock_filter_bar.dart';
 import '../widgets/stock_overview_hero.dart';
+import '../../controllers/stock_inventory_state.dart';
+import '../../data/repositories/stock_repository.dart';
+import '../../../../shared/widgets/app_page_header.dart';
+import '../../../../shared/widgets/startup_recovery.dart';
+import '../widgets/inventory_history_button.dart';
+import '../widgets/inventory_text_scale.dart';
 
 class StockListScreen extends ConsumerWidget {
   const StockListScreen({super.key});
-
-  static const _unitOptions = ['kg'];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -36,6 +36,9 @@ class StockListScreen extends ConsumerWidget {
     final profile = ref.watch(authControllerProvider).profile;
     final canManageStocks =
         profile?.hasPermission(PermissionKeys.stocksManage) ?? false;
+    final canViewInventoryHistory = profile != null &&
+        profile.roleName != 'Farm Planting Manager' &&
+        profile.roleName != 'Planting Staff';
     final inStockItems = state.stocks
         .where((stock) => stock.status == StockStatus.inStock)
         .length;
@@ -43,696 +46,110 @@ class StockListScreen extends ConsumerWidget {
         .where((stock) => stock.status != StockStatus.inStock)
         .length;
 
-    if (state.isLoading) {
-      return const _StockLoadingSkeleton();
-    }
-
-    return RefreshIndicator(
-      onRefresh: controller.refreshStocks,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: AnimatedTypingText(
-                  'Inventory',
-                  style: AppTypography.screenTitle.copyWith(
-                    color: AppColors.primaryGreen,
-                  ),
-                ),
-              ),
-              const PageHeaderActions(),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          StockOverviewHero(
-            inStockItems: inStockItems,
-            needsAttentionItems: needsAttentionItems,
-          ),
-          if (canManageStocks) ...[
-            const SizedBox(height: AppSpacing.sm),
-            SizedBox(
-              width: double.infinity,
-              child: _StockAddItemButton(
-                onPressed: () => _showCreateStockDialog(context, controller),
-              ),
-            ),
+    if (state.stocks.isEmpty &&
+        (state.isLoading || state.errorMessage != null)) {
+      return InventoryTextScale(
+        child: StartupRecovery(
+          loading: const _StockLoadingSkeleton(),
+          errorMessage: state.errorMessage,
+          onRetry: controller.loadStocks,
+          destinations: [
+            (label: 'Continue to Dashboard', route: AppRoutes.dashboard),
+            if (profile?.hasPermission(PermissionKeys.roverView) == true)
+              (label: 'Continue to Rover Control', route: AppRoutes.rover),
           ],
-          const SizedBox(height: AppSpacing.xl),
-          StockFilterBar(
-            searchQuery: state.searchQuery,
-            selectedCategory: state.selectedCategory,
-            selectedFilter: state.selectedFilter,
-            selectedSort: state.selectedSort,
-            onSearchChanged: controller.updateSearch,
-            onCategoryChanged: controller.updateCategory,
-            onFilterChanged: controller.updateFilter,
-            onSortChanged: controller.updateSort,
-            onClear: controller.clearFilters,
-          ),
-          const SizedBox(height: AppSpacing.xl),
-          if (state.filteredStocks.isEmpty)
-            const StockEmptyState()
-          else
-            _StockContent(
-              stocks: state.filteredStocks,
-              onStockSelected: (stock) {
-                context.push(AppRoutes.stockDetailsPath(stock.id));
-              },
-            ),
-        ],
-      ),
-    );
-  }
-
-  void _showCreateStockDialog(
-    BuildContext context,
-    StockInventoryController controller,
-  ) {
-    final nameController = TextEditingController();
-    final quantityController = TextEditingController(text: '0');
-    final minimumController = TextEditingController(text: '0');
-    final unitCostController = TextEditingController();
-    final sellingPriceController = TextEditingController();
-    final locationController = TextEditingController(text: 'Harvest Bay');
-    final notesController = TextEditingController(text: 'Inventory item added.');
-    var category = StockCategory.leafyVegetables;
-    var selectedUnit = _unitOptions.first;
-    Uint8List? selectedImageBytes;
-    String? selectedImageName;
-    String? selectedImageMimeType;
-    String? errorMessage;
-
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return Dialog(
-              backgroundColor: Colors.transparent,
-              insetPadding: const EdgeInsets.all(AppSpacing.lg),
-              child: AppCard(
-                backgroundColor: AppColors.secondaryBackground,
-                borderColor: AppColors.inactiveBorder,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Add Item',
-                              style: AppTypography.cardTitle,
-                            ),
-                          ),
-                          IconButton(
-                            onPressed: () => Navigator.of(dialogContext).pop(),
-                            icon: const Icon(Icons.close),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      TextField(
-                        controller: nameController,
-                        decoration: const InputDecoration(labelText: 'Item Name'),
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      DropdownButtonFormField<StockCategory>(
-                        value: category,
-                        dropdownColor: AppColors.secondaryBackground,
-                        decoration: const InputDecoration(labelText: 'Category'),
-                        items: [
-                          for (final item in StockCategory.values)
-                            DropdownMenuItem(
-                              value: item,
-                              child: Text(item.label),
-                            ),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) {
-                            setDialogState(() => category = value);
-                          }
-                        },
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: quantityController,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                decimal: true,
-                              ),
-                              decoration:
-                                  const InputDecoration(labelText: 'Quantity'),
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.md),
-                          Expanded(
-                            child: DropdownButtonFormField<String>(
-                              value: selectedUnit,
-                              dropdownColor: AppColors.secondaryBackground,
-                              decoration: const InputDecoration(
-                                labelText: 'Unit',
-                              ),
-                              items: [
-                                for (final unit in _unitOptions)
-                                  DropdownMenuItem(
-                                    value: unit,
-                                    child: Text(unit),
-                                  ),
-                              ],
-                              onChanged: (value) {
-                                if (value != null) {
-                                  setDialogState(() => selectedUnit = value);
-                                }
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      TextField(
-                        controller: minimumController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        decoration: const InputDecoration(
-                          labelText: 'Minimum Stock Level',
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: unitCostController,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                decimal: true,
-                              ),
-                              decoration:
-                                  const InputDecoration(labelText: 'Unit Cost'),
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.md),
-                          Expanded(
-                            child: TextField(
-                              controller: sellingPriceController,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                decimal: true,
-                              ),
-                              decoration: const InputDecoration(
-                                labelText: 'Selling Price',
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      TextField(
-                        controller: locationController,
-                        decoration: const InputDecoration(
-                          labelText: 'Storage Location',
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      _StockImagePickerField(
-                        imageBytes: selectedImageBytes,
-                        imageName: selectedImageName,
-                        onPickImage: () async {
-                          final image = await _pickStockImage(context);
-
-                          if (image == null) {
-                            return;
-                          }
-
-                          try {
-                            final bytes = await image.readAsBytes();
-                            setDialogState(() {
-                              selectedImageBytes = bytes;
-                              selectedImageName = image.name;
-                              selectedImageMimeType = _mimeTypeFor(image.name);
-                              errorMessage = null;
-                            });
-                          } catch (_) {
-                            setDialogState(() {
-                              errorMessage =
-                                  'Unable to read that image. Please try another photo.';
-                            });
-                          }
-                        },
-                        onRemoveImage: selectedImageBytes == null
-                            ? null
-                            : () {
-                                setDialogState(() {
-                                  selectedImageBytes = null;
-                                  selectedImageName = null;
-                                  selectedImageMimeType = null;
-                                });
-                              },
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      TextField(
-                        controller: notesController,
-                        decoration: const InputDecoration(labelText: 'Notes'),
-                      ),
-                      if (errorMessage != null) ...[
-                        const SizedBox(height: AppSpacing.md),
-                        Text(
-                          errorMessage!,
-                          style: AppTypography.caption.copyWith(
-                            color: AppColors.danger,
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: AppSpacing.lg),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          OutlinedButton(
-                            onPressed: () => Navigator.of(dialogContext).pop(),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.primaryText,
-                              side: BorderSide(
-                                color: AppColors.inactiveBorder,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(AppRadius.sm),
-                              ),
-                            ),
-                            child: const Text('Cancel'),
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          OutlinedButton.icon(
-                            onPressed: () async {
-                              final name = nameController.text.trim();
-                              final quantity =
-                                  double.tryParse(quantityController.text) ?? -1;
-                              final minimum =
-                                  double.tryParse(minimumController.text) ?? -1;
-                              final unitCost = _parseOptionalMoney(
-                                unitCostController.text,
-                              );
-                              final sellingPrice = _parseOptionalMoney(
-                                sellingPriceController.text,
-                              );
-
-                              if (name.isEmpty) {
-                                setDialogState(() {
-                                  errorMessage = 'Item name is required.';
-                                });
-                                return;
-                              }
-
-                              if (quantity < 0 || minimum < 0) {
-                                setDialogState(() {
-                                  errorMessage =
-                                      'Quantity values cannot be negative.';
-                                });
-                                return;
-                              }
-
-                              if (unitCost == -1 || sellingPrice == -1) {
-                                setDialogState(() {
-                                  errorMessage =
-                                      'Prices must be valid nonnegative values.';
-                                });
-                                return;
-                              }
-
-                              final createError = await controller.createStock(
-                                StockModel(
-                                  id: 'new',
-                                  displayId: 'STK-000',
-                                  name: name,
-                                  category: category,
-                                  currentQuantity: quantity,
-                                  unit: 'kg',
-                                  storageLocation:
-                                      locationController.text.trim().isEmpty
-                                          ? 'Unassigned'
-                                          : locationController.text.trim(),
-                                  minimumStockLevel: minimum,
-                                  unitCost: unitCost,
-                                  sellingPrice: sellingPrice,
-                                  supplier: 'Farm Harvest',
-                                  dateAdded: DateTime.now(),
-                                  lastUpdated: DateTime.now(),
-                                  notes: notesController.text.trim(),
-                                  transactions: const [],
-                                ),
-                                imageUpload: selectedImageBytes == null
-                                    ? null
-                                    : StockImageUpload(
-                                        bytes: selectedImageBytes!,
-                                        fileName:
-                                            selectedImageName ?? 'stock-image',
-                                        mimeType: selectedImageMimeType ??
-                                            'image/jpeg',
-                                      ),
-                              );
-
-                              if (createError != null) {
-                                setDialogState(() {
-                                  errorMessage = createError;
-                                });
-                                return;
-                              }
-
-                              if (context.mounted) {
-                                Navigator.of(dialogContext).pop();
-                              }
-                            },
-                            icon: Icon(Icons.check),
-                            label: const Text('Save'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.primaryGreen,
-                              side: BorderSide(
-                                color: AppColors.primaryGreen,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(AppRadius.sm),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  double? _parseOptionalMoney(String value) {
-    final trimmed = value.trim();
-
-    if (trimmed.isEmpty) {
-      return null;
-    }
-
-    final parsed = double.tryParse(trimmed);
-
-    if (parsed == null || parsed < 0) {
-      return -1;
-    }
-
-    return parsed;
-  }
-
-  String _mimeTypeFor(String fileName) {
-    final lowerName = fileName.toLowerCase();
-
-    if (lowerName.endsWith('.png')) {
-      return 'image/png';
-    }
-
-    if (lowerName.endsWith('.webp')) {
-      return 'image/webp';
-    }
-
-    return 'image/jpeg';
-  }
-
-  Future<XFile?> _pickStockImage(BuildContext context) async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      backgroundColor: AppColors.secondaryBackground,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppRadius.md),
         ),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Upload Inventory Image',
-                        style: AppTypography.cardTitle,
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.md),
-                ListTile(
-                  leading: const Icon(Icons.photo_library_outlined),
-                  title: const Text('Choose from gallery'),
-                  onTap: () => Navigator.of(context).pop(ImageSource.gallery),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.photo_camera_outlined),
-                  title: const Text('Take a photo'),
-                  onTap: () => Navigator.of(context).pop(ImageSource.camera),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-
-    if (source == null) {
-      return null;
-    }
-
-    try {
-      return ImagePicker().pickImage(
-        source: source,
-        maxWidth: 1200,
-        maxHeight: 1200,
-        imageQuality: 80,
-      );
-    } catch (_) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Image picker is not ready. Restart the app and try again.',
-            ),
-          ),
-        );
-      }
-
-      return null;
-    }
-  }
-}
-
-class _StockImagePickerField extends StatelessWidget {
-  const _StockImagePickerField({
-    required this.imageBytes,
-    required this.imageName,
-    required this.onPickImage,
-    required this.onRemoveImage,
-  });
-
-  final Uint8List? imageBytes;
-  final String? imageName;
-  final VoidCallback onPickImage;
-  final VoidCallback? onRemoveImage;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onPickImage,
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: AppColors.cardBackground,
-            border: Border.all(color: AppColors.inactiveBorder),
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            child: Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(AppRadius.sm),
-                  child: SizedBox.square(
-                    dimension: 64,
-                    child: imageBytes == null
-                        ? ColoredBox(
-                            color: AppColors.secondaryBackground,
-                            child: Icon(
-                              Icons.image_outlined,
-                              color: AppColors.primaryGreen,
-                            ),
-                          )
-                        : Image.memory(imageBytes!, fit: BoxFit.cover),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Inventory Image', style: AppTypography.caption),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(
-                        imageName ?? 'No image selected',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.small,
-                      ),
-                    ],
-                  ),
-                ),
-                Tooltip(
-                  message: 'Upload image',
-                  child: SizedBox.square(
-                    dimension: 36,
-                    child: IconButton.outlined(
-                      onPressed: onPickImage,
-                      icon: Icon(
-                        Icons.file_upload_outlined,
-                        size: 18,
-                      ),
-                      color: AppColors.primaryGreen,
-                      style: IconButton.styleFrom(
-                        side: BorderSide(color: AppColors.primaryGreen),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.sm),
-                        ),
-                        padding: EdgeInsets.zero,
-                      ),
-                    ),
-                  ),
-                ),
-                if (onRemoveImage != null)
-                  IconButton(
-                    tooltip: 'Remove image',
-                    onPressed: onRemoveImage,
-                    icon: Icon(Icons.close),
-                    color: AppColors.secondaryText,
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _StockAddItemButton extends StatelessWidget {
-  const _StockAddItemButton({required this.onPressed});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(AppRadius.md),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          child: Ink(
-            height: 42,
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment.bottomCenter,
-                radius: 1.25,
-                colors: AppColors.heroGradientColors,
-              ),
-              border: Border.all(
-                color: AppColors.primaryGreen.withOpacity(.34),
-              ),
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primaryGreen.withOpacity(.06),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: CustomPaint(painter: _StockAddButtonStarsPainter()),
-                  ),
-                ),
-                Center(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.add,
-                        color: AppColors.heroIconGreen,
-                        size: 18,
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                      Text(
-                        'Add Item',
-                        style: AppTypography.statusBadge.copyWith(
-                          color: AppColors.heroPrimaryText,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _StockAddButtonStarsPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    const stars = <Offset>[
-      Offset(.08, .18),
-      Offset(.18, .54),
-      Offset(.31, .26),
-      Offset(.47, .66),
-      Offset(.62, .2),
-      Offset(.76, .5),
-      Offset(.91, .28),
-    ];
-    final paint = Paint()..color = AppColors.accentGreen.withOpacity(.3);
-    for (var index = 0; index < stars.length; index++) {
-      final star = stars[index];
-      canvas.drawCircle(
-        Offset(star.dx * size.width, star.dy * size.height),
-        index.isEven ? 1 : .65,
-        paint,
       );
     }
-  }
 
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+    return InventoryTextScale(
+      child: RefreshIndicator(
+        onRefresh: controller.refreshStocks,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.lg),
+          children: [
+            if (state.errorMessage != null) ...[
+              MaterialBanner(
+                content: Text('Showing saved inventory. ${state.errorMessage}'),
+                leading: const Icon(Icons.cloud_off_outlined),
+                actions: [
+                  TextButton(
+                      onPressed: controller.loadStocks,
+                      child: const Text('Retry')),
+                  TextButton(
+                    onPressed: () => controller.clearErrorMessage(),
+                    child: const Text('Dismiss'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
+            AppPageHeader(
+              title: 'Inventory',
+              actions: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: const [PageHeaderActions()],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            StockOverviewHero(
+              totalItems: state.stocks.length,
+              inStockItems: inStockItems,
+              needsAttentionItems: needsAttentionItems,
+            ),
+            if (canManageStocks) ...[
+              const SizedBox(height: AppSpacing.sm),
+              InventoryGradientActionButton(
+                label: 'Add Inventory Item',
+                icon: Icons.add_rounded,
+                onPressed: () => showInventoryEditor(context, ref, controller),
+              ),
+            ],
+            if (canViewInventoryHistory) ...[
+              if (canManageStocks) const SizedBox(height: AppSpacing.sm),
+              InventoryHistoryButton(
+                repository: ref.read(stockRepositoryProvider),
+              ),
+            ],
+            const SizedBox(height: AppSpacing.md),
+            StockFilterBar(
+              searchQuery: state.searchQuery,
+              selectedCategory: state.selectedCategory,
+              selectedFilter: state.selectedFilter,
+              selectedSort: state.selectedSort,
+              onSearchChanged: controller.updateSearch,
+              onCategoryChanged: controller.updateCategory,
+              onFilterChanged: controller.updateFilter,
+              onSortChanged: controller.updateSort,
+            ),
+            _StockActiveFilters(
+              state: state,
+              onCategoryRemoved: () => controller.updateCategory(null),
+              onStatusRemoved: () =>
+                  controller.updateFilter(StockFilterType.all),
+              onSortRemoved: () =>
+                  controller.updateSort(StockSortType.recentlyUpdated),
+              onClear: controller.clearFilters,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            if (state.filteredStocks.isEmpty)
+              state.stocks.isEmpty
+                  ? const StockEmptyState()
+                  : _NoStockResults(onClear: controller.clearFilters)
+            else
+              _StockContent(
+                stocks: state.filteredStocks,
+                onStockSelected: (stock) {
+                  context.push(AppRoutes.stockDetailsPath(stock.id));
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _StockLoadingSkeleton extends StatelessWidget {
@@ -742,79 +159,43 @@ class _StockLoadingSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: const EdgeInsets.all(AppSpacing.md),
       children: [
-        const SkeletonLine(widthFactor: 0.28, height: 30),
-        const SizedBox(height: AppSpacing.lg),
+        const SkeletonLine(widthFactor: 0.34, height: 30),
+        const SizedBox(height: AppSpacing.md),
         const SkeletonCard(
-          height: 138,
+          height: 124,
           children: [],
         ),
-        const SizedBox(height: AppSpacing.xl),
-        const SkeletonCard(
-          children: [
-            SkeletonLine(widthFactor: 0.92),
-            SizedBox(height: AppSpacing.md),
-            Row(
-              children: [
-                Expanded(child: SkeletonBlock(height: 34)),
-                SizedBox(width: AppSpacing.sm),
-                Expanded(child: SkeletonBlock(height: 34)),
-                SizedBox(width: AppSpacing.sm),
-                Expanded(child: SkeletonBlock(height: 34)),
-              ],
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.xl),
-        const SkeletonLine(widthFactor: 0.45, height: 18),
         const SizedBox(height: AppSpacing.md),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: const [
-              SizedBox(width: 230, child: _StockCardSkeleton()),
-              SizedBox(width: AppSpacing.md),
-              SizedBox(width: 230, child: _StockCardSkeleton()),
-            ],
-          ),
+        const SkeletonCard(
+          height: 48,
+          children: [],
         ),
         const SizedBox(height: AppSpacing.lg),
-        const SkeletonLine(widthFactor: 0.5, height: 18),
+        const SkeletonLine(widthFactor: 0.5, height: 20),
         const SizedBox(height: AppSpacing.md),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: const [
-              SizedBox(width: 230, child: _StockCardSkeleton()),
-              SizedBox(width: AppSpacing.md),
-              SizedBox(width: 230, child: _StockCardSkeleton()),
-            ],
-          ),
+        const SkeletonCard(
+          height: 100,
+          children: [
+            Row(children: [
+              SkeletonBlock(width: 44, height: 44),
+              SizedBox(width: AppSpacing.sm),
+              Expanded(child: SkeletonLine(widthFactor: .9)),
+            ]),
+          ],
         ),
-      ],
-    );
-  }
-}
-
-class _StockCardSkeleton extends StatelessWidget {
-  const _StockCardSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    return const SkeletonCard(
-      children: [
-        SkeletonLine(widthFactor: 0.72, height: 18),
-        SizedBox(height: AppSpacing.sm),
-        SkeletonLine(widthFactor: 0.36),
-        SizedBox(height: AppSpacing.md),
-        Center(child: SkeletonBlock(height: 80, width: 92)),
-        SizedBox(height: AppSpacing.md),
-        SkeletonLine(widthFactor: 0.9),
-        SizedBox(height: AppSpacing.sm),
-        SkeletonLine(widthFactor: 0.75),
-        SizedBox(height: AppSpacing.md),
-        SkeletonBlock(height: 32),
+        const SizedBox(height: AppSpacing.sm),
+        const SkeletonCard(
+          height: 100,
+          children: [
+            Row(children: [
+              SkeletonBlock(width: 44, height: 44),
+              SizedBox(width: AppSpacing.sm),
+              Expanded(child: SkeletonLine(widthFactor: .8)),
+            ]),
+          ],
+        ),
       ],
     );
   }
@@ -836,7 +217,7 @@ class _StockContent extends StatelessWidget {
       children: [
         for (final group in _groupStocksByCategory(stocks).entries) ...[
           _StockGroup(
-            title: '${group.key.label} (${group.value.length})',
+            category: group.key,
             stocks: group.value,
             onStockSelected: onStockSelected,
           ),
@@ -849,8 +230,7 @@ class _StockContent extends StatelessWidget {
   Map<StockCategory, List<StockModel>> _groupStocksByCategory(
     List<StockModel> stocks,
   ) {
-    final sortedStocks = [...stocks]
-      ..sort((left, right) {
+    final sortedStocks = [...stocks]..sort((left, right) {
         final categoryCompare = left.category.label.compareTo(
           right.category.label,
         );
@@ -873,12 +253,12 @@ class _StockContent extends StatelessWidget {
 
 class _StockGroup extends StatelessWidget {
   const _StockGroup({
-    required this.title,
+    required this.category,
     required this.stocks,
     required this.onStockSelected,
   });
 
-  final String title;
+  final StockCategory category;
   final List<StockModel> stocks;
   final ValueChanged<StockModel> onStockSelected;
 
@@ -887,34 +267,144 @@ class _StockGroup extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AnimatedTypingText(
-          title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: AppTypography.cardTitle.copyWith(
-            color: AppColors.primaryText,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              for (var index = 0; index < stocks.length; index++) ...[
-                SizedBox(
-                  width: 230,
-                  child: StockCard(
-                    stock: stocks[index],
-                    onView: () => onStockSelected(stocks[index]),
-                  ),
+        Row(
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: AppColors.sageSurface,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+              ),
+              child: Icon(
+                _categoryIcon(category),
+                size: 18,
+                color: AppColors.primaryGreen,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                '${category.label} (${stocks.length})',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.cardTitle.copyWith(
+                  color: AppColors.primaryText,
+                  fontWeight: FontWeight.w700,
                 ),
-                if (index != stocks.length - 1)
-                  const SizedBox(width: AppSpacing.md),
-              ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Column(
+          children: [
+            for (var index = 0; index < stocks.length; index++) ...[
+              StockCard(
+                stock: stocks[index],
+                onView: () => onStockSelected(stocks[index]),
+              ),
+              if (index != stocks.length - 1)
+                const SizedBox(height: AppSpacing.sm),
             ],
-          ),
+          ],
         ),
       ],
     );
   }
+}
+
+IconData _categoryIcon(StockCategory category) => switch (category) {
+      StockCategory.leafyVegetables => Icons.eco_outlined,
+      StockCategory.fruitVegetables => Icons.spa_outlined,
+      StockCategory.legumes => Icons.grass_outlined,
+      StockCategory.rootCrops => Icons.yard_outlined,
+      StockCategory.fruits => Icons.restaurant_outlined,
+      StockCategory.herbs => Icons.local_florist_outlined,
+      StockCategory.preparedProduce => Icons.inventory_2_outlined,
+      StockCategory.others => Icons.category_outlined,
+    };
+
+class _StockActiveFilters extends StatelessWidget {
+  const _StockActiveFilters({
+    required this.state,
+    required this.onCategoryRemoved,
+    required this.onStatusRemoved,
+    required this.onSortRemoved,
+    required this.onClear,
+  });
+
+  final StockInventoryState state;
+  final VoidCallback onCategoryRemoved;
+  final VoidCallback onStatusRemoved;
+  final VoidCallback onSortRemoved;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasCategory = state.selectedCategory != null;
+    final hasStatus = state.selectedFilter != StockFilterType.all;
+    final hasSort = state.selectedSort != StockSortType.recentlyUpdated;
+    if (!hasCategory && !hasStatus && !hasSort) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.xs),
+      child: Wrap(
+        spacing: AppSpacing.xs,
+        runSpacing: AppSpacing.xs,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          if (hasCategory)
+            InputChip(
+              label: Text(state.selectedCategory!.label),
+              onDeleted: onCategoryRemoved,
+              visualDensity: VisualDensity.compact,
+            ),
+          if (hasStatus)
+            InputChip(
+              label: Text(state.selectedFilter.label),
+              onDeleted: onStatusRemoved,
+              visualDensity: VisualDensity.compact,
+            ),
+          if (hasSort)
+            InputChip(
+              label: Text('Sort: ${state.selectedSort.label}'),
+              onDeleted: onSortRemoved,
+              visualDensity: VisualDensity.compact,
+            ),
+          TextButton(onPressed: onClear, child: const Text('Clear all')),
+        ],
+      ),
+    );
+  }
+}
+
+class _NoStockResults extends StatelessWidget {
+  const _NoStockResults({required this.onClear});
+
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: AppColors.cardBackground,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.inactiveBorder),
+        ),
+        child: Column(
+          children: [
+            Icon(Icons.search_off_rounded,
+                color: AppColors.primaryGreen, size: 32),
+            const SizedBox(height: AppSpacing.sm),
+            Text('No matching inventory items', style: AppTypography.cardTitle),
+            const SizedBox(height: AppSpacing.xs),
+            Text('Try changing your search or filters.',
+                textAlign: TextAlign.center, style: AppTypography.small),
+            TextButton(onPressed: onClear, child: const Text('Clear filters')),
+          ],
+        ),
+      );
 }

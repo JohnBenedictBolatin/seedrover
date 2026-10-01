@@ -33,7 +33,7 @@ class PlantedTodayCard extends StatelessWidget {
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
-                'You planted ${crop.name} seeds (${crop.safeSeedCount})',
+                '${crop.name} crop recorded in ${crop.location}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTypography.small.copyWith(

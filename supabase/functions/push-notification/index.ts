@@ -16,7 +16,8 @@ Deno.serve(async (request) => {
     if (!recipientId) return json({ error: "Missing recipient." }, 400);
     const admin = createClient(required("SUPABASE_URL"), serviceKey);
     const { data: tokens, error } = await admin.from("push_device_tokens")
-      .select("id,token").eq("profile_id", recipientId).eq("is_active", true);
+      .select("id,token").eq("profile_id", recipientId)
+      .eq("platform", "android").eq("is_active", true);
     if (error) throw error;
     if (!tokens?.length) return json({ status: "no-active-devices" });
 
@@ -33,11 +34,10 @@ Deno.serve(async (request) => {
           notification: { title: String(notification.title ?? "SeedRover"), body: String(notification.message ?? "") },
           data: { deep_link: String(notification.action_route ?? "/notifications"), route: String(notification.action_route ?? "/notifications"), notification_id: String(notification.id ?? "") },
           android: { priority: "high" },
-          apns: { payload: { aps: { sound: "default" } } },
         } }),
       });
       const body = await response.json().catch(() => ({}));
-      if (response.status === 404 || response.status === 400) {
+      if (isUnregisteredToken(response.status, body)) {
         await admin.from("push_device_tokens").update({ is_active: false }).eq("id", device.id);
       }
       results.push({ tokenId: device.id, status: response.status, body });
@@ -48,6 +48,19 @@ Deno.serve(async (request) => {
     return json({ error: error instanceof Error ? error.message : "Push failed." }, 500);
   }
 });
+
+function isUnregisteredToken(status: number, responseBody: unknown) {
+  if (status === 404) return true;
+  if (status !== 400 || typeof responseBody !== "object" || responseBody === null) return false;
+
+  const error = (responseBody as Json).error;
+  if (typeof error !== "object" || error === null) return false;
+  const details = (error as Json).details;
+  return Array.isArray(details) && details.some((detail) =>
+    typeof detail === "object" && detail !== null &&
+    (detail as Json).errorCode === "UNREGISTERED"
+  );
+}
 
 async function googleAccessToken(credential: Json) {
   const now = Math.floor(Date.now() / 1000);

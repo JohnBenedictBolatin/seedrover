@@ -69,8 +69,6 @@ Users should always understand at a glance:
 - Bluetooth connection status
 - Camera connection status
 - Current sensor readings
-- Current battery level
-- Current seed level
 - Current planting status
 - Current rover activity
 
@@ -367,8 +365,6 @@ Displays
 - Bluetooth connection
 - Camera connection
 - Current rover activity
-- Battery level
-- Seed level
 - Current planting status
 - Last communication timestamp
 
@@ -495,8 +491,6 @@ Displays
 - Wi-Fi status
 - Bluetooth status
 - Camera status
-- Battery percentage
-- Seed level
 - Current operating mode
 - Current planting status
 
@@ -549,32 +543,12 @@ Displays
 - Environmental Temperature
 - Humidity
 
-Each sensor card should contain
-
-- Sensor icon
-- Current value
-- Measurement unit
-- Status label
-
-Example
-
-Soil Moisture
-
-42%
-
-Status
-
-Good
-
-Color Coding
-
-Excellent
-
-Green
-
-Moderate
-
-Yellow
+Each sensor card should contain the measured value and unit, source, capture
+time, and freshness state. Missing, stale, invalid, or unverified current data
+must display as unavailable. Show soil-moisture percentages only when calibration
+is confirmed and include its calibration version. A zero measurement is valid;
+do not infer generic Good, Excellent, or Moderate conditions without an explicit
+crop-specific threshold and trusted reading.
 
 Poor
 
@@ -613,8 +587,6 @@ The current SeedRover system supports
 - Soil temperature monitoring
 - Environmental temperature monitoring
 - Humidity monitoring
-- Battery monitoring
-- Seed level monitoring
 - LCD status display
 - Activity LEDs
 - Real-time Wi-Fi communication
@@ -1403,8 +1375,6 @@ Sensor values should update independently without rebuilding the entire screen.
 
 The following values should animate whenever they change:
 
-- Battery Level
-- Seed Level
 - Soil Moisture
 - Soil Temperature
 - Environmental Temperature
@@ -1462,7 +1432,6 @@ The current SeedRover implementation supports
 - Soil temperature monitoring
 - Environmental temperature monitoring
 - Humidity monitoring
-- Battery monitoring
 - Seed inventory monitoring
 - LCD status display
 - Activity LED indicators

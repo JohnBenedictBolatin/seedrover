@@ -6,14 +6,20 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <Preferences.h>
-#include "HX711.h"
+#include <DHT.h>
 
 #include "secrets.h"
 
 #define SOIL_SENSOR_PIN 34
 #define TEMP_SENSOR_PIN 14
-#define HX711_DT 23
-#define HX711_SCK 4
+#define DHT_SENSOR_PIN 25
+#define DHT_SENSOR_TYPE DHT11
+// The physical front/rear ultrasonic modules were exchanged; these GPIOs now
+// match the rover's actual sensor positions.
+#define FRONT_ULTRASONIC_TRIG_PIN 5
+#define FRONT_ULTRASONIC_ECHO_PIN 15
+#define REAR_ULTRASONIC_TRIG_PIN 16
+#define REAR_ULTRASONIC_ECHO_PIN 17
 #define SERVO_SOIL_SENSOR_PIN 13
 #define SERVO_SEED_PIN 27
 #define SERVO_SOIL_MECH_PIN 26
@@ -22,29 +28,38 @@
 #define IN3 21
 #define IN4 22
 
-const char *FIRMWARE_VERSION = "2.2.0-automatic-timed-planting";
+const char *FIRMWARE_VERSION = "2.6.0-soil-reference-calibration";
 const unsigned long SOFTAP_RESTART_DELAY_MS = 5000;
 const unsigned long SOFTAP_WATCHDOG_INTERVAL_MS = 2000;
 const unsigned long APP_HEARTBEAT_TIMEOUT_MS = 1800;
 const unsigned long SOIL_SETTLE_MS = 1000;
+const unsigned long PLANTING_PRECHECK_MAX_AGE_MS = 60000;
+const unsigned long SOIL_REFERENCE_CAPTURE_TIMEOUT_MS = 10000;
 const unsigned long RAKE_SETTLE_MS = 700;
+const unsigned long DHT_SAMPLE_INTERVAL_MS = 2500;
+const unsigned long OBSTACLE_SAMPLE_INTERVAL_MS = 120;
+const float OBSTACLE_WARN_DISTANCE_CM = 30.0f;
+const float OBSTACLE_CLEAR_DISTANCE_CM = 35.0f;
+const unsigned long OBSTACLE_STALE_AFTER_MS = 3000;
 
 const int soilSensorUP = 70;
 const int soilSensorDOWN = 150;
-const int seedCLOSED = 120;
+const int seedCLOSED = 150;
 const int seedOPEN = 90;
 const int soilMechUP = 90;
-const int soilMechDOWN = 130;
+const int soilMechDOWN = 140;
 
-enum class PlantingState { Idle, CheckingSoil, LoweringRake, Ready, Planting, Paused, Completed, Cancelled, Emergency, Failed };
+enum class PlantingState { Idle, CheckingSoil, LoweringRake, Ready, Planting, Paused, Completed, Cancelled, Emergency, Failed, Interrupted };
 
 struct RoverCalibration {
-  // Demo defaults: no calibration screen is required for the demo rover.
   float secondsPerMeter = 1.9;
-  int soilDryRaw = 3200;
-  int soilWetRaw = 1300;
+  int soilDryRaw = -1;
+  int soilWetRaw = -1;
   float rakeToGateCm = 0;
+  bool soilCalibrationValid = false;
 };
+
+const char *SOIL_CALIBRATION_VERSION = "soil-linear-v1";
 
 struct PlantingSession {
   String sessionId;
@@ -54,7 +69,7 @@ struct PlantingSession {
   int completedDrops = 0;
   float spacingCm = 0;
   float rowSpacingCm = 0;
-  unsigned long gateOpenMs = 450;
+  unsigned long gateOpenMs = 300;
   float rakeOffsetCm = 0;
   float nextDropAtCm = 0;
   unsigned long startedAtMs = 0;
@@ -63,9 +78,21 @@ struct PlantingSession {
   bool gateOpen = false;
   unsigned long gateOpenedAtMs = 0;
   int soilRaw = 0;
-  float soilPercent = 0;
-  float temperatureC = 0;
-  long seedLoadRaw = 0;
+  bool soilSampleAvailable = false;
+  float soilPercent = NAN;
+  float soilTemperatureC = NAN;
+  float airTemperatureC = NAN;
+  float humidityPercent = NAN;
+  float frontDistanceCm = NAN;
+  float rearDistanceCm = NAN;
+  bool frontSensorAvailable = false;
+  bool rearSensorAvailable = false;
+  bool frontObstacle = false;
+  bool rearObstacle = false;
+  unsigned long obstacleSampleAtMs = 0;
+  unsigned long soilCapturedAtMs = 0;
+  unsigned long soilCapturedOffsetMs = 0;
+  bool awaitingPhoneAck = false;
   String failureCode;
   float estimatedDistanceCm = 0;
   unsigned long lastDistanceUpdateAtMs = 0;
@@ -78,17 +105,25 @@ Servo seedServo;
 Servo soilMechanismServo;
 OneWire oneWire(TEMP_SENSOR_PIN);
 DallasTemperature temperatureSensor(&oneWire);
-HX711 scale;
+DHT dht(DHT_SENSOR_PIN, DHT_SENSOR_TYPE);
 Preferences preferences;
 RoverCalibration calibration;
 PlantingSession planting;
+bool rakeCommandedDown = false;
 PlantingState plantingState = PlantingState::Idle;
+bool plantingSoilPrecheckRequested = false;
+bool plantingSoilPrecheckReady = false;
+bool soilReferenceCaptureActive = false;
+unsigned long soilReferenceCaptureStartedAtMs = 0;
 
 unsigned long lastHealthLog = 0;
 unsigned long clientDisconnectedAt = 0;
 unsigned long lastSoftApWatchdogCheck = 0;
 unsigned long lastWifiAttempt = 0;
+unsigned long lastDhtSampleAtMs = 0;
+unsigned long lastObstacleSampleAtMs = 0;
 bool hadConnectedClient = false;
+void savePlantingCheckpoint();
 
 const char *stateName(PlantingState state) {
   switch (state) {
@@ -102,6 +137,7 @@ const char *stateName(PlantingState state) {
     case PlantingState::Cancelled: return "CANCELLED";
     case PlantingState::Emergency: return "EMERGENCY_STOPPED";
     case PlantingState::Failed: return "FAILED";
+    case PlantingState::Interrupted: return "INTERRUPTED";
   }
   return "UNKNOWN";
 }
@@ -126,7 +162,9 @@ void turnLeft() { digitalWrite(IN1, LOW); digitalWrite(IN2, HIGH); digitalWrite(
 void turnRight() { digitalWrite(IN1, HIGH); digitalWrite(IN2, LOW); digitalWrite(IN3, LOW); digitalWrite(IN4, HIGH); planting.motorsMoving = false; }
 
 void closeSeedGate() { seedServo.write(seedCLOSED); planting.gateOpen = false; }
-void raiseMechanisms() { closeSeedGate(); soilSensorServo.write(soilSensorUP); soilMechanismServo.write(soilMechUP); }
+void setRakeUp() { soilMechanismServo.write(soilMechUP); rakeCommandedDown = false; }
+void setRakeDown() { soilMechanismServo.write(soilMechDOWN); rakeCommandedDown = true; }
+void raiseMechanisms() { closeSeedGate(); soilSensorServo.write(soilSensorUP); setRakeUp(); }
 void safeState() { stopMotors(); raiseMechanisms(); }
 void setState(PlantingState state) { plantingState = state; planting.stateChangedAtMs = millis(); }
 
@@ -146,6 +184,7 @@ void pausePlanting(const char *failureCode = nullptr) {
   safeState();
   if (failureCode != nullptr) planting.failureCode = failureCode;
   setState(PlantingState::Paused);
+  savePlantingCheckpoint();
 }
 
 void finishPlanting(PlantingState terminalState, const char *failureCode = nullptr) {
@@ -153,29 +192,86 @@ void finishPlanting(PlantingState terminalState, const char *failureCode = nullp
   safeState();
   if (failureCode != nullptr) planting.failureCode = failureCode;
   setState(terminalState);
+  planting.awaitingPhoneAck = true;
+  savePlantingCheckpoint();
+}
+
+float readUltrasonicDistanceCm(int triggerPin, int echoPin) {
+  digitalWrite(triggerPin, LOW);
+  delayMicroseconds(3);
+  digitalWrite(triggerPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(triggerPin, LOW);
+  const unsigned long duration = pulseIn(echoPin, HIGH, 18000UL);
+  if (duration == 0) return NAN;
+  return duration * 0.0343f / 2.0f;
+}
+
+void sampleEnvironment(unsigned long now, bool force = false) {
+  if (!force && now - lastDhtSampleAtMs < DHT_SAMPLE_INTERVAL_MS) return;
+  lastDhtSampleAtMs = now;
+  const float humidity = dht.readHumidity();
+  const float temperature = dht.readTemperature();
+  planting.humidityPercent = isfinite(humidity) && humidity >= 0 && humidity <= 100 ? humidity : NAN;
+  planting.airTemperatureC = isfinite(temperature) && temperature >= -40 && temperature <= 80 ? temperature : NAN;
+}
+
+void sampleObstacles(unsigned long now, bool force = false) {
+  if (!force && now - lastObstacleSampleAtMs < OBSTACLE_SAMPLE_INTERVAL_MS) return;
+  lastObstacleSampleAtMs = now;
+  planting.obstacleSampleAtMs = now;
+  planting.frontDistanceCm = readUltrasonicDistanceCm(FRONT_ULTRASONIC_TRIG_PIN, FRONT_ULTRASONIC_ECHO_PIN);
+  planting.frontSensorAvailable = isfinite(planting.frontDistanceCm);
+  if (planting.frontSensorAvailable) {
+    if (!planting.frontObstacle && planting.frontDistanceCm <= OBSTACLE_WARN_DISTANCE_CM) planting.frontObstacle = true;
+    else if (planting.frontObstacle && planting.frontDistanceCm > OBSTACLE_CLEAR_DISTANCE_CM) planting.frontObstacle = false;
+  }
+  delayMicroseconds(250);
+  planting.rearDistanceCm = readUltrasonicDistanceCm(REAR_ULTRASONIC_TRIG_PIN, REAR_ULTRASONIC_ECHO_PIN);
+  planting.rearSensorAvailable = isfinite(planting.rearDistanceCm);
+  if (planting.rearSensorAvailable) {
+    if (!planting.rearObstacle && planting.rearDistanceCm <= OBSTACLE_WARN_DISTANCE_CM) planting.rearObstacle = true;
+    else if (planting.rearObstacle && planting.rearDistanceCm > OBSTACLE_CLEAR_DISTANCE_CM) planting.rearObstacle = false;
+  }
+}
+
+float calibratedSoilPercent(int raw);
+
+void readSoilSnapshot() {
+  planting.soilRaw = analogRead(SOIL_SENSOR_PIN);
+  // ADC rail readings indicate an open/short probe input on this board.
+  planting.soilSampleAvailable = planting.soilRaw > 0 && planting.soilRaw < 4095;
+  planting.soilPercent = calibratedSoilPercent(planting.soilRaw);
+  temperatureSensor.requestTemperatures();
+  const float value = temperatureSensor.getTempCByIndex(0);
+  planting.soilTemperatureC = value == DEVICE_DISCONNECTED_C || value < -55 || value > 125 ? NAN : value;
+  sampleEnvironment(millis(), true);
+  planting.soilCapturedAtMs = millis();
+  planting.soilCapturedOffsetMs = planting.startedAtMs == 0 ? 0 : planting.soilCapturedAtMs - planting.startedAtMs;
+  if (hasActivePlantingSession() || planting.awaitingPhoneAck) {
+    savePlantingCheckpoint();
+  }
 }
 
 float calibratedSoilPercent(int raw) {
-  if (calibration.soilDryRaw == calibration.soilWetRaw) return 0;
+  if (!calibration.soilCalibrationValid || calibration.soilDryRaw == calibration.soilWetRaw || raw <= 0 || raw >= 4095) return NAN;
   const float value = 100.0f * (calibration.soilDryRaw - raw) / (calibration.soilDryRaw - calibration.soilWetRaw);
   return constrain(value, 0.0f, 100.0f);
 }
 
-void readSensorSnapshot() {
-  planting.soilRaw = analogRead(SOIL_SENSOR_PIN);
-  planting.soilPercent = calibratedSoilPercent(planting.soilRaw);
-  temperatureSensor.requestTemperatures();
-  const float value = temperatureSensor.getTempCByIndex(0);
-  planting.temperatureC = value == DEVICE_DISCONNECTED_C ? 0 : value;
-  planting.seedLoadRaw = scale.is_ready() ? scale.read_average(3) : 0;
-}
+void readSensorSnapshot() { readSoilSnapshot(); }
 
 void loadCalibration() {
   preferences.begin("rover-cal", true);
   calibration.secondsPerMeter = preferences.getFloat("sec-per-meter", 1.9);
   if (calibration.secondsPerMeter <= 0) calibration.secondsPerMeter = 1.9;
-  calibration.soilDryRaw = preferences.getInt("soil-dry", 3200);
-  calibration.soilWetRaw = preferences.getInt("soil-wet", 1300);
+  calibration.soilCalibrationValid = preferences.getBool("soil-cal-valid", false);
+  calibration.soilDryRaw = preferences.getInt("soil-dry", -1);
+  calibration.soilWetRaw = preferences.getInt("soil-wet", -1);
+  calibration.soilCalibrationValid = calibration.soilCalibrationValid &&
+      calibration.soilDryRaw >= 0 && calibration.soilDryRaw <= 4095 &&
+      calibration.soilWetRaw >= 0 && calibration.soilWetRaw <= 4095 &&
+      calibration.soilDryRaw != calibration.soilWetRaw;
   calibration.rakeToGateCm = preferences.getFloat("rake-offset", 0);
   preferences.end();
 }
@@ -185,8 +281,86 @@ void saveCalibration() {
   preferences.putFloat("sec-per-meter", calibration.secondsPerMeter);
   preferences.putInt("soil-dry", calibration.soilDryRaw);
   preferences.putInt("soil-wet", calibration.soilWetRaw);
+  preferences.putBool("soil-cal-valid", calibration.soilCalibrationValid);
   preferences.putFloat("rake-offset", calibration.rakeToGateCm);
   preferences.end();
+}
+
+void savePlantingCheckpoint() {
+  if (planting.sessionId.isEmpty()) return;
+  JsonDocument checkpoint;
+  checkpoint["session_id"] = planting.sessionId;
+  checkpoint["crop_profile"] = planting.cropProfile;
+  checkpoint["field_label"] = planting.fieldLabel;
+  checkpoint["target_drops"] = planting.targetDrops;
+  checkpoint["completed_drops"] = planting.completedDrops;
+  checkpoint["spacing_cm"] = planting.spacingCm;
+  checkpoint["row_spacing_cm"] = planting.rowSpacingCm;
+  checkpoint["gate_open_ms"] = planting.gateOpenMs;
+  checkpoint["rake_offset_cm"] = planting.rakeOffsetCm;
+  checkpoint["estimated_distance_cm"] = planting.estimatedDistanceCm;
+  checkpoint["soil_sample_available"] = planting.soilSampleAvailable;
+  if (planting.soilSampleAvailable) checkpoint["soil_raw"] = planting.soilRaw;
+  if (isfinite(planting.soilPercent)) checkpoint["soil_percent"] = planting.soilPercent;
+  if (isfinite(planting.soilTemperatureC)) checkpoint["soil_temperature_c"] = planting.soilTemperatureC;
+  if (isfinite(planting.airTemperatureC)) checkpoint["air_temperature_c"] = planting.airTemperatureC;
+  if (isfinite(planting.humidityPercent)) checkpoint["humidity_percent"] = planting.humidityPercent;
+  checkpoint["soil_captured_at_ms"] = planting.soilCapturedAtMs;
+  checkpoint["soil_capture_offset_ms"] = planting.soilCapturedOffsetMs;
+  checkpoint["state"] = stateName(plantingState);
+  checkpoint["awaiting_phone_ack"] = planting.awaitingPhoneAck;
+  String serialized;
+  serializeJson(checkpoint, serialized);
+  preferences.begin("plant-run", false);
+  preferences.putString("checkpoint", serialized);
+  preferences.end();
+}
+
+void restorePlantingCheckpoint() {
+  preferences.begin("plant-run", true);
+  const String serialized = preferences.getString("checkpoint", "");
+  preferences.end();
+  if (serialized.isEmpty()) return;
+  JsonDocument checkpoint;
+  if (deserializeJson(checkpoint, serialized)) return;
+  planting = PlantingSession();
+  planting.sessionId = checkpoint["session_id"] | "";
+  if (planting.sessionId.isEmpty()) return;
+  planting.cropProfile = checkpoint["crop_profile"] | "";
+  planting.fieldLabel = checkpoint["field_label"] | "";
+  planting.targetDrops = checkpoint["target_drops"] | 0;
+  planting.completedDrops = checkpoint["completed_drops"] | 0;
+  planting.spacingCm = checkpoint["spacing_cm"] | 0.0f;
+  planting.rowSpacingCm = checkpoint["row_spacing_cm"] | 0.0f;
+  planting.gateOpenMs = checkpoint["gate_open_ms"] | 300UL;
+  planting.rakeOffsetCm = checkpoint["rake_offset_cm"] | 0.0f;
+  planting.estimatedDistanceCm = checkpoint["estimated_distance_cm"] | 0.0f;
+  planting.soilSampleAvailable = checkpoint["soil_sample_available"] | checkpoint["soil_raw"].is<int>();
+  planting.soilRaw = checkpoint["soil_raw"] | 0;
+  planting.soilPercent = checkpoint["soil_percent"].is<float>() ? checkpoint["soil_percent"].as<float>() : NAN;
+  planting.soilTemperatureC = checkpoint["soil_temperature_c"].is<float>() ? checkpoint["soil_temperature_c"].as<float>() : NAN;
+  planting.airTemperatureC = checkpoint["air_temperature_c"].is<float>() ? checkpoint["air_temperature_c"].as<float>() : NAN;
+  planting.humidityPercent = checkpoint["humidity_percent"].is<float>() ? checkpoint["humidity_percent"].as<float>() : NAN;
+  planting.soilCapturedAtMs = checkpoint["soil_captured_at_ms"] | 0UL;
+  planting.soilCapturedOffsetMs = checkpoint["soil_capture_offset_ms"] | 0UL;
+  planting.awaitingPhoneAck = true;
+  planting.failureCode = "POWER_LOSS_REVIEW_REQUIRED";
+  setState(PlantingState::Interrupted);
+}
+
+void acknowledgePlantingResult(JsonVariantConst payload, JsonDocument &response) {
+  const String acknowledgedSession = payload["session_id"] | "";
+  if (planting.sessionId.isEmpty() || acknowledgedSession != planting.sessionId || !planting.awaitingPhoneAck) {
+    response["status"] = "not_found";
+    response["message"] = "No matching unsaved rover result was found.";
+    return;
+  }
+  preferences.begin("plant-run", false);
+  preferences.remove("checkpoint");
+  preferences.end();
+  planting.awaitingPhoneAck = false;
+  response["status"] = "success";
+  response["data"]["acknowledged_session_id"] = acknowledgedSession;
 }
 
 void addCommonHeaders() {
@@ -219,12 +393,17 @@ void addCalibrationJson(JsonObject data) {
   data["soil_dry_raw"] = calibration.soilDryRaw;
   data["soil_wet_raw"] = calibration.soilWetRaw;
   data["rake_to_gate_cm"] = calibration.rakeToGateCm;
+  data["soil_moisture_calibrated"] = calibration.soilCalibrationValid;
+  data["calibration_version"] = calibration.soilCalibrationValid ? SOIL_CALIBRATION_VERSION : nullptr;
   data["timed_movement_ready"] = calibration.secondsPerMeter > 0;
   data["movement_tracking"] = "timed_estimate";
 }
 
 void addPlantingStatusJson(JsonObject data) {
-  updateEstimatedDistance(millis());
+  const unsigned long now = millis();
+  sampleEnvironment(now);
+  sampleObstacles(now);
+  updateEstimatedDistance(now);
   data["state"] = stateName(plantingState);
   data["session_id"] = planting.sessionId;
   data["crop_profile"] = planting.cropProfile;
@@ -235,13 +414,37 @@ void addPlantingStatusJson(JsonObject data) {
   data["estimated_distance_cm"] = planting.estimatedDistanceCm;
   data["distance_is_estimated"] = true;
   data["movement_tracking"] = "timed_estimate";
-  data["soil_raw"] = planting.soilRaw;
-  data["soil_moisture_percent"] = planting.soilPercent;
-  data["temperature_c"] = planting.temperatureC;
-  data["seed_load_raw"] = planting.seedLoadRaw;
+  if (planting.soilSampleAvailable) data["soil_raw"] = planting.soilRaw;
+  else data["soil_raw"] = nullptr;
+  data["soil_sample_available"] = planting.soilSampleAvailable;
+  if (isfinite(planting.soilPercent)) data["soil_moisture_percent"] = planting.soilPercent;
+  else data["soil_moisture_percent"] = nullptr;
+  data["soil_moisture_calibrated"] = calibration.soilCalibrationValid;
+  data["calibration_version"] = calibration.soilCalibrationValid ? SOIL_CALIBRATION_VERSION : nullptr;
+  if (isfinite(planting.soilTemperatureC)) data["soil_temperature_c"] = planting.soilTemperatureC;
+  else data["soil_temperature_c"] = nullptr;
+  if (isfinite(planting.airTemperatureC)) data["air_temperature_c"] = planting.airTemperatureC;
+  else data["air_temperature_c"] = nullptr;
+  if (isfinite(planting.humidityPercent)) data["humidity_percent"] = planting.humidityPercent;
+  else data["humidity_percent"] = nullptr;
+  if (planting.frontSensorAvailable) data["front_distance_cm"] = planting.frontDistanceCm;
+  else data["front_distance_cm"] = nullptr;
+  if (planting.rearSensorAvailable) data["rear_distance_cm"] = planting.rearDistanceCm;
+  else data["rear_distance_cm"] = nullptr;
+  data["front_obstacle"] = planting.frontObstacle;
+  data["rear_obstacle"] = planting.rearObstacle;
+  data["front_sensor_available"] = planting.frontSensorAvailable;
+  data["rear_sensor_available"] = planting.rearSensorAvailable;
+  data["obstacle_sample_age_ms"] = millis() - planting.obstacleSampleAtMs;
+  data["soil_capture_offset_ms"] = planting.soilCapturedOffsetMs;
+  if (planting.soilCapturedAtMs == 0) data["soil_sample_age_ms"] = nullptr;
+  else data["soil_sample_age_ms"] = millis() - planting.soilCapturedAtMs;
+  if (lastDhtSampleAtMs == 0) data["environment_sample_age_ms"] = nullptr;
+  else data["environment_sample_age_ms"] = millis() - lastDhtSampleAtMs;
+  data["awaiting_phone_ack"] = planting.awaitingPhoneAck;
+  data["rake_commanded_down"] = rakeCommandedDown;
   data["failure_code"] = planting.failureCode;
   data["firmware_version"] = FIRMWARE_VERSION;
-  data["seed_count_is_estimate"] = true;
 }
 
 void handleHealth() {
@@ -259,12 +462,37 @@ void handleHealth() {
 void handleSensors() {
   if (!authorizeRequest()) return;
   readSensorSnapshot();
+  if (plantingSoilPrecheckRequested) {
+    plantingSoilPrecheckRequested = false;
+    plantingSoilPrecheckReady = true;
+  }
   JsonDocument response;
   response["status"] = "success";
-  response["data"]["soil_raw"] = planting.soilRaw;
-  response["data"]["soil_moisture_percent"] = planting.soilPercent;
-  response["data"]["temperature_c"] = planting.temperatureC;
-  response["data"]["load_raw"] = planting.seedLoadRaw;
+  if (planting.soilSampleAvailable) response["data"]["soil_raw"] = planting.soilRaw;
+  else response["data"]["soil_raw"] = nullptr;
+  response["data"]["soil_sample_available"] = planting.soilSampleAvailable;
+  if (isfinite(planting.soilPercent)) response["data"]["soil_moisture_percent"] = planting.soilPercent;
+  else response["data"]["soil_moisture_percent"] = nullptr;
+  response["data"]["soil_moisture_calibrated"] = calibration.soilCalibrationValid;
+  response["data"]["calibration_version"] = calibration.soilCalibrationValid ? SOIL_CALIBRATION_VERSION : nullptr;
+  response["data"]["firmware_version"] = FIRMWARE_VERSION;
+  response["data"]["sampled_at_ms"] = millis();
+  if (isfinite(planting.soilTemperatureC)) response["data"]["soil_temperature_c"] = planting.soilTemperatureC;
+  else response["data"]["soil_temperature_c"] = nullptr;
+  if (isfinite(planting.airTemperatureC)) response["data"]["air_temperature_c"] = planting.airTemperatureC;
+  else response["data"]["air_temperature_c"] = nullptr;
+  if (isfinite(planting.humidityPercent)) response["data"]["humidity_percent"] = planting.humidityPercent;
+  else response["data"]["humidity_percent"] = nullptr;
+  sampleObstacles(millis(), true);
+  if (planting.frontSensorAvailable) response["data"]["front_distance_cm"] = planting.frontDistanceCm;
+  else response["data"]["front_distance_cm"] = nullptr;
+  if (planting.rearSensorAvailable) response["data"]["rear_distance_cm"] = planting.rearDistanceCm;
+  else response["data"]["rear_distance_cm"] = nullptr;
+  response["data"]["front_obstacle"] = planting.frontObstacle;
+  response["data"]["rear_obstacle"] = planting.rearObstacle;
+  response["data"]["front_sensor_available"] = planting.frontSensorAvailable;
+  response["data"]["rear_sensor_available"] = planting.rearSensorAvailable;
+  response["data"]["obstacle_sample_age_ms"] = millis() - planting.obstacleSampleAtMs;
   sendJson(200, response);
 }
 
@@ -285,22 +513,53 @@ bool parsePositive(JsonVariantConst value, float &target) {
 }
 
 void startPlantingRow(JsonVariantConst payload, JsonDocument &response) {
+  const String requestedSessionId = payload["session_id"] | "";
+  if (!requestedSessionId.isEmpty() && requestedSessionId == planting.sessionId) {
+    response["status"] = "success";
+    response["data"]["accepted_command"] = "START_PLANTING_ROW";
+    response["data"]["state"] = stateName(plantingState);
+    response["data"]["duplicate_run"] = true;
+    return;
+  }
+  if (planting.awaitingPhoneAck) {
+    response["status"] = "result_not_acknowledged";
+    response["message"] = "Save or review the previous row result before starting another row.";
+    return;
+  }
   if (hasActivePlantingSession()) {
     response["status"] = "conflict";
     response["message"] = "A planting session is already active";
     return;
   }
+  const unsigned long precheckAge = millis() - planting.soilCapturedAtMs;
+  const unsigned long requestedSampleAtMs =
+      payload["soil_sampled_at_ms"].as<unsigned long>();
+  if (!plantingSoilPrecheckReady || planting.soilCapturedAtMs == 0 ||
+      requestedSampleAtMs != planting.soilCapturedAtMs ||
+      precheckAge > PLANTING_PRECHECK_MAX_AGE_MS ||
+      !planting.soilSampleAvailable || !calibration.soilCalibrationValid ||
+      !isfinite(planting.soilPercent) || !isfinite(planting.soilTemperatureC)) {
+    plantingSoilPrecheckReady = false;
+    response["status"] = "soil_precheck_required";
+    response["message"] = "A fresh calibrated moisture and soil-temperature pre-check is required before planting.";
+    return;
+  }
+  const int precheckedSoilRaw = planting.soilRaw;
+  const float precheckedSoilPercent = planting.soilPercent;
+  const float precheckedSoilTemperatureC = planting.soilTemperatureC;
+  const unsigned long precheckedAtMs = planting.soilCapturedAtMs;
+  plantingSoilPrecheckReady = false;
   // Demo mode: use safe built-in values and never stop the planting flow for
   // missing or over-specific configuration fields from the app.
-  String sessionId = payload["session_id"] | "";
+  String sessionId = requestedSessionId;
   String profile = payload["crop_profile"] | "sitaw";
   int targetDrops = payload["target_drops"] | 5;
   float spacingCm = payload["spacing_cm"] | 50.0f;
-  unsigned long gateOpenMs = payload["gate_open_ms"] | 450UL;
+  unsigned long gateOpenMs = payload["gate_open_ms"] | 300UL;
   if (sessionId.isEmpty()) sessionId = String("DEMO-") + String(millis());
   if (targetDrops <= 0) targetDrops = 5;
   if (spacingCm <= 0) spacingCm = 50.0f;
-  if (gateOpenMs == 0) gateOpenMs = 450;
+  if (gateOpenMs == 0) gateOpenMs = 300;
   planting = PlantingSession();
   planting.sessionId = sessionId;
   planting.cropProfile = profile;
@@ -313,10 +572,18 @@ void startPlantingRow(JsonVariantConst payload, JsonDocument &response) {
   if (planting.rakeOffsetCm <= 0) planting.rakeOffsetCm = calibration.rakeToGateCm;
   planting.nextDropAtCm = max(planting.rakeOffsetCm, 0.0f);
   planting.startedAtMs = millis();
+  planting.soilRaw = precheckedSoilRaw;
+  planting.soilSampleAvailable = true;
+  planting.soilPercent = precheckedSoilPercent;
+  planting.soilTemperatureC = precheckedSoilTemperatureC;
+  planting.soilCapturedAtMs = precheckedAtMs;
+  planting.soilCapturedOffsetMs = 0;
   planting.lastHeartbeatAtMs = millis();
+  sampleObstacles(millis(), true);
   safeState();
-  soilSensorServo.write(soilSensorDOWN);
-  setState(PlantingState::CheckingSoil);
+  setRakeDown();
+  setState(PlantingState::LoweringRake);
+  savePlantingCheckpoint();
   response["status"] = "success";
   response["data"]["accepted_command"] = "START_PLANTING_ROW";
   response["data"]["state"] = stateName(plantingState);
@@ -327,6 +594,7 @@ void setCalibration(JsonVariantConst payload, JsonDocument &response) {
   int soilDryRaw = calibration.soilDryRaw;
   int soilWetRaw = calibration.soilWetRaw;
   float rakeToGateCm = calibration.rakeToGateCm;
+  const bool soilCalibrationProvided = !payload["soil_dry_raw"].isNull() || !payload["soil_wet_raw"].isNull();
 
   if (!payload["seconds_per_meter"].isNull() &&
       (!parsePositive(payload["seconds_per_meter"], secondsPerMeter) || secondsPerMeter > 120.0f)) {
@@ -337,7 +605,8 @@ void setCalibration(JsonVariantConst payload, JsonDocument &response) {
   if (!payload["soil_dry_raw"].isNull()) soilDryRaw = payload["soil_dry_raw"].as<int>();
   if (!payload["soil_wet_raw"].isNull()) soilWetRaw = payload["soil_wet_raw"].as<int>();
   if (!payload["rake_to_gate_cm"].isNull()) rakeToGateCm = payload["rake_to_gate_cm"].as<float>();
-  if (soilDryRaw < 0 || soilDryRaw > 4095 || soilWetRaw < 0 || soilWetRaw > 4095) {
+  if (soilCalibrationProvided &&
+      (soilDryRaw < 0 || soilDryRaw > 4095 || soilWetRaw < 0 || soilWetRaw > 4095)) {
     response["status"] = "invalid_configuration";
     response["message"] = "Soil calibration readings must be between 0 and 4095";
     return;
@@ -347,7 +616,7 @@ void setCalibration(JsonVariantConst payload, JsonDocument &response) {
     response["message"] = "rake_to_gate_cm must be between 0 and 200";
     return;
   }
-  if (soilDryRaw == soilWetRaw) {
+  if (soilCalibrationProvided && soilDryRaw == soilWetRaw) {
     response["status"] = "invalid_configuration";
     response["message"] = "Dry and wet soil calibration readings must differ";
     return;
@@ -355,6 +624,7 @@ void setCalibration(JsonVariantConst payload, JsonDocument &response) {
   calibration.secondsPerMeter = secondsPerMeter;
   calibration.soilDryRaw = soilDryRaw;
   calibration.soilWetRaw = soilWetRaw;
+  if (soilCalibrationProvided) calibration.soilCalibrationValid = true;
   calibration.rakeToGateCm = rakeToGateCm;
   saveCalibration();
   response["status"] = "success";
@@ -392,8 +662,11 @@ void handleCommand() {
     setCalibration(payload, response);
   } else if (command == "START_PLANTING_ROW") {
     startPlantingRow(payload, response);
+  } else if (command == "ACK_PLANTING_RESULT") {
+    acknowledgePlantingResult(payload, response);
   } else if (command == "MOVE_FORWARD") {
     if (!hasActivePlantingSession()) {
+      sampleObstacles(millis(), true);
       moveForward();
       response["status"] = "success";
     } else {
@@ -414,7 +687,7 @@ void handleCommand() {
       statusCode = 409;
     } else {
       planting.failureCode = "";
-      soilMechanismServo.write(soilMechDOWN);
+      setRakeDown();
       setState(PlantingState::LoweringRake);
       response["status"] = "success";
     }
@@ -431,10 +704,15 @@ void handleCommand() {
       response["message"] = "Reverse and turning are disabled during a planting row";
       statusCode = 409;
     } else {
-      if (command == "MOVE_BACKWARD") moveBackward();
-      if (command == "TURN_LEFT") turnLeft();
-      if (command == "TURN_RIGHT") turnRight();
-      response["status"] = "success";
+      if (command == "MOVE_BACKWARD") {
+        sampleObstacles(millis(), true);
+        moveBackward();
+        response["status"] = "success";
+      } else {
+        if (command == "TURN_LEFT") turnLeft();
+        if (command == "TURN_RIGHT") turnRight();
+        response["status"] = "success";
+      }
     }
   } else if (command == "CHECK_SOIL") {
     if (hasActivePlantingSession()) {
@@ -445,6 +723,52 @@ void handleCommand() {
       soilSensorServo.write(soilSensorDOWN);
       response["status"] = "success";
     }
+  } else if (command == "PRECHECK_PLANTING_SOIL") {
+    if (hasActivePlantingSession()) {
+      response["status"] = "mechanism_locked";
+      response["message"] = "Planting pre-check is unavailable during an active run";
+      statusCode = 409;
+    } else {
+      stopMotors();
+      setRakeUp();
+      plantingSoilPrecheckReady = false;
+      plantingSoilPrecheckRequested = true;
+      soilSensorServo.write(soilSensorDOWN);
+      response["status"] = "success";
+    }
+  } else if (command == "CAPTURE_SOIL_REFERENCE") {
+    if (hasActivePlantingSession()) {
+      response["status"] = "mechanism_locked";
+      response["message"] = "Soil reference capture is unavailable during an active planting run";
+      statusCode = 409;
+    } else {
+      stopMotors();
+      setRakeUp();
+      plantingSoilPrecheckRequested = false;
+      plantingSoilPrecheckReady = false;
+      soilReferenceCaptureActive = true;
+      soilReferenceCaptureStartedAtMs = millis();
+      soilSensorServo.write(soilSensorDOWN);
+      response["status"] = "success";
+    }
+  } else if (command == "CANCEL_SOIL_REFERENCE_CAPTURE") {
+    if (!hasActivePlantingSession()) {
+      soilReferenceCaptureActive = false;
+      soilReferenceCaptureStartedAtMs = 0;
+      soilSensorServo.write(soilSensorUP);
+      setRakeUp();
+      stopMotors();
+    }
+    response["status"] = "success";
+  } else if (command == "CANCEL_PLANTING_PRECHECK") {
+    if (!hasActivePlantingSession()) {
+      plantingSoilPrecheckRequested = false;
+      plantingSoilPrecheckReady = false;
+      soilSensorServo.write(soilSensorUP);
+      setRakeUp();
+      stopMotors();
+    }
+    response["status"] = "success";
   } else if (command == "SOIL_SENSOR_DOWN" || command == "SOIL_SENSOR_UP" ||
              command == "RAKE_DOWN" || command == "RAKE_UP") {
     if (hasActivePlantingSession()) {
@@ -454,8 +778,8 @@ void handleCommand() {
     } else {
       if (command == "SOIL_SENSOR_DOWN") soilSensorServo.write(soilSensorDOWN);
       if (command == "SOIL_SENSOR_UP") soilSensorServo.write(soilSensorUP);
-      if (command == "RAKE_DOWN") soilMechanismServo.write(soilMechDOWN);
-      if (command == "RAKE_UP") soilMechanismServo.write(soilMechUP);
+      if (command == "RAKE_DOWN") setRakeDown();
+      if (command == "RAKE_UP") setRakeUp();
       response["status"] = "success";
     }
   } else {
@@ -472,10 +796,24 @@ void handleCommand() {
 
 void updatePlantingStateMachine() {
   const unsigned long now = millis();
+  sampleEnvironment(now);
+  sampleObstacles(now);
+  if (soilReferenceCaptureActive &&
+      now - soilReferenceCaptureStartedAtMs >= SOIL_REFERENCE_CAPTURE_TIMEOUT_MS) {
+    soilReferenceCaptureActive = false;
+    soilReferenceCaptureStartedAtMs = 0;
+    soilSensorServo.write(soilSensorUP);
+    setRakeUp();
+    stopMotors();
+  }
+  if (plantingSoilPrecheckReady &&
+      now - planting.soilCapturedAtMs > PLANTING_PRECHECK_MAX_AGE_MS) {
+    plantingSoilPrecheckReady = false;
+  }
   if (plantingState == PlantingState::CheckingSoil && now - planting.stateChangedAtMs >= SOIL_SETTLE_MS) {
     readSensorSnapshot();
     soilSensorServo.write(soilSensorUP);
-    soilMechanismServo.write(soilMechDOWN);
+    setRakeDown();
     setState(PlantingState::LoweringRake);
     return;
   }
@@ -497,10 +835,10 @@ void updatePlantingStateMachine() {
     if (now - planting.gateOpenedAtMs >= planting.gateOpenMs) {
       closeSeedGate();
       planting.completedDrops++;
+      savePlantingCheckpoint();
       planting.nextDropAtCm += planting.spacingCm;
       if (planting.completedDrops >= planting.targetDrops) {
         finishPlanting(PlantingState::Completed);
-        readSensorSnapshot();
       } else {
         moveForward();
         planting.lastDistanceUpdateAtMs = now;
@@ -522,10 +860,12 @@ void connectToWifi() {
   const IPAddress roverAddress(192, 168, 4, 1);
   const IPAddress gateway(192, 168, 4, 1);
   const IPAddress subnet(255, 255, 255, 0);
+  // Keep the phone's DHCP leases away from the ESP32-CAM at 192.168.4.2.
+  const IPAddress dhcpLeaseStart(192, 168, 4, 10);
 
   WiFi.mode(WIFI_AP);
   WiFi.setSleep(false);
-  WiFi.softAPConfig(roverAddress, gateway, subnet);
+  WiFi.softAPConfig(roverAddress, gateway, subnet, dhcpLeaseStart);
   if (!WiFi.softAP("SeedRover-01", ROVER_TOKEN)) {
     Serial.println("SoftAP failed to start. ROVER_TOKEN must be 8-63 characters.");
     return;
@@ -559,8 +899,21 @@ void printConnectedDeviceSignal() {
 
 void setup() {
   Serial.begin(115200);
+
+  // Put the H-bridge in its stopped state before the radio starts or any
+  // request can arrive. This avoids leaving motor inputs floating during boot.
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+
   connectToWifi();
   loadCalibration();
+  restorePlantingCheckpoint();
   const char *headers[] = {"X-Rover-Token"};
   server.collectHeaders(headers, 1);
   server.on("/health", HTTP_GET, handleHealth);
@@ -580,14 +933,21 @@ void setup() {
   server.begin();
 
   pinMode(SOIL_SENSOR_PIN, INPUT);
-  pinMode(IN1, OUTPUT); pinMode(IN2, OUTPUT); pinMode(IN3, OUTPUT); pinMode(IN4, OUTPUT);
+  pinMode(FRONT_ULTRASONIC_TRIG_PIN, OUTPUT);
+  pinMode(FRONT_ULTRASONIC_ECHO_PIN, INPUT);
+  pinMode(REAR_ULTRASONIC_TRIG_PIN, OUTPUT);
+  pinMode(REAR_ULTRASONIC_ECHO_PIN, INPUT);
+  digitalWrite(FRONT_ULTRASONIC_TRIG_PIN, LOW);
+  digitalWrite(REAR_ULTRASONIC_TRIG_PIN, LOW);
   temperatureSensor.begin();
-  scale.begin(HX711_DT, HX711_SCK);
+  dht.begin();
   soilSensorServo.setPeriodHertz(50); seedServo.setPeriodHertz(50); soilMechanismServo.setPeriodHertz(50);
   soilSensorServo.attach(SERVO_SOIL_SENSOR_PIN, 500, 2400);
   seedServo.attach(SERVO_SEED_PIN, 500, 2400);
   soilMechanismServo.attach(SERVO_SOIL_MECH_PIN, 500, 2400);
   safeState();
+  sampleEnvironment(millis(), true);
+  sampleObstacles(millis(), true);
   Serial.printf("SeedRover %s ready at http://%s\n", FIRMWARE_VERSION, WiFi.softAPIP().toString().c_str());
 }
 

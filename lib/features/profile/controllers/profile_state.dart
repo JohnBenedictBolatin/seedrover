@@ -11,7 +11,6 @@ class ProfileState {
     required this.isLoading,
     required this.successMessage,
     required this.errorMessage,
-    required this.generatedPassword,
     required this.profilePictureRemoved,
   });
 
@@ -26,7 +25,6 @@ class ProfileState {
       isLoading: true,
       successMessage: null,
       errorMessage: null,
-      generatedPassword: null,
       profilePictureRemoved: false,
     );
   }
@@ -40,7 +38,6 @@ class ProfileState {
   final bool isLoading;
   final String? successMessage;
   final String? errorMessage;
-  final String? generatedPassword;
   final bool profilePictureRemoved;
 
   ProfileState copyWith({
@@ -53,7 +50,6 @@ class ProfileState {
     bool? isLoading,
     Object? successMessage = _noChange,
     Object? errorMessage = _noChange,
-    Object? generatedPassword = _noChange,
     bool? profilePictureRemoved,
   }) {
     return ProfileState(
@@ -70,9 +66,6 @@ class ProfileState {
       errorMessage: errorMessage == _noChange
           ? this.errorMessage
           : errorMessage as String?,
-      generatedPassword: generatedPassword == _noChange
-          ? this.generatedPassword
-          : generatedPassword as String?,
       profilePictureRemoved:
           profilePictureRemoved ?? this.profilePictureRemoved,
     );

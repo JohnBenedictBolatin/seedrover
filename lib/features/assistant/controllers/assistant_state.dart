@@ -6,6 +6,7 @@ class AssistantState {
     this.isOpen = false,
     this.isSending = false,
     this.errorMessage,
+    this.canRetry = false,
   });
 
   factory AssistantState.initial() {
@@ -15,7 +16,7 @@ class AssistantState {
           id: 'assistant-welcome',
           role: AssistantMessageRole.assistant,
           content:
-              'Hi, I\'m Rovie. I can help with SeedRover workflows, current app crop/inventory data, rover basics, planting, and farm-care questions.',
+              'Hi, I\'m Rovie. I can help with SeedRover workflows, crops, inventory, rover basics, planting, and farm-care questions.',
           createdAt: DateTime.now(),
         ),
       ],
@@ -26,12 +27,14 @@ class AssistantState {
   final bool isOpen;
   final bool isSending;
   final String? errorMessage;
+  final bool canRetry;
 
   AssistantState copyWith({
     List<AssistantMessageModel>? messages,
     bool? isOpen,
     bool? isSending,
     String? errorMessage,
+    bool? canRetry,
     bool clearError = false,
   }) {
     return AssistantState(
@@ -39,6 +42,7 @@ class AssistantState {
       isOpen: isOpen ?? this.isOpen,
       isSending: isSending ?? this.isSending,
       errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
+      canRetry: clearError ? false : canRetry ?? this.canRetry,
     );
   }
 }

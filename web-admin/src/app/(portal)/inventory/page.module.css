@@ -13,7 +13,7 @@
 .eyebrow {
   margin: 0 0 8px;
   color: var(--green-accent);
-  font-size: 0.76rem;
+  font-size: 0.84rem;
   font-weight: 900;
   text-transform: uppercase;
 }
@@ -24,7 +24,7 @@
 }
 
 .header h1 {
-  font-size: clamp(2rem, 4vw, 3.3rem);
+  font-size: clamp(2.2rem, 4.4vw, 3.63rem);
   line-height: 1.04;
 }
 
@@ -43,14 +43,14 @@
 .liveDateTime p {
   margin: 0 0 6px;
   color: var(--text-muted);
-  font-size: 1rem;
+  font-size: 1.1rem;
   font-weight: 800;
 }
 
 .liveDateTime strong {
   color: var(--green-accent);
   font-family: var(--font-roboto-mono);
-  font-size: 1.34rem;
+  font-size: 1.47rem;
   font-weight: 900;
 }
 
@@ -128,14 +128,14 @@
 .salesBand p {
   margin: 0;
   color: var(--text-muted);
-  font-size: 0.98rem;
+  font-size: 1.08rem;
   font-weight: 800;
 }
 
 .metric strong,
 .salesBand strong {
   font-family: var(--font-roboto-mono);
-  font-size: clamp(1.85rem, 2.2vw, 2.35rem);
+  font-size: clamp(2.04rem, 2.42vw, 2.59rem);
   line-height: 1.05;
   text-align: right;
 }
@@ -146,7 +146,7 @@
   max-width: 52%;
   margin-left: auto;
   flex: 0 1 52%;
-  font-size: clamp(1.35rem, 1.8vw, 1.85rem);
+  font-size: clamp(1.49rem, 1.98vw, 2.04rem);
   line-height: 1.1;
   text-align: right;
   overflow-wrap: anywhere;
@@ -178,11 +178,11 @@
 }
 
 .salesBand p {
-  font-size: 0.98rem;
+  font-size: 1.08rem;
 }
 
 .salesBand strong {
-  font-size: clamp(2.05rem, 2.5vw, 2.65rem);
+  font-size: clamp(2.26rem, 2.75vw, 2.92rem);
   text-align: left;
 }
 
@@ -344,7 +344,7 @@
 
 .calendarCaptionLabel {
   color: var(--text);
-  font-size: 0.9rem;
+  font-size: 0.99rem;
   font-weight: 900;
 }
 
@@ -356,7 +356,7 @@
 
 .calendarWeekday {
   color: var(--text-muted);
-  font-size: 0.7rem;
+  font-size: 0.77rem;
   font-weight: 800;
   text-align: center;
   padding: 2px 0;
@@ -371,7 +371,7 @@
   background: transparent;
   cursor: pointer;
   margin: 0 auto;
-  font-size: 0.86rem;
+  font-size: 0.95rem;
 }
 
 .calendarDay:hover {
@@ -438,7 +438,7 @@
 
 .calendarTimeRow span {
   color: var(--text-muted);
-  font-size: 0.72rem;
+  font-size: 0.79rem;
   font-weight: 900;
   text-transform: uppercase;
 }
@@ -466,7 +466,7 @@
   border-radius: 8px;
   color: var(--green-accent);
   background: rgba(83, 209, 30, 0.08);
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   font-weight: 800;
   cursor: pointer;
   padding: 0 14px;
@@ -509,7 +509,7 @@
 .selectField span,
 .formGrid label > span {
   color: var(--text-muted);
-  font-size: 0.72rem;
+  font-size: 0.79rem;
   font-weight: 900;
   text-transform: uppercase;
 }
@@ -570,7 +570,7 @@
 
 .themedSelectLabel {
   color: var(--text-muted);
-  font-size: 0.72rem;
+  font-size: 0.79rem;
   font-weight: 900;
   text-transform: uppercase;
 }
@@ -594,7 +594,7 @@
 
 .themedSelectForm .themedSelectLabel {
   color: var(--text-muted);
-  font-size: 0.72rem;
+  font-size: 0.79rem;
   font-weight: 900;
   text-transform: uppercase;
 }
@@ -636,7 +636,7 @@
   background: transparent;
   cursor: pointer;
   font: inherit;
-  font-size: 0.9rem;
+  font-size: 0.99rem;
   padding: 0 10px;
   text-align: left;
 }
@@ -830,7 +830,7 @@
   justify-content: flex-start;
   padding-left: 16px;
   color: var(--green-accent);
-  font-size: 0.84rem;
+  font-size: 0.92rem;
   font-weight: 900;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -882,7 +882,7 @@
   gap: 10px;
   margin: 0;
   color: var(--text);
-  font-size: 1.42rem;
+  font-size: 1.56rem;
   font-weight: 900;
   letter-spacing: 0.01em;
 }
@@ -896,7 +896,7 @@
 
 .stockGroup h3 span:last-child {
   color: var(--text-muted);
-  font-size: 0.92rem;
+  font-size: 1.01rem;
 }
 
 .stockScrollActions {
@@ -1006,7 +1006,7 @@
 
 .cardTitleRow h4 {
   margin: 4px 0 0;
-  font-size: 1rem;
+  font-size: 1.1rem;
 }
 
 .cardFacts,
@@ -1028,7 +1028,7 @@
 .cardFacts dt,
 .readOnly span {
   color: var(--text-muted);
-  font-size: 0.72rem;
+  font-size: 0.79rem;
   font-weight: 900;
   text-transform: uppercase;
 }
@@ -1037,7 +1037,7 @@
 .readOnly strong {
   margin: 0;
   color: var(--text);
-  font-size: 0.88rem;
+  font-size: 0.97rem;
 }
 
 .cardActions {
@@ -1188,7 +1188,7 @@
 
 .modalTitleText small {
   color: var(--text-muted);
-  font-size: 0.74rem;
+  font-size: 0.81rem;
   font-weight: 700;
 }
 
@@ -1236,7 +1236,7 @@
 
 .inventoryDetailsModal .modalTitle {
   min-width: 0;
-  font-size: 1.35rem;
+  font-size: 1.49rem;
   line-height: 1.2;
 }
 
@@ -1269,7 +1269,7 @@
   cursor: pointer;
   padding: 10px 14px;
   font: inherit;
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   font-weight: 850;
 }
 
@@ -1329,14 +1329,14 @@
 .inventoryItemIdentity h4 {
   margin: 0;
   color: var(--text);
-  font-size: 1.2rem;
+  font-size: 1.32rem;
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
 
 .inventoryItemIdentity small {
   color: var(--text-muted);
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   font-weight: 700;
 }
 
@@ -1353,6 +1353,111 @@
   align-content: start;
   gap: 10px;
 }
+
+.spoilageHelp {
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.spoilagePanel {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 16px;
+}
+
+.spoilageHeading,
+.spoilageSummary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.spoilageHeading > div,
+.spoilageSummary > div {
+  display: grid;
+  gap: 4px;
+}
+
+.spoilageHeading > div > span,
+.spoilageSummary > div > span {
+  color: var(--text-muted);
+  font-size: 0.83rem;
+}
+
+.spoilageHeading strong,
+.spoilageSummary strong {
+  color: var(--text);
+}
+
+.spoilageBadge {
+  border-radius: 999px;
+  background: rgba(214, 164, 56, 0.16);
+  color: var(--text);
+  padding: 5px 10px;
+  font-size: 0.83rem;
+}
+
+.spoilageBadge[data-urgent="true"] {
+  background: rgba(210, 79, 64, 0.18);
+  color: var(--danger);
+}
+
+.spoilageUnknown,
+.spoilageDisclaimer {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.spoilageDisclaimer { font-size: 0.86rem; }
+
+.spoilageToggle {
+  justify-self: start;
+  border: 0;
+  background: transparent;
+  color: var(--green-accent);
+  padding: 4px 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.spoilageBatchList {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.spoilageBatchList li {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid var(--border-soft);
+  padding-top: 10px;
+}
+
+.spoilageBatchList li > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.spoilageBatchList li span,
+.spoilageBatchList li small { color: var(--text-muted); }
+.spoilageBatchList li a { width: fit-content; color: var(--green-accent); font-size: 0.88rem; }
+
+.spoilageCorrectionForm {
+  display: grid;
+  gap: 9px;
+  border-top: 1px solid var(--border-soft);
+  padding-top: 10px;
+}
+
+.spoilageCorrectionForm label { display: grid; gap: 5px; color: var(--text-muted); font-size: 0.88rem; }
+.spoilageCorrectionForm input,
+.spoilageCorrectionForm select { width: 100%; min-height: 40px; border: 1px solid var(--border-soft); border-radius: 7px; background: var(--surface); color: var(--text); padding: 0 9px; }
+.spoilageCorrectionForm [role="alert"] { color: var(--danger); }
 
 .inventoryDetailsFooter {
   display: flex;
@@ -1513,7 +1618,7 @@
 
 .detailTitleBlock h4 {
   margin: 0;
-  font-size: 1.28rem;
+  font-size: 1.41rem;
 }
 
 .detailTitleRow {
@@ -1627,7 +1732,7 @@
   background: rgba(255, 255, 255, 0.03);
   cursor: pointer;
   font-family: var(--font-roboto-mono);
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   font-weight: 900;
   transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
 }
@@ -1665,12 +1770,12 @@
 .itemHistoryHeading h4 {
   margin: 0;
   color: var(--text);
-  font-size: 1.05rem;
+  font-size: 1.16rem;
 }
 
 .itemHistoryHeading span {
   color: var(--text-muted);
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   font-weight: 800;
 }
 
@@ -1702,7 +1807,7 @@
 
 .itemHistoryTableHead {
   color: var(--text-muted);
-  font-size: 0.7rem;
+  font-size: 0.77rem;
   font-weight: 950;
   padding: 0 14px;
   text-transform: uppercase;
@@ -1737,6 +1842,24 @@
   color: var(--text-muted);
 }
 
+.itemHistoryTable[data-kind="movements"] .itemHistoryTableRow > [data-label="Notes"] {
+  display: grid;
+  gap: 7px;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.movementBatchEstimate {
+  margin-top: 5px;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+}
+
+.batchChoice { display: grid; gap: 8px; }
+.batchChoice summary { cursor: pointer; color: var(--text-muted); }
+.batchChoice select { width: 100%; }
+
 .itemSaleStatus {
   display: inline-flex;
   width: fit-content;
@@ -1745,7 +1868,7 @@
   color: var(--text-secondary);
   background: var(--history-row-surface);
   padding: 4px 8px;
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 850;
   text-transform: capitalize;
 }
@@ -1783,25 +1906,25 @@
 .inventoryHistoryLedger { display: grid; min-width: 0; min-height: 0; height: 100%; }
 .inventoryHistoryLedger .historyPanel { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 12px; min-height: 0; padding: 0; border: 0; background: transparent; }
 .inventoryHistoryLedger .historyHeader { padding: 0 2px 4px; }
-.inventoryHistoryLedger .historyHeader h4 { font-size: 1.2rem; }
-.inventoryHistoryLedger .historyHeader p { margin-top: 4px; font-size: .95rem; }
-.inventoryHistoryLedger .historyHeader > strong { font-size: .95rem; }
-.historyTableHeader { display: grid; grid-template-columns: minmax(140px, .9fr) minmax(170px, 1.3fr) minmax(170px, 1.2fr) minmax(160px, 1.2fr); gap: 12px; padding: 0 14px; color: var(--text-muted); font-size: .82rem; font-weight: 750; letter-spacing: .025em; text-transform: none; }
+.inventoryHistoryLedger .historyHeader h4 { font-size: 1.32rem; }
+.inventoryHistoryLedger .historyHeader p { margin-top: 4px; font-size: 1.05rem; }
+.inventoryHistoryLedger .historyHeader > strong { font-size: 1.05rem; }
+.historyTableHeader { display: grid; grid-template-columns: minmax(140px, .9fr) minmax(170px, 1.3fr) minmax(170px, 1.2fr) minmax(160px, 1.2fr); gap: 12px; padding: 0 14px; color: var(--text-muted); font-size: 0.9rem; font-weight: 750; letter-spacing: .025em; text-transform: none; }
 .inventoryHistoryRecords { display: grid; grid-template-rows: repeat(5, minmax(0, 1fr)); gap: 10px; min-height: 0; overflow: hidden; }
 .inventoryHistoryLedger .historyItem { min-height: 0; grid-template-columns: minmax(140px, .9fr) minmax(170px, 1.3fr) minmax(170px, 1.2fr) minmax(160px, 1.2fr); align-items: center; border-radius: 10px; padding: 14px 16px; }
 .inventoryHistoryLedger .historyItem > div { display: contents; }
-.inventoryHistoryLedger .historyItem > div:first-child strong { display: inline-flex; width: fit-content; max-width: 100%; white-space: nowrap; border: 1px solid rgba(120, 130, 140, .28); border-radius: 999px; color: var(--text-secondary); background: rgba(120, 130, 140, .1); font-size: .86rem; text-transform: none; padding: 6px 10px; }
+.inventoryHistoryLedger .historyItem > div:first-child strong { display: inline-flex; width: fit-content; max-width: 100%; white-space: nowrap; border: 1px solid rgba(120, 130, 140, .28); border-radius: 999px; color: var(--text-secondary); background: rgba(120, 130, 140, .1); font-size: 0.95rem; text-transform: none; padding: 6px 10px; }
 .inventoryHistoryLedger .historyItem > div:first-child strong[data-type="IN"] { border-color: rgba(var(--green-rgb), .3); color: var(--green-accent); background: rgba(var(--green-secondary-rgb), .13); }
 .inventoryHistoryLedger .historyItem > div:first-child strong[data-type="OUT"] { border-color: rgba(194, 65, 12, .42); color: #c2410c; background: rgba(194, 65, 12, .16); }
-.inventoryHistoryLedger .historyItem > div:first-child span { color: var(--text); font-size: 1rem; font-weight: 700; }
-.inventoryHistoryLedger .historyItem > div:nth-child(2) { color: var(--text-muted); font-size: .92rem; }
-.inventoryHistoryLedger .historyItem > p { grid-column: 4; margin: 0; overflow: hidden; color: var(--text-muted); font-size: .92rem; overflow-wrap: anywhere; text-overflow: ellipsis; white-space: nowrap; }
+.inventoryHistoryLedger .historyItem > div:first-child span { color: var(--text); font-size: 1.1rem; font-weight: 700; }
+.inventoryHistoryLedger .historyItem > div:nth-child(2) { color: var(--text-muted); font-size: 1.01rem; }
+.inventoryHistoryLedger .historyItem > p { grid-column: 4; margin: 0; overflow: hidden; color: var(--text-muted); font-size: 1.01rem; overflow-wrap: anywhere; text-overflow: ellipsis; white-space: nowrap; }
 .inventoryHistoryLedger .historyEmpty { grid-row: 1 / -1; align-self: center; justify-self: center; padding: 20px; }
 .historyPagination { display: flex; align-items: center; justify-content: center; gap: 14px; padding-top: 8px; }
 .historyPagination button { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border: 1px solid var(--history-border); border-radius: 7px; color: var(--green-accent); background: transparent; cursor: pointer; }
 .historyPagination button svg { width: 18px; height: 18px; }
 .historyPagination button:disabled { opacity: .35; cursor: not-allowed; }
-.historyPagination span { color: var(--text-muted); font-size: .95rem; }
+.historyPagination span { color: var(--text-muted); font-size: 1.05rem; }
 .inventoryHistoryList .historyPanel { min-width: 0; }
 .inventoryHistoryList .historyItem { grid-template-columns: minmax(150px, 1fr) minmax(220px, auto); }
 .inventoryHistoryList .historyItem > div:first-child { min-width: 0; }
@@ -1825,7 +1948,7 @@
   padding: 24px;
 }
 
-.inventoryHistoryModal .modalTitle { font-size: 1.3rem; }
+.inventoryHistoryModal .modalTitle { font-size: 1.43rem; }
 
 @media (min-width: 681px) and (max-width: 920px) {
   .historyTableHeader,
@@ -1862,7 +1985,7 @@
 
 .salesHistoryItem strong {
   color: var(--green-accent);
-  font-size: 1rem;
+  font-size: 1.1rem;
 }
 
 .historyItem {
@@ -1925,7 +2048,7 @@
 }
 
 .alertCard span {
-  font-size: 0.92rem;
+  font-size: 1.01rem;
   font-weight: 900;
   line-height: 1.35;
 }
@@ -1976,14 +2099,14 @@
 
 .table th {
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   font-weight: 900;
   text-transform: uppercase;
 }
 
 .table td {
   color: var(--text-secondary);
-  font-size: 0.92rem;
+  font-size: 1.01rem;
 }
 
 .itemName,
@@ -2000,7 +2123,7 @@
   margin-top: 4px;
   color: var(--text-muted);
   font-family: var(--font-roboto-mono);
-  font-size: 0.78rem;
+  font-size: 0.86rem;
 }
 
 .status {
@@ -2013,7 +2136,7 @@
   border-radius: 999px;
   color: var(--success);
   background: rgba(65, 215, 91, 0.08);
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   font-weight: 900;
   line-height: 1;
   padding: 7px 10px;
@@ -2233,7 +2356,7 @@
     padding: 16px;
   }
 
-  .inventoryHistoryModal .modalTitle { font-size: 1.12rem; }
+  .inventoryHistoryModal .modalTitle { font-size: 1.23rem; }
 
   .inventoryDetailsModal {
     width: min(100%, calc(100vw - 24px));
@@ -2247,7 +2370,7 @@
 
   .inventoryDetailsModal .modalTitle {
     flex-wrap: wrap;
-    font-size: 1.18rem;
+    font-size: 1.3rem;
   }
 
   .inventoryDetailsBody .detailsTop {
@@ -2270,12 +2393,12 @@
   }
 
   .inventoryItemIdentity h4 {
-    font-size: 1.05rem;
+    font-size: 1.16rem;
   }
 
   .inventoryItemIdentity > .status {
     flex: 0 0 auto;
-    font-size: 0.64rem;
+    font-size: 0.7rem;
   }
 
   .itemHistoryTable {
@@ -2308,7 +2431,7 @@
   .itemHistoryTableRow > [data-label]::before {
     content: attr(data-label);
     color: var(--text-muted);
-    font-size: 0.66rem;
+    font-size: 0.73rem;
     font-weight: 900;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -2328,7 +2451,7 @@
     max-width: none;
     min-height: 48px;
     padding: 0 10px;
-    font-size: 0.83rem;
+    font-size: 0.91rem;
   }
 
   .inventoryHistoryLedger .historyItem {

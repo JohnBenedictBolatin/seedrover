@@ -11,12 +11,10 @@ import '../../../../shared/widgets/status_badge.dart';
 class RoverImagePlaceholder extends StatelessWidget {
   const RoverImagePlaceholder({
     required this.isInUse,
-    required this.usageDuration,
     super.key,
   });
 
   final bool isInUse;
-  final Duration usageDuration;
 
   @override
   Widget build(BuildContext context) {
@@ -53,13 +51,13 @@ class RoverImagePlaceholder extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     AnimatedTypingText(
-                      'Rover Image',
+                      'Rover status',
                       style: AppTypography.small,
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     AnimatedTypingText(
-                      'Runtime: ${_formatDuration(usageDuration)}',
-                      style: AppTypography.sensorValue.copyWith(
+                      isInUse ? 'Active session reported' : 'No active session reported',
+                      style: AppTypography.numericValue.copyWith(
                         color: AppColors.primaryGreen,
                       ),
                     ),
@@ -73,14 +71,5 @@ class RoverImagePlaceholder extends StatelessWidget {
     );
   }
 
-  String _formatDuration(Duration value) {
-    final hours = value.inHours;
-    final minutes = value.inMinutes.remainder(60);
 
-    if (hours == 0) {
-      return '${minutes}m';
-    }
-
-    return '${hours}h ${minutes}m';
-  }
 }

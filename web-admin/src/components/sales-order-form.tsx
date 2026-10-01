@@ -246,6 +246,19 @@ export function SalesOrderForm({
   const selectedDiscount = discounts.find(
     (discount) => discount.code.toUpperCase() === normalizedDiscountCode,
   );
+  const discountOptions = useMemo(
+    () => ["", ...discounts.map((discount) => discount.code)],
+    [discounts],
+  );
+  const discountOptionLabels = useMemo(
+    () => Object.fromEntries(
+      discounts.map((discount) => [
+        discount.code,
+        `${discount.code} - ${discount.discountType === "Percent" ? `${discount.discountValue}% off` : `${formatCurrency(discount.discountValue)} off`}`,
+      ]),
+    ),
+    [discounts],
+  );
   const discountAmount = selectedDiscount
     ? selectedDiscount.discountType === "Amount"
       ? Math.min(selectedDiscount.discountValue, subtotal)
@@ -553,21 +566,21 @@ export function SalesOrderForm({
           </div>
 
           <div className={styles.fields}>
-            <label>
-              Discount code
-              <input
-                name="discount_code"
-                placeholder="e.g. Save10"
-                type="text"
-                value={discountCode}
-                onChange={(event) => setDiscountCode(event.target.value)}
-              />
-            </label>
-            {normalizedDiscountCode ? (
-              <p className={selectedDiscount ? styles.discountCodeHint : styles.discountCodeError}>
-                {selectedDiscount
-                  ? `${selectedDiscount.discountType}: ${selectedDiscount.discountValue}${selectedDiscount.discountType === "Percent" ? "%" : " PHP"} for ${selectedDiscount.customerName}`
-                  : "Code not found or already used."}
+            <ThemedSelect
+              emptyLabel={discounts.length > 0 ? "No discount" : "No discounts available"}
+              label="Discount"
+              name="discount_code"
+              onChange={setDiscountCode}
+              optionLabels={discountOptionLabels}
+              options={discountOptions}
+              value={discountCode}
+            />
+            {selectedDiscount ? (
+              <p className={styles.discountCodeHint}>
+                {selectedDiscount.discountType === "Percent"
+                  ? `${selectedDiscount.discountValue}% discount applied.`
+                  : `${formatCurrency(selectedDiscount.discountValue)} discount applied.`}
+                {" "}Anyone with the code can use this offer.
               </p>
             ) : null}
               <label>
