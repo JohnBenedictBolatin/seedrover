@@ -566,7 +566,9 @@ class RoverControlController extends StateNotifier<RoverControlState> {
             activePlantingConfig: configuration,
             plantingStatus: operation.state == 'PLANTING'
                 ? PlantingStatus.active
-                : PlantingStatus.checking,
+                : (operation.state == 'RETURNING_TO_START'
+                    ? PlantingStatus.returningToStart
+                    : PlantingStatus.checking),
             lastCommand: 'Planting run recovered from rover status',
             clearErrorMessage: true,
           );
@@ -757,6 +759,7 @@ class RoverControlController extends StateNotifier<RoverControlState> {
         'LOWERING_RAKE' => PlantingStatus.loweringRake,
         'READY' => PlantingStatus.ready,
         'PLANTING' => PlantingStatus.active,
+        'RETURNING_TO_START' => PlantingStatus.returningToStart,
         'PAUSED' => PlantingStatus.paused,
         'COMPLETED' => PlantingStatus.completed,
         'INTERRUPTED' => PlantingStatus.interrupted,
@@ -768,7 +771,8 @@ class RoverControlController extends StateNotifier<RoverControlState> {
         state = state.copyWith(
           plantingStatus: mapped,
           plantingOperation: operation,
-          clearActiveMovement: mapped != PlantingStatus.active,
+          clearActiveMovement: mapped != PlantingStatus.active &&
+              mapped != PlantingStatus.returningToStart,
         );
         return;
       }
@@ -800,11 +804,16 @@ class RoverControlController extends StateNotifier<RoverControlState> {
                 ? operation.sessionId
                 : state.lastConfirmedSyncedSessionId,
         soilCheckPassed: operation.state != 'CHECKING_SOIL',
-        soilCheckMessage:
-            '${operation.completedDrops}/${operation.targetDrops} planting cycles acknowledged. Seed quantity and exact distance are not measured.',
-        activeMovement:
-            operation.state == 'PLANTING' ? RoverMovementCommand.forward : null,
-        clearActiveMovement: operation.state != 'PLANTING',
+        soilCheckMessage: operation.state == 'RETURNING_TO_START'
+            ? 'All ${operation.targetDrops} planting points completed. Returning to start line (leveling & molding).'
+            : '${operation.completedDrops}/${operation.targetDrops} planting cycles acknowledged. Seed quantity and exact distance are not measured.',
+        activeMovement: operation.state == 'PLANTING'
+            ? RoverMovementCommand.forward
+            : (operation.state == 'RETURNING_TO_START'
+                ? RoverMovementCommand.backward
+                : null),
+        clearActiveMovement: operation.state != 'PLANTING' &&
+            operation.state != 'RETURNING_TO_START',
         clearErrorMessage: true,
       );
       if (operation.isTerminal) {

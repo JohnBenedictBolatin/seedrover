@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:seedrover/features/rover/controllers/rover_control_state.dart';
 import 'package:seedrover/features/rover/data/models/planting_session_model.dart';
 import 'package:seedrover/features/rover/data/models/rover_command_model.dart';
 
@@ -186,4 +187,45 @@ void main() {
     expect(receipt.isHardwareConfirmedSuccess, isTrue);
     expect(receipt.readyToSynchronize, isTrue);
   });
+
+  test('parses dynamic field division and return distance telemetry', () {
+    final status = PlantingOperationStatus.fromJson({
+      'state': 'RETURNING_TO_START',
+      'field_distance_locked': true,
+      'detected_field_distance_cm': 121.5,
+      'total_forward_distance_cm': 103.5,
+      'return_distance_cm': 45.2,
+      'distance_is_estimated': true,
+      'movement_tracking': 'timed_estimate',
+    });
+
+    expect(status.state, 'RETURNING_TO_START');
+    expect(status.fieldDistanceLocked, isTrue);
+    expect(status.detectedFieldDistanceCm, 121.5);
+    expect(status.totalForwardDistanceCm, 103.5);
+    expect(status.returnDistanceCm, 45.2);
+    expect(status.isTerminal, isFalse);
+  });
+
+  test('PlantingStatus.returningToStart locks controls and has descriptive label', () {
+    expect(
+      PlantingStatus.returningToStart.label,
+      'Returning to Start (Leveling & Molding)',
+    );
+
+    const activeReturnState = RoverControlState(
+      isLoading: false,
+      telemetry: null,
+      speed: 70,
+      plantingStatus: PlantingStatus.returningToStart,
+      selectedSeed: PlantingSeedType.sitaw,
+      soilCheckPassed: true,
+      soilCheckMessage: 'Returning to start',
+      cameraFullscreen: false,
+    );
+
+    expect(activeReturnState.isPlantingLocked, isTrue);
+    expect(activeReturnState.canStartPlanting, isFalse);
+  });
 }
+

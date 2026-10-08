@@ -131,6 +131,10 @@ class PlantingOperationStatus {
     required this.distanceIsEstimated,
     required this.movementTracking,
     this.failureCode,
+    this.totalForwardDistanceCm,
+    this.returnDistanceCm,
+    this.fieldDistanceLocked = false,
+    this.detectedFieldDistanceCm,
   });
 
   factory PlantingOperationStatus.fromJson(Map<String, dynamic> json) {
@@ -185,6 +189,12 @@ class PlantingOperationStatus {
       movementTracking: json['movement_tracking']?.toString() ??
           (json.containsKey('encoder_distance_cm') ? 'encoder' : 'unknown'),
       failureCode: _nullableText(json['failure_code']),
+      totalForwardDistanceCm:
+          (json['total_forward_distance_cm'] as num?)?.toDouble(),
+      returnDistanceCm: (json['return_distance_cm'] as num?)?.toDouble(),
+      fieldDistanceLocked: json['field_distance_locked'] as bool? ?? false,
+      detectedFieldDistanceCm:
+          (json['detected_field_distance_cm'] as num?)?.toDouble(),
     );
   }
 
@@ -218,6 +228,10 @@ class PlantingOperationStatus {
   final bool distanceIsEstimated;
   final String movementTracking;
   final String? failureCode;
+  final double? totalForwardDistanceCm;
+  final double? returnDistanceCm;
+  final bool fieldDistanceLocked;
+  final double? detectedFieldDistanceCm;
 
   bool get isTerminal => const {
         'COMPLETED',

@@ -8,6 +8,7 @@ enum PlantingStatus {
   loweringRake,
   ready,
   active,
+  returningToStart,
   paused,
   completed,
   failed,
@@ -23,6 +24,8 @@ extension PlantingStatusLabel on PlantingStatus {
       PlantingStatus.loweringRake => 'Lowering Rake',
       PlantingStatus.ready => 'Ready to Plant',
       PlantingStatus.active => 'Planting',
+      PlantingStatus.returningToStart =>
+        'Returning to Start (Leveling & Molding)',
       PlantingStatus.paused => 'Paused Safely',
       PlantingStatus.completed => 'Row Completed',
       PlantingStatus.failed => 'Planting Failed',
@@ -132,6 +135,7 @@ class RoverControlState {
       PlantingStatus.loweringRake,
       PlantingStatus.ready,
       PlantingStatus.active,
+      PlantingStatus.returningToStart,
       PlantingStatus.paused,
     }.contains(plantingStatus);
   }
