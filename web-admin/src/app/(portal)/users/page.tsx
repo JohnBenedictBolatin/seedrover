@@ -4,6 +4,7 @@ import { ModuleHeaderIntro } from "@/components/module-header-intro";
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { getUsersDashboard } from "@/lib/users";
 import { UsersWorkspace } from "./users-workspace";
+import inventoryStyles from "@/app/(portal)/inventory/page.module.css";
 import styles from "./page.module.css";
 
 export default async function UsersPage() {
@@ -20,7 +21,7 @@ export default async function UsersPage() {
   const { users, roles, summary, error } = await getUsersDashboard();
 
   return (
-    <div className={styles.page}>
+    <div className={`${styles.page} ${inventoryStyles.inventoryPage}`}>
       <header className={styles.header}>
           <ModuleHeaderIntro mascot="users">
             <p className={styles.eyebrow}>System</p>

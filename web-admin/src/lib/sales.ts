@@ -696,7 +696,7 @@ export async function getSalesReceipt(id: string) {
   const receiptWithPaymentDetails = await supabase
     .from("sales_orders")
     .select(
-      "id, receipt_number, sale_date, customer_name, customer_contact, payment_method, transaction_reference, other_payment_method, subtotal, discount_type, discount_value, discount_amount, total_amount, amount_paid, change_amount, remarks, status, profiles(full_name), sales_order_items(id, item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total)",
+      "id, receipt_number, sale_date, customer_name, customer_contact, payment_method, transaction_reference, other_payment_method, subtotal, discount_type, discount_value, discount_amount, total_amount, amount_paid, change_amount, remarks, status, profiles!sales_orders_recorded_by_fkey(full_name), sales_order_items(id, item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total)",
     )
     .eq("id", id)
     .single<SalesReceiptRow>();
@@ -705,7 +705,7 @@ export async function getSalesReceipt(id: string) {
     ? await supabase
         .from("sales_orders")
         .select(
-          "id, receipt_number, sale_date, customer_name, customer_contact, payment_method, subtotal, discount_type, discount_value, discount_amount, total_amount, amount_paid, change_amount, remarks, status, profiles(full_name), sales_order_items(id, item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total)",
+          "id, receipt_number, sale_date, customer_name, customer_contact, payment_method, subtotal, discount_type, discount_value, discount_amount, total_amount, amount_paid, change_amount, remarks, status, profiles!sales_orders_recorded_by_fkey(full_name), sales_order_items(id, item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total)",
         )
         .eq("id", id)
         .single<SalesReceiptRow>()
@@ -714,7 +714,7 @@ export async function getSalesReceipt(id: string) {
   if (error || !data) {
     return {
       receipt: null,
-      error: error?.message ?? "Receipt was not found.",
+      error: error?.message ?? "Sales record was not found.",
     };
   }
 

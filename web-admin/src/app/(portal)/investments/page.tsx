@@ -18,6 +18,7 @@ import {
 import { formatCurrency } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import styles from "./page.module.css";
+import inventorySummaryStyles from "@/app/(portal)/inventory/page.module.css";
 
 type ExpenseRow = { id: string; description: string; category: string; amount: number | string; expense_date: string; vendor: string | null; payment_method: string; reference_number: string | null; expense_type: string; related_crop_id: string | null; related_inventory_id: string | null; quantity: number | string | null; unit_cost: number | string | null; receipt_path: string | null; notes: string | null };
 type BasicExpenseRow = Pick<ExpenseRow, "id" | "description" | "category" | "amount" | "expense_date"> & { notes?: string | null };
@@ -178,20 +179,32 @@ export default async function InvestmentsPage({ searchParams }: InvestmentsPageP
           ? `${(estimatedRecoveryDays / 365).toFixed(1)} years`
           : `${Math.ceil(estimatedRecoveryDays / 30.44)} months`;
   return (
-    <div className={styles.page}>
+    <div className={`${styles.page} ${inventorySummaryStyles.inventoryPage} ${inventorySummaryStyles.summaryDesignScope}`}>
         <header className={styles.header}>
-          <ModuleHeaderIntro mascot="investments"><p className={styles.eyebrow}>Operations</p><h1>Investments</h1><p>Farm costs, recurring expenses, receipts, and due dates.</p></ModuleHeaderIntro>
+          <ModuleHeaderIntro mascot="investments"><p className={styles.eyebrow}>Operations</p><h1>Costing</h1><p>Track farm costs, capital investments, operating expenses, receipts, and payment dates.</p></ModuleHeaderIntro>
           <div className={styles.liveDateTime}><LiveDateTime /></div>
       </header>
 
-      {error ? <section className={styles.notice}><strong>Investment records are unavailable.</strong><span>{error.message}</span></section> : null}
+      {error ? <section className={styles.notice}><strong>Cost records are unavailable.</strong><span>{error.message}</span></section> : null}
       {needsExpandedMigration && !error ? <section className={styles.notice}><strong>Expanded investment details need a database update.</strong><span>Existing records are shown below. Apply the latest Supabase migration to use vendor, receipt, recurring, crop, and inventory fields.</span></section> : null}
 
-      <section className={styles.metricGrid} aria-label="Investment summary">
-        <article className={styles.metric}><div className={styles.metricMeta}><span className={styles.metricIcon}><ReceiptText size={20} /></span><p>Total records</p></div><CountUpValue className="mono" value={expenses.length} /></article>
-        <article className={styles.metric}><div className={styles.metricMeta}><span className={styles.metricIcon}><CircleDollarSign size={20} /></span><p>Total farm costs</p></div><CountUpValue className="mono" currency value={totalInvestment} /></article>
-        <article className={styles.metric}><div className={styles.metricMeta}><span className={styles.metricIcon}><CalendarDays size={20} /></span><p>This month</p></div><CountUpValue className="mono" currency value={monthlyInvestment} /></article>
-        <article className={styles.metric}><div className={styles.metricMeta}><span className={styles.metricIcon}><Banknote size={20} /></span><p>Top category</p></div><strong>{topCategory}</strong></article>
+      <section className={inventorySummaryStyles.metricGrid} aria-label="Costing summary">
+        <article className={`${inventorySummaryStyles.metric} ${inventorySummaryStyles.summaryMetric}`}>
+          <div className={inventorySummaryStyles.metricMeta}><span className={inventorySummaryStyles.metricIcon}><ReceiptText size={20} /></span><p>Total records</p></div>
+          <CountUpValue className="mono" value={expenses.length} />
+        </article>
+        <article className={`${inventorySummaryStyles.metric} ${inventorySummaryStyles.summaryMetric}`}>
+          <div className={inventorySummaryStyles.metricMeta}><span className={inventorySummaryStyles.metricIcon}><CircleDollarSign size={20} /></span><p>Total farm costs</p></div>
+          <CountUpValue className="mono" currency value={totalInvestment} />
+        </article>
+        <article className={`${inventorySummaryStyles.metric} ${inventorySummaryStyles.summaryMetric}`}>
+          <div className={inventorySummaryStyles.metricMeta}><span className={inventorySummaryStyles.metricIcon}><CalendarDays size={20} /></span><p>This month</p></div>
+          <CountUpValue className="mono" currency value={monthlyInvestment} />
+        </article>
+        <article className={`${inventorySummaryStyles.metric} ${inventorySummaryStyles.summaryMetric}`}>
+          <div className={inventorySummaryStyles.metricMeta}><span className={inventorySummaryStyles.metricIcon}><Banknote size={20} /></span><p>Top category</p></div>
+          <strong>{topCategory}</strong>
+        </article>
       </section>
 
       <div className={styles.quickActionArea}>

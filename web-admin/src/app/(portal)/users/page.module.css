@@ -390,16 +390,16 @@
   display: grid;
   min-width: 0;
   gap: 8px;
-  overflow-x: auto;
+  overflow-x: clip;
 }
 
 .tableHead,
 .tableRow {
   display: grid;
-  min-width: 1280px;
-  grid-template-columns: minmax(160px,.85fr) minmax(190px,1fr) minmax(240px,1.25fr) minmax(210px,1.05fr) 120px 205px 64px;
+  min-width: 0;
+  grid-template-columns: minmax(110px, .85fr) minmax(120px, 1fr) minmax(140px, 1.25fr) minmax(115px, 1.05fr) minmax(78px, .6fr) minmax(120px, .9fr) 48px;
   align-items: center;
-  column-gap: 20px;
+  column-gap: 12px;
 }
 
 .tableHead {
@@ -1150,6 +1150,40 @@
 
 :global(html[data-theme="light"]) .actionButton:hover .actionButtonText {
   color: transparent !important;
+}
+
+.usersQuickActionPanel {
+  min-height: 88px;
+  gap: 12px;
+  border-color: rgba(255, 255, 255, 0.2);
+  background: #173d20;
+  box-shadow: none;
+  padding: 12px 16px;
+}
+
+.usersQuickActionPanel > div:first-child > span {
+  margin-top: 4px;
+}
+
+section.usersQuickActionPanel::before {
+  opacity: 1;
+  background-image:
+    linear-gradient(90deg, rgba(13, 48, 21, 0.82) 0%, rgba(13, 48, 21, 0.64) 48%, rgba(13, 48, 21, 0.3) 100%),
+    url("/images/users-quick-actions-bg.png") !important;
+  background-position: center, center 64% !important;
+  background-size: cover !important;
+  animation: none !important;
+}
+
+section.usersQuickActionPanel::after {
+  opacity: 0.35 !important;
+  background: linear-gradient(90deg, rgba(10, 41, 17, 0.4), rgba(18, 60, 27, 0.08)) !important;
+}
+
+.usersQuickActionPanel h2,
+.usersQuickActionPanel > div:first-child > span,
+.usersQuickActionPanel .eyebrow {
+  color: #ffffff;
 }
 
 :global(html[data-theme="light"]) .actionButton:hover .actionButtonIcon {

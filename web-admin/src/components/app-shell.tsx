@@ -60,7 +60,7 @@ function navGroupsFor(roleName: AdminProfile["roleName"]) {
             { label: "Inventory", href: "/inventory" },
             { label: "Sales", href: "/sales" },
             { label: "Customers", href: "/customers" },
-            ...(isAdmin ? [{ label: "Investments", href: "/investments" }] : []),
+            ...(isAdmin ? [{ label: "Costing", href: "/investments" }] : []),
           ],
         }
       : null,
@@ -104,7 +104,7 @@ function iconFor(label: string) {
       return <Bell size={18} />;
     case "Activity Log":
       return <ClipboardList size={18} />;
-    case "Investments":
+    case "Costing":
       return <TrendingUp size={18} />;
     default:
       return <Shield size={18} />;
@@ -342,7 +342,9 @@ export function AppShell({
           className={styles.notificationWindowWrap}
           role="presentation"
           style={{
-            left: collapsed ? "104px" : "314px",
+            left: collapsed
+              ? "calc(var(--portal-sidebar-collapsed-width) + 12px)"
+              : "calc(var(--portal-sidebar-width) + 12px)",
           }}
         >
                   <section

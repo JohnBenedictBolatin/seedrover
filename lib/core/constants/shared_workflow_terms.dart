@@ -44,6 +44,7 @@ abstract final class SharedWorkflowTerms {
 }
 
 abstract final class SharedWorkflowChoices {
+  static const storageLocations = <String>["Leafy Greens Chiller", "Harvest Cooler", "Produce Crate Bay", "Root Crop Cellar", "Packing Shed"];
   static const receiptSources = <String>["Harvest Bay", "Greenhouse Sorting", "Field Crate", "Market Return", "Farm-table Prep"];
   static const issueReasons = <String>["Farm-table Dining", "Kitchen Preparation", "Spoilage Removal", "Staff Allocation"];
   static const paymentMethods = <String>["Cash", "GCash", "Bank Transfer", "Card", "Other"];

@@ -141,9 +141,9 @@
   gap: 8px;
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(141, 255, 42, 0.34);
-  color: #eff8e7;
-  background: linear-gradient(135deg, rgba(83, 209, 30, 0.18), rgba(108, 235, 49, 0.12));
+  border: 1px solid rgba(141, 255, 42, 0.58);
+  color: var(--green-accent);
+  background: transparent;
   isolation: isolate;
   padding: 0 14px;
   transition:
@@ -187,9 +187,15 @@
   transition: all 0.5s 0.1s cubic-bezier(0.55, 0, 0.1, 1);
 }
 
+.submitButton::before,
+.submitButton::after {
+  display: none;
+}
+
 .submitButton:hover:not(:disabled) {
-  color: #102006;
+  color: #ffffff;
   border-color: rgba(141, 255, 42, 0.68);
+  background: linear-gradient(135deg, var(--green-accent), var(--green));
   box-shadow:
     0 18px 34px rgba(83, 209, 30, 0.22),
     0 0 0 1px rgba(141, 255, 42, 0.08);
@@ -319,6 +325,28 @@
   gap: 12px;
 }
 
+.customerFields {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.customerMode,
+.existingCustomerField,
+.customerFields > .customerPickerHint,
+.remarksField {
+  grid-column: 1 / -1;
+}
+
+.nameField {
+  grid-column: span 2;
+}
+
+.contactField,
+.paymentField,
+.extraField {
+  grid-column: span 3;
+}
+
 .customerMode {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -393,13 +421,6 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-}
-
-.requiredMarker {
-  color: var(--danger, #ff3b30);
-  font-size: 0.82em;
-  font-weight: 700;
-  line-height: 1;
 }
 
 .visuallyHidden {
@@ -659,12 +680,26 @@
 
 .submitButton {
   width: 100%;
-  margin-top: auto;
+  margin-top: 12px;
 }
 
 .submitButton:disabled {
   cursor: wait;
   opacity: 0.72;
+}
+
+:global(html[data-theme="light"]) form .submitButton:not(:disabled) {
+  border: 1px solid #16451f !important;
+  color: #16451f !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+:global(html[data-theme="light"]) form .submitButton:hover:not(:disabled) {
+  border-color: #0d3518 !important;
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #1e5f2b, #123c1b) !important;
+  box-shadow: 0 8px 18px rgba(18, 60, 27, 0.24) !important;
 }
 
 .toastAlert {
@@ -685,6 +720,17 @@
 }
 
 @media (max-width: 640px) {
+  .customerFields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .nameField,
+  .contactField,
+  .paymentField,
+  .extraField {
+    grid-column: span 1;
+  }
+
   .toastAlert {
     right: 14px;
     bottom: 102px;

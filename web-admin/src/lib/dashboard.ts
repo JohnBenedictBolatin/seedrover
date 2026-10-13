@@ -44,6 +44,7 @@ export type DashboardRiskItem = {
   id: string;
   itemName: string;
   category: string;
+  imageUrl: string | null;
   quantity: number;
   unit: string;
   status: "Out of Stock" | "Critical Stock" | "Low Stock";
@@ -111,6 +112,7 @@ type InventoryRow = {
   id: string;
   item_name: string;
   category: string | null;
+  image_path: string | null;
   quantity: number | string;
   unit: string;
   minimum_quantity: number | string;
@@ -124,6 +126,7 @@ type SalesOrderRow = {
   sale_date: string;
   customer_name: string | null;
   payment_method: string;
+  discount_amount?: number | string | null;
   total_amount: number | string;
   status: string;
   recorder?: { full_name: string | null } | { full_name: string | null }[] | null;
@@ -561,7 +564,7 @@ export async function getOperationsDashboard(range: DashboardRange) {
 
   const inventoryResult = await fetchAllPages<InventoryRow>((from, to) => supabase
     .from("inventory")
-    .select("id, item_name, category, quantity, unit, minimum_quantity, unit_cost, selling_price")
+    .select("id, item_name, category, image_path, quantity, unit, minimum_quantity, unit_cost, selling_price")
     .order("item_name", { ascending: true })
     .order("id", { ascending: true })
     .range(from, to)
@@ -575,7 +578,7 @@ export async function getOperationsDashboard(range: DashboardRange) {
 
   const ordersResult = await fetchAllPages<SalesOrderRow>((from, to) => supabase
     .from("sales_orders")
-    .select("id, receipt_number, sale_date, customer_name, payment_method, total_amount, status, recorder:profiles!sales_orders_recorded_by_fkey(full_name), sales_order_items(item_name_snapshot, unit_snapshot, quantity_sold, line_total, inventory(category))")
+    .select("id, receipt_number, sale_date, customer_name, payment_method, discount_amount, total_amount, status, recorder:profiles!sales_orders_recorded_by_fkey(full_name), sales_order_items(item_name_snapshot, unit_snapshot, quantity_sold, line_total, inventory(category))")
     .gte("sale_date", salesStartIso)
     .lt("sale_date", asOfIso)
     .order("sale_date", { ascending: false })
@@ -656,6 +659,9 @@ export async function getOperationsDashboard(range: DashboardRange) {
         id: row.id,
         itemName: row.item_name,
         category,
+        imageUrl: row.image_path
+          ? supabase.storage.from("stock-images").getPublicUrl(row.image_path).data.publicUrl
+          : null,
         quantity,
         unit: row.unit,
         status,
@@ -693,6 +699,10 @@ export async function getOperationsDashboard(range: DashboardRange) {
     addToMap(salesTrend, bucketLabel(order.sale_date, range), total);
     addToMap(paymentMethods, order.payment_method, total);
 
+    const itemSubtotal = items.reduce((subtotal, item) => subtotal + toNumber(item.line_total), 0);
+    const discountAmount = Math.min(Math.max(toNumber(order.discount_amount), 0), itemSubtotal);
+    const netSalesFactor = itemSubtotal > 0 ? (itemSubtotal - discountAmount) / itemSubtotal : 1;
+
     const key = customerKey(order.customer_name);
     if (key) {
       customers.add(key);
@@ -701,7 +711,7 @@ export async function getOperationsDashboard(range: DashboardRange) {
     for (const item of items) {
       const category = firstRelation(item.inventory)?.category?.trim() || "Uncategorized";
       const lineTotal = toNumber(item.line_total);
-      addToMap(salesByCategory, category, lineTotal);
+      addToMap(salesByCategory, category, lineTotal * netSalesFactor);
       const itemLabel = item.unit_snapshot
         ? `${item.item_name_snapshot} (${item.unit_snapshot})`
         : item.item_name_snapshot;

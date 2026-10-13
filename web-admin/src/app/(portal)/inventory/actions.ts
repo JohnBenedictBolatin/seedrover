@@ -7,6 +7,7 @@ import { MAX_UPLOAD_SIZE_BYTES } from "@/lib/upload-limits";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { writeActivityLog } from "@/lib/activity-log";
 import { parseDatabaseDecimal } from "@/lib/field-validation.mjs";
+import { sharedWorkflowChoices } from "@/lib/shared-workflow-terms";
 
 const STOCK_IMAGE_BUCKET = "stock-images";
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -159,6 +160,11 @@ function inventoryPayload(formData: FormData, options?: { includeQuantity?: bool
     throw new Error("Selling price cannot be negative.");
   }
 
+  const storageLocation = requiredText(formData, "storage_location", "Storage location");
+  if (!sharedWorkflowChoices.storageLocations.some((location) => location === storageLocation)) {
+    throw new Error("Choose one of the available storage locations.");
+  }
+
   return {
     item_name: isCreate
       ? requiredText(formData, "item_name", "Item name")
@@ -169,9 +175,7 @@ function inventoryPayload(formData: FormData, options?: { includeQuantity?: bool
     ...(options?.includeQuantity ? { quantity } : {}),
     unit,
     minimum_quantity: minimumQuantity,
-    storage_location: isCreate
-      ? requiredText(formData, "storage_location", "Storage location")
-      : text(formData, "storage_location", "Unassigned"),
+    storage_location: storageLocation,
     notes: text(formData, "notes").trim() || null,
     unit_cost: unitCost,
     selling_price: sellingPrice,
@@ -417,13 +421,13 @@ export async function splitInventoryBatchAction(formData: FormData) {
 export async function stockInAction(formData: FormData) {
   const quantity = numberValue(formData, "quantity");
   if (quantity <= 0) throw new Error("Quantity must be greater than zero.");
-  await createMovement(formData, "IN", quantity);
+  return createMovement(formData, "IN", quantity);
 }
 
 export async function stockOutAction(formData: FormData) {
   const quantity = numberValue(formData, "quantity");
   if (quantity <= 0) throw new Error("Quantity must be greater than zero.");
-  await createMovement(formData, "OUT", quantity);
+  return createMovement(formData, "OUT", quantity);
 }
 
 export async function adjustStockAction(formData: FormData) {
@@ -436,7 +440,7 @@ async function createMovement(
   formData: FormData,
   transactionType: "IN" | "OUT" | "ADJUSTMENT",
   quantity: number,
-) {
+): Promise<{ ok: true } | { ok: false; message: string }> {
   await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
 
   const supabase = await createSupabaseServerClient();
@@ -478,6 +482,9 @@ async function createMovement(
     if (error.message.includes("record_inventory_movement") || error.message.includes("schema cache")) {
       throw new Error("Inventory movement support is not deployed yet. Apply the latest Supabase migration, then try again.");
     }
+    if (transactionType === "OUT" && error.message.includes("Insufficient stock for inventory transaction")) {
+      return { ok: false, message: "Not enough stock is available for this issue. Reduce the quantity or receive stock first." };
+    }
     throw new Error(error.message);
   }
 
@@ -504,4 +511,5 @@ async function createMovement(
   revalidatePath("/dashboard");
   revalidatePath("/notifications");
   revalidatePath("/", "layout");
+  return { ok: true };
 }

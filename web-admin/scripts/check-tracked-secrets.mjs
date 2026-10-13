@@ -12,7 +12,7 @@ const trackedFiles = execFileSync("git", ["ls-files"], {
 
 const forbiddenEnvFiles = trackedFiles.filter((file) => {
   const name = file.split(/[\\/]/).pop() ?? "";
-  return /^\.env(?:\.|$)/.test(name) && name !== ".env.example";
+  return /^\.env(?:\.|$)/.test(name) && ![".env.example", ".env.mobile.json.example"].includes(name);
 });
 
 const credentialFilePattern = /(?:^|[\\/])(?:secrets?|credentials?)\.(?:env|json|h)$/i;

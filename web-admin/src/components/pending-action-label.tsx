@@ -9,12 +9,14 @@ export function PendingActionLabel({
   pending: boolean;
   pendingText: string;
 }) {
-  if (!pending) return children;
-
   return (
-    <span className="pendingActionLabel" aria-live="polite">
-      <span aria-hidden="true" className="pendingActionSpinner" />
-      <span>{pendingText}</span>
+    <span className="pendingActionLabel" aria-live={pending ? "polite" : undefined}>
+      {pending ? (
+        <>
+          <span aria-hidden="true" className="pendingActionSpinner" />
+          <span>{pendingText}</span>
+        </>
+      ) : children}
     </span>
   );
 }

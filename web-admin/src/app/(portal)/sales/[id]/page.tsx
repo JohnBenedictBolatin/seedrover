@@ -43,7 +43,7 @@ export default async function SalesReceiptPage({
         <header className={styles.receiptHeader}>
           <div>
             <p className={styles.brand}>SeedRover</p>
-            <h1>Sales Receipt</h1>
+            <h1>Sales Record</h1>
           </div>
           <div className={styles.receiptMeta}>
             <strong>{receipt.receiptNumber}</strong>

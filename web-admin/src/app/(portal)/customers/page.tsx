@@ -5,6 +5,7 @@ import { CustomersWorkspace } from "@/components/customers-workspace";
 import { LiveDateTime } from "@/components/live-date-time";
 import { ModuleHeaderIntro } from "@/components/module-header-intro";
 import styles from "./page.module.css";
+import inventorySummaryStyles from "@/app/(portal)/inventory/page.module.css";
 
 export default async function CustomersPage() {
   const profile = await getCurrentAdminProfile();
@@ -20,7 +21,7 @@ export default async function CustomersPage() {
   const { customers, discounts, stats, error } = await getCustomersDashboard();
 
   return (
-    <div className={styles.page}>
+    <div className={`${styles.page} ${inventorySummaryStyles.inventoryPage} ${inventorySummaryStyles.summaryDesignScope}`}>
       <header className={styles.header}>
           <ModuleHeaderIntro mascot="customers">
             <p className={styles.eyebrow}>Operations</p>

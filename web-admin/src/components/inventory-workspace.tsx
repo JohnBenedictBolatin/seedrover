@@ -8,10 +8,12 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   Boxes,
+  CalendarDays,
   Carrot,
   Check,
   ChevronLeft,
   ClipboardList,
+  CircleDollarSign,
   Clock3,
   History,
   X,
@@ -19,6 +21,7 @@ import {
   Edit3,
   Filter,
   Leaf,
+  MapPin,
   ChevronDown,
   ImageIcon,
   Package,
@@ -26,7 +29,10 @@ import {
   Search,
   SlidersHorizontal,
   Sprout,
+  Tag,
+  TrendingUp,
   Trash2,
+  Wallet,
 } from "lucide-react";
 import {
   adjustStockAction,
@@ -42,7 +48,7 @@ import { useConfirmationDialog } from "@/components/confirmation-dialog";
 import { useActionFeedback } from "@/components/action-feedback";
 import { PendingActionLabel } from "@/components/pending-action-label";
 import { FileUploadField } from "@/components/file-upload-field";
-import { formatCurrency, formatDateTime, formatQuantity } from "@/lib/format";
+import { formatCurrency, formatDate, formatDateTime, formatQuantity } from "@/lib/format";
 import { displayDate } from "@/lib/spoilage-estimates";
 import { sharedWorkflowChoices, sharedWorkflowTerms } from "@/lib/shared-workflow-terms";
 import type { InventoryItem } from "@/lib/inventory";
@@ -61,6 +67,7 @@ const categoryInputOptions = [
 ];
 const categories = ["All", ...categoryInputOptions];
 const units = ["kg"];
+const storageLocations = [...sharedWorkflowChoices.storageLocations];
 const wholeNumberUnits = new Set<string>();
 const statusOptions = ["All", "In Stock", "Low Stock", "Critical Stock", "Out of Stock"];
 const sortOptions = ["Name", "Quantity", "Updated", "Value"];
@@ -248,9 +255,8 @@ export function InventoryWorkspace({
 
   return (
     <>
-      <section className={quickActionStyles.quickActions} aria-label="Inventory quick actions">
+      <section className={`${quickActionStyles.quickActions} ${styles.inventoryQuickActionsPanel}`} aria-label="Inventory quick actions">
         <div>
-          <p className={quickActionStyles.eyebrow}>Quick action</p>
           <h2>Inventory control</h2>
           <span>Add an inventory item or review every stock movement.</span>
         </div>
@@ -369,15 +375,19 @@ function ThemedSelect({
   label: string;
   name?: string;
   onChange?: (value: string) => void;
-  options: string[];
+  options: Array<string | { value: string; label: string }>;
   placeholder?: string;
   required?: boolean;
   value?: string;
   variant?: "toolbar" | "form";
 }) {
   const [open, setOpen] = useState(false);
-  const [internalValue, setInternalValue] = useState(defaultValue ?? options[0] ?? "");
+  const normalizedOptions = options.map((option) =>
+    typeof option === "string" ? { value: option, label: option } : option,
+  );
+  const [internalValue, setInternalValue] = useState(defaultValue ?? normalizedOptions[0]?.value ?? "");
   const selectedValue = value ?? internalValue;
+  const selectedLabel = normalizedOptions.find((option) => option.value === selectedValue)?.label;
 
   function handleSelect(nextValue: string) {
     setInternalValue(nextValue);
@@ -397,7 +407,7 @@ function ThemedSelect({
       }}
     >
       {name ? <input name={name} type="hidden" value={selectedValue} /> : null}
-      {variant === "form" ? <span className={styles.themedSelectLabel}>{label}{required ? <span aria-hidden="true" className={styles.requiredMarker}>*</span> : null}</span> : null}
+      {variant === "form" ? <span className={styles.themedSelectLabel}>{label}{required ? <span aria-hidden="true" className="requiredFieldMarker">*</span> : null}</span> : null}
       <button
         aria-expanded={open}
         className={styles.themedSelectButton}
@@ -406,24 +416,24 @@ function ThemedSelect({
       >
         {icon ? <span className={styles.themedSelectIcon}>{icon}</span> : null}
         {variant === "toolbar" ? <span className={styles.themedSelectLabel}>{label}</span> : null}
-        <span className={styles.themedSelectValue}>{selectedValue || placeholder || "No stage change"}</span>
+        <span className={styles.themedSelectValue}>{selectedLabel || placeholder || "No stage change"}</span>
         <ChevronDown className={styles.themedSelectChevron} size={16} />
       </button>
       {open ? (
         <div className={styles.themedSelectMenu}>
-          {options.map((option) => {
-            const selected = option === selectedValue;
+          {normalizedOptions.map((option) => {
+            const selected = option.value === selectedValue;
 
             return (
               <button
                 className={styles.themedSelectOption}
                 data-selected={selected ? "true" : "false"}
-                key={option}
+                key={option.value}
                 type="button"
                 onMouseDown={(event) => event.preventDefault()}
-                onClick={() => handleSelect(option)}
+                onClick={() => handleSelect(option.value)}
               >
-                <span>{option}</span>
+                <span>{option.label}</span>
                 {selected ? <Check size={15} /> : null}
               </button>
             );
@@ -547,7 +557,7 @@ function InventoryCard({
         </div>
         <div>
           <dt>Updated</dt>
-          <dd>{formatDateTime(item.updatedAt)}</dd>
+          <dd>{formatDate(item.updatedAt)}</dd>
         </div>
         <div>
           <dt>Sell price</dt>
@@ -717,7 +727,7 @@ function InventoryDialog({
             successMessage="Inventory item added."
           />
         ) : null}
-        {isDetails ? <DetailsPanel item={dialog.item} /> : null}
+        {isDetails ? <DetailsPanel item={dialog.item} onAction={onAction} /> : null}
         {dialog.type === "edit" ? (
           <InventoryForm
             action={updateInventoryItemAction}
@@ -753,6 +763,7 @@ function InventoryDialog({
               <div className={styles.historyTableHeader} aria-hidden="true">
                 <span>Type</span>
                 <span>Item and quantity</span>
+                <span>Handled by</span>
                 <span>Date</span>
                 <span>Notes</span>
               </div>
@@ -760,6 +771,7 @@ function InventoryDialog({
               {visibleHistoryRecords.map(({ item, transaction }) => (
                 <div className={styles.historyItem} key={transaction.id}>
                   <div><strong data-type={transaction.type}>{transaction.type === "OPENING" ? "Opening stock" : transaction.type === "HISTORICAL" ? "Historical batch" : transaction.source === "harvest" ? "Harvest" : transaction.type === "IN" ? sharedWorkflowTerms.receiveStock : transaction.type === "OUT" ? sharedWorkflowTerms.issueStock : sharedWorkflowTerms.adjustQuantity}</strong><span>{item.itemName} · {transaction.quantity} {item.unit}</span></div>
+                  <span className={styles.historyActor}>{transaction.performedByName ?? "Not recorded"}</span>
                   <div><small>{transaction.createdAt ? formatDateTime(transaction.createdAt) : "Date unknown"}</small></div>
                   <p>{transaction.remarks || "—"}</p>
                 </div>
@@ -769,18 +781,6 @@ function InventoryDialog({
               {historyRecords.length > 0 ? <div className={styles.historyPagination}><button aria-label="Previous history page" disabled={currentHistoryPage === 1} type="button" onClick={() => setHistoryPage((value) => Math.max(1, value - 1))}><ChevronLeft size={16} /></button><span>Page {currentHistoryPage} of {historyPageCount}</span><button aria-label="Next history page" disabled={currentHistoryPage >= historyPageCount} type="button" onClick={() => setHistoryPage((value) => Math.min(historyPageCount, value + 1))}><ChevronRight size={16} /></button></div> : null}
             </div>
           </div>
-        ) : null}
-        {isDetails ? (
-          <footer className={styles.inventoryDetailsFooter}>
-            <button className={`${styles.primaryAction} ${styles.receiveStockAction}`} type="button" onClick={() => onAction({ type: "stock-in", item: dialog.item })}>
-              <ArrowUpCircle size={18} aria-hidden="true" />
-              <span>{sharedWorkflowTerms.receiveStock}</span>
-            </button>
-            <button className={`${styles.primaryAction} ${styles.issueStockAction}`} type="button" onClick={() => onAction({ type: "stock-out", item: dialog.item })}>
-              <ArrowDownCircle size={18} aria-hidden="true" />
-              <span>{sharedWorkflowTerms.issueStock}</span>
-            </button>
-          </footer>
         ) : null}
       </section>
     </div>
@@ -959,63 +959,76 @@ function InventoryForm({
 
   return (
     <>
-    <form className={styles.formGrid} onSubmit={handleSubmit}>
-      {item ? <input name="id" type="hidden" value={item.id} /> : null}
-      <Field label={sharedWorkflowTerms.itemName} name="item_name" placeholder="e.g. Tomato seeds" required={!item} defaultValue={item?.itemName} />
-      <ThemedSelect
-        label="Category"
-        name="category"
-        options={categoryInputOptions}
-        defaultValue={item ? displayCategory(item) : "Leafy Vegetables"}
-      />
-      <div className={styles.twoColumn}>
-        <Field
-          label={item ? `Current quantity (${item.unit})` : "Quantity"}
-          name="quantity"
-          type="number"
-          step="0.01"
-          min="0"
-          required={!item}
-          defaultValue={item?.quantity ?? ""}
-        />
+      <form className={`${styles.formGrid} ${styles.inventoryForm}`} onSubmit={handleSubmit}>
+        {item ? <input name="id" type="hidden" value={item.id} /> : null}
+        <Field label={sharedWorkflowTerms.itemName} name="item_name" placeholder="e.g. Tomato" required={!item} defaultValue={item?.itemName} />
         <ThemedSelect
-          label="Unit"
-          name="unit"
-          options={units}
-          defaultValue={item?.unit ?? "kg"}
+          label="Category"
+          name="category"
+          options={categoryInputOptions}
+          defaultValue={item ? displayCategory(item) : "Leafy Vegetables"}
         />
-      </div>
-      <Field label="Minimum stock level" name="minimum_quantity" placeholder="e.g. 25" type="number" step="0.01" min="0" required={!item} defaultValue={item?.minimumQuantity ?? ""} />
-      <div className={styles.twoColumn}>
-        <Field label="Unit cost (PHP)" name="unit_cost" placeholder="e.g. 120.00" type="number" step="0.01" min="0" required={!item} defaultValue={item?.unitCost ?? ""} />
-        <Field label="Selling price (PHP)" name="selling_price" placeholder="e.g. 180.00" type="number" step="0.01" min="0" required={!item} defaultValue={item?.sellingPrice ?? ""} />
-      </div>
-      <Field label="Storage location" name="storage_location" placeholder="e.g. Greenhouse storage" required={!item} defaultValue={item?.storageLocation ?? ""} />
-      <Field label={`${sharedWorkflowTerms.itemNotes} (optional)`} name="notes" defaultValue={item?.notes ?? ""} />
-      <FileUploadField
-        accept="image/jpeg,image/png,image/webp"
-        helperText="JPG, PNG or WEBP · up to 5 MB"
-        label="Stock image"
-        name="image"
-        prompt={item?.imagePath ? "Choose replacement image" : "Choose stock image"}
-        required={!item}
-      />
-      <button className={styles.primaryAction} disabled={pending} type="submit">
-        <PackagePlus size={17} />
-        <PendingActionLabel pending={pending} pendingText="Saving item...">Save Item</PendingActionLabel>
-      </button>
-      {item ? (
-        <button
-          className={styles.dangerAction}
-          disabled={pending || deletePending}
-          type="button"
-          onClick={handleDelete}
-        >
-          <Trash2 size={17} />
-          <PendingActionLabel pending={deletePending} pendingText="Deleting item...">Delete Item</PendingActionLabel>
-        </button>
-      ) : null}
-    </form>
+        <div className={`${styles.twoColumn} ${styles.inventoryFormWide}`}>
+          <Field
+            label={item ? `Current quantity (${item.unit})` : "Quantity"}
+            name="quantity"
+            type="number"
+            step="0.01"
+            min="0"
+            required={!item}
+            defaultValue={item?.quantity ?? ""}
+          />
+          <ThemedSelect
+            label="Unit"
+            name="unit"
+            options={units}
+            defaultValue={item?.unit ?? "kg"}
+          />
+        </div>
+        <Field label="Minimum stock level" name="minimum_quantity" placeholder="e.g. 25" type="number" step="0.01" min="0" required={!item} defaultValue={item?.minimumQuantity ?? ""} />
+        <ThemedSelect
+          label="Storage location"
+          name="storage_location"
+          options={storageLocations}
+          placeholder="Select a storage location"
+          required
+          defaultValue={item && storageLocations.some((location) => location === item.storageLocation) ? item.storageLocation : ""}
+        />
+        <div className={`${styles.twoColumn} ${styles.inventoryFormWide}`}>
+          <Field label="Unit cost (PHP)" name="unit_cost" placeholder="e.g. 120.00" type="number" step="0.01" min="0" required={!item} defaultValue={item?.unitCost ?? ""} />
+          <Field label="Selling price (PHP)" name="selling_price" placeholder="e.g. 180.00" type="number" step="0.01" min="0" required={!item} defaultValue={item?.sellingPrice ?? ""} />
+        </div>
+        <div className={styles.inventoryFormWide}>
+          <Field label={`${sharedWorkflowTerms.itemNotes} (optional)`} name="notes" defaultValue={item?.notes ?? ""} />
+        </div>
+        <div className={styles.inventoryFormWide}>
+          <FileUploadField
+            accept="image/jpeg,image/png,image/webp"
+            helperText="JPG, PNG or WEBP - up to 5 MB"
+            label="Stock image"
+            name="image"
+            prompt={item?.imagePath ? "Choose replacement image" : "Choose stock image"}
+            required={!item}
+          />
+        </div>
+        <div className={styles.inventoryFormActions}>
+          <button className={styles.primaryAction} disabled={pending} type="submit">
+            <PackagePlus size={17} />
+            <PendingActionLabel pending={pending} pendingText="Saving item...">Save Item</PendingActionLabel>
+          </button>
+          {item ? (
+            <button
+              className={styles.dangerAction}
+              disabled={pending || deletePending}
+              type="button"
+              onClick={handleDelete}
+            >
+              <Trash2 size={17} />
+              <PendingActionLabel pending={deletePending} pendingText="Deleting item...">Delete Item</PendingActionLabel>
+            </button>
+          ) : null}
+        </div>
+      </form>
     {confirmationDialog}
     </>
   );
@@ -1064,6 +1077,7 @@ function MovementForm({
         ? `Add ${quantityValue} ${item.unit} to ${item.itemName}?`
         : `Deduct ${quantityValue} ${item.unit} from ${item.itemName} for ${reason}?`,
       confirmLabel: mode === "in" ? "Receive stock" : "Issue stock",
+      tone: mode === "out" ? "warning" : "default",
     });
 
     if (!confirmed) {
@@ -1073,10 +1087,18 @@ function MovementForm({
     startTransition(async () => {
       try {
         if (mode === "in") {
-          await stockInAction(formData);
+          const result = await stockInAction(formData);
+          if (!result.ok) {
+            notify("error", result.message);
+            return;
+          }
           notify("success", "Stock quantity added.");
         } else {
-          await stockOutAction(formData);
+          const result = await stockOutAction(formData);
+          if (!result.ok) {
+            notify("error", result.message);
+            return;
+          }
           notify("success", "Stock quantity deducted.");
         }
 
@@ -1092,25 +1114,48 @@ function MovementForm({
     });
   }
 
+  const reasonField = (
+    <ThemedSelect
+      label={mode === "in" ? "Source" : "Reason"}
+      name="reason"
+      options={["", ...options]}
+      value={reason}
+      onChange={setReason}
+      placeholder={mode === "in" ? "Choose a source" : "Choose a reason"}
+      required
+    />
+  );
+  const resultingBalance = (
+    <ReadOnly
+      label="Resulting balance"
+      value={formatQuantity(item.quantity + (mode === "in" ? 1 : -1) * (Number(quantity) || 0), item.unit)}
+    />
+  );
+
   return (
     <>
-      <form className={styles.formGrid} onSubmit={handleSubmit}>
+      <form className={`${styles.formGrid} ${styles.movementForm}`} onSubmit={handleSubmit}>
         <input name="id" type="hidden" value={item.id} />
         <input name="request_id" type="hidden" value={requestId} />
         <ReadOnly label="Item" value={item.itemName} />
         <ReadOnly label="Available" value={formatQuantity(item.quantity, item.unit)} />
         {mode === "out" && item.batches.some((batch) => batch.remainingQuantity > 0) ? (
-          <details className={styles.batchChoice}>
-            <summary>Choose batch (optional; default is oldest first)</summary>
-            <select name="target_batch_id" defaultValue="">
-              <option value="">Oldest batch first (FIFO)</option>
-              {item.batches.filter((batch) => batch.remainingQuantity > 0).map((batch) => (
-                <option key={batch.id} value={batch.id}>
-                  {formatQuantity(batch.remainingQuantity, item.unit)} {item.unit} · {batch.profileName ?? "Unknown product"} · {batch.harvestOn ? `harvested ${displayDate(batch.harvestOn)}` : `received ${displayDate(batch.receivedOn)}`}
-                </option>
-              ))}
-            </select>
-          </details>
+          <ThemedSelect
+            label="Batch"
+            name="target_batch_id"
+            defaultValue=""
+            placeholder="Oldest batch first (FIFO)"
+            variant="form"
+            options={[
+              { value: "", label: "Oldest batch first (FIFO)" },
+              ...item.batches
+                .filter((batch) => batch.remainingQuantity > 0)
+                .map((batch) => ({
+                  value: batch.id,
+                  label: `${formatQuantity(batch.remainingQuantity, item.unit)} · ${displayDate(batch.harvestOn ?? batch.receivedOn)}`,
+                })),
+            ]}
+          />
         ) : null}
         <Field
           label={`Quantity (${item.unit})`}
@@ -1122,23 +1167,18 @@ function MovementForm({
           step={wholeNumberUnits.has(item.unit) ? "1" : "0.01"}
           min="0.01"
         />
-        <ThemedSelect
-          label={mode === "in" ? "Source" : "Reason"}
-          name="reason"
-          options={["", ...options]}
-          value={reason}
-          onChange={setReason}
-          placeholder={mode === "in" ? "Choose a source" : "Choose a reason"}
-          required
-        />
-        <ReadOnly label="Resulting balance" value={formatQuantity(item.quantity + (mode === "in" ? 1 : -1) * (Number(quantity) || 0), item.unit)} />
+        {mode === "out" ? (
+          <div className={styles.movementReasonBalanceRow}>
+            {reasonField}
+            {resultingBalance}
+          </div>
+        ) : reasonField}
         {formError ? <p role="alert">{formError}</p> : null}
-        <Field
-          label="Remarks"
-          name="remarks"
-          defaultValue=""
-        />
-        <button className={styles.primaryAction} disabled={pending} type="submit">
+        <div className={styles.movementFormFinalRow}>
+          {mode === "in" ? resultingBalance : null}
+          <Field label="Remarks" name="remarks" defaultValue="" />
+        </div>
+        <button className={`${styles.primaryAction} ${mode === "out" ? styles.issueStockAction : ""}`} disabled={pending} type="submit">
           {mode === "in" ? (
             <ArrowUpCircle size={17} />
           ) : (
@@ -1188,8 +1228,14 @@ function DeleteForm({
   );
 }
 
-function DetailsPanel({ item }: { item: InventoryItem }) {
+function DetailsPanel({ item, onAction }: { item: InventoryItem; onAction: (dialog: DialogState) => void }) {
   const [tab, setTab] = useState<"overview" | "movements" | "sales">("overview");
+  const [movementPage, setMovementPage] = useState(1);
+  const movementPageSize = 5;
+  const movementTotalPages = Math.max(1, Math.ceil(item.transactions.length / movementPageSize));
+  const currentMovementPage = Math.min(movementPage, movementTotalPages);
+  const movementPageStart = Math.min(Math.max(currentMovementPage - 1, 1), Math.max(movementTotalPages - 2, 1));
+  const movementPageNumbers = Array.from({ length: Math.min(3, movementTotalPages) }, (_, index) => movementPageStart + index);
 
   function handleTabKeyDown(event: KeyboardEvent<HTMLElement>) {
     const tabs = ["overview", "movements", "sales"] as const;
@@ -1214,55 +1260,70 @@ function DetailsPanel({ item }: { item: InventoryItem }) {
       </nav>
       <div className={styles.inventoryDetailsBody}>
         <div id="inventory-tabpanel-overview" role="tabpanel" aria-labelledby="inventory-tab-overview" hidden={tab !== "overview"}>
-          <div className={styles.inventoryItemIdentity}>
-            <div>
-              <span className={styles.itemCode}>{item.stockCode}</span>
-              <h4>{item.itemName}</h4>
-              <small>{displayCategory(item)}</small>
-            </div>
-            <span className={styles.status} data-status={getStockStatus(item)}>{getStockStatus(item)}</span>
-          </div>
           <div className={styles.detailsTop}>
-            <div className={styles.detailHero}>
-              {item.imageUrl ? (
-                <span className={styles.detailImage} style={{ backgroundImage: `url("${item.imageUrl}")` }} />
-              ) : (
-                <ImageIcon size={52} />
-              )}
+            <div className={styles.detailItemVisual}>
+              <div className={styles.detailHero}>
+                {item.imageUrl ? (
+                  <span className={styles.detailImage} style={{ backgroundImage: `url("${item.imageUrl}")` }} />
+                ) : (
+                  <ImageIcon size={52} />
+                )}
+                <button className={styles.inventoryDetailsEditButton} type="button" aria-label={`Edit ${item.itemName}`} title="Edit item" onClick={() => onAction({ type: "edit", item })}>
+                  <span aria-hidden="true"><Edit3 size={16} /></span>
+                </button>
+              </div>
+              <div className={styles.inventoryItemIdentity}>
+                <div>
+                  <span className={styles.itemCode}>{item.stockCode}</span>
+                  <h4>{item.itemName}</h4>
+                  <small>{displayCategory(item)}</small>
+                </div>
+                <span className={styles.status} data-status={getStockStatus(item)}>{getStockStatus(item)}</span>
+              </div>
             </div>
             <div className={styles.detailSummary}>
               <div className={styles.detailMetrics}>
-                <ReadOnly label="Quantity" value={formatQuantity(item.quantity, item.unit)} />
-                <ReadOnly label="Minimum" value={formatQuantity(item.minimumQuantity, item.unit)} />
-                <ReadOnly label="Location" value={item.storageLocation} />
-                <ReadOnly label="Updated" value={formatDateTime(item.updatedAt)} />
-                <ReadOnly label="Unit cost (PHP)" value={item.unitCost === null ? "Not set" : formatCurrency(item.unitCost)} />
-                <ReadOnly label="Sell price (PHP)" value={item.sellingPrice === null ? "Not set" : formatCurrency(item.sellingPrice)} />
-                <ReadOnly label="Stock value (PHP)" value={formatCurrency(item.quantity * (item.unitCost ?? 0))} />
-                <ReadOnly label="Est. sales (PHP)" value={formatCurrency(item.quantity * (item.sellingPrice ?? 0))} />
+                <ReadOnly icon={<Boxes size={15} />} label="Quantity" value={formatQuantity(item.quantity, item.unit)} />
+                <ReadOnly icon={<SlidersHorizontal size={15} />} label="Minimum" value={formatQuantity(item.minimumQuantity, item.unit)} />
+                <ReadOnly icon={<MapPin size={15} />} label="Location" value={item.storageLocation} />
+                <ReadOnly icon={<CalendarDays size={15} />} label="Updated" value={formatDateTime(item.updatedAt)} />
+                <ReadOnly icon={<CircleDollarSign size={15} />} label="Unit cost (PHP)" value={item.unitCost === null ? "Not set" : formatCurrency(item.unitCost)} />
+                <ReadOnly icon={<Tag size={15} />} label="Sell price (PHP)" value={item.sellingPrice === null ? "Not set" : formatCurrency(item.sellingPrice)} />
+                <ReadOnly icon={<Wallet size={15} />} label="Stock value (PHP)" value={formatCurrency(item.quantity * (item.unitCost ?? 0))} />
+                <ReadOnly icon={<TrendingUp size={15} />} label="Est. sales (PHP)" value={formatCurrency(item.quantity * (item.sellingPrice ?? 0))} />
               </div>
             </div>
           </div>
         </div>
         <div id="inventory-tabpanel-movements" role="tabpanel" aria-labelledby="inventory-tab-movements" hidden={tab !== "movements"}>
-          <InventoryMovementTable key={item.id} item={item} />
+          <InventoryMovementTable item={item} page={currentMovementPage} onPageChange={setMovementPage} />
         </div>
         <div id="inventory-tabpanel-sales" role="tabpanel" aria-labelledby="inventory-tab-sales" hidden={tab !== "sales"}>
           <InventorySalesTable key={item.id} item={item} />
         </div>
       </div>
+      <footer className={styles.inventoryDetailsFooter} data-has-pagination={tab === "movements" && movementTotalPages > 1 ? "true" : undefined}>
+        {tab === "movements" && movementTotalPages > 1 ? (
+          <HistoryTablePagination page={currentMovementPage} totalPages={movementTotalPages} pageNumbers={movementPageNumbers} label="Stock movements pagination" onPageChange={setMovementPage} />
+        ) : null}
+        <div className={styles.inventoryDetailsActions}>
+          <button className={`${styles.primaryAction} ${styles.receiveStockAction}`} type="button" onClick={() => onAction({ type: "stock-in", item })}>
+            <ArrowUpCircle size={18} aria-hidden="true" />
+            <span>{sharedWorkflowTerms.receiveStock}</span>
+          </button>
+          <button className={`${styles.primaryAction} ${styles.issueStockAction}`} type="button" onClick={() => onAction({ type: "stock-out", item })}>
+            <ArrowDownCircle size={18} aria-hidden="true" />
+            <span>{sharedWorkflowTerms.issueStock}</span>
+          </button>
+        </div>
+      </footer>
     </>
   );
 }
 
-function InventoryMovementTable({ item }: { item: InventoryItem }) {
-  const [page, setPage] = useState(1);
+function InventoryMovementTable({ item, page, onPageChange }: { item: InventoryItem; page: number; onPageChange: (page: number) => void }) {
   const pageSize = 5;
-  const totalPages = Math.max(1, Math.ceil(item.transactions.length / pageSize));
-  const currentPage = Math.min(page, totalPages);
-  const pageStart = Math.min(Math.max(currentPage - 1, 1), Math.max(totalPages - 2, 1));
-  const pageNumbers = Array.from({ length: Math.min(3, totalPages) }, (_, index) => pageStart + index);
-  const visibleTransactions = item.transactions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const visibleTransactions = item.transactions.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <section className={styles.itemHistorySection} aria-label="Stock movement history">
@@ -1274,6 +1335,7 @@ function InventoryMovementTable({ item }: { item: InventoryItem }) {
           <div className={styles.itemHistoryTableHead} role="row">
             <span role="columnheader">Movement</span>
             <span role="columnheader">Quantity</span>
+            <span role="columnheader">Handled by</span>
             <span role="columnheader">Date / time</span>
             <span role="columnheader">Notes</span>
           </div>
@@ -1281,13 +1343,13 @@ function InventoryMovementTable({ item }: { item: InventoryItem }) {
             <div className={styles.itemHistoryTableRow} role="row" key={transaction.id}>
               <strong data-label="Movement">{transaction.type === "OPENING" ? "Opening stock" : transaction.type === "HISTORICAL" ? "Historical batch" : transaction.source === "harvest" ? "Harvest" : transaction.type === "IN" ? sharedWorkflowTerms.receiveStock : transaction.type === "OUT" ? sharedWorkflowTerms.issueStock : sharedWorkflowTerms.adjustQuantity}</strong>
               <span data-label="Quantity">{formatQuantity(transaction.quantity, item.unit)}</span>
+              <span data-label="Handled by">{transaction.performedByName ?? "Not recorded"}</span>
               <span data-label="Date / time">{transaction.createdAt ? formatDateTime(transaction.createdAt) : "Date unknown"}</span>
               <div data-label="Notes">{transaction.remarks || "—"}{transaction.batch ? <MovementBatchEstimate batch={transaction.batch} /> : null}</div>
             </div>
           ))}
         </div>
       )}
-      <HistoryTablePagination page={currentPage} totalPages={totalPages} pageNumbers={pageNumbers} label="Stock movements pagination" onPageChange={setPage} />
     </section>
   );
 }
@@ -1376,10 +1438,13 @@ function Field({
   );
 }
 
-function ReadOnly({ label, value }: { label: string; value: string }) {
+function ReadOnly({ icon, label, value }: { icon?: ReactNode; label: string; value: string }) {
   return (
     <div className={styles.readOnly}>
-      <span>{label}</span>
+      <span className={styles.readOnlyLabel}>
+        {icon ? <span className={styles.readOnlyIcon} aria-hidden="true">{icon}</span> : null}
+        {label}
+      </span>
       <strong>{value}</strong>
     </div>
   );

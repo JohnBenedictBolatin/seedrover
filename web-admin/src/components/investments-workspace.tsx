@@ -15,6 +15,7 @@ import { PendingActionLabel } from "@/components/pending-action-label";
 import { FileUploadField } from "@/components/file-upload-field";
 import styles from "@/app/(portal)/investments/page.module.css";
 import quickActionStyles from "@/app/(portal)/sales/page.module.css";
+import inventorySummaryStyles from "@/app/(portal)/inventory/page.module.css";
 
 function RecordCostSelect({ defaultValue, label, name, options, required = false }: { defaultValue: string; label: string; name: string; options: string[]; required?: boolean }) {
   const [open, setOpen] = useState(false);
@@ -22,7 +23,7 @@ function RecordCostSelect({ defaultValue, label, name, options, required = false
 
   return (
     <div className={styles.modalSelectField}>
-      <span>{label}{required ? <b aria-hidden="true"> *</b> : null}</span>
+      <span>{label}{required ? <span aria-hidden="true" className="requiredFieldMarker">*</span> : null}</span>
       <div
         className={styles.themedSelect}
         onBlur={(event) => {
@@ -101,16 +102,20 @@ export function InvestmentsWorkspace() {
 
   return (
     <>
-    <section className={quickActionStyles.quickActions}>
+    <section
+      className={`${quickActionStyles.quickActions} ${inventorySummaryStyles.inventoryQuickActionsPanel} ${inventorySummaryStyles.investmentsQuickActionsPanel}`}
+      aria-label="Costing quick actions"
+    >
       <div>
-        <p className={quickActionStyles.eyebrow}>Quick action</p>
         <h2>Record a farm cost</h2>
         <span>Add an actual capital investment or operating expense with its payment and receipt.</span>
       </div>
-      <button className={`${quickActionStyles.recordSaleButton} ${styles.investmentButton}`} type="button" onClick={() => setOpen(true)}>
-          <span className={`${quickActionStyles.recordSaleText} ${styles.investmentButtonText}`}>RECORD COST</span>
-          <span className={quickActionStyles.recordSaleIcon} aria-hidden="true"><TrendingUp size={22} /></span>
-      </button>
+      <div className={inventorySummaryStyles.inventoryQuickActions}>
+        <button className={`${quickActionStyles.recordSaleButton} ${quickActionStyles.compactQuickActionButton}`} type="button" onClick={() => setOpen(true)}>
+          <span className={quickActionStyles.recordSaleText}>RECORD COST</span>
+          <span className={quickActionStyles.recordSaleIcon} aria-hidden="true"><TrendingUp size={20} /></span>
+        </button>
+      </div>
       {open && typeof document !== "undefined" ? createPortal((
         <div className={styles.modalBackdrop} data-ui-backdrop="true" role="presentation">
           <section aria-label="Record farm cost" aria-modal="true" className={styles.modal} data-ui-modal="true" role="dialog">

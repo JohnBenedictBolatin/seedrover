@@ -73,6 +73,7 @@ export type InventoryTransaction = {
   remarks: string;
   source: string;
   createdAt: string | null;
+  performedByName: string | null;
   batch: InventoryBatch | null;
   allocatedBatches: InventoryBatchAllocation[];
 };
@@ -399,6 +400,7 @@ export async function getInventoryDashboard() {
       remarks: row.remarks ?? "No remarks.",
       source: row.source ?? "batch",
       createdAt: row.created_at,
+      performedByName: row.performed_by_name,
       batch,
       allocatedBatches: (row.allocated_batches ?? []).map((allocation) => ({
         batchId: allocation.batch_id,

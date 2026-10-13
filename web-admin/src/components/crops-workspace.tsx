@@ -50,6 +50,7 @@ import {
 import styles from "@/app/(portal)/crops/page.module.css";
 import historyStyles from "@/components/crop-history.module.css";
 import quickActionStyles from "@/app/(portal)/sales/page.module.css";
+import inventorySummaryStyles from "@/app/(portal)/inventory/page.module.css";
 import { CropCareForm, TodaysCare, taskActivity } from "@/components/crop-care";
 
 const statuses = ["All", "Active", "Needs Attention", "Harvest Ready"];
@@ -171,19 +172,21 @@ export function CropsWorkspace({
       <div className={styles.cropDashboardLayout}>
         <div className={styles.cropSummaryArea}>{children}</div>
 
-        <section className={`${quickActionStyles.quickActions} ${styles.cropQuickActionArea}`}>
+        <section
+          className={`${quickActionStyles.quickActions} ${styles.cropQuickActionArea} ${inventorySummaryStyles.inventoryQuickActionsPanel}`}
+          aria-label="Crop quick actions"
+        >
           <div>
-            <p className={quickActionStyles.eyebrow}>Quick action</p>
-            <h2>Crop records</h2>
-            <span>Review rover-created crop records, including completed and failed crops.</span>
+            <h2>Crop tools</h2>
+            <span>Explore planting guidance or review past crop records.</span>
           </div>
-          <div className={styles.cropQuickActions}>
-            <button className={`${quickActionStyles.recordSaleButton} ${styles.pastCropsButton}`} type="button" onClick={() => setModal({ type: "planting-guide" })}>
-              <span className={`${quickActionStyles.recordSaleText} ${styles.pastCropsButtonText}`}>HOW PLANTING WORKS</span>
+          <div className={`${styles.cropQuickActionButtons} ${inventorySummaryStyles.inventoryQuickActions}`}>
+            <button className={quickActionStyles.recordSaleButton} type="button" onClick={() => setModal({ type: "planting-guide" })}>
+              <span className={quickActionStyles.recordSaleText}>PLANT GUIDE</span>
               <span className={quickActionStyles.recordSaleIcon} aria-hidden="true"><BookOpenCheck size={20} /></span>
             </button>
-            <button className={`${quickActionStyles.recordSaleButton} ${styles.pastCropsButton}`} type="button" onClick={() => setModal({ type: "outcomes" })}>
-              <span className={`${quickActionStyles.recordSaleText} ${styles.pastCropsButtonText}`}>VIEW CROP HISTORY</span>
+            <button className={`${quickActionStyles.recordSaleButton} ${quickActionStyles.compactLongQuickActionButton} ${styles.cropHistoryButton}`} type="button" onClick={() => setModal({ type: "outcomes" })}>
+              <span className={quickActionStyles.recordSaleText}>VIEW CROP HISTORY</span>
               <span className={quickActionStyles.recordSaleIcon} aria-hidden="true"><History size={20} /></span>
             </button>
           </div>
@@ -336,8 +339,8 @@ function CropGroup({
   function scrollCards(direction: "left" | "right") {
     const row = rowRef.current;
     if (!row) return;
-    const cardWidth = row.querySelector<HTMLElement>("[data-crop-card]")?.offsetWidth ?? 292;
-    row.scrollBy({ behavior: "smooth", left: direction === "right" ? cardWidth + 14 : -(cardWidth + 14) });
+    const cardWidth = row.querySelector<HTMLElement>("[data-crop-card]")?.offsetWidth ?? 220;
+    row.scrollBy({ behavior: "smooth", left: direction === "right" ? cardWidth + 10 : -(cardWidth + 10) });
   }
 
   return (
@@ -1257,80 +1260,50 @@ function HistoryPagination({ label, page, total, pageSize, loading, onPageChange
 }
 
 function PlantingGuidePanel() {
-  const plantingPoints = [300, 420, 540, 660, 780];
-  const plantingPointClasses = [styles.plantingPointOne, styles.plantingPointTwo, styles.plantingPointThree, styles.plantingPointFour, styles.plantingPointFive];
   const steps = [
-    ["PREPARE", "Connect to rover Wi-Fi, choose the seed and field, set 1–20 points (5 by default), and position the rover."],
-    ["READ SOIL", "The rover records available soil readings."],
-    ["PLANT THE ROW", "Tap Automatic Planting. The rover moves point to point and operates the gate at each cycle."],
-    ["CONFIRM", "Choose Row Planted, Some Planted, None Planted, or Review Later. A full row requires all cycles to finish."],
-    ["SAVE", "The run is saved. Confirming some or all planted creates a crop record."],
+    {
+      title: "Connect to the rover",
+      detail: "Connect your device to the rover’s Wi-Fi and open Rover Control. Check that the rover is connected before you start a run.",
+    },
+    {
+      title: "Choose the seed and field",
+      detail: "Select the seed you are planting and the field where the row is located. Check both selections before continuing.",
+    },
+    {
+      title: "Set the planting points",
+      detail: "Enter the number of seed drops you want the rover to make along this row. You can set 1–20 points; the default is 5. Position the rover at the start of the row.",
+    },
+    {
+      title: "Review the soil readings",
+      detail: "Check any soil readings shown before planting. The rover records available readings with the run; a reading may be unavailable if a sensor did not provide one.",
+    },
+    {
+      title: "Start automatic planting",
+      detail: "Tap Automatic Planting. The rover moves along the row and operates the planting gate at each cycle. Keep the row clear while it is moving.",
+    },
+    {
+      title: "Check the completed cycles",
+      detail: "Wait for the run to finish, then compare the completed cycles with the number of points you set. If the rover stops early, use the cycles it actually completed when you report the result.",
+    },
+    {
+      title: "Confirm what happened",
+      detail: "Choose Row Planted only if the full row was planted. Choose Some Planted for a partial result, None Planted if no seeds were planted, or Review Later if you cannot confirm yet.",
+    },
+    {
+      title: "Save and review the run",
+      detail: "Save the confirmation to keep the run in planting history. A crop record is created when some or all of the row is confirmed planted. You can review the run and its cycle count in Crop History.",
+    },
   ];
   return <div className={styles.plantingGuide}>
-    <div className={styles.plantingGuideLayout}>
-      <ol className={styles.plantingGuideSteps}>{steps.map(([title, detail], index) => <li className={styles.plantingGuideStepCard} key={title}>
-        <span className={styles.plantingGuideNumber}>{index + 1}</span>
+    <p className={styles.plantingGuideLead}>Follow these steps to prepare, run, and record a planting row.</p>
+    <ol className={styles.plantingGuideSteps}>
+      {steps.map(({ title, detail }) => <li key={title}>
         <div>
           <strong>{title}</strong>
           <span>{detail}</span>
         </div>
-      </li>)}</ol>
-    </div>
-    <section className={styles.plantingRowIllustration} aria-labelledby="planting-row-example-title">
-      <div className={styles.plantingRowIllustrationHeading}>
-        <strong id="planting-row-example-title">EXAMPLE - ONE ROW, FIVE PLANTING POINTS</strong>
-        <small>Each planting point appears after the rover passes it.</small>
-      </div>
-      <svg className={styles.plantingRowSvg} viewBox="0 0 1040 230" role="img" aria-label="A rover travels along a row and reveals each planted seedling after passing its planting point">
-        <defs>
-          <linearGradient id="rover-body-fill" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stopColor="var(--green-accent)" /><stop offset="1" stopColor="var(--green)" /></linearGradient>
-          <linearGradient id="planting-soil-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#a97948" /><stop offset="1" stopColor="#65452f" /></linearGradient>
-          <filter id="rover-shadow" x="-30%" y="-30%" width="160%" height="180%"><feGaussianBlur stdDeviation="3" /></filter>
-        </defs>
-        <rect x="18" y="134" width="864" height="64" rx="22" fill="var(--surface-raised)" />
-        <path className={styles.plantingSideLine} d="M225 156 H842" fill="none" stroke="url(#planting-soil-fill)" strokeWidth="16" strokeLinecap="round" />
-        <path className={styles.plantingSideEdge} d="M225 168 H842" fill="none" stroke="var(--green)" strokeWidth="3" strokeDasharray="5 8" strokeLinecap="round" />
-        {plantingPoints.map((point, index) => <g key={point}>
-          <g className={`${styles.plantingSeedling} ${styles.plantingPointLabel} ${plantingPointClasses[index]}`}>
-            <circle cx={point} cy="43" r="12" fill="var(--surface)" stroke="var(--green)" strokeWidth="2" />
-            <text x={point} y="47" fill="var(--text)" fontSize="12" fontWeight="900" textAnchor="middle">{index + 1}</text>
-          </g>
-          <g className={`${styles.plantingSeedling} ${plantingPointClasses[index]}`} transform={`translate(${point} 0)`}>
-            <ellipse cx="0" cy="157" rx="17" ry="7" fill="#795334" opacity="0.7" />
-            <path d="M0 153 V127" fill="none" stroke="var(--green)" strokeWidth="5" strokeLinecap="round" />
-            <path d="M0 140 C-20 136 -22 121 -8 123 C-1 124 1 131 0 140Z" fill="var(--green-accent)" stroke="var(--green)" strokeWidth="2" />
-            <path d="M1 135 C17 129 20 116 7 118 C2 119 -1 126 1 135Z" fill="var(--green-accent)" stroke="var(--green)" strokeWidth="2" />
-            <ellipse cx="0" cy="153" rx="3" ry="2" fill="#e8bf72" />
-          </g>
-        </g>)}
-        <path d="M40 202 H198" fill="none" stroke="var(--border-soft)" strokeWidth="2" strokeDasharray="5 8" />
-        <text x="43" y="220" fill="var(--text-muted)" fontSize="12" fontWeight="700">ROVER START</text>
-        <text x="759" y="220" fill="var(--text-muted)" fontSize="12" fontWeight="700">ROW DIRECTION →</text>
-        <g className={styles.plantingRover}>
-          <ellipse cx="122" cy="159" rx="85" ry="11" fill="#000000" opacity="0.2" filter="url(#rover-shadow)" />
-          <path d="M48 139 H185" fill="none" stroke="var(--green)" strokeWidth="4" strokeDasharray="5 5" />
-          <rect x="47" y="88" width="138" height="51" rx="12" fill="url(#rover-body-fill)" stroke="var(--green)" strokeWidth="3" />
-          <rect x="65" y="69" width="62" height="22" rx="6" fill="var(--surface)" stroke="var(--green)" strokeWidth="3" />
-          <path d="M72 74 H120 M72 80 H120 M72 86 H120" stroke="var(--green)" strokeWidth="2" opacity="0.75" />
-          <rect x="139" y="98" width="31" height="25" rx="5" fill="var(--surface)" stroke="var(--green)" strokeWidth="2" />
-          <path d="M145 105 H164 M145 111 H164 M145 117 H159" stroke="var(--green)" strokeWidth="2" strokeLinecap="round" />
-          <circle cx="180" cy="96" r="5" fill="#eaffb7" stroke="var(--green)" strokeWidth="2" />
-          <path d="M185 112 H205 V139" fill="none" stroke="var(--text-secondary)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M198 139 L205 147 L212 139" fill="none" stroke="#a97948" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-          <g className={styles.plantingWheel}>
-            <circle cx="76" cy="143" r="16" fill="#202820" stroke="var(--text)" strokeWidth="3" />
-            <circle cx="76" cy="143" r="6" fill="var(--surface)" stroke="var(--green)" strokeWidth="2" />
-            <path d="M76 130 V135 M76 151 V156 M63 143 H68 M84 143 H89 M67 134 L71 138 M81 148 L85 152 M85 134 L81 138 M71 148 L67 152" stroke="var(--text-muted)" strokeWidth="2" />
-          </g>
-          <g className={styles.plantingWheel}>
-            <circle cx="157" cy="143" r="16" fill="#202820" stroke="var(--text)" strokeWidth="3" />
-            <circle cx="157" cy="143" r="6" fill="var(--surface)" stroke="var(--green)" strokeWidth="2" />
-            <path d="M157 130 V135 M157 151 V156 M144 143 H149 M165 143 H170 M148 134 L152 138 M162 148 L166 152 M166 134 L162 138 M152 148 L148 152" stroke="var(--text-muted)" strokeWidth="2" />
-          </g>
-          <circle className={styles.plantingRoverLight} cx="180" cy="96" r="2" fill="#ffffff" />
-        </g>
-      </svg>
-    </section>
+      </li>)}
+    </ol>
   </div>;
 }
 

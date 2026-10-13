@@ -109,11 +109,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-          <ModuleHeaderIntro mascot="dashboard">
-            <p className={styles.eyebrow}>Overview</p>
-            <h1>Operations Dashboard</h1>
-            <p>Sales, inventory, crops, customers, and rover status.</p>
-          </ModuleHeaderIntro>
+        <ModuleHeaderIntro mascot="dashboard">
+          <p className={styles.eyebrow}>Overview</p>
+          <h1>Operations Dashboard</h1>
+          <p>Sales, inventory, crops, and customers at a glance.</p>
+        </ModuleHeaderIntro>
         <div className={styles.liveDateTime}>
           <LiveDateTime />
         </div>

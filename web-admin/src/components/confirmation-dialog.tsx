@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { AlertTriangle, CheckCircle2, X } from "lucide-react";
 import styles from "./confirmation-dialog.module.css";
 
-export type ConfirmationTone = "default" | "danger";
+export type ConfirmationTone = "default" | "danger" | "warning";
 
 export type ConfirmationOptions = {
   title?: string;
@@ -70,6 +70,7 @@ function ConfirmationDialog({
   options: PendingConfirmation;
 }) {
   const isDanger = options.tone === "danger";
+  const isWarning = options.tone === "warning";
   const dialogRef = useRef<HTMLElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
@@ -121,7 +122,7 @@ function ConfirmationDialog({
         </button>
 
         <div className={styles.iconWrap} aria-hidden="true">
-          {isDanger ? <AlertTriangle size={26} /> : <CheckCircle2 size={26} />}
+          {isDanger || isWarning ? <AlertTriangle size={26} /> : <CheckCircle2 size={26} />}
         </div>
 
         <h2 id={titleId}>{options.title}</h2>
@@ -133,7 +134,7 @@ function ConfirmationDialog({
             <span>{options.cancelLabel}</span>
           </button>
           <button
-            className={isDanger ? styles.dangerButton : styles.confirmButton}
+            className={isDanger ? styles.dangerButton : isWarning ? styles.warningButton : styles.confirmButton}
             type="button"
             onClick={onConfirm}
           >

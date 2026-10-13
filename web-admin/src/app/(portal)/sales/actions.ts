@@ -126,7 +126,7 @@ export async function recordSalesOrderAction(
   if (customerMode === "existing") {
     const customerKey = text(formData, "existing_customer_key");
     if (!customerKey || !customerName) {
-      return { message: "Select an existing customer for this receipt." };
+      return { message: "Select an existing customer for this sale." };
     }
     const [orderMatch, marketMatch] = await Promise.all([
       selectedCustomerId
@@ -224,18 +224,23 @@ export async function recordSalesOrderAction(
     return { message: "Transaction ID is required for non-cash sales." };
   }
   const amountPaidRaw = text(formData, "amount_paid");
-  let amountPaid: number | null;
+  if (!amountPaidRaw) {
+    return { message: "Enter the amount paid." };
+  }
+
+  let amountPaid: number;
   try {
-    amountPaid = amountPaidRaw
-      ? parseNumber(formData.get("amount_paid"), "Amount paid")
-      : null;
+    amountPaid = parseNumber(formData.get("amount_paid"), "Amount paid");
   } catch (error) {
     return { message: error instanceof Error ? error.message : "Enter valid payment amounts." };
   }
-  if (amountPaid !== null && amountPaid < 0) {
+  if (amountPaid < 0) {
     return { message: "Amount paid cannot be negative." };
   }
-  if (paymentMethod !== "Cash" && amountPaid !== null && amountPaid > expectedSaleTotal) {
+  if (amountPaid < expectedSaleTotal) {
+    return { message: "Amount paid cannot be lower than the total." };
+  }
+  if (paymentMethod !== "Cash" && amountPaid > expectedSaleTotal) {
     return { message: "Non-cash payment cannot exceed the sale total." };
   }
 
@@ -304,7 +309,7 @@ export async function recordSalesOrderAction(
     await writeActivityLog(supabase, {
       userId: adminProfile.id,
       activity: "Discount applied",
-      description: `${discountCode} was applied to receipt ${data.receipt_number} for ${customerName}.`,
+      description: `${discountCode} was applied to sale ${data.receipt_number} for ${customerName}.`,
       module: "Sales",
     });
   }
@@ -315,7 +320,7 @@ export async function recordSalesOrderAction(
   revalidatePath("/dashboard");
 
   return {
-    message: `Receipt ${data.receipt_number} recorded.`,
+    message: `Sale ${data.receipt_number} recorded.`,
     receiptId: data.id,
     receiptNumber: data.receipt_number,
   };
@@ -345,7 +350,7 @@ export async function voidSalesRecordAction(formData: FormData) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    throw new Error("Sign in before voiding sales.");
+    throw new Error("Sign in before cancelling sales.");
   }
 
   const id = text(formData, "id");

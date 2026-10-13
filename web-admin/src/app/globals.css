@@ -1,6 +1,11 @@
 :root {
+  --portal-sidebar-width: 200px;
+  --portal-sidebar-collapsed-width: 78px;
+  --portal-content-padding: 16px;
+  --portal-section-gap: 10px;
+  --portal-panel-padding: 10px;
   color-scheme: dark;
-  --font-inter: Inter, "Segoe UI", Arial, sans-serif;
+  --font-inter: "Poppins", "Segoe UI", Arial, sans-serif;
   --font-roboto-mono: "Roboto Mono", "Cascadia Mono", Consolas, monospace;
   --background: #1b1b1b;
   --surface: #252525;
@@ -23,6 +28,8 @@
   --green-rgb: 79, 184, 106;
   --green-secondary-rgb: 43, 132, 70;
   --green-spark-rgb: 159, 220, 173;
+  --text-selection-background: #a8e57c;
+  --text-selection-foreground: #15351b;
   --success: #41d75b;
   --warning: #ffb000;
   --danger: #ff3b30;
@@ -47,7 +54,7 @@
 
 html[data-theme="light"] {
   color-scheme: light;
-  --background: #eef5ea;
+  --background: #ffffff;
   --surface: #ffffff;
   --surface-raised: #f7fbf3;
   --surface-soft: #eaf4e3;
@@ -97,8 +104,6 @@ html[data-theme="light"] {
 html {
   min-width: 320px;
   background: var(--background);
-  scrollbar-width: thin;
-  scrollbar-color: rgba(var(--green-rgb), 0.7) rgba(255, 255, 255, 0.04);
 }
 
 body {
@@ -113,14 +118,7 @@ body {
 }
 
 html[data-theme="light"] body {
-  background:
-    radial-gradient(circle at top left, rgba(31, 122, 46, 0.11), transparent 29rem),
-    radial-gradient(circle at bottom right, rgba(36, 111, 31, 0.09), transparent 26rem),
-    var(--background);
-}
-
-html[data-theme="light"] {
-  scrollbar-color: #1f5f2a rgba(18, 60, 27, 0.1);
+  background: var(--background);
 }
 
 button,
@@ -148,45 +146,13 @@ a {
   font-family: var(--font-roboto-mono);
 }
 
-::selection {
-  color: #102006;
-  background: var(--green-accent);
-}
-
-*::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
-}
-
-*::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-*::-webkit-scrollbar-thumb {
-  border: 2px solid rgba(27, 27, 27, 0.92);
-  border-radius: 999px;
-  background: linear-gradient(180deg, var(--green-accent), var(--green-secondary));
-}
-
-*::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, var(--green-accent), var(--green));
-}
-
-*::-webkit-scrollbar-corner {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-html[data-theme="light"] *::-webkit-scrollbar-track {
-  background: rgba(18, 60, 27, 0.1);
-}
-
-html[data-theme="light"] *::-webkit-scrollbar-thumb {
-  border-color: rgba(238, 245, 234, 0.94);
-  background: linear-gradient(180deg, #1f5f2a, #123c1b);
-}
-
-html[data-theme="light"] *::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #267033, #16451f);
+::selection,
+*::selection,
+::-moz-selection,
+*::-moz-selection {
+  color: var(--text-selection-foreground) !important;
+  background-color: var(--text-selection-background) !important;
+  text-shadow: none;
 }
 
 html[data-theme="light"] [class*="inventoryToolbar"],
@@ -297,7 +263,13 @@ html[data-theme="light"] [class*="listPanel"] strong {
 html[data-theme="light"] [class*="riskItem"] {
   border-color: rgba(18, 60, 27, 0.14) !important;
   color: #123c1b !important;
-  background: #f9fcf7 !important;
+  background: #ffffff !important;
+}
+
+html[data-theme="light"] [class*="listPanel"] [class*="railSectionHeader"] [class*="panelPill"] {
+  border-color: rgba(255, 255, 255, 0.28) !important;
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.1) !important;
 }
 
 html[data-theme="light"] [class*="activityItem"] {
@@ -327,7 +299,7 @@ html[data-theme="light"] [class*="listPanel"] [class*="emptyState"] {
   background: #f9fcf7 !important;
 }
 
-html[data-theme="light"] [class*="metric"]:not([class*="Grid"]):not([class*="Meta"]):not([class*="Icon"]):not([class*="Value"]),
+html[data-theme="light"] [class*="metric"]:not([class*="Grid"]):not([class*="Meta"]):not([class*="Icon"]):not([class*="Value"]):not([class*="summaryMetric"]),
 html[data-theme="light"] [class*="summaryCard"] {
   --surface: #ffffff;
   --surface-raised: #f9fcf7;
@@ -345,12 +317,12 @@ html[data-theme="light"] [class*="summaryCard"] {
   box-shadow: 0 14px 30px rgba(18, 60, 27, 0.1);
 }
 
-html[data-theme="light"] [class*="metric"]:not([class*="Grid"]):not([class*="Meta"]):not([class*="Icon"]):not([class*="Value"]) *,
+html[data-theme="light"] [class*="metric"]:not([class*="Grid"]):not([class*="Meta"]):not([class*="Icon"]):not([class*="Value"]):not([class*="summaryMetric"]) *,
 html[data-theme="light"] [class*="summaryCard"] * {
   color: inherit;
 }
 
-html[data-theme="light"] [class*="metric"]:not([class*="Grid"]):not([class*="Meta"]):not([class*="Icon"]):not([class*="Value"]) svg,
+html[data-theme="light"] [class*="metric"]:not([class*="Grid"]):not([class*="Meta"]):not([class*="Icon"]):not([class*="Value"]):not([class*="summaryMetric"]) svg,
 html[data-theme="light"] [class*="summaryCard"] svg {
   color: #123c1b !important;
   stroke: #123c1b;
@@ -362,9 +334,52 @@ html[data-theme="light"] [class*="metricIcon"] {
   background: rgba(18, 60, 27, 0.06) !important;
 }
 
-html[data-theme="light"] [class*="quickActions"],
-html[data-theme="light"] [class*="rangePanel"],
-html[data-theme="light"] [class*="salesBand"] > div {
+html[data-theme="light"] [class*="dashboardOverview"] [class*="metricGrid"] > [class*="metric"]:not([class*="Grid"]):not([class*="Meta"]):not([class*="Icon"]):not([class*="Value"]) {
+  --text: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.86);
+  --text-muted: rgba(255, 255, 255, 0.76);
+  --green-accent: #ffffff;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #1e5f2b 0%, #123c1b 100%) !important;
+}
+
+html[data-theme="light"] [class*="dashboardOverview"] [class*="metricGrid"] > [class*="metric"]:not([class*="Grid"]):not([class*="Meta"]):not([class*="Icon"]):not([class*="Value"]) * {
+  color: inherit;
+}
+
+html[data-theme="light"] [class*="dashboardOverview"] [class*="metricGrid"] > [class*="metric"]:not([class*="Grid"]):not([class*="Meta"]):not([class*="Icon"]):not([class*="Value"]) svg {
+  color: #ffffff !important;
+  stroke: #ffffff;
+}
+
+html[data-theme="light"] [class*="dashboardOverview"] [class*="metricGrid"] > [class*="metric"] [class*="metricIcon"] {
+  border-color: rgba(255, 255, 255, 0.28) !important;
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+html[data-theme="light"] [class*="rangeSelector"] [class*="rangeTab"],
+html[data-theme="light"] [class*="rangeSelector"] [class*="rangeTabActive"] {
+  border-color: rgba(18, 60, 27, 0.2) !important;
+  color: #16451f !important;
+  background: #ffffff !important;
+}
+
+html[data-theme="light"] [class*="rangeSelector"] [class*="rangeTabActive"] {
+  border-color: rgba(18, 60, 27, 0.48) !important;
+}
+
+html [class*="dashboardOverview"] [class*="metricGrid"] > [class*="metric"],
+html [class*="plantingMetrics"] > [class*="metric"],
+html [class*="dashboardLayout"] [class*="chartPanel"],
+html [class*="dashboardLayout"] [class*="listPanel"],
+html [class*="rangeSelector"] {
+  box-shadow: none !important;
+}
+
+html[data-theme="light"] [class*="quickActions"]:not([class*="inventoryQuickActionsPanel"]),
+html[data-theme="light"] [class*="rangePanel"] {
   --background: #1b1b1b;
   --surface: #252525;
   --surface-raised: #313131;
@@ -387,14 +402,12 @@ html[data-theme="light"] [class*="salesBand"] > div {
 }
 
 html[data-theme="light"] [class*="quickActions"] *,
-html[data-theme="light"] [class*="rangePanel"] *,
-html[data-theme="light"] [class*="salesBand"] > div * {
+html[data-theme="light"] [class*="rangePanel"] * {
   color: inherit;
 }
 
-html[data-theme="light"] [class*="quickActions"]::before,
-html[data-theme="light"] [class*="rangePanel"]::before,
-html[data-theme="light"] [class*="salesBand"] > div::before {
+html[data-theme="light"] [class*="quickActions"]:not([class*="inventoryQuickActionsPanel"])::before,
+html[data-theme="light"] [class*="rangePanel"]::before {
   opacity: 0.58 !important;
   background-image:
     radial-gradient(circle, rgba(255, 255, 255, 0.9) 0 1px, transparent 1.5px),
@@ -402,9 +415,8 @@ html[data-theme="light"] [class*="salesBand"] > div::before {
     radial-gradient(circle, rgba(255, 255, 255, 0.52) 0 1px, transparent 1.6px) !important;
 }
 
-html[data-theme="light"] [class*="quickActions"]::after,
-html[data-theme="light"] [class*="rangePanel"]::after,
-html[data-theme="light"] [class*="salesBand"] > div::after {
+html[data-theme="light"] [class*="quickActions"]:not([class*="inventoryQuickActionsPanel"])::after,
+html[data-theme="light"] [class*="rangePanel"]::after {
   opacity: 0.36 !important;
   background:
     radial-gradient(circle at 18% 78%, rgba(255, 255, 255, 0.2), transparent 28%),
@@ -574,6 +586,19 @@ html[data-theme="light"] select option {
   text-transform: uppercase;
 }
 
+/* Confirmation prompts stay compact instead of inheriting the wide form-dialog minimum. */
+[data-ui-confirmation-backdrop="true"] > [role="dialog"] {
+  min-width: 0 !important;
+  width: min(320px, calc(100vw - 32px)) !important;
+  max-width: min(320px, calc(100vw - 32px)) !important;
+  padding: 18px !important;
+}
+
+[data-ui-confirmation-backdrop="true"] > [role="dialog"] [class*="actions"] button {
+  min-height: 36px !important;
+  font-size: 0.88rem !important;
+}
+
 /* Shared confirmations use sentence case even though other modal actions keep
    the site-wide uppercase treatment. */
 [data-ui-confirmation-backdrop="true"] > [role="dialog"] button,
@@ -717,8 +742,16 @@ button {
   to { transform: rotate(360deg); }
 }
 
-/* Required native controls receive the same inline red marker everywhere.
-   CalendarField renders the equivalent marker through its required prop. */
+/* Keep explicit and native-control required markers consistent. */
+.requiredFieldMarker {
+  margin-left: 4px;
+  color: var(--danger, #ff3b30) !important;
+  font-size: 0.9em;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* Native required controls receive one inline red marker. */
 :where(
   label:has(input:required),
   label:has(textarea:required),
@@ -741,7 +774,7 @@ button {
   label:has(input:required),
   label:has(textarea:required),
   label:has(select:required)
-)::after {
+):not(:has(.requiredFieldMarker))::after {
   content: "*";
   grid-column: 2;
   grid-row: 1;
@@ -1072,6 +1105,435 @@ html[data-theme="light"] [class*="profileForm"] [class*="themedSelectOption"]:ho
   stroke: currentColor !important;
 }
 
+/* Keep portal sections sized to the space left beside the sidebar. */
+@media (min-width: 981px) {
+  html {
+    font-size: 12px;
+  }
+}
+
+@media print {
+  html {
+    font-size: 16px;
+  }
+}
+
+@media screen {
+@container portal-content (min-width: 0px) {
+  [class*="main"] [class*="metricGrid_"] {
+    gap: 10px !important;
+  }
+
+  [class*="main"] [class*="metric_"]:has([class*="metricMeta_"]) {
+    display: grid !important;
+    min-height: 88px !important;
+    grid-template-columns: 32px minmax(0, 1fr) !important;
+    grid-template-rows: auto auto !important;
+    align-items: center !important;
+    justify-content: stretch !important;
+    gap: 8px 10px !important;
+    padding: 12px !important;
+  }
+
+  [class*="main"] [class*="metric_"]:not(:has([class*="metricMeta_"])) {
+    display: grid !important;
+    min-height: 88px !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: auto auto !important;
+    align-content: space-between !important;
+    gap: 8px !important;
+    padding: 12px !important;
+  }
+
+  [class*="main"] [class*="metricMeta_"] {
+    display: contents !important;
+    min-width: 0 !important;
+  }
+
+  [class*="main"] [class*="metricIcon_"] {
+    width: 32px !important;
+    height: 32px !important;
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+  }
+
+  [class*="main"] [class*="metricMeta_"] p {
+    min-width: 0 !important;
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    margin: 0 !important;
+    font-size: 0.94rem !important;
+    line-height: 1.2 !important;
+  }
+
+  [class*="main"] [class*="metric_"]:has([class*="metricMeta_"]) > strong,
+  [class*="main"] [class*="metric_"]:has([class*="metricMeta_"]) > span,
+  [class*="main"] [class*="metric_"]:has([class*="metricMeta_"]) > [class*="metricValue_"] {
+    min-width: 0 !important;
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+    justify-self: end !important;
+    font-size: clamp(1.35rem, 1.7vw, 1.75rem) !important;
+    line-height: 1.1 !important;
+    text-align: right !important;
+    overflow-wrap: anywhere;
+  }
+
+  [class*="main"] [class*="metric_"]:not(:has([class*="metricMeta_"])) > p {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    margin: 0 !important;
+    font-size: 0.94rem !important;
+    line-height: 1.2 !important;
+  }
+
+  [class*="main"] [class*="metric_"]:not(:has([class*="metricMeta_"])) > strong {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+    justify-self: start !important;
+    font-size: clamp(1.25rem, 1.55vw, 1.65rem) !important;
+    line-height: 1.1 !important;
+  }
+
+  [class*="main"] [class*="inventoryPage"] [class*="summaryMetric"] {
+    grid-template-columns: 34px minmax(0, 1fr) !important;
+    grid-template-rows: 1fr auto !important;
+    gap: 8px 10px !important;
+    padding: 10px !important;
+  }
+
+  [class*="main"] [class*="inventoryPage"] [class*="summaryMetric"] [class*="metricIcon"] {
+    width: 34px !important;
+    height: 34px !important;
+  }
+
+  [class*="main"] [class*="inventoryPage"] [class*="summaryMetric"] [class*="metricMeta"] p {
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+    margin: 0 !important;
+  }
+
+  [class*="main"] [class*="inventoryPage"] [class*="summaryMetric"] > strong,
+  [class*="main"] [class*="inventoryPage"] [class*="summaryMetric"] > span {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    justify-self: end !important;
+  }
+}
+
+@container portal-content (max-width: 1320px) {
+  [class*="main"] :is([class*="Card_"], [class*="card_"], [class*="Panel_"], [class*="panel_"], [class*="Widget_"], [class*="widget_"]):not([class*="chart"]) {
+    min-height: 0 !important;
+    padding: 10px !important;
+    gap: 10px !important;
+  }
+
+  [class*="main"] [class*="metricGrid"] > *,
+  [class*="main"] :is([class*="metric_"], [class*="Metric_"]):not([class*="Meta"]):not([class*="Icon"]):not([class*="Value"]):not([class*="Label"]):not([class*="Grid"]) {
+    min-height: 88px !important;
+    padding: 10px !important;
+  }
+
+  [class*="main"] [class*="chartPanel"] {
+    min-height: 230px !important;
+    padding: 10px !important;
+  }
+
+  [class*="main"] [class*="chartBox"],
+  [class*="main"] [class*="pieChartLayout"] {
+    min-height: 200px !important;
+  }
+
+  [class*="main"] [class*="harvestChart"] {
+    min-height: 165px !important;
+  }
+
+  [class*="main"] [class*="harvestMonth"] {
+    height: 150px !important;
+  }
+
+  [class*="main"] [class*="roiScoreCard"] {
+    min-height: 0 !important;
+    padding: 10px !important;
+  }
+
+  [class*="main"] [class*="roiCalculation_"],
+  [class*="main"] [class*="roiAllocation_"] {
+    padding: 10px !important;
+  }
+}
+
+@container portal-content (min-width: 1201px) {
+  [class*="main"] [class*="page"] {
+    --portal-section-gap: 10px;
+    gap: var(--portal-section-gap) !important;
+  }
+
+  [class*="main"] h1 {
+    font-size: clamp(1.75rem, 2.2cqi, 2.2rem) !important;
+  }
+}
+
+@container portal-content (max-width: 1200px) {
+  [class*="main"] [class*="page"] {
+    --portal-section-gap: 9px;
+    min-width: 0;
+    gap: var(--portal-section-gap) !important;
+  }
+
+  [class*="main"] h1 {
+    font-size: clamp(1.75rem, 3cqi, 2.2rem) !important;
+    line-height: 1.1 !important;
+  }
+
+  [class*="main"] h2 {
+    font-size: clamp(1.15rem, 1.7cqi, 1.4rem) !important;
+    line-height: 1.2 !important;
+  }
+
+  [class*="main"] h3 {
+    font-size: 1.08rem !important;
+    line-height: 1.25 !important;
+  }
+
+  [class*="main"] [class*="header"] {
+    flex-wrap: wrap !important;
+    min-width: 0;
+  }
+
+  [class*="main"] [class*="header"] > * {
+    min-width: 0;
+  }
+
+  [class*="main"] [class*="filters"],
+  [class*="main"] [class*="toolbar"] {
+    grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+    min-width: 0;
+  }
+
+  [class*="main"] [class*="toolbar"],
+  [class*="main"] [class*="sectionHeader"],
+  [class*="main"] [class*="panelHeader"] {
+    flex-wrap: wrap;
+  }
+
+  [class*="main"] [class*="metricGrid"],
+  [class*="main"] [class*="statsGrid"],
+  [class*="main"] [class*="summaryGrid"],
+  [class*="main"] [class*="insightGrid"],
+  [class*="main"] [class*="roiOwnerStats"],
+  [class*="main"] [class*="roiInsightGrid"] {
+    grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+    min-width: 0;
+  }
+
+  [class*="main"] [class*="metricGrid"] > * {
+    min-height: 88px !important;
+    padding: 10px !important;
+    gap: 8px !important;
+  }
+
+  /* Let widgets size to their contents instead of preserving desktop card heights. */
+  [class*="main"] :is([class*="Card_"], [class*="card_"], [class*="Panel_"], [class*="panel_"], [class*="Widget_"], [class*="widget_"]):not([class*="chart"]) {
+    min-height: 0 !important;
+  }
+
+  [class*="main"] :is([class*="metric"], [class*="Metric"]):not([class*="Meta"]):not([class*="Icon"]):not([class*="Value"]):not([class*="Label"]):not([class*="Grid"]) {
+    min-height: 88px !important;
+    gap: 8px !important;
+    padding: 10px !important;
+  }
+
+  [class*="main"] [class*="metric"] strong,
+  [class*="main"] [class*="metricValue"],
+  [class*="main"] [class*="statValue"] {
+    font-size: clamp(1.4rem, 2cqi, 1.8rem) !important;
+    line-height: 1.05 !important;
+  }
+
+  [class*="main"] [class*="scoreValue"],
+  [class*="main"] [class*="sensorValue"] strong,
+  [class*="main"] [class*="detailHeroAmount"] strong {
+    font-size: clamp(1.65rem, 2.4cqi, 2.25rem) !important;
+    line-height: 1.05 !important;
+  }
+
+  [class*="main"] [class*="chartPanel"] {
+    min-height: 220px !important;
+    padding: 9px !important;
+  }
+
+  [class*="main"] [class*="dashboardLayout"],
+  [class*="main"] [class*="dashboardOverview"],
+  [class*="main"] [class*="chartGrid"] {
+    gap: 12px !important;
+  }
+
+  [class*="main"] [class*="chartBox"],
+  [class*="main"] [class*="pieChartLayout"] {
+    min-height: 190px !important;
+  }
+
+  [class*="main"] [class*="pieChartGraphic"] {
+    height: 175px !important;
+  }
+
+  [class*="main"] [class*="harvestChart"] {
+    min-height: 160px !important;
+    gap: 8px !important;
+  }
+
+  [class*="main"] [class*="harvestMonth"] {
+    height: 145px !important;
+  }
+
+  [class*="main"] [class*="investmentsLowerGrid"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 12px !important;
+  }
+
+  [class*="main"] [class*="roiOverview"] {
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr) !important;
+    gap: 10px !important;
+  }
+
+  [class*="main"] [class*="roiScoreCard"] {
+    min-height: 0 !important;
+    gap: 10px !important;
+  }
+
+  [class*="main"] [class*="roiCalculation_"],
+  [class*="main"] [class*="roiAllocation_"] {
+    gap: 10px !important;
+    padding: 10px !important;
+  }
+
+  [class*="main"] [class*="roiStatusBanner"] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 10px !important;
+    min-height: 0 !important;
+    padding: 12px !important;
+  }
+
+  [class*="main"] [class*="roiStatusMetrics"] {
+    min-width: 0 !important;
+    grid-column: 1 / -1 !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  [class*="main"] [class*="roiStatusMetrics"] > div {
+    padding-left: 10px !important;
+  }
+
+  [class*="main"] [class*="inventoryQuickActions"] {
+    flex: 1 1 100% !important;
+    flex-wrap: wrap !important;
+  }
+
+  [class*="main"] [class*="inventoryQuickActions"] button {
+    width: auto !important;
+    min-width: min(170px, 100%) !important;
+    flex: 1 1 170px !important;
+  }
+
+  [class*="main"] [class*="salesBand"] > article {
+    min-height: 0 !important;
+    gap: 8px !important;
+    padding: 10px !important;
+  }
+
+  [class*="main"] [class*="inventoryDetailsBody"] [class*="detailHero"],
+  [class*="main"] [class*="inventoryDetailsBody"] [class*="detailImage"] {
+    min-height: 190px !important;
+  }
+
+  [class*="main"] [class*="detailsTop"] {
+    grid-template-columns: minmax(160px, 200px) minmax(0, 1fr) !important;
+    gap: 12px !important;
+  }
+
+  [class*="main"] [class*="detailsTop"] [class*="detailHero"],
+  [class*="main"] [class*="detailsTop"] [class*="detailImage"] {
+    min-height: 210px !important;
+  }
+
+  [class*="main"] [class*="panel_"]:not([class*="Header"]):not([class*="Grid"]),
+  [class*="main"] [class*="Panel_"]:not([class*="Header"]):not([class*="Grid"]),
+  [class*="main"] [class*="Card_"]:not([class*="Header"]):not([class*="Grid"]),
+  [class*="main"] [class*="card_"]:not([class*="header"]):not([class*="grid"]),
+  [class*="main"] [class*="Section_"]:not([class*="Header"]):not([class*="Grid"]),
+  [class*="main"] [class*="section_"]:not([class*="header"]):not([class*="grid"]) {
+    padding: 9px !important;
+    gap: 9px;
+  }
+
+  [class*="main"] [class*="tableHead"],
+  [class*="main"] [class*="tableRow"],
+  [class*="main"] [class*="customerRow"],
+  [class*="main"] [class*="salesTableHead"],
+  [class*="main"] [class*="salesTableRow"] {
+    column-gap: 14px;
+  }
+
+  [class*="main"] [class*="tableSection"],
+  [class*="main"] [class*="tablePanel"],
+  [class*="main"] [class*="recordsPanel"],
+  [class*="main"] [class*="directoryPanel"] {
+    min-width: 0;
+    padding: var(--portal-panel-padding);
+  }
+
+  [class*="main"] [class*="tableWrap"],
+  [class*="main"] [class*="tableScroll"],
+  [class*="main"] [class*="tableContainer"] {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+  }
+
+  [class*="main"] [class*="modal"] {
+    max-width: calc(100vw - 32px) !important;
+    max-height: calc(100dvh - 32px) !important;
+    overflow-y: auto !important;
+  }
+
+  [class*="main"] input:not([type="checkbox"]):not([type="radio"]),
+  [class*="main"] select,
+  [class*="main"] [class*="themedSelectButton"],
+  [class*="main"] [class*="calendarTrigger"] {
+    min-height: 36px !important;
+  }
+}
+
+@container portal-content (max-width: 780px) {
+  [class*="main"] [class*="filters"],
+  [class*="main"] [class*="toolbar"],
+  [class*="main"] [class*="formGrid"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  [class*="main"] [class*="header"] > :last-child {
+    max-width: 100%;
+    text-align: left;
+  }
+}
+
+@container portal-content (max-width: 900px) {
+  [class*="main"] [class*="roiOverview"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  [class*="main"] [class*="roiStatusBanner"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  [class*="main"] [class*="roiStatusMetrics"] {
+    grid-column: auto !important;
+  }
+}
+}
+
 /* Keep quick-action copy and icons white in dark mode while retaining the emerald surfaces. */
 html[data-theme="dark"] [class*="quickActions"] h2,
 html[data-theme="dark"] [class*="quickActions"] .eyebrow,
@@ -1109,4 +1571,82 @@ html[data-theme="dark"] [class*="quickActions"] [class*="actionButton"]:active {
 html[data-theme="dark"] [class*="quickActions"] [class*="recordSaleIcon"],
 html[data-theme="dark"] [class*="quickActions"] [class*="actionButtonIcon"] {
   border-left-color: rgba(var(--green-rgb), 0.22) !important;
+}
+
+@layer icon-presentation {
+  /* Layered important declarations also override existing theme/hover fills. */
+  /* Show standalone icons without decorative tiles in either theme.
+     Keep their layout, click targets, status colors, and focus outlines. */
+  html body :is(
+    [class*="metricIcon"],
+    [class*="activityIcon"],
+    [class*="sensorIcon"],
+    [class*="categoryIcon"],
+    [class*="farmForecastIcon"],
+    [class*="roiStatusIcon"],
+    [class*="roiOwnerStatIcon"],
+    [class*="roiInsightIcon"],
+    [class*="modalTitleIcon"],
+    [class*="discountModalTitleIcon"],
+    [class*="confirmIcon"],
+    [class*="iconWrap"],
+    [class*="iconAction"],
+    [class*="iconButton"],
+    [class*="actionButtonIcon"],
+    [class*="notificationButton"],
+    [class*="calendarNavButton"],
+    [class*="closeButton"]:has(> svg),
+    [class*="modalClose"]:has(> svg),
+    span[class*="icon"]:has(> svg:only-child),
+    [class*="uploadArea"] > span:has(> svg),
+    [class*="roiScoreLabel"] > span:has(> svg),
+    [class*="activityFormSectionTitle"] > span:has(> svg),
+    [class*="sensorValueCard"] > span:has(> svg),
+    [class*="panelHeader"] h2 span:has(> svg),
+    button[aria-label]:has(> svg:only-child),
+    a[aria-label]:has(> svg:only-child),
+    svg.lucide
+  ) {
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  /* Keep inventory quick-action icons dark green on their white buttons. */
+  html body [class*="inventoryQuickActionsPanel"] [class*="recordSaleIcon"] {
+    border-left: 1px solid rgba(18, 60, 27, 0.18) !important;
+    background: transparent !important;
+    color: #123c1b !important;
+  }
+
+  html body [class*="inventoryQuickActionsPanel"] [class*="recordSaleIcon"] svg {
+    color: #123c1b !important;
+    stroke: #123c1b !important;
+  }
+
+  html body [class*="inventoryQuickActionsPanel"] [class*="recordSaleButton"]:hover [class*="recordSaleIcon"] {
+    border-left-color: transparent !important;
+    background: linear-gradient(135deg, #1e5f2b 0%, #123c1b 100%) !important;
+    color: #ffffff !important;
+  }
+
+  html body [class*="inventoryQuickActionsPanel"] [class*="recordSaleButton"]:hover [class*="recordSaleIcon"] svg {
+    color: #ffffff !important;
+    stroke: #ffffff !important;
+  }
+
+  button :is(
+    [class*="addItemIcon"],
+    [class*="recordSaleIcon"],
+    [class*="actionButtonIcon"]
+  ),
+  button :is(
+    [class*="addItemIcon"],
+    [class*="recordSaleIcon"],
+    [class*="actionButtonIcon"]
+  ) svg {
+    color: inherit !important;
+    stroke: currentColor !important;
+  }
 }

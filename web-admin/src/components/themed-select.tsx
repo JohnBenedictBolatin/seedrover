@@ -49,7 +49,7 @@ export function ThemedSelect({
       }}
     >
       {name ? <input name={name} type="hidden" value={selectedValue} /> : null}
-      {variant === "form" ? <span className={styles.themedSelectLabel}>{label}{required ? <span aria-hidden="true" className={styles.requiredMarker}>*</span> : null}</span> : null}
+      {variant === "form" ? <span className={styles.themedSelectLabel}>{label}{required ? <span aria-hidden="true" className="requiredFieldMarker">*</span> : null}</span> : null}
       <button aria-expanded={open} className={styles.themedSelectButton} type="button" onClick={() => setOpen((current) => !current)}>
         {icon ? <span className={styles.themedSelectIcon}>{icon}</span> : null}
         {variant === "toolbar" ? <span className={styles.themedSelectLabel}>{label}</span> : null}

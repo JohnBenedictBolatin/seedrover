@@ -16,11 +16,9 @@ import {
   IdCard,
   LockKeyhole,
   Mail,
-  Plus,
   Phone,
   Search,
   ShieldCheck,
-  UserCog,
   Users,
   X,
 } from "lucide-react";
@@ -29,6 +27,8 @@ import { useConfirmationDialog } from "@/components/confirmation-dialog";
 import { useActionFeedback } from "@/components/action-feedback";
 import { PendingActionLabel } from "@/components/pending-action-label";
 import type { AdminUser, UserRole, UsersSummary } from "@/lib/users";
+import inventoryStyles from "@/app/(portal)/inventory/page.module.css";
+import quickActionStyles from "@/app/(portal)/sales/page.module.css";
 import styles from "./page.module.css";
 
 type Props = {
@@ -106,76 +106,61 @@ export function UsersWorkspace({ users, roles, summary }: Props) {
     currentPage * PAGE_SIZE,
   );
 
-  const farmManagers = users.filter((user) => user.roleName.includes("Manager")).length;
-
   const notify = useCallback((message: string, tone: "success" | "error" = "success") => sendFeedback({ tone, text: message }), [sendFeedback]);
 
   return (
     <>
-      <section className={styles.metricGrid} aria-label="User summary">
-        <article className={styles.metric}>
-          <div className={styles.metricMeta}>
-            <span className={styles.metricIcon} aria-hidden="true">
+      <section className={`${inventoryStyles.metricGrid} ${inventoryStyles.summaryDesignScope}`} aria-label="User summary">
+        <article className={`${inventoryStyles.metric} ${inventoryStyles.summaryMetric}`}>
+          <div className={inventoryStyles.metricMeta}>
+            <span className={inventoryStyles.metricIcon} aria-hidden="true">
               <Users size={20} />
             </span>
             <p>Total users</p>
           </div>
           <strong>{summary?.totalUsers ?? users.length}</strong>
         </article>
-        <article className={styles.metric}>
-          <div className={styles.metricMeta}>
-            <span className={styles.metricIcon} aria-hidden="true">
+        <article className={`${inventoryStyles.metric} ${inventoryStyles.summaryMetric}`}>
+          <div className={inventoryStyles.metricMeta}>
+            <span className={inventoryStyles.metricIcon} aria-hidden="true">
               <BadgeCheck size={20} />
             </span>
             <p>Active users</p>
           </div>
           <strong>{summary?.activeUsers ?? 0}</strong>
         </article>
-        <article className={styles.metric}>
-          <div className={styles.metricMeta}>
-            <span className={styles.metricIcon} aria-hidden="true">
+        <article className={`${inventoryStyles.metric} ${inventoryStyles.summaryMetric}`}>
+          <div className={inventoryStyles.metricMeta}>
+            <span className={inventoryStyles.metricIcon} aria-hidden="true">
               <LockKeyhole size={20} />
             </span>
             <p>Inactive users</p>
           </div>
           <strong>{summary?.inactiveUsers ?? 0}</strong>
         </article>
-        <article className={styles.metric}>
-          <div className={styles.metricMeta}>
-            <span className={styles.metricIcon} aria-hidden="true">
+        <article className={`${inventoryStyles.metric} ${inventoryStyles.summaryMetric}`}>
+          <div className={inventoryStyles.metricMeta}>
+            <span className={inventoryStyles.metricIcon} aria-hidden="true">
               <ShieldCheck size={20} />
             </span>
             <p>Administrators</p>
           </div>
           <strong>{summary?.administrators ?? 0}</strong>
         </article>
-        <article className={styles.metric}>
-          <div className={styles.metricMeta}>
-            <span className={styles.metricIcon} aria-hidden="true">
-              <UserCog size={20} />
-            </span>
-            <p>Farm managers</p>
-          </div>
-          <strong>{farmManagers}</strong>
-        </article>
       </section>
 
-      <section className={styles.quickActions}>
+      <section className={`${quickActionStyles.quickActions} ${inventoryStyles.inventoryQuickActionsPanel} ${styles.usersQuickActionPanel}`}>
         <div>
-          <p className={styles.eyebrow}>Quick action</p>
+          <p className={quickActionStyles.eyebrow}>Quick action</p>
           <h2>Create a user account</h2>
           <span>Create staff accounts and manage their roles, permissions, and status.</span>
         </div>
-        <button
-          className={styles.actionButton}
-          type="button"
-          onClick={() => setShowCreateModal(true)}
-        >
-          <span className={styles.actionButtonText}>Create User</span>
-          <span className={styles.actionButtonIcon}>
-            <Plus size={20} />
-          </span>
-        </button>
+        <div className={inventoryStyles.inventoryQuickActions}>
+          <button className={`${quickActionStyles.recordSaleButton} ${quickActionStyles.compactQuickActionButton}`} type="button" onClick={() => setShowCreateModal(true)}>
+            <span className={quickActionStyles.recordSaleText}>CREATE USER</span>
+            <span className={quickActionStyles.recordSaleIcon} aria-hidden="true"><Users size={20} /></span>
+          </button>
+        </div>
       </section>
 
       <section className={styles.listSection}>
@@ -659,7 +644,7 @@ function CreateUserModal({
             </span>
           </label>
           <label className={styles.passwordLabel}>
-            Initial password <span aria-hidden="true" style={{ color: "#b42318" }}>*</span>
+            Initial password
             <input
               autoComplete="new-password"
               minLength={8}

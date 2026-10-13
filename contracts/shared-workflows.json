@@ -43,6 +43,7 @@
     "keepMeSignedIn": "Keep me signed in"
   },
   "choices": {
+    "storageLocations": ["Leafy Greens Chiller", "Harvest Cooler", "Produce Crate Bay", "Root Crop Cellar", "Packing Shed"],
     "receiptSources": ["Harvest Bay", "Greenhouse Sorting", "Field Crate", "Market Return", "Farm-table Prep"],
     "issueReasons": ["Farm-table Dining", "Kitchen Preparation", "Spoilage Removal", "Staff Allocation"],
     "paymentMethods": ["Cash", "GCash", "Bank Transfer", "Card", "Other"],
