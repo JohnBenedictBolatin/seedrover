@@ -24,6 +24,7 @@ import styles from "./sales-order-form.module.css";
 type LineItem = {
   key: string;
   inventoryId: string;
+  batchId: string;
   quantity: string;
 };
 
@@ -39,6 +40,7 @@ function newLineItem(items: SellableItem[], excludedIds: string[] = []): LineIte
   return {
     key: crypto.randomUUID(),
     inventoryId: firstItem?.id ?? "",
+    batchId: "",
     quantity: "",
   };
 }
@@ -338,6 +340,11 @@ export function SalesOrderForm({
       if (quantity > selectedItem.quantity) {
         return `${selectedItem.label} only has ${formatQuantity(selectedItem.quantity, selectedItem.unit)} available.`;
       }
+
+      const selectedBatch = selectedItem.batches.find((batch) => batch.id === lineItem.batchId);
+      if (selectedBatch && quantity > selectedBatch.remainingQuantity) {
+        return `The selected batch for ${selectedItem.label} only has ${formatQuantity(selectedBatch.remainingQuantity, selectedItem.unit)} available.`;
+      }
     }
 
     if (!amountPaid.trim()) {
@@ -417,9 +424,9 @@ export function SalesOrderForm({
           <div>
               <h2>Items</h2>
           </div>
-          <button className={`${styles.actionButton} ${styles.addItemButton}`} type="button" onClick={addLineItem}>
-            <span className={styles.actionButtonText}>ADD ITEM</span>
-            <span className={styles.actionButtonIcon} aria-hidden="true">
+          <button className={styles.addItemButton} type="button" onClick={addLineItem}>
+            <span className={styles.addItemButtonText}>ADD ITEM</span>
+            <span className={styles.addItemButtonIcon} aria-hidden="true">
               <Plus size={18} />
             </span>
           </button>
@@ -438,8 +445,26 @@ export function SalesOrderForm({
                   onChange={(inventoryId) =>
                     updateLineItem(lineItem.key, {
                       inventoryId,
+                      batchId: "",
                     })
                   }
+                />
+
+                <ThemedSelect
+                  label="Batch"
+                  name="batch_id"
+                  value={lineItem.batchId}
+                  emptyLabel="Oldest available"
+                  optionLabels={Object.fromEntries([
+                    ["", "Oldest available"],
+                    ...(selectedItem?.batches ?? []).map((batch) => {
+                      const date = batch.harvestOn ?? batch.receivedOn;
+                      const dateLabel = new Date(`${date}T00:00:00`).toLocaleDateString();
+                      return [batch.id, `${dateLabel} · ${formatQuantity(batch.remainingQuantity, selectedItem?.unit ?? "kg")}`];
+                    }),
+                  ])}
+                  options={["", ...(selectedItem?.batches ?? []).map((batch) => batch.id)]}
+                  onChange={(batchId) => updateLineItem(lineItem.key, { batchId })}
                 />
 
                 <input

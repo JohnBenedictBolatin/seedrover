@@ -1,11 +1,3 @@
-.loadingScreen {
-  display: grid;
-  min-height: 100vh;
-  place-items: center;
-  overflow: hidden;
-  background: var(--background);
-}
-
 .banterLoader {
   position: relative;
   width: 72px;

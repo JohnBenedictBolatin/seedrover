@@ -215,7 +215,6 @@ export default async function InvestmentsPage({ searchParams }: InvestmentsPageP
         <section className={styles.roiSection} aria-labelledby="roi-heading">
         <header className={styles.roiHeader}>
           <div>
-            <p className={styles.eyebrow}>Farm health</p>
             <h2 id="roi-heading">Investment performance</h2>
           </div>
           <details className={styles.roiRangeSelect}>

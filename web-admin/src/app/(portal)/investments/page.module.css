@@ -27,8 +27,9 @@
 .metric p { grid-column: 1 / -1; margin: 0; color: var(--text-muted); font-size: .94rem; font-weight: 800; }
   .metric > strong { min-width: 0; color: var(--text); font-family: var(--font-roboto-mono); font-size: clamp(1.12rem,1.55vw,1.55rem); line-height: 1.08; text-align: right; white-space: nowrap; }
 .roiSection { order: 1; display: grid; container: investments-roi / inline-size; gap: 18px; border: 1px solid var(--border-soft); border-radius: 8px; background: rgba(49,49,49,.82); padding: 20px; }
-.roiHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.roiHeader { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .roiHeader h2, .roiCalculationHeader h3, .roiAllocationHeader h3 { margin: 0; }
+.roiHeader h2 { font-size: 1.2rem; line-height: 1.2; white-space: nowrap; }
 .roiHeader > div > span { display: block; margin-top: 8px; color: var(--text-secondary); line-height: 1.5; }
 .roiRangeSelect { position: relative; min-width: 156px; z-index: 5; }
 .roiRangeSelect summary { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text); background: rgba(27,27,27,.38); cursor: pointer; font-size: 0.9rem; font-weight: 900; list-style: none; padding: 0 12px 0 14px; }

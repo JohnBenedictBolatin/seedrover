@@ -17,6 +17,7 @@ type SubmittedItem = {
   inventory_id: string;
   quantity: number;
   unit_price: number;
+  batch_id: string | null;
 };
 
 const paymentMethods = new Set(["Cash", "GCash", "Bank Transfer", "Card", "Other"]);
@@ -81,6 +82,7 @@ export async function recordSalesOrderAction(
   }
 
   const inventoryIds = formData.getAll("inventory_id").map(String);
+  const batchIds = formData.getAll("batch_id").map(String);
   const quantities = formData.getAll("quantity");
   const unitPrices = formData.getAll("unit_price");
 
@@ -90,6 +92,7 @@ export async function recordSalesOrderAction(
       inventory_id: inventoryId,
       quantity: parseNumber(quantities[index] ?? null, "Quantity"),
       unit_price: parseNumber(unitPrices[index] ?? null, "Unit price"),
+      batch_id: batchIds[index] || null,
     }));
   } catch (error) {
     return { message: error instanceof Error ? error.message : "Enter valid sale quantities." };

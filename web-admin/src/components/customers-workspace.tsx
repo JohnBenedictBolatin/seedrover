@@ -335,7 +335,7 @@ export function CustomersWorkspace({ customers, discounts, stats }: CustomersWor
         aria-label="Customer quick actions"
       >
         <div>
-          <h2>Customer offers</h2>
+          <h2>Create customer discounts</h2>
           <span>Release discount codes customers can use at checkout.</span>
         </div>
         <div className={`${styles.quickActionButtons} ${inventorySummaryStyles.inventoryQuickActions}`}>

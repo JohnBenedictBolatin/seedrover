@@ -10,19 +10,22 @@ import { ThemedSelect } from "@/components/themed-select";
 import { useConfirmationDialog } from "@/components/confirmation-dialog";
 import { PendingActionLabel } from "@/components/pending-action-label";
 import { sharedWorkflowTerms } from "@/lib/shared-workflow-terms";
+import { farmerCareText, farmerGrowthStage } from "@/lib/farmer-copy";
 import type { CropItem, CropTask } from "@/lib/crops";
-import { cropMaintenanceAction, getHarvestDestinationAction } from "@/app/(portal)/crops/actions";
+import { cropMaintenanceAction, endCropAction, getHarvestDestinationAction } from "@/app/(portal)/crops/actions";
 import dashboardStyles from "@/app/(portal)/dashboard/page.module.css";
 import cropStyles from "@/app/(portal)/crops/page.module.css";
 import styles from "./crop-care.module.css";
 
-const actions = { Watered: "Watering", Fertilized: "Fertilizing", Inspected: "Field check", "Stage Observed": "Observe growth", Transplanted: "Transplanting", Harvested: "Harvest batch", "Not Harvested": sharedWorkflowTerms.closeWithoutHarvest };
+const actions = { Watered: "Watering", Fertilized: "Fertilizing", Inspected: "Field check", "Stage Observed": "Observe growth", Transplanted: "Transplanting", Harvested: "Record harvest", "Not Harvested": sharedWorkflowTerms.closeWithoutHarvest };
 type Activity = keyof typeof actions;
 export function taskActivity(task?: CropTask): Activity {
   return task?.task_type === "Water" ? "Watered" : task?.task_type === "Fertilize" ? "Fertilized" : task?.task_type === "Transplant" ? "Transplanted" : "Inspected";
 }
 
 function hasReachedHarvestReady(crop: CropItem) {
+  if (crop.harvestMode === "repeat" && crop.harvestCount > 0) return true;
+  if (crop.harvestMode === "repeat" && crop.cropProfileKey === "calamansi" && crop.growthStage === "First Bearing") return true;
   if (crop.cropStatus === "Harvest Ready") return true;
   const harvestReadyIndex = crop.stages.findIndex((stage) => stage === "Harvest Ready");
   const currentIndex = crop.stages.findIndex((stage) => stage === crop.growthStage);
@@ -47,9 +50,8 @@ export function TodaysCare({ crops, onOpen }: { crops: CropItem[]; onOpen: (crop
   const visibleTasks = tasks.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   return (
     <section className={dashboardStyles.listPanel} aria-labelledby="today-care-heading">
-      <div className={dashboardStyles.sectionHeader}>
+      <div className={`${dashboardStyles.sectionHeader} ${styles.careSectionHeader}`}>
         <div>
-          <p className={dashboardStyles.eyebrow}>Crop care</p>
           <h2 id="today-care-heading">Today&apos;s care</h2>
         </div>
         <span className={dashboardStyles.panelPill}>{tasks.length} {tasks.length === 1 ? "task" : "tasks"}</span>
@@ -59,14 +61,14 @@ export function TodaysCare({ crops, onOpen }: { crops: CropItem[]; onOpen: (crop
           {visibleTasks.map(({ crop, task }) => (
             <article key={task.id} className={`${dashboardStyles.riskItem} ${styles.careTask}`} data-priority={task.priority}>
               <div className={styles.careTaskDetails}>
-                <strong>{task.title}</strong>
-                <span>{crop.cropName} - {crop.batchCode}</span>
+                <strong>{farmerCareText(task.title)}</strong>
+                <span>{crop.displayName} · {crop.cropName} · {crop.batchCode}</span>
               </div>
               <em>{task.priority}</em>
               <div className={styles.careTaskDue}>
                 <time dateTime={task.due_at}>Due {new Date(task.due_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</time>
               </div>
-              <button className={styles.careTaskOpen} type="button" title={`Open ${crop.cropName} activity`} aria-label={`Open activity for ${crop.cropName}, batch ${crop.batchCode}`} onClick={() => onOpen(crop, task)}>
+              <button className={styles.careTaskOpen} type="button" title={`Open ${crop.displayName} activity`} aria-label={`Open activity for ${crop.displayName}, ${crop.cropName}, batch ${crop.batchCode}`} onClick={() => onOpen(crop, task)}>
                 <ArrowRight size={17} aria-hidden="true" />
               </button>
             </article>
@@ -74,11 +76,10 @@ export function TodaysCare({ crops, onOpen }: { crops: CropItem[]; onOpen: (crop
         </div>
       ) : <p className={styles.carePanelEmpty}>No care tasks due today.</p>}
       {pageCount > 1 && (
-        <nav className={`${dashboardStyles.activityPagination} ${styles.carePanelPagination}`} aria-label="Today's care pages">
+        <nav className={styles.carePanelPagination} aria-label="Today's care pages">
           <button aria-label="Previous care tasks" disabled={currentPage === 1} type="button" onClick={() => setPage((value) => Math.max(1, Math.min(value, pageCount) - 1))}>
             <ChevronLeft size={16} aria-hidden="true" />
           </button>
-          <span>Page {currentPage} of {pageCount}</span>
           <button aria-label="Next care tasks" disabled={currentPage === pageCount} type="button" onClick={() => setPage((value) => Math.min(pageCount, Math.min(value, pageCount) + 1))}>
             <ChevronRight size={16} aria-hidden="true" />
           </button>
@@ -91,6 +92,7 @@ export function CropCareForm({ crop, task, initialActivity, onCancel, onSuccess,
   crop: CropItem; task?: CropTask; initialActivity?: Activity; onCancel: () => void; onSuccess: () => void; notify: (tone: "success" | "error", message: string) => void;
 }) {
   const canHarvest = hasReachedHarvestReady(crop);
+  const repeatedHarvest = crop.harvestMode === "repeat";
   const [activity, setActivity] = useState<Activity>(
     initialActivity === "Harvested" && !canHarvest
       ? taskActivity(task)
@@ -102,12 +104,21 @@ export function CropCareForm({ crop, task, initialActivity, onCancel, onSuccess,
   const [performedAt, setPerformedAt] = useState(localTime);
   const [observedStage, setObservedStage] = useState("");
   const [observation, setObservation] = useState("");
-  const [unit, setUnit] = useState(() => typeof window === "undefined" ? "liters" : localStorage.getItem(`crop-unit:${initialActivity ?? taskActivity(task)}`) ?? "liters");
+  const [unit, setUnit] = useState(() => typeof window === "undefined" ? "grams" : localStorage.getItem(`crop-unit:${initialActivity ?? taskActivity(task)}`) ?? "grams");
   const [destination, setDestination] = useState<{ id: string; name: string } | null>(null);
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const payload = useRef<FormData | null>(null);
   const submission = useRef("");
   const router = useRouter();
+  const selectedWaterSuggestion = task?.task_type === "Water"
+    ? Number(task.recommendation_data?.estimated_liters)
+    : Number.NaN;
+  const waterTaskForSuggestion = Number.isFinite(selectedWaterSuggestion) && selectedWaterSuggestion > 0
+    ? task
+    : crop.tasks.find((candidate) => {
+      const estimate = Number(candidate.recommendation_data?.estimated_liters);
+      return candidate.task_type === "Water" && ["Due", "Overdue", "Upcoming", "Postponed"].includes(candidate.status) && Number.isFinite(estimate) && estimate > 0;
+    }) ?? (task?.task_type === "Water" ? task : undefined);
   const currentStageIndex = crop.stages.findIndex((stage) =>
     stage.trim().toLowerCase() === crop.growthStage.trim().toLowerCase(),
   );
@@ -116,7 +127,7 @@ export function CropCareForm({ crop, task, initialActivity, onCancel, onSuccess,
     : [];
   useEffect(() => { submission.current = crypto.randomUUID(); }, []);
   useEffect(() => {
-    queueMicrotask(() => setUnit(localStorage.getItem(`crop-unit:${activity}`) ?? (activity === "Watered" ? "liters" : "grams")));
+    queueMicrotask(() => setUnit(localStorage.getItem(`crop-unit:${activity}`) ?? "grams"));
     if (activity !== "Harvested") return;
     let active = true;
 
@@ -128,12 +139,14 @@ export function CropCareForm({ crop, task, initialActivity, onCancel, onSuccess,
     setBusy(true); setError("");
     try {
       await cropMaintenanceAction(payload.current);
-      localStorage.setItem(`crop-unit:${activity}`, unit);
+      if (activity !== "Watered") localStorage.setItem(`crop-unit:${activity}`, unit);
       router.refresh();
       if (activity === "Harvested") {
-        notify("success", `${quantity} kg harvested from ${crop.batchCode} and added to ${destination?.name} inventory.`);
+        notify("success", repeatedHarvest
+          ? `${quantity} kg added to ${destination?.name} inventory. You can record another harvest for this crop.`
+          : `${quantity} kg harvested from ${crop.displayName} and added to ${destination?.name} inventory. The crop has ended.`);
       }
-      else notify("success", activity === "Not Harvested" ? "Batch closed without harvest. No inventory was added." : `${actions[activity]} saved. The crop journal and care tasks are updated.`);
+      else notify("success", activity === "Not Harvested" ? "Crop ended without a harvest. No inventory was added." : `${actions[activity]} saved. The crop journal and care tasks are updated.`);
       onSuccess();
     } catch (e) {
       const message = e instanceof Error ? e.message : "Unable to save. Your entries are still here; retry when connected.";
@@ -145,7 +158,7 @@ export function CropCareForm({ crop, task, initialActivity, onCancel, onSuccess,
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (activity === "Harvested" && !canHarvest) {
-      setError("Harvesting is available after the crop reaches Harvest Ready.");
+      setError("You can record a harvest once this crop is ready.");
       return;
     }
     if (activity === "Stage Observed" && !observedStage) {
@@ -163,48 +176,67 @@ export function CropCareForm({ crop, task, initialActivity, onCancel, onSuccess,
     const data = new FormData(event.currentTarget);
     data.set("submission_id", submission.current);
     data.set("performed_at", new Date(String(data.get("performed_at"))).toISOString());
+    if (activity === "Watered") data.set("unit", "ml");
     payload.current = data;
+    const suggestedLiters = waterTaskForSuggestion
+      ? Number(waterTaskForSuggestion.recommendation_data?.estimated_liters)
+      : Number.NaN;
+    const suggestedMl = suggestedLiters * 1000;
+    const enteredMl = Number(data.get("quantity"));
+    if (activity === "Watered" && Number.isFinite(suggestedMl) && suggestedMl > 0 && enteredMl > suggestedMl) {
+      await confirm({
+        title: "Water amount exceeds the suggestion",
+        message: `You entered ${enteredMl.toLocaleString()} ml, above the suggested maximum of ${suggestedMl.toLocaleString()} ml. Reduce the amount before saving.`,
+        confirmLabel: "EDIT AMOUNT",
+        cancelLabel: "CLOSE WARNING",
+        tone: "warning",
+      });
+      setError(`Watering amount must be ${suggestedMl.toLocaleString()} ml or less for this task.`);
+      return;
+    }
     if (["Harvested", "Not Harvested"].includes(activity)) {
       const harvested = activity === "Harvested";
       const confirmed = await confirm({
-        title: harvested ? "Review harvest" : "Close batch without harvest?",
+        title: harvested ? "Review harvest" : "End crop?",
         message: harvested
-          ? `This will add ${quantity} kg from ${crop.batchCode} to ${destination?.name} inventory and close the batch.`
-          : `This will close ${crop.cropName} batch ${crop.batchCode} without adding inventory.`,
-        summary: <><strong>{crop.cropName} · {crop.batchCode}</strong>{harvested ? <p>{quantity} kg → {destination?.name}</p> : <p>{String(data.get("notes") ?? "")}</p>}</>,
-        confirmLabel: harvested ? sharedWorkflowTerms.harvestAndClose : sharedWorkflowTerms.closeWithoutHarvest,
+          ? repeatedHarvest
+            ? `This will add ${quantity} kg from ${crop.batchCode} to ${destination?.name} inventory. The crop will stay active for future harvests.`
+            : `This will add ${quantity} kg from ${crop.batchCode} to ${destination?.name} inventory and close the crop.`
+          : `This will end ${crop.displayName} (${crop.cropName}, ${crop.batchCode}) without adding inventory.`,
+        summary: <><strong>{crop.displayName} · {crop.cropName} · {crop.batchCode}</strong>{harvested ? <p>{quantity} kg → {destination?.name}</p> : <p>{String(data.get("notes") ?? "")}</p>}</>,
+        confirmLabel: harvested ? repeatedHarvest ? "RECORD HARVEST" : sharedWorkflowTerms.harvestAndClose : sharedWorkflowTerms.closeWithoutHarvest,
         tone: harvested ? "default" : "danger",
       });
       if (!confirmed) return;
     }
     void save();
   }
-  const activityOptions = (Object.keys(actions) as Activity[]).filter((value) => initialActivity === "Not Harvested"
-    ? value === "Not Harvested"
-    : value !== "Not Harvested" && (value !== "Transplanted" || crop.cropName.toLowerCase() === "calamansi") && (!task || value === taskActivity(task)));
+  const activityOptions = (Object.keys(actions) as Activity[]).filter((value) =>
+    value !== "Not Harvested" && (value !== "Transplanted" || crop.cropName.toLowerCase() === "calamansi") && (!task || value === taskActivity(task)));
   return <form className={`${cropStyles.formGrid} ${cropStyles.activityForm}`} onSubmit={submit}>
     <div className={cropStyles.activityFormIntro}>
-      <span>{activity === "Not Harvested" ? "CLOSE WITHOUT HARVEST" : "CROP DETAILS"}</span>
-      <div><h4>{crop.cropName}</h4><strong>{crop.fieldLabel} · {crop.batchCode} · {crop.growthStage}</strong></div>
+      <span>{activity === "Not Harvested" ? "END CROP" : "CROP DETAILS"}</span>
+      <div><h4>{crop.displayName}</h4><strong>{crop.cropName} · {crop.fieldLabel} · {crop.batchCode} · {farmerGrowthStage(crop.growthStage)}</strong></div>
     </div>
     <input type="hidden" name="id" value={crop.id} />
-    <input type="hidden" name="task_id" value={task?.id ?? ""} />
+    <input type="hidden" name="task_id" value={task?.id ?? (activity === "Watered" ? waterTaskForSuggestion?.id ?? "" : "")} />
     <input type="hidden" name="activity" value={activity} />
     {activityOptions.length > 1 && <ThemedSelect label="Activity" required options={activityOptions.map((value) => actions[value])} disabledOptions={!canHarvest ? [actions.Harvested] : []} value={actions[activity]} onChange={(value) => {
       const selected = activityOptions.find((option) => actions[option] === value);
       if (selected) { setActivity(selected); setError(""); }
     }} />}
-    {activityOptions.includes("Harvested") && !canHarvest ? <small className={cropStyles.harvestUnavailableHint}>Harvest batch becomes available when this crop reaches Harvest Ready.</small> : null}
+    {activityOptions.includes("Harvested") && !canHarvest ? <small className={cropStyles.harvestUnavailableHint}>You can record a harvest once this crop is ready.</small> : null}
     <CalendarField className={cropStyles.activityFormWide} includeTime label={sharedWorkflowTerms.dateAndTime} min={`${crop.plantingDate}T00:00`} max={localTime()} name="performed_at" required value={performedAt} onChange={setPerformedAt} disabled={busy} />
     {(["Watered", "Fertilized", "Harvested"] as Activity[]).includes(activity) ? <div className={cropStyles.twoColumn}>
-    <label className={activity === "Harvested" ? cropStyles.activityFormWide : undefined}><span>{activity === "Harvested" ? "Total batch weight (kg)" : "Amount"}</span><NumericInput name="quantity" min="0.01" step="0.01" required value={quantity} onChange={(event) => setQuantity(event.target.value)} disabled={busy} /></label>
-      {activity === "Harvested" ? <input name="unit" type="hidden" value="kg" /> : <label><span>Unit</span><input name="unit" required value={unit} onChange={(event) => setUnit(event.target.value)} disabled={busy} /></label>}
+    <label className={activity === "Harvested" ? cropStyles.activityFormWide : undefined}><span>{activity === "Harvested" ? "Total batch weight (kg)" : activity === "Watered" ? "Amount (ml)" : "Amount"}</span><NumericInput name="quantity" min="0.01" step="0.01" required value={quantity} onChange={(event) => { setQuantity(event.target.value); setError(""); }} disabled={busy} /></label>
+      {activity === "Harvested" ? <input name="unit" type="hidden" value="kg" /> : activity === "Watered" ? <label><span>Unit</span><input value="ml" readOnly disabled /></label> : <label><span>Unit</span><input name="unit" required value={unit} onChange={(event) => setUnit(event.target.value)} disabled={busy} /></label>}
     </div> : null}
     {activity === "Harvested" ? <div className={`${cropStyles.notesPanel} ${cropStyles.activityFormWide}`}><span>Inventory destination</span><p>{destination?.name ?? "Checking inventory..."}</p></div> : null}
+    {activity === "Harvested" && repeatedHarvest ? <CalendarField className={cropStyles.activityFormWide} label="Check again on (optional)" min={new Date().toISOString().slice(0, 10)} name="next_check_on" disabled={busy} /> : null}
     {activity === "Fertilized" ? <label className={cropStyles.activityFormWide}><span>Fertilizer used</span><input name="material" required disabled={busy} /></label> : null}
     {activity === "Inspected" ? <ThemedSelect label="Observation" name="material" options={["Looks normal", "Issue noticed"]} placeholder="Choose an observation" required value={observation} onChange={(value) => { setObservation(value); setError(""); }} /> : null}
     {activity === "Stage Observed" ? observedStageOptions.length
-      ? <ThemedSelect label="Observed growth stage" name="observed_stage" options={observedStageOptions} required value={observedStage} onChange={(value) => { setObservedStage(value); setError(""); }} />
+      ? <ThemedSelect label="Growth stage" name="observed_stage" options={observedStageOptions} formatOption={farmerGrowthStage} required value={observedStage} onChange={(value) => { setObservedStage(value); setError(""); }} />
       : <p className={cropStyles.carePanelEmpty}>There are no later growth stages configured for this crop.</p>
       : null}
     {activity === "Transplanted" ? <label className={cropStyles.activityFormWide}><span>Transplanted to</span><input name="material" required disabled={busy} /></label> : null}
@@ -213,7 +245,67 @@ export function CropCareForm({ crop, task, initialActivity, onCancel, onSuccess,
     {error && <div role="alert" className={cropStyles.sensorErrorState}>{error}</div>}
     <div className={cropStyles.modalFooterActions}>
       <button className={cropStyles.secondaryAction} type="button" disabled={busy} onClick={onCancel}>CANCEL</button>
-      <button className={cropStyles.primaryAction} type="submit" disabled={busy || (activity === "Harvested" && !destination) || (activity === "Stage Observed" && !observedStageOptions.length)}><PendingActionLabel pending={busy} pendingText="Saving crop activity...">{activity === "Harvested" ? "REVIEW HARVEST" : activity === "Not Harvested" ? "REVIEW CLOSURE" : `SAVE ${actions[activity].toUpperCase()}`}</PendingActionLabel></button>
+      <button className={cropStyles.primaryAction} type="submit" disabled={busy || (activity === "Harvested" && !destination) || (activity === "Stage Observed" && !observedStageOptions.length)}><PendingActionLabel pending={busy} pendingText="Saving crop activity...">{activity === "Harvested" ? "REVIEW HARVEST" : activity === "Not Harvested" ? "REVIEW ENDING" : `SAVE ${actions[activity].toUpperCase()}`}</PendingActionLabel></button>
+    </div>
+    {confirmationDialog}
+  </form>;
+}
+
+export function CropEndForm({ crop, onCancel, onSuccess, notify }: {
+  crop: CropItem;
+  onCancel: () => void;
+  onSuccess: () => void;
+  notify: (tone: "success" | "error", message: string) => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [explanation, setExplanation] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const submission = useRef("");
+  const { confirm, confirmationDialog } = useConfirmationDialog();
+  const router = useRouter();
+  useEffect(() => { submission.current = crypto.randomUUID(); }, []);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy || !reason || (reason === "Other" && !explanation.trim())) {
+      setError(reason === "Other" && !explanation.trim() ? "Explain why this crop is ending." : "Choose why this crop is ending.");
+      return;
+    }
+    const accepted = await confirm({
+      title: "End this crop?",
+      message: "The crop will leave the active list and its care reminders will stop. Past harvests, inventory, and activity history will stay recorded.",
+      summary: <><strong>{crop.displayName} · {crop.cropName} · {crop.batchCode}</strong><p>{reason === "Other" ? explanation.trim() : reason}{crop.harvestCount ? ` · ${crop.harvestCount} harvests, ${crop.harvestedQuantity.toFixed(2)} kg total` : " · No harvest recorded"}</p></>,
+      confirmLabel: "END CROP",
+      tone: "danger",
+    });
+    if (!accepted) return;
+    setBusy(true); setError("");
+    try {
+      const data = new FormData();
+      data.set("id", crop.id); data.set("submission_id", submission.current);
+      data.set("reason", reason); data.set("explanation", explanation);
+      const result = await endCropAction(data);
+      router.refresh();
+      notify("success", result.harvest_count > 0
+        ? `Crop ended. ${result.harvest_count} harvests totaling ${Number(result.total_quantity).toFixed(2)} kg remain in its history.`
+        : "Crop ended without a harvest. No inventory was added.");
+      onSuccess();
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "Unable to end this crop. Your entries are still here; retry when connected.";
+      setError(message); notify("error", message);
+    } finally { setBusy(false); }
+  }
+
+  return <form className={`${cropStyles.formGrid} ${cropStyles.activityForm}`} onSubmit={submit}>
+    <div className={cropStyles.activityFormIntro}><span>END CROP</span><div><h4>{crop.displayName}</h4><strong>{crop.cropName} · {crop.fieldLabel} · {crop.batchCode}</strong></div></div>
+    {crop.harvestCount > 0 ? <div className={`${cropStyles.notesPanel} ${cropStyles.activityFormWide}`}><span>Recorded harvests</span><p>{crop.harvestCount} harvests · {crop.harvestedQuantity.toFixed(2)} kg total</p></div> : null}
+    <ThemedSelect label="Why are you ending this crop?" name="reason" required options={["Plants stopped producing", "Plants removed", "Plants died", "Other"]} value={reason} onChange={(value) => { setReason(value); setError(""); }} />
+    {reason === "Other" ? <label className={cropStyles.activityFormWide}><span>What happened?</span><textarea value={explanation} required disabled={busy} onChange={(event) => { setExplanation(event.target.value); setError(""); }} /></label> : null}
+    {error ? <div role="alert" className={cropStyles.sensorErrorState}>{error}</div> : null}
+    <div className={cropStyles.modalFooterActions}>
+      <button className={cropStyles.secondaryAction} type="button" disabled={busy} onClick={onCancel}>CANCEL</button>
+      <button className={cropStyles.dangerAction} type="submit" disabled={busy || !reason || (reason === "Other" && !explanation.trim())}><PendingActionLabel pending={busy} pendingText="Ending crop...">END CROP</PendingActionLabel></button>
     </div>
     {confirmationDialog}
   </form>;

@@ -52,85 +52,77 @@
   line-height: 1.45;
 }
 
-.actionButton,
+.addItemButton {
+  box-sizing: border-box;
+  display: inline-flex;
+  width: 112px !important;
+  min-width: 112px !important;
+  max-width: 112px;
+  height: 38px !important;
+  min-height: 38px !important;
+  max-height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  overflow: hidden;
+  border: 1px solid var(--green-accent);
+  border-radius: 8px;
+  color: var(--green-accent);
+  background: transparent;
+  cursor: pointer;
+  padding: 0 9px;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+:global([data-ui-backdrop="true"] > [role="dialog"]) .addItemButton,
+:global([data-ui-backdrop="true"] > [class*="modal" i]) .addItemButton {
+  width: 112px !important;
+  min-width: 112px !important;
+  height: 38px !important;
+  min-height: 38px !important;
+}
+
+.addItemButton:hover {
+  border-color: var(--green-accent);
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--green-accent), var(--green));
+}
+
+.addItemButton:focus-visible {
+  outline: 2px solid var(--green-accent);
+  outline-offset: 2px;
+}
+
+.addItemButton:active {
+  transform: translateY(1px);
+}
+
+.addItemButtonText {
+  color: currentColor;
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.addItemButtonIcon {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+}
+
 .submitButton,
 .removeButton {
   min-height: 44px;
   border-radius: 8px;
   font-weight: 900;
   cursor: pointer;
-}
-
-.actionButton {
-  --action-button-bg: linear-gradient(135deg, var(--green-accent), var(--green));
-  --action-button-bg-hover: linear-gradient(135deg, var(--green-accent), var(--green));
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  overflow: hidden;
-  border: 1px solid rgba(141, 255, 42, 0.52);
-  color: var(--green-accent);
-  background: transparent;
-  padding: 0;
-  transition:
-    border-color 0.3s ease,
-    transform 0.2s ease;
-}
-
-.actionButton:hover {
-  border-color: rgba(141, 255, 42, 0.7);
-}
-
-.actionButton:active {
-  transform: translateY(1px);
-}
-
-.actionButtonText,
-.actionButtonIcon {
-  position: relative;
-  z-index: 1;
-  transition: all 0.3s ease;
-}
-
-.actionButtonText {
-  display: flex;
-  width: calc(100% - 46px);
-  flex: 0 0 calc(100% - 46px);
-  align-items: center;
-  justify-content: center;
-  padding: 0 8px;
-  color: var(--green-accent);
-  font-size: 0.84rem;
-  font-weight: 900;
-  letter-spacing: 0.05em;
-  white-space: nowrap;
-}
-
-.actionButtonIcon {
-  position: absolute;
-  right: 0;
-  display: flex;
-  width: 46px;
-  height: 100%;
-  align-items: center;
-  justify-content: center;
-  border-left: 1px solid rgba(141, 255, 42, 0.22);
-  color: #102006;
-  background: var(--action-button-bg);
-}
-
-.actionButton:hover .actionButtonText {
-  color: transparent;
-}
-
-.actionButton:hover .actionButtonIcon {
-  width: 100%;
-  border-left-color: transparent;
-  background: var(--action-button-bg-hover);
-}
-
-.addItemButton {
-  width: 164px;
 }
 
 .submitButton {
@@ -229,7 +221,7 @@
 
 .lineItem {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 120px minmax(130px, 0.6fr) 46px;
+  grid-template-columns: minmax(200px, 1.2fr) minmax(190px, 1fr) 120px minmax(130px, 0.6fr) 46px;
   gap: 10px;
   align-items: end;
   border: 1px solid var(--border-soft);
@@ -1059,38 +1051,6 @@
   border-left-color: rgba(184, 38, 31, 0.72);
   color: #7b1d18;
   background: rgba(184, 38, 31, 0.08);
-}
-
-:global(html[data-theme="light"]) .actionButton {
-  --action-button-bg: linear-gradient(135deg, #1e5f2b 0%, #123c1b 100%);
-  --action-button-bg-hover: linear-gradient(135deg, #1e5f2b 0%, #123c1b 100%);
-  border: 2px solid rgba(18, 60, 27, 0.72);
-  color: #123c1b;
-  background: transparent;
-}
-
-:global(html[data-theme="light"]) .actionButtonText {
-  color: #123c1b;
-}
-
-:global(html[data-theme="light"]) .actionButtonIcon {
-  border-left-color: rgba(18, 60, 27, 0.2);
-  color: #ffffff;
-  background: var(--action-button-bg);
-}
-
-:global(html[data-theme="light"]) .actionButtonIcon svg {
-  color: #ffffff;
-  stroke: currentColor;
-}
-
-:global(html[data-theme="light"]) .actionButton:hover {
-  border-color: rgba(18, 60, 27, 0.9);
-}
-
-:global(html[data-theme="light"]) .actionButton:hover .actionButtonIcon {
-  color: #ffffff;
-  background: var(--action-button-bg-hover);
 }
 
 :global(html[data-theme="light"]) .removeButton {

@@ -798,7 +798,7 @@ export async function getOperationsDashboard(range: DashboardRange) {
   const salesByCategoryPoints = rankedPoints(salesByCategory, 6);
   const paymentPoints = rankedPoints(paymentMethods, 5);
   const activeCrops = cropRows.filter((crop) =>
-    crop.crop_status !== "Harvested" && crop.crop_status !== "Cancelled",
+    crop.crop_status !== "Completed" && crop.crop_status !== "Cancelled",
   ).length;
   const cropsNeedingAttention = cropRows.filter((crop) => crop.crop_status === "Needs Attention").length;
   const outOfStockItems = lowStock.filter((item) => item.status === "Out of Stock").length;

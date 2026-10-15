@@ -5,8 +5,8 @@ import { OperationsDashboardWorkspace } from "@/components/operations-dashboard-
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { getOperationsDashboard, normalizeDashboardRange } from "@/lib/dashboard";
 import { getCropsDashboard } from "@/lib/crops";
+import { farmerCareText, farmerGrowthStage } from "@/lib/farmer-copy";
 import { CalendarDays, Sprout, TriangleAlert } from "lucide-react";
-import { businessDateKey } from "@/lib/business-time";
 import styles from "./page.module.css";
 
 type DashboardPageProps = {
@@ -29,11 +29,12 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   }
 
   if (profile.roleName === "Farm Planting Manager") {
-    const { crops, summary, error } = await getCropsDashboard();
+    const { crops, summary, error, recentHarvestMonths, harvestHistoryError } = await getCropsDashboard();
     const stageCounts = new Map<string, number>();
     const activeCrops = crops.filter((item) => !["Completed", "Harvested", "Cancelled"].includes(item.cropStatus));
     for (const crop of activeCrops) {
-      stageCounts.set(crop.growthStage, (stageCounts.get(crop.growthStage) ?? 0) + 1);
+      const stageLabel = farmerGrowthStage(crop.growthStage);
+      stageCounts.set(stageLabel, (stageCounts.get(stageLabel) ?? 0) + 1);
     }
     const stageOrder = crops[0]?.stages ?? [];
     const stages = [...stageCounts.entries()].sort(([a], [b]) => {
@@ -47,22 +48,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       status,
       count: activeCrops.filter((crop) => crop.cropStatus === status).length,
     }));
-    const todayKey = businessDateKey();
-    const [businessYear, businessMonth] = todayKey.split("-").map(Number);
-    const harvestMonths = Array.from({ length: 6 }, (_, offset) => {
-      const month = new Date(Date.UTC(businessYear, businessMonth - 1 + offset, 1));
-      const key = `${month.getUTCFullYear()}-${String(month.getUTCMonth() + 1).padStart(2, "0")}`;
-      return { key, label: month.toLocaleDateString("en", { month: "short", timeZone: "UTC" }), count: 0 };
-    });
-    for (const crop of activeCrops) {
-      const date = crop.harvestWindowStart ?? crop.estimatedHarvest;
-      if (!date) continue;
-      const expected = date.slice(0, 7);
-      if (!/^\d{4}-\d{2}$/.test(expected)) continue;
-      const bucket = harvestMonths.find((month) => month.key === expected);
-      if (bucket) bucket.count += 1;
-    }
-    const maxHarvestCount = Math.max(1, ...harvestMonths.map((month) => month.count));
+    const maxHarvestKg = Math.max(1, ...recentHarvestMonths.map((month) => month.kilograms));
 
     return (
       <div className={styles.page}>
@@ -86,8 +72,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             {stages.length ? <div className={styles.stageChart}>{stages.map(([stage, count]) => <div className={styles.stageBarRow} key={stage}><span>{stage}</span><div role="img" aria-label={`${count} active ${stage} crop batches`}><i style={{ width: `${(count / maxStageCount) * 100}%` }} /></div><b>{count}</b></div>)}</div> : <p className={styles.plantingEmpty}>No active crop batches yet.</p>}
           </article>
           <article className={styles.plantingPanel}>
-            <div className={styles.plantingPanelHeader}><div><h2>Harvest outlook</h2><p>Active batches expected to reach harvest each month</p></div><a href="/crops">Review dates</a></div>
-            {activeCrops.length ? <div className={styles.harvestChart} role="img" aria-label="Expected crop harvests by month">{harvestMonths.map((month) => <div className={styles.harvestMonth} key={month.key}><strong>{month.count}</strong><div><i style={{ height: `${Math.max(month.count ? 10 : 0, (month.count / maxHarvestCount) * 100)}%` }} /></div><span>{month.label}</span></div>)}</div> : <p className={styles.plantingEmpty}>No active crop batches yet.</p>}
+            <div className={styles.plantingPanelHeader}><div><h2>Recent harvests</h2><p>Confirmed weight picked each month, including active crops</p></div><a href="/crops">View crop history</a></div>
+            {harvestHistoryError ? <p className={styles.plantingEmpty}>Harvest totals could not load: {harvestHistoryError}</p> : recentHarvestMonths.some((month) => month.count > 0) ? <div className={styles.harvestChart} role="img" aria-label="Confirmed harvest weight by month">{recentHarvestMonths.map((month) => <div className={styles.harvestMonth} key={month.key}><strong>{month.kilograms.toFixed(1)} kg</strong><div><i style={{ height: `${Math.max(month.kilograms ? 10 : 0, (month.kilograms / maxHarvestKg) * 100)}%` }} /></div><span>{month.label}</span></div>)}</div> : <p className={styles.plantingEmpty}>No harvest weights were recorded in the last six months.</p>}
           </article>
           <article className={styles.plantingPanel}>
             <div className={styles.plantingPanelHeader}><div><h2>Crop status</h2><p>Current condition of active crop batches</p></div><a href="/crops">Open crop list</a></div>
@@ -95,7 +81,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           </article>
           <article className={styles.plantingPanel}>
             <div className={styles.plantingPanelHeader}><div><h2>Care follow-up</h2><p>Crops with overdue or upcoming care</p></div><a href="/crops">Open crop care</a></div>
-            {attentionCrops.length ? <ul className={styles.careCropList}>{attentionCrops.slice(0, 6).map((crop) => <li key={crop.id}><div><strong>{crop.cropName}</strong><span>{crop.fieldLabel} · {crop.growthStage}</span></div><small>{crop.nextCareTask ?? crop.careStatus}</small></li>)}</ul> : <p className={styles.plantingEmpty}>No crops need care follow-up right now.</p>}
+            {attentionCrops.length ? <ul className={styles.careCropList}>{attentionCrops.slice(0, 6).map((crop) => <li key={crop.id}><div><strong>{crop.displayName}</strong><span>{crop.cropName} · {crop.fieldLabel} · {farmerGrowthStage(crop.growthStage)}</span></div><small>{farmerCareText(crop.nextCareTask ?? crop.careStatus)}</small></li>)}</ul> : <p className={styles.plantingEmpty}>No crops need care follow-up right now.</p>}
           </article>
         </section>
       </div>

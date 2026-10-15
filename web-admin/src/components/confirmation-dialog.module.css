@@ -113,6 +113,16 @@
   line-height: 1.45;
 }
 
+.resultMessage {
+  max-width: 36ch;
+  margin: 0 auto;
+  font-family: inherit;
+  font-size: 0.98rem;
+  font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .summary {
   margin-top: 12px;
   border: 1px solid var(--border-soft);

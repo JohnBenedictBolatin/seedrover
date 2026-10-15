@@ -306,7 +306,7 @@ export function SalesWorkspace({
         aria-label="Sales quick actions"
       >
         <div>
-          <h2>Sales control</h2>
+          <h2>Record a sale</h2>
           <span>Record a sale and deduct the sold quantities from inventory.</span>
         </div>
         <div className={inventorySummaryStyles.inventoryQuickActions}>

@@ -8,6 +8,7 @@ import { RoverLiveRefresh } from "@/components/rover-live-refresh";
 import { SensorHistoryTable } from "@/components/rover-sensor-history";
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
+import { farmerSensorLabel } from "@/lib/farmer-copy";
 import { getRoverMonitor, type RoverSensorReading, type RoverStatus } from "@/lib/rover";
 import styles from "./page.module.css";
 
@@ -101,7 +102,7 @@ function LatestSensors({
     tone: "water" | "soil" | "air" | "humidity";
     icon: ReactNode;
   }> = [
-    { label: "Soil moisture", field: "soilMoisture", value: sensors?.soilMoisture ?? null, unit: "%", tone: "water", icon: <Droplets size={19} /> },
+    { label: farmerSensorLabel("Soil moisture"), field: "soilMoisture", value: sensors?.soilMoisture ?? null, unit: "%", tone: "water", icon: <Droplets size={19} /> },
     { label: "Soil temperature", field: "soilTemperature", value: sensors?.soilTemperature ?? null, unit: "°C", tone: "soil", icon: <Thermometer size={19} /> },
     { label: "Air temperature", field: "environmentalTemperature", value: sensors?.environmentalTemperature ?? null, unit: "°C", tone: "air", icon: <Sun size={19} /> },
     { label: "Humidity", field: "humidity", value: sensors?.humidity ?? null, unit: "%", tone: "humidity", icon: <Droplets size={19} /> },

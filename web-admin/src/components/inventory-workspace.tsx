@@ -257,7 +257,7 @@ export function InventoryWorkspace({
     <>
       <section className={`${quickActionStyles.quickActions} ${styles.inventoryQuickActionsPanel}`} aria-label="Inventory quick actions">
         <div>
-          <h2>Inventory control</h2>
+          <h2>Add or review inventory</h2>
           <span>Add an inventory item or review every stock movement.</span>
         </div>
         <div className={styles.inventoryQuickActions}>
@@ -1041,7 +1041,7 @@ function MovementBatchEstimate({ batch }: { batch: InventoryItem["batches"][numb
       ? displayDate(batch.estimatedSpoilageOn)
       : "Estimate unavailable";
 
-  return <div className={styles.movementBatchEstimate}>Estimated spoilage: {estimate}</div>;
+  return <div className={styles.movementBatchEstimate}>Best used by: {estimate}</div>;
 }
 function MovementForm({
   item,
@@ -1144,10 +1144,10 @@ function MovementForm({
             label="Batch"
             name="target_batch_id"
             defaultValue=""
-            placeholder="Oldest batch first (FIFO)"
+            placeholder="Oldest available"
             variant="form"
             options={[
-              { value: "", label: "Oldest batch first (FIFO)" },
+              { value: "", label: "Oldest available" },
               ...item.batches
                 .filter((batch) => batch.remainingQuantity > 0)
                 .map((batch) => ({
