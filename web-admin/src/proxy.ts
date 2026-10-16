@@ -75,7 +75,16 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (isProtectedRoute(pathname) && !user) {
+  // Redirecting a Server Action POST to the login page returns HTML where
+  // Next expects an RSC action response, which appears in the client as an
+  // "unexpected response" error. Crop actions perform their own role checks,
+  // so let them return a valid action response when the session has expired.
+  const isCropServerAction =
+    pathname === "/crops" &&
+    request.method === "POST" &&
+    request.headers.has("next-action");
+
+  if (isProtectedRoute(pathname) && !user && !isCropServerAction) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("redirectedFrom", pathname);

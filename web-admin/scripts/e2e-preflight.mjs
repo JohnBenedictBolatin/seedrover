@@ -1,14 +1,13 @@
 import nextEnv from '@next/env';
 import { createClient } from '@supabase/supabase-js';
 import fs from 'node:fs';
+import { applyLocalSupabaseConfig } from '../e2e/local-supabase.mjs';
 
 nextEnv.loadEnvConfig(process.cwd());
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!url || !key) throw new Error('Supabase configuration is missing.');
-const project = new URL(url).hostname;
+if (fs.existsSync('.env.e2e.local')) process.loadEnvFile('.env.e2e.local');
+const { url, serviceRoleKey: key, hostname: project } = applyLocalSupabaseConfig();
 const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-console.log('Configured project:', project);
+console.log('Configured local Supabase:', project);
 const roles = await db.from('roles').select('id, role_name');
 if (roles.error) throw new Error(`Preflight: ${roles.error.message}`);
 console.log('Roles:', roles.data.map(r => r.role_name).join(', '));

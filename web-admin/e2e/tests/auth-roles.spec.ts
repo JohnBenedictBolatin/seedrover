@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
+import { localSupabaseConfig } from '../local-supabase.mjs';
 import fs from 'node:fs';
 import { accounts, landingAccounts, asRole, authFile, createAccount, db, check, evidence, login, roles, type Role, inventory, crop, balance } from '../support';
 
@@ -52,11 +53,12 @@ for (const [index, role] of (['planting', 'inventory', 'plantingStaff', 'invento
   });
 }
 function roleClient(role: Role) {
+  const config = localSupabaseConfig();
   const state = JSON.parse(fs.readFileSync(authFile(role), 'utf8'));
   const cookies = state.cookies.filter((c: { name: string }) => c.name.includes('-auth-token')).sort((a: {name:string}, b: {name:string}) => a.name.localeCompare(b.name));
   const value = cookies.map((c: { value: string }) => c.value).join('');
   const session = JSON.parse(value.startsWith('base64-') ? Buffer.from(value.slice(7), 'base64url').toString() : value);
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+  return createClient(config.url, config.anonKey, {
     global: { headers: { Authorization: `Bearer ${session.access_token}` } }, auth: { persistSession: false, autoRefreshToken: false },
   });
 }

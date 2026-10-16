@@ -64,6 +64,58 @@ export type CropItem = {
   latestSoilCalibrationVersion: string | null;
 };
 
+const cropStageImageKeys: Record<string, Record<string, string>> = {
+  sitaw: {
+    seeded: "seeded",
+    germinating: "germinating",
+    vegetative: "vegetative",
+    trellising: "trellising",
+    flowering: "flowering",
+    fruiting: "pod_formation",
+    "pod formation": "pod_formation",
+    "first harvest": "harvest_ready",
+    "harvest ready": "harvest_ready",
+    "repeated harvest": "repeated_harvest",
+    completed: "harvested",
+  },
+  calamansi: {
+    seeded: "seedbed",
+    seedbed: "seedbed",
+    germinating: "germinating",
+    "nursery seedling": "nursery_seedling",
+    "transplant review": "transplant_review",
+    establishing: "establishing",
+    juvenile: "juvenile",
+    "first bearing": "first_bearing",
+    fruiting: "first_bearing",
+    "harvest ready": "harvest_ready",
+    completed: "harvested",
+  },
+  peanut: {
+    seeded: "seeded",
+    germinating: "germinating",
+    vegetative: "vegetative",
+    flowering: "flowering",
+    fruiting: "pod_development",
+    pegging: "pegging",
+    "pod development": "pod_development",
+    "maturity check": "maturity_check",
+    "harvest ready": "harvest_ready",
+    completed: "harvested",
+  },
+};
+
+function cropStagePlaceholderImage(profileKey: string, stage: string, status: string) {
+  const crop = profileKey.trim().toLowerCase();
+  const stageKey = status.trim().toLowerCase() === "completed"
+    ? "completed"
+    : stage.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+  const stageImages = cropStageImageKeys[crop];
+  if (!stageImages) return null;
+  const imageStage = stageImages[stageKey];
+  return imageStage ? `/images/crops/${crop}_${imageStage}.webp` : `/images/crops/${crop}.webp`;
+}
+
 export type CropSummary = {
   activeCrops: number;
   needsAttention: number;
@@ -383,6 +435,9 @@ export async function getCropsDashboard() {
         "Harvest Ready",
       );
     }
+    const growthStage = displayGrowthStage(row.growth_stage, stages);
+    const cropStatus = row.crop_status;
+    const localStageImage = cropStagePlaceholderImage(seedKey, growthStage, cropStatus);
     return {
       id: row.id,
       managerId: row.assigned_manager ?? null,
@@ -413,15 +468,15 @@ export async function getCropsDashboard() {
       })(),
       plantingDate: row.planting_date,
       estimatedHarvest: row.estimated_harvest,
-      growthStage: displayGrowthStage(row.growth_stage, stages),
-      cropStatus: row.crop_status,
+      growthStage,
+      cropStatus,
       maintenanceNotes: row.maintenance_notes ?? "No notes recorded.",
       imagePath,
-      imageUrl:
-        imagePath === null
-          ? null
-          : supabase.storage.from("crop-images").getPublicUrl(imagePath).data
-              .publicUrl,
+      imageUrl: row.image_path
+        ? supabase.storage.from("crop-images").getPublicUrl(row.image_path).data.publicUrl
+        : localStageImage ?? (imagePath
+          ? supabase.storage.from("crop-images").getPublicUrl(imagePath).data.publicUrl
+          : null),
       fieldLabel: plantingLog?.field_label ?? row.field_label ?? "Field not labeled",
       plantingTargetDrops: plantingLog?.target_drop_cycles ?? null,
       plantingCompletedDrops: plantingLog?.completed_drop_cycles ?? row.completed_drop_cycles ?? null,

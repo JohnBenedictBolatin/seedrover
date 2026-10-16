@@ -2,13 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import nextEnv from '@next/env';
+import { applyLocalSupabaseConfig } from '../e2e/local-supabase.mjs';
 
 nextEnv.loadEnvConfig(process.cwd());
 if (fs.existsSync('.env.e2e.local')) process.loadEnvFile('.env.e2e.local');
-const host = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://unconfigured').hostname;
-if (host !== process.env.E2E_EXPECTED_SUPABASE_HOST) {
-  throw new Error('Set E2E_EXPECTED_SUPABASE_HOST to the reviewed demo database hostname. Refusing to seed an unverified target.');
-}
+const { hostname: host } = applyLocalSupabaseConfig();
 if (!process.version.startsWith('v22.')) throw new Error('Run this suite with Node.js 22.x.');
 const runId = new Date().toISOString().replace(/[-:.]/g, '').replace('Z', '') + '-' + process.pid;
 const runDir = path.resolve('e2e/runs', runId);

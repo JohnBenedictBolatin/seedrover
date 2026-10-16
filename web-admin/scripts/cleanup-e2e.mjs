@@ -2,16 +2,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import nextEnv from '@next/env';
 import { createClient } from '@supabase/supabase-js';
+import { applyLocalSupabaseConfig } from '../e2e/local-supabase.mjs';
 
 nextEnv.loadEnvConfig(process.cwd());
 if (fs.existsSync('.env.e2e.local')) process.loadEnvFile('.env.e2e.local');
+const { url, serviceRoleKey, hostname: host } = applyLocalSupabaseConfig();
 const runId = process.argv[2];
 if (!runId || !/^[0-9T]+-[0-9]+$/.test(runId)) throw new Error('Supply an exact run ID from e2e/runs.');
 const runDir = path.resolve('e2e/runs', runId);
 const metadata = JSON.parse(fs.readFileSync(path.join(runDir, 'environment.json'), 'utf8'));
-const host = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname;
-if (host !== process.env.E2E_EXPECTED_SUPABASE_HOST || host !== metadata.supabaseHost) throw new Error('Database target mismatch.');
-const client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+if (host !== metadata.supabaseHost) throw new Error('Local database target mismatch.');
+const client = createClient(url, serviceRoleKey, { auth: { persistSession: false } });
 const records = fs.readFileSync(path.join(runDir, 'records.jsonl'), 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line));
 const actions = [];
 for (const record of records.filter(r => r.table === 'profiles')) {

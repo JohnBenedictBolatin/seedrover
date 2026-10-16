@@ -2,17 +2,13 @@
 import { createClient } from '@supabase/supabase-js';
 import fs from 'node:fs';
 import path from 'node:path';
+import { applyLocalSupabaseConfig } from '../e2e/local-supabase.mjs';
 
 nextEnv.loadEnvConfig(process.cwd());
 if (fs.existsSync('.env.e2e.local')) process.loadEnvFile('.env.e2e.local');
 const args = new Set(process.argv.slice(2));
 const apply = args.has('--apply');
-const expectedHost = process.env.E2E_EXPECTED_SUPABASE_HOST;
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!url || !key || !expectedHost) throw new Error('Require NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, and E2E_EXPECTED_SUPABASE_HOST.');
-const host = new URL(url).hostname;
-if (host !== expectedHost) throw new Error(`Refusing cleanup: configured project ${host} differs from expected host ${expectedHost}.`);
+const { url, serviceRoleKey: key, hostname: host } = applyLocalSupabaseConfig();
 
 const runsRoot = path.resolve('e2e/runs');
 const manifests = [];
@@ -26,7 +22,7 @@ for (const entry of fs.readdirSync(runsRoot, { withFileTypes: true })) {
   const records = fs.readFileSync(recordsPath, 'utf8').split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line));
   const inventory = records.filter(row => row.table === 'inventory');
   if (!inventory.length) continue;
-  if (env.supabaseHost !== host) throw new Error(`Refusing cleanup: run ${entry.name} points to ${env.supabaseHost || 'unknown project'}, not ${host}.`);
+  if (env.supabaseHost !== host) throw new Error(`Refusing cleanup: run ${entry.name} points to ${env.supabaseHost || 'unknown project'}, not local Supabase ${host}.`);
   for (const row of inventory) {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(row.id || '')) throw new Error(`Invalid manifest inventory ID in ${entry.name}.`);
     if (typeof row.label !== 'string' || !row.label.startsWith(`AUTOTEST_${entry.name}_`)) throw new Error(`Inventory label does not match exact run ${entry.name}; aborting.`);

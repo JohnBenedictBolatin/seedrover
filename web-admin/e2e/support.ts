@@ -3,6 +3,7 @@ import path from 'node:path';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { expect, type Page, type Locator, type TestInfo } from '@playwright/test';
+import { localSupabaseConfig } from './local-supabase.mjs';
 
 export const roles = {
   admin: 'System Administrator', planting: 'Farm Planting Manager', inventory: 'Farm Inventory Manager',
@@ -14,9 +15,8 @@ export const runDir = process.env.E2E_RUN_DIR || path.resolve('e2e/runs/unconfig
 export const privateDir = path.resolve('e2e/.private', runId);
 export const prefix = `AUTOTEST_${runId}`;
 export function db() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  if (new URL(url).hostname !== process.env.E2E_EXPECTED_SUPABASE_HOST) throw new Error('Unverified Supabase target');
-  return createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false, autoRefreshToken: false } });
+  const config = localSupabaseConfig();
+  return createClient(config.url, config.serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 export function check(error: { message: string } | null) { if (error) throw new Error(error.message); }
 export type Account = { id: string; username: string; email: string; password: string; role: Role };
@@ -64,16 +64,17 @@ export async function inventory(label: string, quantity = 20) {
   return { id, name };
 }
 export async function crop(label: string) {
+  const config = localSupabaseConfig();
   const account = accounts().planting;
-  const session = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  const session = createClient(config.url, config.anonKey,
     { auth: { persistSession: false, autoRefreshToken: false } });
   const signedIn = await session.auth.signInWithPassword({ email: account.email, password: account.password }); check(signedIn.error);
   const startedAt = new Date(Date.now() - 60_000).toISOString();
   const rpc = await session.rpc('sync_rover_planting_run', { p_run: {
     session_id: randomUUID(), rover_id: 'AUTOTEST_SYNTHETIC_NO_HARDWARE', crop_profile_key: 'sitaw',
     field_label: `${prefix}_${label}`, target_drop_cycles: 1, completed_drop_cycles: 1,
-    measured_distance_cm: 0, planting_status: 'Partial', started_at: startedAt, completed_at: new Date().toISOString(),
-    confirmation_outcome: 'some_planted', sync_payload: { synthetic_fixture: true, hardware_verified: false,
+    measured_distance_cm: 0, planting_status: 'Completed', started_at: startedAt, completed_at: new Date().toISOString(),
+    confirmation_outcome: 'row_planted', sync_payload: { synthetic_fixture: true, hardware_verified: false,
       note: 'AUTOTEST database fixture generated through authorized planting receipt RPC; no rover or physical planting run.' },
   } });
   check(rpc.error);

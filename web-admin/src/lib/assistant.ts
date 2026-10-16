@@ -3,6 +3,7 @@ import { getCropsDashboard } from "@/lib/crops";
 import { getInventoryDashboard } from "@/lib/inventory";
 import { getRoverMonitor } from "@/lib/rover";
 import { getSalesWorkspaceData } from "@/lib/sales";
+import { farmerCareText, farmerCropStatus, farmerGrowthStage } from "@/lib/farmer-copy";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { AdminProfile } from "@/lib/auth";
 
@@ -98,12 +99,14 @@ export async function buildWebAssistantContext(profile: AdminProfile): Promise<A
         }
       : {},
     crops: (crops?.crops ?? []).slice(0, 12).map((crop) => ({
-      name: crop.cropName,
-      status: crop.cropStatus,
-      growthStage: crop.growthStage,
+      name: crop.displayName,
+      cropType: crop.cropName,
+      field: crop.fieldLabel,
+      status: farmerCropStatus(crop.cropStatus),
+      growthStage: farmerGrowthStage(crop.growthStage),
       plantingDate: crop.plantingDate,
       estimatedHarvest: crop.estimatedHarvest,
-      nextCare: crop.careStatus,
+      nextCare: farmerCareText(crop.careStatus),
     })),
     stocks: (inventory?.items ?? []).slice(0, 12).map((item) => ({
       name: item.itemName,

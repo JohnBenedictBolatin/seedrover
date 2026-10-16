@@ -676,6 +676,22 @@
   gap: 12px;
 }
 
+@media (min-width: 1360px) and (orientation: landscape) {
+  .cropCareSidebar {
+    position: sticky;
+    top: 16px;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    padding-right: 2px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .cropCareSidebar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 .farmForecastCard {
   position: relative;
   display: grid;
@@ -939,24 +955,6 @@
   color: #ffffff !important;
 }
 
-.cropWorkspaceModal .cancelCropButton {
-  min-width: 190px;
-  border-color: rgba(255, 90, 95, 0.48);
-  color: #ff777b;
-  background: linear-gradient(135deg, rgba(255, 59, 48, 0.12), rgba(255, 110, 102, 0.07));
-}
-
-.cropWorkspaceModal .cancelCropButton:hover:not(:disabled),
-.cropWorkspaceModal .cancelCropButton:hover:not(:disabled) > * {
-  border-color: rgba(255, 123, 115, 0.72);
-  color: #ffffff !important;
-}
-
-.cropWorkspaceModal .cancelCropButton:focus-visible {
-  outline: 2px solid rgba(255, 90, 95, 0.42);
-  outline-offset: 2px;
-}
-
 @media (max-width: 520px) {
   .cropWorkspaceModal .detailMetrics {
     grid-template-columns: minmax(0, 1fr);
@@ -977,12 +975,6 @@
     font-size: 0.76rem;
   }
 
-  .cropWorkspaceModal .cancelCropButton {
-    min-width: 150px;
-    min-height: 48px;
-    font-size: 0.76rem;
-    padding-inline: 8px;
-  }
 }
 
 @media (max-width: 420px) {
@@ -990,10 +982,6 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     justify-items: stretch;
-  }
-
-  .cropWorkspaceModal .cancelCropButton {
-    justify-self: start;
   }
 
   .cropWorkspaceModal .cropFooterActions {
@@ -2786,6 +2774,47 @@
     transform 180ms ease;
 }
 
+.endCropHeaderButton {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  flex: 0 0 28px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  color: #ff777b;
+  background: rgba(255, 59, 48, 0.08);
+  cursor: pointer;
+  padding: 0 !important;
+  line-height: 1;
+  transition: border-color 180ms ease, color 180ms ease, background 180ms ease, transform 180ms ease;
+}
+
+.endCropHeaderButton:hover,
+.endCropHeaderButton:focus-visible {
+  border: 0 !important;
+  border-radius: 8px !important;
+  color: #ff777b !important;
+  background: rgba(255, 59, 48, 0.16) !important;
+  transform: none;
+}
+
+.endCropHeaderButton:hover svg,
+.endCropHeaderButton:focus-visible svg {
+  color: #ff777b !important;
+  stroke: #ff777b !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.endCropHeaderButton:focus-visible {
+  outline: 2px solid rgba(255, 90, 95, 0.5);
+  outline-offset: 2px;
+}
+
 .modalCloseButton:hover {
   border-color: rgba(255, 59, 48, 0.34);
   color: #ff8d86;
@@ -4186,6 +4215,23 @@
   background: rgba(184, 38, 31, 0.08);
 }
 
+:global(html[data-theme="light"]) .endCropHeaderButton {
+  border: 0;
+  color: #b8261f;
+  background: rgba(184, 38, 31, 0.06);
+}
+
+:global(html[data-theme="light"]) .endCropHeaderButton:hover {
+  border: 0 !important;
+  color: #b8261f !important;
+  background: rgba(184, 38, 31, 0.12) !important;
+}
+
+:global(html[data-theme="light"]) .endCropHeaderButton:hover svg {
+  color: #b8261f !important;
+  stroke: #b8261f !important;
+}
+
 :global(html[data-theme="light"]) .outcomeSection {
   border-color: var(--history-border);
   background: var(--history-panel-surface);
@@ -4678,7 +4724,7 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 6px;
 }
 
 .cropWorkspaceModal .cropModalIdentity {
@@ -4848,10 +4894,43 @@
   line-height: 1.4;
 }
 
-.cropFarmNotes {
-  font-size: 1rem;
-  line-height: 1.6;
+.cropCareTips > div {
+  display: grid;
+  gap: 3px;
+}
+
+.cropCareTips > div > span {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.cropCareTips ul {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.cropCareTips li::marker {
+  color: var(--green-accent);
+}
+
+.cropFarmerNote {
+  margin: 0;
+  border-top: 1px solid var(--border-soft);
+  padding-top: 8px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
   overflow-wrap: anywhere;
+}
+
+.cropFarmerNote strong {
+  color: var(--text-secondary);
 }
 
 .historyViewHeading {
@@ -5956,19 +6035,126 @@
   }
 }
 
-/* Let the crop overview size to its content instead of scrolling inside the dialog. */
-.cropWorkspaceModal[data-crop-tab="overview"] {
-  width: min(1120px, calc(100vw - 48px));
-  height: auto;
-  max-height: none;
-  grid-template-rows: auto auto auto auto;
-  overflow: visible;
+/* Keep the crop details dialog the same size across every tab. */
+.cropWorkspaceModal {
+  width: min(900px, calc(100vw - 64px));
+  height: min(640px, calc(100dvh - 80px));
+  max-height: min(640px, calc(100dvh - 80px));
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 14px;
+  overflow: hidden;
+  padding: 22px;
 }
 
-.cropWorkspaceModal[data-crop-tab="overview"] > .modalBody {
-  min-height: auto;
-  overflow: visible;
-  overscroll-behavior: auto;
+.cropWorkspaceModal > .modalBody {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.cropWorkspaceModal[data-crop-tab="overview"] .detailsGrid {
+  gap: 12px;
+}
+
+.cropWorkspaceModal[data-crop-tab="overview"] .detailsTop {
+  grid-template-columns: minmax(200px, 0.78fr) minmax(0, 1.6fr);
+  gap: 12px;
+}
+
+.cropWorkspaceModal[data-crop-tab="overview"] .detailImagePanel,
+.cropWorkspaceModal[data-crop-tab="overview"] .detailImagePanel img {
+  min-height: 0;
+  max-height: 250px;
+}
+
+.cropWorkspaceModal[data-crop-tab="overview"] .detailSummary {
+  gap: 10px;
+}
+
+.cropWorkspaceModal[data-crop-tab="overview"] .nextCareSection {
+  min-height: 0;
+  gap: 6px;
+  padding: 14px 16px;
+}
+
+.cropWorkspaceModal[data-crop-tab="overview"] .nextCareSection h4 {
+  font-size: 1.2rem;
+  line-height: 1.25;
+}
+
+.cropWorkspaceModal[data-crop-tab="overview"] .detailMetrics {
+  gap: 8px;
+}
+
+.cropWorkspaceModal[data-crop-tab="overview"] .detailMetrics .readOnly {
+  min-height: 68px;
+  gap: 6px;
+  padding: 10px;
+}
+
+.cropWorkspaceModal[data-crop-tab="overview"] .detailMetrics .detailMetricLabel {
+  gap: 6px;
+  font-size: 0.66rem;
+}
+
+.cropWorkspaceModal[data-crop-tab="overview"] .detailMetrics .detailMetricLabel i {
+  width: 26px;
+  height: 26px;
+  flex-basis: 26px;
+}
+
+.cropWorkspaceModal[data-crop-tab="overview"] .detailMetrics .readOnly strong {
+  font-size: 0.9rem;
+  line-height: 1.25;
+}
+
+.cropWorkspaceModal[data-crop-tab="overview"] .detailsLowerGrid {
+  gap: 12px;
+}
+
+.cropWorkspaceModal[data-crop-tab="overview"] .detailsLowerGrid > .cropProgressPanel,
+.cropWorkspaceModal[data-crop-tab="overview"] .detailsLowerGrid > .detailSection {
+  height: auto;
+  padding: 12px;
+}
+
+.cropWorkspaceModal[data-crop-tab="overview"] .detailsLowerGrid > .cropProgressPanel {
+  gap: 8px;
+}
+
+@media (min-width: 900px) and (min-height: 760px) {
+  .cropWorkspaceModal[data-crop-tab="overview"] > .modalBody {
+    overflow: hidden;
+  }
+
+  .cropWorkspaceModal[data-crop-tab="overview"] .detailImagePanel,
+  .cropWorkspaceModal[data-crop-tab="overview"] .detailImagePanel img {
+    max-height: 190px;
+  }
+
+  .cropWorkspaceModal[data-crop-tab="overview"] .detailsLowerGrid,
+  .cropWorkspaceModal[data-crop-tab="overview"] .detailsTop {
+    gap: 10px;
+  }
+
+  .cropWorkspaceModal[data-crop-tab="overview"] .cropCareTips {
+    gap: 7px;
+  }
+
+  .cropWorkspaceModal[data-crop-tab="overview"] .cropCareTips ul {
+    gap: 4px;
+    font-size: 0.82rem;
+    line-height: 1.32;
+  }
+}
+
+@media (max-width: 680px) {
+  .cropWorkspaceModal {
+    width: calc(100vw - 20px);
+    height: min(640px, calc(100dvh - 32px));
+    max-height: min(640px, calc(100dvh - 32px));
+    padding: 16px;
+  }
 }
 
 .cropWorkspaceModal .cropModalNameRow > .status {
@@ -6019,10 +6205,6 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: stretch;
   gap: 16px;
-}
-
-.detailsLowerGrid[data-has-notes="false"] {
-  grid-template-columns: minmax(0, 1fr);
 }
 
 .detailsLowerGrid > .cropProgressPanel,
@@ -6160,9 +6342,9 @@
   grid-template-rows: auto auto auto auto;
   gap: 9px;
   padding: 10px;
-  border-color: rgba(18, 60, 27, 0.2);
-  color: #123c1b;
-  background: #ffffff;
+  border-color: var(--border-soft);
+  color: var(--text);
+  background: var(--surface);
 }
 
 .stockCard[data-crop-card] .cropHero,
@@ -6173,9 +6355,9 @@
 }
 
 .stockCard[data-crop-card] .cropHero {
-  border: 1px solid rgba(18, 60, 27, 0.28);
-  color: #123c1b;
-  background: #ffffff;
+  border: 1px solid rgba(var(--green-rgb), 0.35);
+  color: var(--text);
+  background: var(--surface);
   padding: 6px;
 }
 
@@ -6183,7 +6365,7 @@
 .stockCard[data-crop-card] .cropCardPlantingName,
 .stockCard[data-crop-card] .cardFacts dt,
 .stockCard[data-crop-card] .cardFacts dd {
-  color: #123c1b;
+  color: var(--text);
 }
 
 .stockCard[data-crop-card] .cropHero img {

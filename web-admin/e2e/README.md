@@ -1,25 +1,25 @@
 # SeedRover browser automation
 
-This suite uses the existing **development/demo Supabase project**. It creates synthetic records and disables its test accounts after each run. It never resets the database, applies migrations, operates rover hardware, or modifies pre-existing demo records.
+This suite requires a **disposable local Supabase instance**. It refuses remote hosts before creating accounts or records. It creates synthetic records locally and disables its test accounts after each run. It never resets the database, applies migrations to a remote project, operates rover hardware, or changes application data.
 
 ## Setup
 
-Use Node.js **22.x** and run these commands in `web-admin`. PowerShell users can use the ignored portable runtime supplied on this workstation; on other machines, install Node 22 and skip the first two lines. The `.cmd` forms avoid PowerShell script-policy issues.
+Use Node.js **22.x**. Start Supabase from the repository root so the CLI uses the canonical root `supabase/migrations`, then run browser commands from `web-admin`. PowerShell users can use the ignored portable runtime supplied on this workstation; on other machines, install Node 22 and skip the first two lines. The `.cmd` forms avoid PowerShell script-policy issues.
 
 ```powershell
-$env:PATH = (Resolve-Path '..\tmp\node-runtime\node-v22.23.3-win-x64').Path + ';' + $env:PATH
+$env:PATH = (Resolve-Path '.\tmp\node-runtime\node-v22.23.3-win-x64').Path + ';' + $env:PATH
+& "$env:APPDATA\npm\supabase.cmd" start
+Run `supabase status -o env` and copy its API URL, anon key, and service role key
+into the `E2E_LOCAL_SUPABASE_URL`, `E2E_LOCAL_SUPABASE_ANON_KEY`, and
+`E2E_LOCAL_SUPABASE_SERVICE_ROLE_KEY` environment variables for this shell.
+Set-Location web-admin
 npm.cmd ci
 npx.cmd playwright install chromium
+npm.cmd run test:e2e:safety
 npm.cmd run test:e2e:preflight
 ```
 
-The normal `.env.local` supplies `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and the server-only `SUPABASE_SERVICE_ROLE_KEY`. Create an ignored `.env.e2e.local` containing:
-
-```dotenv
-E2E_EXPECTED_SUPABASE_HOST=your-reviewed-demo-project.supabase.co
-```
-
-Copy the hostname printed by the read-only preflight **only after checking it is the intended demo project**. A mismatch stops execution before account creation. On this workstation, a portable Node 22 runtime and a browser cache were installed under the repository's ignored `tmp` folder; no system runtime was changed.
+The test runner uses the three `E2E_LOCAL_SUPABASE_*` environment variables populated from `supabase status`; those local values override `.env.local`. The guard accepts only `http://localhost`, `http://127.0.0.1`, or `http://[::1]`. Missing keys and every remote hostname stop the run before account creation. On this workstation, a portable Node 22 runtime and a browser cache were installed under the repository's ignored `tmp` folder; no system runtime was changed.
 
 ## Execute
 
@@ -45,8 +45,8 @@ Authentication state and generated passwords are stored only under ignored `e2e/
 - `records.jsonl` journals exact IDs; `cleanup.json` records each cleanup result.
 - Tests receive independent fixtures, with no dependency on another case's output.
 - Dedicated test accounts are deactivated. Test business transactions, inventory opening history, crop history, and activity logs are retained for audit/evidence. Dedicated notification fixtures are removed by exact ID.
-- Retained records affect demo totals. Tests compare recorded baselines and deltas, not an assumed empty database.
-- A filesystem lock prevents simultaneous local runs. The manual CI workflow serializes its runs; do not run local and CI tests against the shared project simultaneously.
+- Retained records affect only the disposable local database. Tests compare recorded baselines and deltas, not an assumed empty database.
+- A filesystem lock prevents simultaneous local runs.
 - If a process is forcibly terminated, review the run manifest and recover cleanup using `npm run test:e2e:cleanup -- <run-id>` before deleting a stale local lock. Never delete database rows using a broad `AUTOTEST%` query.
 
 ## Scope and limitations
@@ -69,4 +69,4 @@ The generator produces Word/PDF reports, CSV registers, and an evidence index in
 
 ## GitHub Actions
 
-`SeedRover browser evidence` is a **workflow_dispatch** workflow. Configure three repository secrets matching the Supabase variable names above, and repository variable `E2E_EXPECTED_SUPABASE_HOST`. Choose `smoke` or `full` in Actions. No workflow has been remotely dispatched merely by adding this file. Reports upload even after failure; external notifications are not configured.
+`SeedRover browser evidence` is a **workflow_dispatch** workflow. It must be pointed at an isolated local Supabase service before it can run; the browser runner now rejects the previous shared-demo setup. Choose `smoke` or `full` in Actions only after the workflow starts local Supabase from the canonical migrations. Reports upload even after failure; external notifications are not configured.

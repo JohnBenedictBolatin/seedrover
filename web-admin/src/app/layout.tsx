@@ -29,9 +29,9 @@ export default function RootLayout({
             __html: `
               try {
                 var theme = window.localStorage.getItem("seedrover-theme");
-                document.documentElement.dataset.theme = theme === "light" ? "light" : "dark";
+                document.documentElement.dataset.theme = theme === "dark" ? "dark" : "light";
               } catch (_) {
-                document.documentElement.dataset.theme = "dark";
+                document.documentElement.dataset.theme = "light";
               }
             `,
           }}

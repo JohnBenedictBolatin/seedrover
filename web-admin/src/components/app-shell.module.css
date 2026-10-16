@@ -1000,40 +1000,6 @@
   font-weight: 800;
 }
 
-.notificationActions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.notificationActions button {
-  display: inline-flex;
-  width: 32px;
-  height: 32px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  color: var(--text-secondary);
-  background: transparent;
-  cursor: pointer;
-  transition:
-    color 180ms ease,
-    background 180ms ease,
-    transform 180ms ease;
-}
-
-.notificationActions button:hover {
-  color: var(--green-accent);
-  background: rgba(var(--green-rgb), 0.08);
-  transform: translateY(-1px);
-}
-
-.notificationActions button:last-child:hover {
-  color: #ff8d86;
-  background: rgba(255, 59, 48, 0.08);
-}
-
 .notificationEmpty {
   display: grid;
   gap: 6px;
@@ -1225,10 +1191,8 @@
 }
 
 :global(html[data-theme="light"]) .sidebar {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(239, 247, 235, 0.98)),
-    var(--surface);
-  box-shadow: 10px 0 32px rgba(54, 92, 48, 0.08);
+  background: var(--background);
+  box-shadow: none;
 }
 
 :global(html[data-theme="light"]) .navGroup {

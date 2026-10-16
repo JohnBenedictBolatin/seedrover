@@ -25,6 +25,7 @@ import {
   Sprout,
   Sun,
   Thermometer,
+  Trash2,
   UserRound,
   X,
   CircleSlash2,
@@ -36,7 +37,7 @@ import type { CropOutcome } from "@/lib/crop-outcomes";
 import type { PlantingRunHistoryRow } from "@/app/(portal)/crops/actions";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { sharedWorkflowTerms } from "@/lib/shared-workflow-terms";
-import { farmerCareText, farmerCropStatus, farmerGrowthStage, farmerSensorLabel } from "@/lib/farmer-copy";
+import { farmerCareText, farmerCropNote, farmerCropStatus, farmerCropTips, farmerGrowthStage, farmerSensorLabel } from "@/lib/farmer-copy";
 import type { AlertTone } from "@/components/action-alert-stack";
 import { useActionFeedback } from "@/components/action-feedback";
 import { CalendarField } from "@/components/calendar-field";
@@ -183,7 +184,9 @@ export function CropsWorkspace({
   }, [crops, plantedByFilter, query, stageFilter, status]);
 
   const stageOptions = [...new Set(crops.map((crop) => crop.growthStage))].sort((left, right) => left.localeCompare(right));
-  const plantedByOptions = [...new Set(crops.map((crop) => crop.plantedBy))].sort((left, right) => left.localeCompare(right));
+  const plantedByOptions = [...new Set(crops.map((crop) => crop.plantedBy))]
+    .filter((name) => name.trim() && name.trim().toLowerCase() !== "not recorded")
+    .sort((left, right) => left.localeCompare(right));
 
   const groupedCrops = useMemo(() => {
     return filteredCrops.reduce<Record<string, CropItem[]>>((groups, crop) => {
@@ -571,6 +574,17 @@ function CropDialog({
               <span className={dialog.type === "details" ? styles.cropModalNameRow : undefined}>
                 {modalMeta.title}
                 {dialog.type === "details" ? <span className={styles.status} data-status={dialog.crop.cropStatus}>{displayCropStatus(dialog.crop.cropStatus)}</span> : null}
+                {dialog.type === "details" && dialog.crop.cropStatus !== "Completed" && dialog.crop.cropStatus !== "Cancelled" ? (
+                  <button
+                    aria-label={`End crop ${dialog.crop.displayName}`}
+                    className={styles.endCropHeaderButton}
+                    title="End crop"
+                    type="button"
+                    onClick={() => onOpen({ type: "end-crop", crop: dialog.crop })}
+                  >
+                    <Trash2 size={16} aria-hidden="true" />
+                  </button>
+                ) : null}
               </span>
               {dialog.type === "details" ? <small className={styles.cropModalIdentity}>{dialog.crop.cropName} · {dialog.crop.batchCode}</small> : null}
             </span>
@@ -601,7 +615,6 @@ function CropDialog({
         {dialog.type === "details" ? <div className={`${styles.cropWorkspaceFooter} ${styles.modalFooterActions}`}>
           <button className={styles.secondaryAction} type="button" onClick={() => onOpen({ type: "rename-crop", crop: dialog.crop })}><Edit3 size={16} aria-hidden="true" /><span>RENAME</span></button>
           {dialog.crop.cropStatus !== "Completed" && dialog.crop.cropStatus !== "Cancelled" ? <>
-            <button className={`${styles.dangerAction} ${styles.cancelCropButton}`} type="button" onClick={() => onOpen({ type: "end-crop", crop: dialog.crop })}><CircleSlash2 size={17} aria-hidden="true" /><span>END CROP</span></button>
             <div className={styles.cropFooterActions}>
             <button className={styles.primaryAction} type="button" onClick={() => onOpen({ type: "activity", crop: dialog.crop })}><ClipboardCheck size={17} aria-hidden="true" /><span>RECORD ACTIVITY</span></button>
             </div>
@@ -657,9 +670,10 @@ function CropDetails({ crop }: { crop: CropItem }) {
     farmerCareText(crop.careStatus) !== nextCareTitle ? farmerCareText(crop.careStatus) : null,
     crop.nextCareDueAt ? `Due ${formatDate(crop.nextCareDueAt)}` : null,
   ].filter(Boolean).join(" · ");
-  const farmNotes = crop.maintenanceNotes?.trim() && crop.maintenanceNotes !== "No notes recorded."
-    ? crop.maintenanceNotes.trim()
+  const cropNote = crop.maintenanceNotes?.trim() && crop.maintenanceNotes !== "No notes recorded."
+    ? farmerCropNote(crop.maintenanceNotes.trim())
     : null;
+  const careTips = farmerCropTips(crop.cropProfileKey, crop.growthStage);
   const stagePosition = stageIndex(crop.growthStage, growthStages);
   const isCompleted = ["Completed", "Harvested"].includes(crop.cropStatus) ||
     ["Completed", "Harvested"].includes(crop.growthStage);
@@ -714,7 +728,7 @@ function CropDetails({ crop }: { crop: CropItem }) {
           </div>
         </div>
       </div>
-      <div className={styles.detailsLowerGrid} data-has-notes={farmNotes ? "true" : "false"}>
+      <div className={styles.detailsLowerGrid}>
         <section className={styles.cropProgressPanel} aria-label="Crop growth progress">
           <div className={styles.cropProgressHeader}>
             <div>
@@ -743,12 +757,16 @@ function CropDetails({ crop }: { crop: CropItem }) {
                   : "Growth progress is unavailable because this stage is not in this crop's plan."}
           </small>
         </section>
-        {farmNotes ? (
-          <section className={styles.detailSection}>
-            <h5>FARM NOTES</h5>
-            <p className={styles.cropFarmNotes}>{farmNotes}</p>
-          </section>
-        ) : null}
+        <section className={`${styles.detailSection} ${styles.cropCareTips}`} aria-label={`Care tips for ${crop.displayName}`}>
+          <div>
+            <h5>CARE TIPS</h5>
+            <span>{farmerGrowthStage(crop.growthStage)}</span>
+          </div>
+          <ul>
+            {careTips.map((tip) => <li key={tip}>{tip}</li>)}
+          </ul>
+          {cropNote ? <p className={styles.cropFarmerNote}><strong>Your note:</strong> {cropNote}</p> : null}
+        </section>
       </div>
       {crop.harvestCount > 0 ? <CropHarvestHistory crop={crop} /> : null}
     </div>
@@ -1280,7 +1298,6 @@ function RenameCropForm({
 }) {
   const [pending, startTransition] = useTransition();
   const router = useRouter();
-  const [useAssigned, setUseAssigned] = useState(false);
   const submission = useRef<{ signature: string; id: string } | null>(null);
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -1288,14 +1305,13 @@ function RenameCropForm({
     if (pending) return;
     const data = new FormData(event.currentTarget);
     const plantingName = String(data.get("planting_name") ?? "").trim().replace(/\s+/g, " ");
-    const signature = `${useAssigned}:${plantingName}:${crop.plantingNameVersion}`;
+    const signature = `${plantingName}:${crop.plantingNameVersion}`;
     if (!submission.current || submission.current.signature !== signature) {
       submission.current = { signature, id: crypto.randomUUID() };
     }
     data.set("crop_id", crop.id);
     data.set("expected_version", String(crop.plantingNameVersion));
     data.set("submission_id", submission.current.id);
-    data.set("use_assigned", String(useAssigned));
     startTransition(async () => {
       try {
         await renameCropPlantingAction(data);
@@ -1313,11 +1329,8 @@ function RenameCropForm({
     <p className={styles.cropModalIdentity}>Name this planting of {crop.cropName}. Your tracking ID stays {crop.batchCode}.</p>
     <label>
       <span>Planting name</span>
-      <input name="planting_name" required minLength={1} maxLength={60} disabled={pending || useAssigned} defaultValue={crop.displayName} autoFocus />
+      <input name="planting_name" required minLength={1} maxLength={60} disabled={pending} defaultValue={crop.displayName} autoFocus />
     </label>
-    <button className={styles.secondaryAction} type="button" disabled={pending || !crop.customPlantingName} onClick={() => setUseAssigned((current) => !current)}>
-      {useAssigned ? "KEEP MY NAME" : "USE ASSIGNED NAME"}
-    </button>
     <div className={styles.modalFooterActions}>
       <button className={styles.secondaryAction} disabled={pending} type="button" onClick={onCancel}>CANCEL</button>
       <button className={styles.primaryAction} disabled={pending} type="submit"><PendingActionLabel pending={pending} pendingText="Saving name...">SAVE NAME</PendingActionLabel></button>

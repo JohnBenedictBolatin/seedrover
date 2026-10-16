@@ -13,8 +13,6 @@ import {
   ClipboardList,
   LayoutDashboard,
   Radar,
-  MailCheck,
-  Trash2,
   Shield,
   ShoppingCart,
   Sprout,
@@ -23,12 +21,11 @@ import {
   X,
 } from "lucide-react";
 import { BrandMark } from "./brand-mark";
-import { NotificationDeleteButton, NotificationReadButton } from "./notification-action-buttons";
 import { SignOutButton } from "./sign-out-button";
 import { RovieAssistant } from "./rovie-assistant";
 import styles from "./app-shell.module.css";
 
-const NOTIFICATIONS_PER_PAGE = 5;
+const NOTIFICATIONS_PER_PAGE = 4;
 type NotificationFilter = "unread" | "read";
 
 function navGroupsFor(roleName: AdminProfile["roleName"]) {
@@ -127,6 +124,9 @@ function notificationRoute(notification: AdminNotification) {
     if (notification.actionRoute.startsWith("/stocks")) {
       return "/inventory";
     }
+    if (notification.actionRoute.startsWith("/planting-logs/")) {
+      return "/crops";
+    }
 
     return notification.actionRoute;
   }
@@ -165,7 +165,7 @@ export function AppShell({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>("unread");
   const [notificationPage, setNotificationPage] = useState(0);
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [theme, setTheme] = useState<"dark" | "light">("light");
   const unreadCount = notificationsSummary?.unread ?? notifications.filter((item) => !item.isRead).length;
   const unreadNotifications = notifications.filter((item) => !item.isRead);
   const readNotifications = notifications.filter((item) => item.isRead);
@@ -183,7 +183,7 @@ export function AppShell({
 
   useEffect(() => {
     const savedTheme = window.localStorage.getItem("seedrover-theme");
-    const nextTheme = savedTheme === "light" ? "light" : "dark";
+    const nextTheme = savedTheme === "dark" ? "dark" : "light";
     document.documentElement.dataset.theme = nextTheme;
     const updateThemeState = window.setTimeout(() => setTheme(nextTheme), 0);
 
@@ -442,22 +442,6 @@ export function AppShell({
                               ) : null}
                               <small>{formatDateTime(notification.createdAt)}</small>
                             </div>
-                            {notification.source === "notification" ? (
-                              <div
-                                className={styles.notificationActions}
-                                onClick={(event) => event.stopPropagation()}
-                                onKeyDown={(event) => event.stopPropagation()}
-                              >
-                                <NotificationReadButton id={notification.id} isRead={notification.isRead}>
-                                  <MailCheck size={15} />
-                                </NotificationReadButton>
-                                {profile.roleName === "System Administrator" ? (
-                                    <NotificationDeleteButton id={notification.id}>
-                                      <Trash2 size={15} />
-                                    </NotificationDeleteButton>
-                                ) : null}
-                              </div>
-                            ) : null}
                           </article>
                           ))}
                         </div>
