@@ -63,8 +63,10 @@ function optionalNumber(formData: FormData, key: string) {
 }
 
 function validateQuantity(value: number, unit: string, label: string, allowZero = true) {
-  if (!Number.isFinite(value) || value < 0 || (!allowZero && value === 0)) {
-    throw new Error(`${label} must be a valid non-negative value.`);
+  if (!Number.isFinite(value)) throw new Error(`${label} must be a valid number.`);
+  if (value < 0) throw new Error(`${label} cannot be negative.`);
+  if (!allowZero && value === 0) {
+    throw new Error(`${label} must be greater than zero.`);
   }
 }
 

@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { requireAdminRole } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { writeActivityLog } from "@/lib/activity-log";
 import { normalizeContactNumber } from "@/lib/contact-number.mjs";
 import { parseDatabaseDecimal } from "@/lib/field-validation.mjs";
 
@@ -23,6 +22,9 @@ type SubmittedItem = {
 const paymentMethods = new Set(["Cash", "GCash", "Bank Transfer", "Card", "Other"]);
 
 function parseNumber(value: FormDataEntryValue | null, label: string) {
+  if (value === null || String(value).trim() === "") {
+    throw new Error(`${label} is required.`);
+  }
   return parseDatabaseDecimal(value, label);
 }
 
@@ -63,9 +65,8 @@ export async function recordSalesOrderAction(
   _state: SalesFormState,
   formData: FormData,
 ): Promise<SalesFormState> {
-  let adminProfile: Awaited<ReturnType<typeof requireAdminRole>>;
   try {
-    adminProfile = await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
+    await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
   } catch (error) {
     return {
       message:
@@ -79,6 +80,11 @@ export async function recordSalesOrderAction(
 
   if (!supabase) {
     return { message: "Supabase is not configured." };
+  }
+
+  const submissionId = text(formData, "idempotency_key");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(submissionId)) {
+    return { message: "The sale could not be saved safely. Review the form and submit it again." };
   }
 
   const inventoryIds = formData.getAll("inventory_id").map(String);
@@ -100,7 +106,7 @@ export async function recordSalesOrderAction(
   items = items.filter((item) => item.inventory_id && item.quantity > 0);
 
   if (items.length === 0) {
-    return { message: "Add at least one item with a valid quantity." };
+    return { message: "Add at least one sale item with a quantity greater than zero." };
   }
   if (new Set(items.map((item) => item.inventory_id)).size !== items.length) {
     return { message: "Choose each inventory item only once in a sale." };
@@ -247,74 +253,35 @@ export async function recordSalesOrderAction(
     return { message: "Non-cash payment cannot exceed the sale total." };
   }
 
-  const payload = {
-    p_customer_name: customerName,
-    p_customer_contact: customerContact,
-    p_payment_method: paymentMethod,
-    p_transaction_reference: transactionReference,
-    p_other_payment_method: otherPaymentMethod || null,
-    p_discount_type: "None",
-    p_discount_value: 0,
-    p_discount_code: discountCode,
-    p_amount_paid: amountPaid,
-    p_remarks: String(formData.get("remarks") ?? ""),
-    p_items: items,
-  };
-
-  let { data, error } = await supabase
-    .rpc("record_sales_order", payload)
-    .single<{ id: string; receipt_number: string }>();
-
+  const { data: order, error } = await supabase.rpc("record_sales_order_v2", {
+    p_entry: {
+      submission_id: submissionId,
+      customer_name: customerName,
+      customer_contact: customerContact,
+      payment_method: paymentMethod,
+      transaction_reference: transactionReference || null,
+      other_payment_method: otherPaymentMethod || null,
+      discount_type: "None",
+      discount_value: 0,
+      discount_code: discountCode || null,
+      amount_paid: amountPaid,
+      remarks: String(formData.get("remarks") ?? ""),
+      items,
+    },
+  });
+  const data = order as { id: string; receipt_number: string } | null;
   if (error) {
-    if (
-      !discountCode &&
-      error.message.includes("p_discount_code") &&
-      !error.message.includes("p_transaction_reference") &&
-      !error.message.includes("p_other_payment_method")
-    ) {
-      const legacyPayload = Object.fromEntries(
-        Object.entries(payload).filter(
-          ([key]) =>
-            ![
-              "p_discount_code",
-              "p_transaction_reference",
-              "p_other_payment_method",
-            ].includes(key),
-        ),
-      );
-      const fallback = await supabase
-        .rpc("record_sales_order", legacyPayload)
-        .single<{ id: string; receipt_number: string }>();
-
-      if (!fallback.error) {
-        data = fallback.data;
-        error = null;
-      }
+    const message = error.message.includes("record_sales_order_v2") || error.message.includes("Could not find the function")
+      ? "Sales saving needs the latest database update. Ask the system administrator to apply the approved migration."
+      : error.message;
+    if (needsDiscountMigration(message)) {
+      return { message: "Sales database is not fully upgraded yet. Apply the latest approved Supabase migration before using discounts or transaction IDs." };
     }
-
-    if (error && needsDiscountMigration(error.message)) {
-      return {
-        message:
-          "Sales database is not fully upgraded yet. Apply the latest Supabase migration before using discount codes or transaction IDs.",
-      };
-    }
-
-    if (error) {
-      return { message: error.message };
-    }
+    return { message };
   }
 
   if (!data) {
     return { message: "The sale could not be recorded. Please try again." };
-  }
-
-  if (discountCode) {
-    await writeActivityLog(supabase, {
-      userId: adminProfile.id,
-      activity: "Discount applied",
-      description: `${discountCode} was applied to sale ${data.receipt_number} for ${customerName}.`,
-      module: "Sales",
-    });
   }
 
   revalidatePath("/sales");
@@ -359,6 +326,7 @@ export async function voidSalesRecordAction(formData: FormData) {
   const id = text(formData, "id");
   const source = text(formData, "source");
   const reason = text(formData, "reason", "Voided from Sales page.");
+  const submissionId = text(formData, "submission_id");
 
   if (!id) {
     throw new Error("Missing sales record.");
@@ -368,10 +336,17 @@ export async function voidSalesRecordAction(formData: FormData) {
     throw new Error("Unknown sales source.");
   }
 
-  const { error } = await supabase.rpc("void_sales_record", {
-    p_id: id,
-    p_source: source,
-    p_reason: reason,
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(submissionId)) {
+    throw new Error("The cancellation could not be saved safely. Reopen the sale and try again.");
+  }
+
+  const { error } = await supabase.rpc("void_sales_record_v2", {
+    p_entry: {
+      id,
+      source,
+      reason,
+      submission_id: submissionId,
+    },
   });
 
   if (error) {

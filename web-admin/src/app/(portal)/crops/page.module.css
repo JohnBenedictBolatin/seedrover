@@ -2177,7 +2177,7 @@
 
 .cropHero {
   display: grid;
-  min-height: 124px;
+  min-height: 148px;
   place-items: center;
   overflow: hidden;
   border: 1px solid var(--border-soft);
@@ -2190,9 +2190,18 @@
 
 .cropHero img {
   width: 100%;
-  height: 124px;
+  height: 148px;
   grid-area: 1 / 1;
   object-fit: cover;
+}
+
+.cropCardImage {
+  object-fit: cover;
+}
+
+.stageCropCardImage {
+  object-fit: contain;
+  object-position: center;
 }
 
 .cropHero svg {
@@ -3669,7 +3678,7 @@
   width: 100%;
   height: 100%;
   min-height: 300px;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .detailImagePanel div {
@@ -6349,9 +6358,9 @@
 
 .stockCard[data-crop-card] .cropHero,
 .stockCard[data-crop-card] .cropHero img {
-  height: 96px;
-  max-height: 96px;
-  min-height: 96px;
+  height: 132px;
+  max-height: 132px;
+  min-height: 132px;
 }
 
 .stockCard[data-crop-card] .cropHero {
@@ -6369,7 +6378,12 @@
 }
 
 .stockCard[data-crop-card] .cropHero img {
+  object-fit: cover;
+}
+
+.stockCard[data-crop-card] .cropHero .stageCropCardImage {
   object-fit: contain;
+  object-position: center;
 }
 
 .stockCard[data-crop-card] .cropCardIdentity {

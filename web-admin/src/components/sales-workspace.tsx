@@ -153,6 +153,7 @@ export function SalesWorkspace({
   const [salesModalOpen, setSalesModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const voidReasons = useRef<Record<string, string>>({});
+  const voidSubmissionIds = useRef<Record<string, string>>({});
   const [voidPending, startVoidTransition] = useTransition();
   const router = useRouter();
   const { notify: sendFeedback } = useActionFeedback();
@@ -183,11 +184,14 @@ export function SalesWorkspace({
     formData.set("id", order.id);
     formData.set("source", source);
     formData.set("reason", voidReasons.current[order.id] ?? voidReason);
+    voidSubmissionIds.current[order.id] ??= crypto.randomUUID();
+    formData.set("submission_id", voidSubmissionIds.current[order.id]);
 
     startVoidTransition(async () => {
       try {
         await voidSalesRecordAction(formData);
         delete voidReasons.current[order.id];
+        delete voidSubmissionIds.current[order.id];
         router.refresh();
         notify("success", "Sale voided and inventory restored.");
       } catch (error) {

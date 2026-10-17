@@ -54,6 +54,7 @@ export default async function CropsPage() {
         initialPlantingRuns={plantingRuns.rows}
         plantingRunsTotal={plantingRuns.total}
         plantingRunsError={plantingRuns.error}
+        isAdministrator={profile.roleName === "System Administrator"}
       >
         <section className={styles.metricGrid} aria-label="Crop summary">
           <article className={`${inventorySummaryStyles.metric} ${inventorySummaryStyles.summaryMetric}`}>

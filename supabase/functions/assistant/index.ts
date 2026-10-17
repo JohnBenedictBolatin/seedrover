@@ -37,6 +37,9 @@ Scope:
 - Use the conversation history to avoid repeating an answer unnecessarily.
 - When operational information is provided, answer data-specific questions
   from it without describing the data source.
+- Crop entries use the planting's friendly name as "name" and the plant species
+  as "cropType". Use the friendly name to distinguish a farmer's plantings and
+  the crop type when giving crop-specific advice.
 - Do not mention backend, table, or data-source details in the answer.
 
 SeedRover app facts:
@@ -260,6 +263,8 @@ function sanitizeRover(value: unknown) {
 function sanitizeCrop(value: Record<string, unknown>) {
   return {
     name: safeText(value.name),
+    cropType: safeText(value.cropType),
+    field: safeText(value.field),
     variety: safeText(value.variety),
     quantity: safeNumber(value.quantity),
     plantingDate: safeText(value.plantingDate),

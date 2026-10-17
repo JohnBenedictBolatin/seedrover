@@ -334,7 +334,7 @@ export function SalesOrderForm({
       }
 
       if (quantity <= 0) {
-        return `Enter a valid quantity for ${selectedItem.label}.`;
+        return `Enter a quantity greater than zero for ${selectedItem.label}.`;
       }
 
       if (quantity > selectedItem.quantity) {

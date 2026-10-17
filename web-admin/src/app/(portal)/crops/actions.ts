@@ -367,6 +367,48 @@ export async function getCropHarvestHistoryAction(cropId: string, limit = 20, of
   return data ?? [];
 }
 
+export async function getCropHarvestCorrectionsAction(harvestId: string) {
+  await requireAdminRole(["System Administrator"]);
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data, error } = await supabase.rpc("get_crop_harvest_corrections", {
+    p_harvest_id: harvestId,
+  });
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+export async function correctCropHarvestAction(formData: FormData) {
+  await requireAdminRole(["System Administrator"]);
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const harvestId = text(formData, "harvest_id");
+  const submissionId = text(formData, "submission_id");
+  const rawQuantity = text(formData, "quantity");
+  const quantity = parseDatabaseDecimal(rawQuantity, "Harvest weight");
+  const reason = text(formData, "reason").trim();
+  const notes = text(formData, "notes").trim();
+  const expectedRevision = Number(text(formData, "expected_revision"));
+  if (!/^[0-9a-f-]{36}$/i.test(submissionId)) throw new Error("A valid saved action ID is required.");
+  if (!Number.isFinite(quantity) || quantity <= 0 || quantity > 9999999999.99 || Math.round(quantity * 100) !== quantity * 100) throw new Error("Enter a harvest weight greater than zero, with up to two decimal places.");
+  if (!harvestId || !Number.isInteger(expectedRevision) || expectedRevision < 0) throw new Error("Refresh this harvest before correcting it.");
+  if (!reason || reason.length > 500) throw new Error("Explain why this harvest needs correction.");
+  if (notes.length > 2000 || /[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(notes)) throw new Error("Notes must be 2,000 characters or fewer and fit on one line.");
+  const { data, error } = await supabase.rpc("correct_crop_harvest", {
+    p_entry: {
+      harvest_id: harvestId,
+      submission_id: submissionId,
+      quantity,
+      notes: notes || null,
+      reason,
+      expected_revision: expectedRevision,
+    },
+  });
+  if (error) throw new Error(error.message);
+  for (const path of ["/crops", "/dashboard", "/inventory", "/crop-outcomes"]) revalidatePath(path);
+  return data as { correction_id: string; quantity: number; inventory_quantity: number };
+}
+
 export async function getHarvestDestinationAction(cropId: string) {
   await requireAdminRole(["System Administrator", "Farm Planting Manager"]);
   const supabase = await createSupabaseServerClient();

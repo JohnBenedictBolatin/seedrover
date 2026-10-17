@@ -48,6 +48,8 @@ import {
   getPlantingRunsAction,
   getCropActivityHistoryAction,
   getCropHarvestHistoryAction,
+  getCropHarvestCorrectionsAction,
+  correctCropHarvestAction,
   getCropSensorHistoryAction,
   updateCropAction,
   renameCropPlantingAction,
@@ -90,6 +92,7 @@ export function CropsWorkspace({
   initialPlantingRuns,
   plantingRunsTotal,
   plantingRunsError,
+  isAdministrator,
 }: {
   children: ReactNode;
   crops: CropItem[];
@@ -99,6 +102,7 @@ export function CropsWorkspace({
   initialPlantingRuns: PlantingRunHistoryRow[];
   plantingRunsTotal: number;
   plantingRunsError: string | null;
+  isAdministrator: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All");
@@ -292,6 +296,7 @@ export function CropsWorkspace({
         notify={notify}
         onOpen={() => {}}
         outcomes={outcomes}
+        isAdministrator={isAdministrator}
         outcomesError={outcomesError}
         initialPlantingRuns={initialPlantingRuns}
         plantingRunsTotal={plantingRunsTotal}
@@ -306,6 +311,7 @@ export function CropsWorkspace({
         notify={notify}
         onOpen={openModal}
         outcomes={outcomes}
+        isAdministrator={isAdministrator}
         outcomesError={outcomesError}
         initialPlantingRuns={initialPlantingRuns}
         plantingRunsTotal={plantingRunsTotal}
@@ -427,6 +433,15 @@ function CropIdentityIcon({ name, size, fallback = "sprout" }: { name: string; s
   return fallback === "leaf" ? <Leaf size={size} /> : <Sprout size={size} />;
 }
 
+function cropStageArtworkScale(stage: string) {
+  const normalized = stage.trim().toLowerCase().replace(/[_-]+/g, " ");
+  if (normalized.includes("seed") || normalized.includes("seedbed")) return 2.2;
+  if (normalized.includes("germinat")) return 1.8;
+  if (normalized.includes("nursery") || normalized.includes("transplant")) return 1.55;
+  if (normalized.includes("establish") || normalized.includes("juvenile")) return 1.3;
+  return 1;
+}
+
 function CropCard({
   crop,
   onOpen,
@@ -438,7 +453,18 @@ function CropCard({
     <article className={styles.stockCard} data-crop-card>
       <div className={styles.cropHero}>
         {crop.imageUrl ? (
-          <Image unoptimized width={720} height={480} alt={`${crop.cropName} crop`} src={crop.imageUrl} />
+          <Image
+            unoptimized
+            width={720}
+            height={480}
+            alt={`${crop.cropName} crop`}
+            className={
+              crop.imageUrl.startsWith("/images/crops/")
+                ? styles.stageCropCardImage
+                : styles.cropCardImage
+            }
+            src={crop.imageUrl}
+          />
         ) : (
           <Sprout size={40} />
         )}
@@ -490,6 +516,7 @@ function CropDialog({
   onOpen,
   outcomes,
   outcomesError,
+  isAdministrator,
   initialPlantingRuns,
   plantingRunsTotal,
   plantingRunsError,
@@ -504,6 +531,7 @@ function CropDialog({
   onOpen: (modal: ModalState) => void;
   outcomes: CropOutcome[];
   outcomesError: string | null;
+  isAdministrator: boolean;
   initialPlantingRuns: PlantingRunHistoryRow[];
   plantingRunsTotal: number;
   plantingRunsError: string | null;
@@ -607,7 +635,7 @@ function CropDialog({
         </nav> : null}
 
         {dialog.type === "details" ? <div className={styles.modalBody}>
-          {visitedCropTabs.has("overview") ? <div hidden={cropTab !== "overview"} id="crop-tabpanel" role="tabpanel" aria-labelledby="crop-tab-overview"><CropDetails crop={dialog.crop} /></div> : null}
+          {visitedCropTabs.has("overview") ? <div hidden={cropTab !== "overview"} id="crop-tabpanel" role="tabpanel" aria-labelledby="crop-tab-overview"><CropDetails crop={dialog.crop} isAdministrator={isAdministrator} /></div> : null}
           {visitedCropTabs.has("sensors") ? <div hidden={cropTab !== "sensors"} id="crop-tabpanel-sensors" role="tabpanel" aria-labelledby="crop-tab-sensors"><CropSensorHistoryPanel key={`${dialog.crop.id}-${cropDataVersion}`} crop={dialog.crop} /></div> : null}
           {visitedCropTabs.has("growth") ? <div hidden={cropTab !== "growth"} id="crop-tabpanel-growth" role="tabpanel" aria-labelledby="crop-tab-growth"><CropGrowthJourneyPanel key={`${dialog.crop.id}-${cropDataVersion}`} crop={dialog.crop} onRecordHarvest={() => onOpen({ type: "activity", crop: dialog.crop, activity: "Harvested" })} /></div> : null}
           {visitedCropTabs.has("activity") ? <div hidden={cropTab !== "activity"} id="crop-tabpanel-activity" role="tabpanel" aria-labelledby="crop-tab-activity"><CropActivityHistoryPanel key={`${dialog.crop.id}-${cropDataVersion}`} crop={dialog.crop} /></div> : null}
@@ -663,7 +691,7 @@ function CropDialog({
   );
 }
 
-function CropDetails({ crop }: { crop: CropItem }) {
+function CropDetails({ crop, isAdministrator }: { crop: CropItem; isAdministrator: boolean }) {
   const growthStages = crop.stages;
   const nextCareTitle = farmerCareText(crop.nextCareTask ?? crop.careStatus ?? "No scheduled care");
   const nextCareContext = [
@@ -688,7 +716,16 @@ function CropDetails({ crop }: { crop: CropItem }) {
       <div className={styles.detailsTop}>
         <div className={styles.detailImagePanel}>
           {crop.imageUrl ? (
-            <Image unoptimized width={900} height={600} alt={`${crop.cropName} crop`} src={crop.imageUrl} />
+            <Image
+              unoptimized
+              width={900}
+              height={600}
+              alt={`${crop.cropName} crop`}
+              src={crop.imageUrl}
+              style={crop.imageUrl.startsWith("/images/crops/")
+                ? { transform: `scale(${cropStageArtworkScale(crop.growthStage)})` }
+                : undefined}
+            />
           ) : (
             <div>
               <Sprout size={42} />
@@ -717,7 +754,7 @@ function CropDetails({ crop }: { crop: CropItem }) {
             />
             <ReadOnly
               icon={<Droplets size={18} />}
-              label="Seed drops"
+              label="Planting cycles"
               value={formatPlantingDrops(crop.plantingCompletedDrops, crop.plantingTargetDrops)}
             />
             {crop.harvestCount > 0 ? <ReadOnly
@@ -768,17 +805,18 @@ function CropDetails({ crop }: { crop: CropItem }) {
           {cropNote ? <p className={styles.cropFarmerNote}><strong>Your note:</strong> {cropNote}</p> : null}
         </section>
       </div>
-      {crop.harvestCount > 0 ? <CropHarvestHistory crop={crop} /> : null}
+      {crop.harvestCount > 0 ? <CropHarvestHistory crop={crop} isAdministrator={isAdministrator} /> : null}
     </div>
   );
 }
 
-function CropHarvestHistory({ crop }: { crop: CropItem }) {
+function CropHarvestHistory({ crop, isAdministrator }: { crop: CropItem; isAdministrator: boolean }) {
   const [rows, setRows] = useState<{ id: string; quantity: number; unit: string; harvest_date: string; harvested_by_name: string | null; remarks: string | null }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [loadedCropId, setLoadedCropId] = useState<string | null>(null);
+  const [correction, setCorrection] = useState<NonNullable<typeof rows[number]> | null>(null);
   useEffect(() => {
     let active = true;
     getCropHarvestHistoryAction(crop.id, 20, 0)
@@ -804,12 +842,83 @@ function CropHarvestHistory({ crop }: { crop: CropItem }) {
     <h5>HARVEST HISTORY</h5>
     {error && !isLoading ? <p role="alert">{error}</p> : null}
     {isLoading ? <p>Loading harvests...</p> : error ? <p>Harvest history is unavailable.</p> : rows.length === 0 ? <p>No harvests are recorded.</p> : <ul>
-      {rows.map((row) => <li key={row.id}><strong>{Number(row.quantity).toFixed(2)} kg · {formatDate(row.harvest_date)}</strong><span>{row.harvested_by_name ?? "Farmer"}{row.remarks ? ` · ${row.remarks}` : ""}</span></li>)}
+      {rows.map((row) => <li key={row.id}><strong>{Number(row.quantity).toFixed(2)} kg · {formatDate(row.harvest_date)}</strong><span>{row.harvested_by_name ?? "Farmer"}{row.remarks ? ` · ${row.remarks}` : ""}</span>{isAdministrator && crop.cropStatus !== "Completed" && crop.cropStatus !== "Cancelled" ? <button type="button" onClick={() => setCorrection(row)}>Correct harvest</button> : null}</li>)}
     </ul>}
     {hasMore && rows.length > 0 && !isLoading ? <button type="button" disabled={loadingMore} onClick={loadOlderHarvests}>
       {loadingMore ? "Loading…" : "Load older harvests"}
     </button> : null}
+    {correction ? <HarvestCorrectionDialog row={correction} onClose={() => setCorrection(null)} onSaved={async () => {
+      setCorrection(null);
+      const updated = await getCropHarvestHistoryAction(crop.id, 20, 0) as typeof rows;
+      setRows(updated);
+      setError(null);
+    }} /> : null}
   </section>;
+}
+
+function HarvestCorrectionDialog({ row, onClose, onSaved }: {
+  row: { id: string; quantity: number; remarks: string | null };
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [revisionLoaded, setRevisionLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [revision, setRevision] = useState(0);
+  const [quantity, setQuantity] = useState(String(row.quantity));
+  const [notes, setNotes] = useState(row.remarks ?? "");
+  const [reason, setReason] = useState("");
+  const submissionId = useRef("");
+  const router = useRouter();
+  const { notify } = useActionFeedback();
+  useEffect(() => {
+    let alive = true;
+    getCropHarvestCorrectionsAction(row.id).then((items) => {
+      if (alive) {
+        setRevision(items.length ? Number((items[0] as { revision: number }).revision) : 0);
+        setRevisionLoaded(true);
+      }
+    }).catch((caught: unknown) => {
+      if (alive) setError(caught instanceof Error ? caught.message : "Correction history could not be checked.");
+    });
+    return () => { alive = false; };
+  }, [row.id]);
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    const data = new FormData(event.currentTarget);
+    data.set("harvest_id", row.id);
+    submissionId.current ||= crypto.randomUUID();
+    data.set("submission_id", submissionId.current);
+    data.set("expected_revision", String(revision));
+    try {
+      const result = await correctCropHarvestAction(data);
+      submissionId.current = "";
+      await onSaved();
+      router.refresh();
+      notify({ tone: "success", text: `Harvest corrected to ${Number(result.quantity).toFixed(2)} kg.` });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Harvest could not be corrected.");
+      setBusy(false);
+    }
+  }
+  return <div className={`${styles.modalBackdrop} ${styles.modalBackdropStacked}`} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
+    <section className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="harvest-correction-title">
+      <header><h2 id="harvest-correction-title">Correct harvest</h2><button type="button" aria-label="Close" disabled={busy} onClick={onClose}><X /></button></header>
+      <form onSubmit={save}>
+        <p>Only the weight and notes can change. Crop, date, and inventory destination stay the same.</p>
+        <p>Previous: <strong>{Number(row.quantity).toFixed(2)} kg</strong></p>
+        <label>Correct weight (kg)<input name="quantity" type="number" min="0.01" step="0.01" required value={quantity} disabled={busy} onChange={(event) => setQuantity(event.target.value)} /></label>
+        <p>New weight: <strong>{Number(quantity || 0).toFixed(2)} kg</strong></p>
+        <label>Notes<textarea name="notes" maxLength={2000} value={notes} disabled={busy} onChange={(event) => setNotes(event.target.value)} /></label>
+        <label>Why are you correcting this harvest?<textarea name="reason" maxLength={500} required value={reason} disabled={busy} onChange={(event) => setReason(event.target.value)} /></label>
+        {error ? <p role="alert">{error}</p> : null}
+        <footer><button type="button" disabled={busy} onClick={onClose}>Cancel</button><button type="submit" disabled={busy || !revisionLoaded}>{busy ? "Saving correction…" : "Save correction"}</button></footer>
+      </form>
+    </section>
+  </div>;
 }
 
 function formatPlantingDrops(completed: number | null, target: number | null) {
@@ -1414,7 +1523,7 @@ function CropOutcomesPanel({
               <tbody>{visibleOutcomes.map((outcome) => <tr key={outcome.id}>
                 <td data-label="Crop"><strong>{outcome.cropName}</strong>{outcome.cropType !== outcome.cropName ? <small>{outcome.cropType}</small> : null}</td>
                 <td data-label="Outcome"><HistoryBadge label={outcome.outcome === "Failed" ? sharedWorkflowTerms.closedWithoutHarvest : outcome.outcome} /></td>
-                <td data-label="Reason / notes">{outcome.reason === "Harvest recorded from the crop card." ? "—" : outcome.reason || "—"}</td>
+                <td data-label="Reason / notes">{outcome.reason === "Harvest recorded from the crop card." ? "—" : farmerCropNote(outcome.reason ?? "")?.trim() || "—"}</td>
                 <td data-label="Quantity" className={historyStyles.numeric}>{outcome.quantity === null ? "—" : `${outcome.quantity} kg`}</td>
                 <td data-label="Recorded"><time dateTime={outcome.recordedAt}>{formatDateTime(outcome.recordedAt)}</time><small>By {outcome.recordedByName}</small></td>
               </tr>)}</tbody>

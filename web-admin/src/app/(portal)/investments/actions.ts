@@ -17,7 +17,8 @@ function optionalNumber(formData: FormData, key: string) {
   const raw = text(formData, key);
   if (!raw) return null;
   const value = parseDatabaseDecimal(raw, key.replaceAll("_", " "));
-  if (value < 0) throw new Error(`${key.replaceAll("_", " ")} must be a non-negative number.`);
+  const label = key === "unit_cost" ? "Unit cost" : key === "quantity" ? "Quantity" : "Amount";
+  if (value < 0) throw new Error(`${label} cannot be negative.`);
   return value;
 }
 
