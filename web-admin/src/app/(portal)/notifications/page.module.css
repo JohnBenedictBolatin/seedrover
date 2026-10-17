@@ -112,11 +112,11 @@
 
 .notificationCard {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 110px 220px;
+  grid-template-columns: minmax(0, 1fr) 110px;
   align-items: center;
   column-gap: 20px;
   background: var(--surface);
-  padding: 16px;
+  padding: 14px 16px;
 }
 
 .notificationCard > * {
@@ -151,28 +151,6 @@
   margin: 0;
   color: var(--text-secondary);
   line-height: 1.5;
-}
-
-.actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.actions button {
-  width: 100%;
-  min-height: 42px;
-  border: 1px solid rgba(141, 255, 42, 0.28);
-  border-radius: 8px;
-  color: var(--green-accent);
-  background: transparent;
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.dangerButton {
-  border-color: rgba(255, 59, 48, 0.28) !important;
-  color: var(--danger) !important;
 }
 
 .pagination {
@@ -226,8 +204,7 @@
 
 @media (max-width: 640px) {
   .metricGrid,
-  .notificationCard,
-  .actions {
+  .notificationCard {
     grid-template-columns: 1fr;
   }
 

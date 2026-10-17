@@ -7,6 +7,7 @@ import styles from "@/app/(portal)/crops/page.module.css";
 type ThemedSelectProps = {
   defaultValue?: string;
   disabledOptions?: string[];
+  formatOption?: (value: string) => string;
   icon?: ReactNode;
   label: string;
   name?: string;
@@ -21,6 +22,7 @@ type ThemedSelectProps = {
 export function ThemedSelect({
   defaultValue,
   disabledOptions = [],
+  formatOption,
   icon,
   label,
   name,
@@ -49,11 +51,11 @@ export function ThemedSelect({
       }}
     >
       {name ? <input name={name} type="hidden" value={selectedValue} /> : null}
-      {variant === "form" ? <span className={styles.themedSelectLabel}>{label}{required ? <span aria-hidden="true" className={styles.requiredMarker}>*</span> : null}</span> : null}
+      {variant === "form" ? <span className={styles.themedSelectLabel}>{label}{required ? <span aria-hidden="true" className="requiredFieldMarker">*</span> : null}</span> : null}
       <button aria-expanded={open} className={styles.themedSelectButton} type="button" onClick={() => setOpen((current) => !current)}>
         {icon ? <span className={styles.themedSelectIcon}>{icon}</span> : null}
         {variant === "toolbar" ? <span className={styles.themedSelectLabel}>{label}</span> : null}
-        <span className={styles.themedSelectValue}>{selectedValue || placeholder || "No stage change"}</span>
+        <span className={styles.themedSelectValue}>{selectedValue ? formatOption?.(selectedValue) ?? selectedValue : placeholder || "No stage change"}</span>
         <ChevronDown className={styles.themedSelectChevron} size={16} />
       </button>
       {open ? <div className={styles.themedSelectMenu}>
@@ -66,13 +68,13 @@ export function ThemedSelect({
               disabled={disabled}
               data-selected={selected ? "true" : "false"}
               data-disabled={disabled ? "true" : "false"}
-              title={disabled ? `${option} is available after the crop reaches Harvest Ready.` : undefined}
+              title={disabled ? `${formatOption?.(option) ?? option} is available after the crop is ready to harvest.` : undefined}
               key={option}
               type="button"
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => handleSelect(option)}
             >
-              <span>{option || "No stage change"}</span>
+              <span>{option ? formatOption?.(option) ?? option : "No stage change"}</span>
               {selected ? <Check size={15} /> : null}
             </button>
           );

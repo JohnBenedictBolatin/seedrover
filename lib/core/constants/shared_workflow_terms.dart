@@ -22,9 +22,9 @@ abstract final class SharedWorkflowTerms {
   static const growthPhotos = "Growth photos";
   static const totalHarvestedWeight = "Total harvested weight (kg)";
   static const destinationInventory = "Destination inventory";
-  static const harvestAndClose = "Harvest and close batch";
-  static const closeWithoutHarvest = "Close without harvest";
-  static const closedWithoutHarvest = "Closed without harvest";
+  static const harvestAndClose = "Record final harvest";
+  static const closeWithoutHarvest = "End crop";
+  static const closedWithoutHarvest = "Ended without a harvest";
   static const batchCode = "Batch code";
   static const history = "History";
   static const firstName = "First name";
@@ -44,6 +44,7 @@ abstract final class SharedWorkflowTerms {
 }
 
 abstract final class SharedWorkflowChoices {
+  static const storageLocations = <String>["Leafy Greens Chiller", "Harvest Cooler", "Produce Crate Bay", "Root Crop Cellar", "Packing Shed"];
   static const receiptSources = <String>["Harvest Bay", "Greenhouse Sorting", "Field Crate", "Market Return", "Farm-table Prep"];
   static const issueReasons = <String>["Farm-table Dining", "Kitchen Preparation", "Spoilage Removal", "Staff Allocation"];
   static const paymentMethods = <String>["Cash", "GCash", "Bank Transfer", "Card", "Other"];

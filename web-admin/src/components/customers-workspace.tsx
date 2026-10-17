@@ -33,6 +33,8 @@ import { ExportDownloadButton } from "@/components/export-download-button";
 import { formatCurrency, formatDateTime, formatQuantity } from "@/lib/format";
 import type { CustomerDiscount, CustomerStats, CustomerSummary } from "@/lib/customers";
 import { CountUpValue } from "@/components/count-up-value";
+import inventorySummaryStyles from "@/app/(portal)/inventory/page.module.css";
+import quickActionStyles from "@/app/(portal)/sales/page.module.css";
 import { CalendarField } from "@/components/calendar-field";
 import styles from "@/app/(portal)/customers/page.module.css";
 
@@ -289,37 +291,37 @@ export function CustomersWorkspace({ customers, discounts, stats }: CustomersWor
 
   return (
     <>
-      <section className={styles.metricGrid} aria-label="Customer summary">
-        <article className={styles.metric}>
-          <div className={styles.metricMeta}>
-            <span className={styles.metricIcon} aria-hidden="true">
+      <section className={inventorySummaryStyles.metricGrid} aria-label="Customer summary">
+        <article className={`${inventorySummaryStyles.metric} ${inventorySummaryStyles.summaryMetric}`}>
+          <div className={inventorySummaryStyles.metricMeta}>
+            <span className={inventorySummaryStyles.metricIcon} aria-hidden="true">
               <Users size={20} />
             </span>
             <p>Total customers</p>
           </div>
           <CountUpValue className="mono" value={stats?.totalCustomers ?? 0} />
         </article>
-        <article className={styles.metric}>
-          <div className={styles.metricMeta}>
-            <span className={styles.metricIcon} aria-hidden="true">
+        <article className={`${inventorySummaryStyles.metric} ${inventorySummaryStyles.summaryMetric}`}>
+          <div className={inventorySummaryStyles.metricMeta}>
+            <span className={inventorySummaryStyles.metricIcon} aria-hidden="true">
               <Receipt size={20} />
             </span>
             <p>Repeat customers</p>
           </div>
           <CountUpValue className="mono" value={stats?.repeatCustomers ?? 0} />
         </article>
-        <article className={styles.metric}>
-          <div className={styles.metricMeta}>
-            <span className={styles.metricIcon} aria-hidden="true">
+        <article className={`${inventorySummaryStyles.metric} ${inventorySummaryStyles.summaryMetric}`}>
+          <div className={inventorySummaryStyles.metricMeta}>
+            <span className={inventorySummaryStyles.metricIcon} aria-hidden="true">
               <WalletCards size={20} />
             </span>
             <p>Average spend</p>
           </div>
           <CountUpValue className="mono" currency value={stats?.averageSpendPerCustomer ?? 0} />
         </article>
-        <article className={styles.metric}>
-          <div className={styles.metricMeta}>
-            <span className={styles.metricIcon} aria-hidden="true">
+        <article className={`${inventorySummaryStyles.metric} ${inventorySummaryStyles.summaryMetric}`}>
+          <div className={inventorySummaryStyles.metricMeta}>
+            <span className={inventorySummaryStyles.metricIcon} aria-hidden="true">
               <Tag size={20} />
             </span>
             <p>Top customer</p>
@@ -328,31 +330,33 @@ export function CustomersWorkspace({ customers, discounts, stats }: CustomersWor
         </article>
       </section>
 
-      <section className={styles.quickActions}>
+      <section
+        className={`${styles.quickActions} ${inventorySummaryStyles.inventoryQuickActionsPanel} ${inventorySummaryStyles.customersQuickActionsPanel}`}
+        aria-label="Customer quick actions"
+      >
         <div>
-          <p className={styles.eyebrow}>Quick action</p>
-          <h2>Create a discount code</h2>
-          <span>Release codes any customer can use at checkout.</span>
+          <h2>Create customer discounts</h2>
+          <span>Release discount codes customers can use at checkout.</span>
         </div>
-        <div className={styles.quickActionButtons}>
+        <div className={`${styles.quickActionButtons} ${inventorySummaryStyles.inventoryQuickActions}`}>
           <button
             className={styles.recordSaleButton}
             type="button"
             onClick={() => setDiscountModalOpen(true)}
           >
-            <span className={styles.recordSaleText}>Create Discount</span>
+            <span className={styles.recordSaleText}>Create Code</span>
             <span className={styles.recordSaleIcon} aria-hidden="true">
-              <BadgePercent size={22} />
+              <BadgePercent size={20} />
             </span>
           </button>
           <button
-            className={styles.recordSaleButton}
+            className={`${styles.recordSaleButton} ${quickActionStyles.compactLongQuickActionButton}`}
             type="button"
             onClick={() => setDiscountListOpen(true)}
           >
             <span className={styles.recordSaleText}>Discount List</span>
             <span className={styles.recordSaleIcon} aria-hidden="true">
-              <Receipt size={22} />
+              <Receipt size={20} />
             </span>
           </button>
         </div>
@@ -532,11 +536,13 @@ function DiscountListModal({
     <div className={styles.modalBackdrop} data-ui-backdrop="true" role="presentation">
       <section className={styles.discountListModal} role="dialog" aria-modal="true" aria-label="Discount list">
         <header className={styles.modalHeader}>
-          <h3>
-            <Receipt size={19} />
+          <h3 className={styles.discountModalTitle}>
+            <span className={styles.discountModalTitleIcon} aria-hidden="true">
+              <Receipt size={19} />
+            </span>
             Discount List
           </h3>
-          <button aria-label="Close discount list" type="button" onClick={onClose}>
+          <button aria-label="Close discount list" className={styles.modalCloseButton} type="button" onClick={onClose}>
             <X size={18} />
           </button>
         </header>
@@ -550,7 +556,7 @@ function DiscountListModal({
           <div className={styles.discountListTable}>
             <div className={styles.discountListHead}>
               <span>Code</span>
-              <span>Available to</span>
+              <span>Redeemed by</span>
               <span>Amount / %</span>
               <span>Date redeemed</span>
               <span>Status</span>
@@ -561,7 +567,9 @@ function DiscountListModal({
               return (
                 <article className={styles.discountListRow} key={discount.id}>
                   <strong data-label="Code">{discount.code}</strong>
-                  <span data-label="Available to">Anyone with the code</span>
+                  <span data-label="Redeemed by">
+                    {redeemed ? discount.redeemedBy ?? "Customer unavailable" : "Not yet redeemed"}
+                  </span>
                   <span data-label="Amount / %">{formatDiscountAmount(discount)}</span>
                   <span data-label="Date redeemed">{discount.usedAt ? formatDateTime(discount.usedAt) : "Not redeemed"}</span>
                   <div className={styles.discountStatusCell} data-label="Status">

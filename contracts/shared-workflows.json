@@ -22,9 +22,9 @@
     "growthPhotos": "Growth photos",
     "totalHarvestedWeight": "Total harvested weight (kg)",
     "destinationInventory": "Destination inventory",
-    "harvestAndClose": "Harvest and close batch",
-    "closeWithoutHarvest": "Close without harvest",
-    "closedWithoutHarvest": "Closed without harvest",
+    "harvestAndClose": "Record final harvest",
+    "closeWithoutHarvest": "End crop",
+    "closedWithoutHarvest": "Ended without a harvest",
     "batchCode": "Batch code",
     "history": "History",
     "firstName": "First name",
@@ -43,6 +43,7 @@
     "keepMeSignedIn": "Keep me signed in"
   },
   "choices": {
+    "storageLocations": ["Leafy Greens Chiller", "Harvest Cooler", "Produce Crate Bay", "Root Crop Cellar", "Packing Shed"],
     "receiptSources": ["Harvest Bay", "Greenhouse Sorting", "Field Crate", "Market Return", "Farm-table Prep"],
     "issueReasons": ["Farm-table Dining", "Kitchen Preparation", "Spoilage Removal", "Staff Allocation"],
     "paymentMethods": ["Cash", "GCash", "Bank Transfer", "Card", "Other"],

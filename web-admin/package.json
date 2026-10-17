@@ -13,8 +13,15 @@
     "verify": "npm run lint && npm run build",
     "generate:shared-workflows": "node ../scripts/generate_shared_workflows.mjs",
     "check:shared-workflows": "node ../scripts/generate_shared_workflows.mjs --check",
-    "test:input-contract": "node --test src/lib/contact-number.test.mjs",
-    "check:tracked-secrets": "node scripts/check-tracked-secrets.mjs"
+    "test:input-contract": "node --test src/lib/contact-number.test.mjs src/lib/inventory-remarks.test.mjs",
+    "check:tracked-secrets": "node scripts/check-tracked-secrets.mjs",
+    "test:e2e": "node scripts/run-e2e.mjs",
+    "test:e2e:smoke": "node scripts/run-e2e.mjs --grep @smoke",
+    "test:e2e:safety": "node --test e2e/local-supabase.test.mjs",
+    "test:e2e:list": "playwright test --list",
+    "test:e2e:preflight": "node scripts/e2e-preflight.mjs",
+    "test:e2e:cleanup": "node scripts/cleanup-e2e.mjs",
+    "test:e2e:cleanup-inventory": "node scripts/cleanup-tracked-test-inventory.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.1",
@@ -28,6 +35,8 @@
     "recharts": "^3.9.2"
   },
   "devDependencies": {
+    "@next/env": "^16.2.10",
+    "@playwright/test": "^1.63.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

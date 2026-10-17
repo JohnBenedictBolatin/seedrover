@@ -1,3 +1,4 @@
+.careSectionHeader { align-items: center; }
 .careTask.careTask { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "details priority" "due action"; align-items: center; gap: 8px 12px; }
 .careTaskDetails { grid-area: details; min-width: 0; }
 .careTaskDetails strong { overflow-wrap: anywhere; }
@@ -8,5 +9,12 @@
 .careTaskDue { grid-area: due; min-width: 0; color: var(--text-muted); font-size: .78rem; }
 .careTaskOpen { display: inline-grid; width: 36px; height: 36px; grid-area: action; place-items: center; justify-self: end; border: 1px solid var(--border-soft); border-radius: 8px; color: var(--green-accent); background: transparent; cursor: pointer; }
 .careTaskOpen:hover { border-color: rgba(var(--green-rgb), .38); background: rgba(var(--green-rgb), .08); }
+.carePanelPagination { display: flex; align-items: center; justify-content: center; gap: 8px; padding-top: 4px; }
+.carePanelPagination button { display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center; border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text-secondary); background: rgba(255, 255, 255, .03); cursor: pointer; transition: border-color 180ms ease, color 180ms ease, background 180ms ease; }
+.carePanelPagination button:hover:not(:disabled) { border-color: rgba(var(--green-rgb), .38); color: var(--green-accent); background: rgba(var(--green-rgb), .08); }
+.carePanelPagination button:disabled { cursor: not-allowed; opacity: .42; }
 .carePanelPagination :focus-visible, .careTaskOpen:focus-visible { outline: 3px solid var(--green-accent); outline-offset: 2px; }
 .carePanelEmpty { display: grid; min-height: 82px; place-items: center; border: 1px dashed var(--border-soft); border-radius: 8px; color: var(--text-muted); padding: 14px; }
+
+:global(html[data-theme="light"]) .carePanelPagination button { border-color: rgba(18, 60, 27, .18); color: rgba(18, 60, 27, .72); background: #ffffff; }
+:global(html[data-theme="light"]) .carePanelPagination button:hover:not(:disabled) { border-color: rgba(18, 60, 27, .38); color: #123c1b; background: rgba(18, 60, 27, .07); }

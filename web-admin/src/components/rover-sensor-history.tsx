@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import type { RoverSensorReading } from "@/lib/rover";
 import { formatDateTime } from "@/lib/format";
+import { farmerSensorLabel } from "@/lib/farmer-copy";
 import styles from "@/app/(portal)/rover-monitor/page.module.css";
 
 const pageSize = 10;
@@ -26,8 +27,8 @@ export function SensorHistoryTable({ readings }: { readings: RoverSensorReading[
           <thead>
             <tr>
               <th scope="col">Recorded</th>
-              <th scope="col">Soil moisture (%)</th>
-              <th scope="col">Raw soil probe (ADC)</th>
+              <th scope="col">{farmerSensorLabel("Soil moisture (%)")} (%)</th>
+              <th scope="col">{farmerSensorLabel("Raw soil probe (ADC)")}</th>
               <th scope="col">Soil temp (°C)</th>
               <th scope="col">Air temp (°C)</th>
               <th scope="col">Humidity (%)</th>
@@ -39,8 +40,8 @@ export function SensorHistoryTable({ readings }: { readings: RoverSensorReading[
                 <td data-label="Recorded">
                   <time dateTime={reading.recordedAt}>{formatDateTime(reading.recordedAt)}</time>
                 </td>
-                <SensorValue label="Soil moisture (%)" value={reading.soilMoisture} unit="%" />
-                <SensorValue label="Raw soil probe (ADC)" value={reading.soilRaw} unit="" />
+                <SensorValue label={`${farmerSensorLabel("Soil moisture")} (%)`} value={reading.soilMoisture} unit="%" />
+                <SensorValue label={farmerSensorLabel("Raw soil probe (ADC)")} value={reading.soilRaw} unit="" />
                 <SensorValue label="Soil temp (°C)" value={reading.soilTemperature} unit="°C" />
                 <SensorValue label="Air temp (°C)" value={reading.environmentalTemperature} unit="°C" />
                 <SensorValue label="Humidity (%)" value={reading.humidity} unit="%" />

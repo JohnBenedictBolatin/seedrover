@@ -9,6 +9,7 @@ import { LiveDateTime } from "@/components/live-date-time";
 import { ModuleHeaderIntro } from "@/components/module-header-intro";
 import { CropsWorkspace } from "@/components/crops-workspace";
 import styles from "./page.module.css";
+import inventorySummaryStyles from "@/app/(portal)/inventory/page.module.css";
 
 export default async function CropsPage() {
   const profile = await getCurrentAdminProfile();
@@ -28,7 +29,7 @@ export default async function CropsPage() {
   ]);
 
   return (
-    <div className={styles.page}>
+    <div className={`${styles.page} ${inventorySummaryStyles.inventoryPage} ${inventorySummaryStyles.summaryDesignScope}`}>
       <header className={styles.header}>
           <ModuleHeaderIntro mascot="crops">
             <p className={styles.eyebrow}>Operations</p>
@@ -53,25 +54,26 @@ export default async function CropsPage() {
         initialPlantingRuns={plantingRuns.rows}
         plantingRunsTotal={plantingRuns.total}
         plantingRunsError={plantingRuns.error}
+        isAdministrator={profile.roleName === "System Administrator"}
       >
         <section className={styles.metricGrid} aria-label="Crop summary">
-          <article className={styles.metric}>
-            <div className={styles.metricMeta}>
-              <span className={styles.metricIcon}><Sprout size={20} /></span>
+          <article className={`${inventorySummaryStyles.metric} ${inventorySummaryStyles.summaryMetric}`}>
+            <div className={inventorySummaryStyles.metricMeta}>
+              <span className={inventorySummaryStyles.metricIcon}><Sprout size={20} /></span>
               <p>Active batches</p>
             </div>
             <CountUpValue className="mono" value={summary?.activeCrops ?? 0} />
           </article>
-          <article className={styles.metric}>
-            <div className={styles.metricMeta}>
-              <span className={styles.metricIcon}><TriangleAlert size={20} /></span>
+          <article className={`${inventorySummaryStyles.metric} ${inventorySummaryStyles.summaryMetric}`}>
+            <div className={inventorySummaryStyles.metricMeta}>
+              <span className={inventorySummaryStyles.metricIcon}><TriangleAlert size={20} /></span>
               <p>Need attention</p>
             </div>
             <CountUpValue className="mono" value={summary?.needsAttention ?? 0} />
           </article>
-          <article className={styles.metric}>
-            <div className={styles.metricMeta}>
-              <span className={styles.metricIcon}><CalendarDays size={20} /></span>
+          <article className={`${inventorySummaryStyles.metric} ${inventorySummaryStyles.summaryMetric}`}>
+            <div className={inventorySummaryStyles.metricMeta}>
+              <span className={inventorySummaryStyles.metricIcon}><CalendarDays size={20} /></span>
               <p>Harvesting soon</p>
             </div>
             <CountUpValue className="mono" value={summary?.upcomingHarvests ?? 0} />

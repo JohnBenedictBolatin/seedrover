@@ -12,13 +12,14 @@ const trackedFiles = execFileSync("git", ["ls-files"], {
 
 const forbiddenEnvFiles = trackedFiles.filter((file) => {
   const name = file.split(/[\\/]/).pop() ?? "";
-  return /^\.env(?:\.|$)/.test(name) && name !== ".env.example";
+  return /^\.env(?:\.|$)/.test(name) && ![".env.example", ".env.mobile.json.example"].includes(name);
 });
 
 const credentialFilePattern = /(?:^|[\\/])(?:secrets?|credentials?)\.(?:env|json|h)$/i;
 const trackedCredentialFiles = trackedFiles.filter((file) => credentialFilePattern.test(file));
 
 const assignmentPattern = /(?:SUPABASE_SERVICE_ROLE_KEY|GEMINI_API_KEY|FCM_SERVICE_ACCOUNT_JSON|MQTT_PASSWORD|ROVER_DEVICE_SECRET)\s*=\s*['"]?(?!$|your_|use-the-exact-same-token|<|\.\.\.)[^\s'"#]+/i;
+const runtimeReferenceAssignmentPattern = /(^|\r?\n)\s*(?:env|process\.env)\.(?:SUPABASE_SERVICE_ROLE_KEY|GEMINI_API_KEY|FCM_SERVICE_ACCOUNT_JSON|MQTT_PASSWORD|ROVER_DEVICE_SECRET)\s*=\s*[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\s*;?\s*(?=\r?\n|$)/g;
 const trackedCredentialAssignments = [];
 
 for (const file of trackedFiles) {
@@ -30,7 +31,10 @@ for (const file of trackedFiles) {
   if (!existsSync(absolutePath)) continue;
 
   const contents = readFileSync(absolutePath, "utf8");
-  if (assignmentPattern.test(contents)) {
+  // Ignore code that copies an already-loaded value into process.env; scanning
+  // the variable name as if it were a literal secret produces false alarms.
+  const scanContents = contents.replace(runtimeReferenceAssignmentPattern, "$1");
+  if (assignmentPattern.test(scanContents)) {
     trackedCredentialAssignments.push(file);
   }
 }

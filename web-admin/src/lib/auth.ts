@@ -56,7 +56,22 @@ export async function requireAdminRole(
 ) {
   const profile = await getCurrentAdminProfile();
 
-  if (!profile || !roleMatchesAllowedAccess(profile.roleName, allowedRoles)) {
+  if (!profile) {
+    const supabase = await createSupabaseServerClient();
+    const { data: { user } = { user: null } } = supabase
+      ? await supabase.auth.getUser()
+      : { data: { user: null } };
+
+    if (!user) {
+      throw new Error(
+        "Your session ended. It may have expired or been signed out from another device. Sign in again before retrying.",
+      );
+    }
+
+    throw new Error("You do not have permission to perform this action.");
+  }
+
+  if (!roleMatchesAllowedAccess(profile.roleName, allowedRoles)) {
     throw new Error("You do not have permission to perform this action.");
   }
 

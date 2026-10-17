@@ -1,7 +1,7 @@
 "use client";
 
 import { startTransition, useActionState, useEffect, useState, type FormEvent } from "react";
-import { Eye, EyeOff, Lock, LogIn, UserRound } from "lucide-react";
+import { AlertTriangle, Eye, EyeOff, Lock, LogIn, UserRound } from "lucide-react";
 import {
   forgotPasswordAction,
   signInAction,
@@ -162,12 +162,16 @@ export function LoginForm({
         </p>
       ) : null}
       {initialSessionMessage ? (
-        <p className={styles.message} role="status">
+        <p className={styles.message} role="alert">
+          <AlertTriangle aria-hidden="true" size={19} />
           {initialSessionMessage}
         </p>
       ) : null}
       {state.message ? (
-        <p className={styles.message} role="status">
+        <p className={styles.message} role="alert">
+          {state.message.startsWith("Your session ended.")
+            ? <AlertTriangle aria-hidden="true" size={19} />
+            : null}
           {state.message}
         </p>
       ) : null}

@@ -18,7 +18,7 @@ async function fetchAllPages<T>(
   }
 }
 
-export type CropTask = { id: string; crop_id: string; task_type: string; title: string; recommendation: string; due_at: string; status: string; priority: string };
+export type CropTask = { id: string; crop_id: string; task_type: string; title: string; recommendation: string; recommendation_data?: Record<string, unknown> | null; due_at: string; status: string; priority: string };
 
 export type CropItem = {
   managerId: string | null;
@@ -26,12 +26,21 @@ export type CropItem = {
   tasks: CropTask[];
   forecastConfidence: string;
   harvestedAt: string | null;
+  harvestMode: "single" | "repeat";
+  harvestCount: number;
+  harvestedQuantity: number;
+  cropProfileKey: string | null;
   lastObservedAt: string | null;
   weeklyActivities: number;
   id: string;
   batchCode: string;
+  assignedPlantingName: string;
+  customPlantingName: string | null;
+  plantingNameVersion: number;
+  displayName: string;
   cropName: string;
   managerName: string;
+  plantedBy: string;
   plantingDate: string;
   estimatedHarvest: string | null;
   growthStage: string;
@@ -54,6 +63,58 @@ export type CropItem = {
   latestSoilCalibrated: boolean | null;
   latestSoilCalibrationVersion: string | null;
 };
+
+const cropStageImageKeys: Record<string, Record<string, string>> = {
+  sitaw: {
+    seeded: "seeded",
+    germinating: "germinating",
+    vegetative: "vegetative",
+    trellising: "trellising",
+    flowering: "flowering",
+    fruiting: "pod_formation",
+    "pod formation": "pod_formation",
+    "first harvest": "harvest_ready",
+    "harvest ready": "harvest_ready",
+    "repeated harvest": "repeated_harvest",
+    completed: "harvested",
+  },
+  calamansi: {
+    seeded: "seedbed",
+    seedbed: "seedbed",
+    germinating: "germinating",
+    "nursery seedling": "nursery_seedling",
+    "transplant review": "transplant_review",
+    establishing: "establishing",
+    juvenile: "juvenile",
+    "first bearing": "first_bearing",
+    fruiting: "first_bearing",
+    "harvest ready": "harvest_ready",
+    completed: "harvested",
+  },
+  peanut: {
+    seeded: "seeded",
+    germinating: "germinating",
+    vegetative: "vegetative",
+    flowering: "flowering",
+    fruiting: "pod_development",
+    pegging: "pegging",
+    "pod development": "pod_development",
+    "maturity check": "maturity_check",
+    "harvest ready": "harvest_ready",
+    completed: "harvested",
+  },
+};
+
+function cropStagePlaceholderImage(profileKey: string, stage: string, status: string) {
+  const crop = profileKey.trim().toLowerCase();
+  const stageKey = status.trim().toLowerCase() === "completed"
+    ? "completed"
+    : stage.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+  const stageImages = cropStageImageKeys[crop];
+  if (!stageImages) return null;
+  const imageStage = stageImages[stageKey];
+  return imageStage ? `/images/crops/${crop}_${imageStage}.webp` : `/images/crops/${crop}.webp`;
+}
 
 export type CropSummary = {
   activeCrops: number;
@@ -103,11 +164,15 @@ export type CropActivityRecord = {
 type CropRow = {
   assigned_manager?: string | null;
   harvested_at?: string | null;
+  harvest_mode?: "single" | "repeat" | null;
   forecast_confidence?: string;
   crop_profiles?: { stage_plan: { stage: string }[] } | null;
   id: string;
   batch_code?: string | null;
   crop_name: string;
+  assigned_planting_name?: string | null;
+  custom_planting_name?: string | null;
+  planting_name_version?: number | null;
   planting_date: string;
   estimated_harvest: string | null;
   growth_stage: string;
@@ -194,8 +259,16 @@ function fallbackBatchCode(id: string) {
   return `CRP-LEGACY-${id.replaceAll("-", "").slice(0, 8).toUpperCase()}`;
 }
 
-function displayGrowthStage(stage: string) {
-  return stage === "First Harvest" ? "Harvest Ready" : stage;
+function displayGrowthStage(stage: string, plannedStages: string[] = []) {
+  if (stage === "First Harvest") return "Harvest Ready";
+
+  // Rover planting records use the generic "Seeded" stage. Calamansi's
+  // profile calls that same initial stage "Seedbed".
+  if (stage.trim().toLowerCase() === "seeded") {
+    return plannedStages.find((plannedStage) => plannedStage.trim().toLowerCase() === "seedbed") ?? stage;
+  }
+
+  return stage;
 }
 
 function isMissingCropMonitoringSchema(error: { code?: string; message?: string }) {
@@ -216,12 +289,18 @@ export async function getCropsDashboard() {
       summary: null,
       weather: null,
       error: "Supabase is not configured.",
+      recentHarvestMonths: [],
+      harvestHistoryError: null,
     };
   }
 
   const assessmentNow = new Date();
   const weekStart = startOfBusinessWeek(assessmentNow);
   const nextTwoWeeksDate = businessDateKey(new Date(assessmentNow.getTime() + 14 * 86400000));
+  const currentBusinessDate = businessDateKey(assessmentNow);
+  const [businessYear, businessMonth] = currentBusinessDate.split("-").map(Number);
+  const harvestPeriodStart = new Date(Date.UTC(businessYear, businessMonth - 6, 1)).toISOString().slice(0, 10);
+  const harvestPeriodEnd = new Date(Date.UTC(businessYear, businessMonth, 1)).toISOString().slice(0, 10);
 
   const fetchCropRows = (columns: string) => fetchAllPages<CropRow>((from, to) => supabase
     .from("crops")
@@ -231,7 +310,7 @@ export async function getCropsDashboard() {
     .range(from, to)
     .returns<CropRow[]>());
   let { data, error } = await fetchCropRows(
-    "id, batch_code, crop_name, planting_date, estimated_harvest, growth_stage, maintenance_notes, image_path, crop_status, crop_profile_key, field_label, planting_log_id, completed_drop_cycles, harvest_window_start, harvest_window_end, expected_stage, current_care_status, assigned_manager, harvested_at, forecast_confidence, crop_profiles(stage_plan), profiles(full_name)",
+    "id, batch_code, crop_name, assigned_planting_name, custom_planting_name, planting_name_version, planting_date, estimated_harvest, growth_stage, maintenance_notes, image_path, crop_status, crop_profile_key, harvest_mode, field_label, planting_log_id, completed_drop_cycles, harvest_window_start, harvest_window_end, expected_stage, current_care_status, assigned_manager, harvested_at, forecast_confidence, crop_profiles(stage_plan), profiles(full_name)",
   );
 
   // Keep legacy crop records visible while the crop-monitoring migration is
@@ -250,14 +329,42 @@ export async function getCropsDashboard() {
       summary: null,
       weather: null,
       error: error.message,
+      recentHarvestMonths: [],
+      harvestHistoryError: null,
     };
   }
 
   const cropIds = (data ?? []).map((row) => row.id);
+  const { data: harvestSummaryRows } = cropIds.length === 0
+    ? { data: [] }
+    : await supabase.rpc("get_crop_harvest_summaries", { p_crop_ids: cropIds });
+  const harvestSummaries = new Map<string, { harvest_count: number; total_quantity: number }>(
+    ((harvestSummaryRows ?? []) as { crop_id: string; harvest_count: number; total_quantity: number }[])
+      .map((summary) => [summary.crop_id, summary]),
+  );
+  const { data: harvestPeriodRows, error: harvestPeriodError } = await supabase
+    .from("crop_harvests")
+    .select("harvest_date, quantity")
+    .gte("harvest_date", harvestPeriodStart)
+    .lt("harvest_date", harvestPeriodEnd)
+    .order("harvest_date", { ascending: true });
+  const monthlyHarvests = new Map<string, { count: number; kilograms: number }>();
+  for (const row of harvestPeriodRows ?? []) {
+    const key = String(row.harvest_date).slice(0, 7);
+    const current = monthlyHarvests.get(key) ?? { count: 0, kilograms: 0 };
+    current.count += 1;
+    current.kilograms += Number(row.quantity ?? 0);
+    monthlyHarvests.set(key, current);
+  }
+  const recentHarvestMonths = Array.from({ length: 6 }, (_, index) => {
+    const date = new Date(Date.UTC(businessYear, businessMonth - 6 + index, 1));
+    const key = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+    return { key, label: date.toLocaleDateString("en", { month: "short", timeZone: "UTC" }), ...(monthlyHarvests.get(key) ?? { count: 0, kilograms: 0 }) };
+  });
   const plantingLogIds = [...new Set((data ?? []).map((row) => row.planting_log_id).filter((id): id is string => Boolean(id)))];
   const { data: plantingLogData } = plantingLogIds.length === 0
-    ? { data: [] as { id: string; target_drop_cycles: number | null; completed_drop_cycles: number | null; field_label: string | null }[] }
-    : await supabase.from("planting_logs").select("id, target_drop_cycles, completed_drop_cycles, field_label").in("id", plantingLogIds);
+    ? { data: [] as { id: string; target_drop_cycles: number | null; completed_drop_cycles: number | null; field_label: string | null; profiles: { full_name: string } | { full_name: string }[] | null }[] }
+    : await supabase.from("planting_logs").select("id, target_drop_cycles, completed_drop_cycles, field_label, profiles!planting_logs_operator_id_fkey(full_name)").in("id", plantingLogIds);
   const plantingLogs = new Map((plantingLogData ?? []).map((row) => [row.id, row]));
   const [sensorResult, taskResult, seedImageResult, activityResult, liveWeather] = await Promise.all([
     cropIds.length === 0
@@ -276,7 +383,7 @@ export async function getCropsDashboard() {
       ? Promise.resolve({ data: [] as TaskRow[], error: null })
       : fetchAllPages<TaskRow>((from, to) => supabase
           .from("crop_tasks")
-          .select("id, crop_id, task_type, status, title, recommendation, due_at, priority")
+          .select("id, crop_id, task_type, status, title, recommendation, recommendation_data, due_at, priority")
           .in("crop_id", cropIds)
           .in("status", ["Upcoming", "Due", "Overdue", "Postponed"])
           .order("due_at", { ascending: true })
@@ -313,18 +420,35 @@ export async function getCropsDashboard() {
     const plantingLog = row.planting_log_id ? plantingLogs.get(row.planting_log_id) : undefined;
     const seedKey = row.crop_profile_key ?? row.crop_name.toLowerCase();
     const imagePath = row.image_path ?? seedImages.get(seedKey) ?? null;
+    const stages = [
+      ...new Set((row.crop_profiles?.stage_plan ?? [])
+        .map((stage) => displayGrowthStage(stage.stage))
+        .filter((stage) => stage !== "Completed")),
+    ];
+    if (stages.length > 0 && !stages.some((stage) => stage.toLowerCase() === "harvest ready")) {
+      const repeatedHarvestIndex = stages.findIndex(
+        (stage) => stage.toLowerCase() === "repeated harvest",
+      );
+      stages.splice(
+        repeatedHarvestIndex < 0 ? stages.length : repeatedHarvestIndex,
+        0,
+        "Harvest Ready",
+      );
+    }
+    const growthStage = displayGrowthStage(row.growth_stage, stages);
+    const cropStatus = row.crop_status;
+    const localStageImage = cropStagePlaceholderImage(seedKey, growthStage, cropStatus);
     return {
       id: row.id,
       managerId: row.assigned_manager ?? null,
-      stages: [
-        ...new Set((row.crop_profiles?.stage_plan ?? [])
-          .map((stage) => displayGrowthStage(stage.stage))
-          .filter((stage) => !["Completed", "Repeated Harvest", "Harvest Ready"].includes(stage))),
-        "Harvest Ready",
-      ],
+      stages,
       tasks: (taskData ?? []).filter((task) => task.crop_id === row.id),
       forecastConfidence: row.forecast_confidence ?? "Unavailable",
       harvestedAt: row.harvested_at ?? null,
+      harvestMode: row.harvest_mode ?? (row.crop_profile_key === "sitaw" || row.crop_profile_key === "calamansi" ? "repeat" : "single"),
+      harvestCount: Number(harvestSummaries.get(row.id)?.harvest_count ?? 0),
+      harvestedQuantity: Number(harvestSummaries.get(row.id)?.total_quantity ?? 0),
+      cropProfileKey: row.crop_profile_key ?? null,
       lastObservedAt: (activityData ?? []).find((a) => a.crop_id === row.id && ["Inspected", "Stage Observed"].includes(a.activity_type))?.performed_at ?? null,
       weeklyActivities: (activityData ?? []).filter((a) => {
         const timestamp = new Date(a.performed_at).getTime();
@@ -332,24 +456,33 @@ export async function getCropsDashboard() {
       }).length,
       batchCode: row.batch_code?.trim() || fallbackBatchCode(row.id),
       cropName: row.crop_name,
+      assignedPlantingName: row.assigned_planting_name?.trim() || `Garden ${row.crop_name}`,
+      customPlantingName: row.custom_planting_name?.trim() || null,
+      plantingNameVersion: row.planting_name_version ?? 0,
+      displayName: row.custom_planting_name?.trim() || row.assigned_planting_name?.trim() || `Garden ${row.crop_name}`,
       managerName: managerName(row),
+      plantedBy: (() => {
+        const plantingLog = row.planting_log_id ? plantingLogs.get(row.planting_log_id) : undefined;
+        const operator = Array.isArray(plantingLog?.profiles) ? plantingLog.profiles[0] : plantingLog?.profiles;
+        return operator?.full_name ?? "Not recorded";
+      })(),
       plantingDate: row.planting_date,
       estimatedHarvest: row.estimated_harvest,
-      growthStage: displayGrowthStage(row.growth_stage),
-      cropStatus: row.crop_status,
+      growthStage,
+      cropStatus,
       maintenanceNotes: row.maintenance_notes ?? "No notes recorded.",
       imagePath,
-      imageUrl:
-        imagePath === null
-          ? null
-          : supabase.storage.from("crop-images").getPublicUrl(imagePath).data
-              .publicUrl,
+      imageUrl: row.image_path
+        ? supabase.storage.from("crop-images").getPublicUrl(row.image_path).data.publicUrl
+        : localStageImage ?? (imagePath
+          ? supabase.storage.from("crop-images").getPublicUrl(imagePath).data.publicUrl
+          : null),
       fieldLabel: plantingLog?.field_label ?? row.field_label ?? "Field not labeled",
       plantingTargetDrops: plantingLog?.target_drop_cycles ?? null,
       plantingCompletedDrops: plantingLog?.completed_drop_cycles ?? row.completed_drop_cycles ?? null,
       harvestWindowStart: row.harvest_window_start ?? null,
       harvestWindowEnd: row.harvest_window_end ?? null,
-      expectedStage: row.expected_stage ?? row.growth_stage,
+      expectedStage: displayGrowthStage(row.expected_stage ?? row.growth_stage, stages),
       careStatus: row.current_care_status ?? "Review crop condition",
       nextCareTask: task?.title ?? null,
       nextCareDueAt: task?.due_at ?? null,
@@ -362,7 +495,6 @@ export async function getCropsDashboard() {
   });
 
   const pendingTasks = taskData ?? [];
-  const now = assessmentNow;
   const weather: CropWeatherStatus = liveWeather ?? {
     source: "Unavailable",
     currentCondition: "Weather unavailable",
@@ -410,5 +542,7 @@ export async function getCropsDashboard() {
     summary,
     weather,
       error: relatedDataError ?? (taskResult.error ? "Care tasks could not be loaded: " + taskResult.error.message : null),
+    recentHarvestMonths,
+    harvestHistoryError: harvestPeriodError?.message ?? null,
   };
 }

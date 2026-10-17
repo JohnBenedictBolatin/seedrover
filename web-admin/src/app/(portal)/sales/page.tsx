@@ -6,6 +6,7 @@ import { LiveDateTime } from "@/components/live-date-time";
 import { ModuleHeaderIntro } from "@/components/module-header-intro";
 import { SalesWorkspace } from "@/components/sales-workspace";
 import styles from "./page.module.css";
+import inventorySummaryStyles from "@/app/(portal)/inventory/page.module.css";
 
 export default async function SalesPage() {
   const profile = await getCurrentAdminProfile();
@@ -26,12 +27,12 @@ export default async function SalesPage() {
   ]);
 
   return (
-    <div className={styles.page}>
+    <div className={`${styles.page} ${inventorySummaryStyles.inventoryPage} ${inventorySummaryStyles.summaryDesignScope}`}>
       <header className={styles.header}>
           <ModuleHeaderIntro mascot="sales">
             <p className={styles.eyebrow}>Operations</p>
             <h1>Sales</h1>
-            <p>Receipts and voided sales.</p>
+            <p>Recorded sales and voided transactions.</p>
           </ModuleHeaderIntro>
         <div className={styles.liveDateTime}>
           <LiveDateTime />

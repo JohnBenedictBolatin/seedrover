@@ -54,13 +54,24 @@ Deno.serve(async (request) => {
 
     const { data: crops, error: cropError } = await admin
       .from("crops")
-      .select("id,crop_name,assigned_manager,planting_date,crop_profile_key,field_area_m2,harvest_window_start,harvest_window_end,last_watered_at,last_fertilized_at,growth_stage,crop_status,crop_profiles(*)")
+      .select("id,crop_name,assigned_manager,planting_date,crop_profile_key,harvest_mode,field_area_m2,harvest_window_start,harvest_window_end,last_watered_at,last_fertilized_at,growth_stage,crop_status,crop_profiles(*)")
       .in("crop_status", ["Active", "Needs Attention", "Harvest Ready"]);
     if (cropError) throw cropError;
 
+    const cropIds = (crops ?? []).map((crop) => String(crop.id));
+    const { data: harvestRows, error: harvestError } = cropIds.length
+      ? await admin.from("crop_harvests").select("crop_id").in("crop_id", cropIds)
+      : { data: [], error: null };
+    if (harvestError) throw harvestError;
+    const harvestCounts = new Map<string, number>();
+    for (const row of harvestRows ?? []) {
+      const id = String(row.crop_id);
+      harvestCounts.set(id, (harvestCounts.get(id) ?? 0) + 1);
+    }
+
     const results = [];
     for (const crop of crops ?? []) {
-      results.push(await evaluateCrop(admin, crop as Json, settings as Json | null, weather, now));
+      results.push(await evaluateCrop(admin, { ...(crop as Json), harvest_count: harvestCounts.get(String(crop.id)) ?? 0 }, settings as Json | null, weather, now));
     }
     await sendRoutineDigest(admin, now);
 
@@ -223,6 +234,7 @@ async function evaluateCrop(
   if (!profile) return { cropId: crop.id, skipped: "Missing crop profile" };
   const cropId = String(crop.id);
   const cropName = String(crop.crop_name ?? profile.display_name ?? "Crop");
+  const repeatHarvestAlreadyStarted = crop.harvest_mode === "repeat" && (number(crop.harvest_count) ?? 0) > 0;
   const plantingDate = new Date(String(crop.planting_date));
   const ageDays = Math.max(0, Math.floor((now.getTime() - plantingDate.getTime()) / 86_400_000));
   const stage = expectedStage(profile.stage_plan, ageDays, String(crop.growth_stage ?? "Seeded"));
@@ -238,7 +250,8 @@ async function evaluateCrop(
     .gte("performed_at", new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString());
   const recordedLiters = (recentWatering ?? []).reduce((total, activity) => {
     const unit = String(activity.unit ?? "").toLowerCase();
-    return total + (unit.startsWith("l") ? number(activity.quantity) ?? 0 : 0);
+    const quantity = number(activity.quantity) ?? 0;
+    return total + (unit === "ml" ? quantity / 1000 : unit.startsWith("l") ? quantity : 0);
   }, 0);
   const recordedWaterMm = area > 0 ? recordedLiters * efficiency / area : 0;
   const deficitMm = Math.max(0, round(et0 * kc - rain * 0.8 - recordedWaterMm, 2));
@@ -309,7 +322,7 @@ async function evaluateCrop(
     }));
   }
 
-  if (deficitMm >= 5 && hoursSinceWatered >= 72 && crop.harvest_window_start) {
+  if (!repeatHarvestAlreadyStarted && deficitMm >= 5 && hoursSinceWatered >= 72 && crop.harvest_window_start) {
     const delayKey = `crop:${cropId}:care-delay:${dateKey(now)}`;
     const { data: existingDelay } = await admin.from("crop_tasks").select("id").eq("deduplication_key", delayKey).maybeSingle();
     if (!existingDelay) {
@@ -317,7 +330,7 @@ async function evaluateCrop(
         harvest_window_start: addDays(String(crop.harvest_window_start), 1),
         harvest_window_end: addDays(String(crop.harvest_window_end ?? crop.harvest_window_start), 2),
         forecast_confidence: "Low",
-      }).eq("id", cropId);
+      }).eq("id", cropId).is("harvested_at", null).in("crop_status", ["Active", "Needs Attention", "Harvest Ready"]);
       tasks.push(await upsertTask(admin, crop, {
         taskType: "Inspect",
         title: `Inspect ${cropName} after sustained water stress`,
@@ -354,7 +367,7 @@ async function evaluateCrop(
 
   const harvestStart = crop.harvest_window_start ? new Date(String(crop.harvest_window_start)) : null;
   const harvestEnd = crop.harvest_window_end ? new Date(String(crop.harvest_window_end)) : null;
-  if (harvestStart && now.getTime() >= harvestStart.getTime() - 7 * 86_400_000) {
+  if (!repeatHarvestAlreadyStarted && harvestStart && now.getTime() >= harvestStart.getTime() - 7 * 86_400_000) {
     tasks.push(await upsertTask(admin, crop, {
       taskType: "Harvest Check",
       title: `Inspect ${cropName} for harvest readiness`,
@@ -372,7 +385,7 @@ async function evaluateCrop(
     expected_stage: stage,
     current_care_status: tasks.some((task) => task?.priority === "Critical") ? "Urgent care check" : tasks.length ? "Care tasks due" : "Monitoring",
     forecast_confidence: deficitMm >= 5 && hoursSinceWatered >= 72 ? "Low" : weather.providerStatus === "Hybrid" && !weather.uncertain ? "High" : weather.providerStatus === "Unavailable" ? "Unavailable" : weather.uncertain ? "Low" : "Medium",
-  }).eq("id", cropId);
+  }).eq("id", cropId).in("crop_status", ["Active", "Needs Attention", "Harvest Ready"]);
 
   return { cropId, expectedStage: stage, tasks: tasks.filter(Boolean).length, deficitMm, liters };
 }

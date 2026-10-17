@@ -24,6 +24,7 @@ import styles from "./sales-order-form.module.css";
 type LineItem = {
   key: string;
   inventoryId: string;
+  batchId: string;
   quantity: string;
 };
 
@@ -39,6 +40,7 @@ function newLineItem(items: SellableItem[], excludedIds: string[] = []): LineIte
   return {
     key: crypto.randomUUID(),
     inventoryId: firstItem?.id ?? "",
+    batchId: "",
     quantity: "",
   };
 }
@@ -124,6 +126,7 @@ function ItemPicker({
 }
 
 function ThemedSelect({
+  className,
   emptyLabel,
   label,
   name,
@@ -133,6 +136,7 @@ function ThemedSelect({
   required = false,
   value,
 }: {
+  className?: string;
   emptyLabel?: string;
   label: string;
   name: string;
@@ -145,12 +149,12 @@ function ThemedSelect({
   const [open, setOpen] = useState(false);
 
   return (
-    <label className={styles.themedSelectLabel}>
+    <label className={`${styles.themedSelectLabel} ${className ?? ""}`}>
       <span className={styles.themedSelectText}>
         {label}
         {required ? (
           <>
-            <span aria-hidden="true" className={styles.requiredMarker}>*</span>
+            <span aria-hidden="true" className="requiredFieldMarker">*</span>
             <span className={styles.visuallyHidden}> (required)</span>
           </>
         ) : null}
@@ -330,15 +334,24 @@ export function SalesOrderForm({
       }
 
       if (quantity <= 0) {
-        return `Enter a valid quantity for ${selectedItem.label}.`;
+        return `Enter a quantity greater than zero for ${selectedItem.label}.`;
       }
 
       if (quantity > selectedItem.quantity) {
         return `${selectedItem.label} only has ${formatQuantity(selectedItem.quantity, selectedItem.unit)} available.`;
       }
+
+      const selectedBatch = selectedItem.batches.find((batch) => batch.id === lineItem.batchId);
+      if (selectedBatch && quantity > selectedBatch.remainingQuantity) {
+        return `The selected batch for ${selectedItem.label} only has ${formatQuantity(selectedBatch.remainingQuantity, selectedItem.unit)} available.`;
+      }
     }
 
-    if (amountPaid.trim() && paid < total) {
+    if (!amountPaid.trim()) {
+      return "Enter the amount paid.";
+    }
+
+    if (paid < total) {
       return "Amount paid cannot be lower than the total.";
     }
 
@@ -409,12 +422,11 @@ export function SalesOrderForm({
       <section className={styles.panel}>
         <div className={styles.panelHeader}>
           <div>
-            <p>Receipt items</p>
-            <h2>Multi-item transaction</h2>
+              <h2>Items</h2>
           </div>
-          <button className={`${styles.actionButton} ${styles.addItemButton}`} type="button" onClick={addLineItem}>
-            <span className={styles.actionButtonText}>ADD ITEM</span>
-            <span className={styles.actionButtonIcon} aria-hidden="true">
+          <button className={styles.addItemButton} type="button" onClick={addLineItem}>
+            <span className={styles.addItemButtonText}>ADD ITEM</span>
+            <span className={styles.addItemButtonIcon} aria-hidden="true">
               <Plus size={18} />
             </span>
           </button>
@@ -433,8 +445,26 @@ export function SalesOrderForm({
                   onChange={(inventoryId) =>
                     updateLineItem(lineItem.key, {
                       inventoryId,
+                      batchId: "",
                     })
                   }
+                />
+
+                <ThemedSelect
+                  label="Batch"
+                  name="batch_id"
+                  value={lineItem.batchId}
+                  emptyLabel="Oldest available"
+                  optionLabels={Object.fromEntries([
+                    ["", "Oldest available"],
+                    ...(selectedItem?.batches ?? []).map((batch) => {
+                      const date = batch.harvestOn ?? batch.receivedOn;
+                      const dateLabel = new Date(`${date}T00:00:00`).toLocaleDateString();
+                      return [batch.id, `${dateLabel} · ${formatQuantity(batch.remainingQuantity, selectedItem?.unit ?? "kg")}`];
+                    }),
+                  ])}
+                  options={["", ...(selectedItem?.batches ?? []).map((batch) => batch.id)]}
+                  onChange={(batchId) => updateLineItem(lineItem.key, { batchId })}
                 />
 
                 <input
@@ -489,14 +519,10 @@ export function SalesOrderForm({
           <div className={styles.panelHeader}>
             <div>
               <p>Customer and payment</p>
-              <h2>Receipt details</h2>
-              <span className={styles.panelHint}>
-                Select a saved customer to add this receipt to their purchase history, or enter a new buyer.
-              </span>
             </div>
           </div>
 
-          <div className={styles.fields}>
+          <div className={`${styles.fields} ${styles.customerFields}`}>
             <div className={styles.customerMode} aria-label="Customer type" role="group">
               <button
                 aria-pressed={customerMode === "new"}
@@ -517,10 +543,10 @@ export function SalesOrderForm({
             </div>
             {customerMode === "new" ? (
               <>
-                <label>First name<input name="customer_first_name" placeholder="e.g. Juan" required type="text" /></label>
-                <label>Middle initial<input name="customer_middle_initial" placeholder="e.g. D" maxLength={1} type="text" /></label>
-                <label>Last name<input name="customer_last_name" placeholder="e.g. Cruz" required type="text" /></label>
-                <label>
+                <label className={styles.nameField}>First name<input name="customer_first_name" placeholder="e.g. Juan" required type="text" /></label>
+                <label className={styles.nameField}>Middle initial<input name="customer_middle_initial" placeholder="e.g. D" maxLength={1} type="text" /></label>
+                <label className={styles.nameField}>Last name<input name="customer_last_name" placeholder="e.g. Cruz" required type="text" /></label>
+                <label className={styles.contactField}>
                   Customer contact
                   <ContactNumberInput autoComplete="tel-national" name="customer_contact" placeholder="e.g. 09171234567" required />
                 </label>
@@ -530,6 +556,7 @@ export function SalesOrderForm({
                 <input name="existing_customer_name" type="hidden" value={selectedCustomer?.name ?? ""} />
                 <input name="customer_contact" type="hidden" value={selectedCustomer?.contact ?? ""} />
                 <ThemedSelect
+                  className={styles.existingCustomerField}
                   emptyLabel="Choose a customer"
                   label="Select customer"
                   name="existing_customer_key"
@@ -547,10 +574,10 @@ export function SalesOrderForm({
                 {selectedCustomer ? <p className={styles.customerPickerHint}>This sale will be recorded for {selectedCustomer.name} and included in their customer history.</p> : null}
               </>
             )}
-            <ThemedSelect label="Payment method" name="payment_method_display" options={paymentMethodOptions} required value={paymentMethod} onChange={(value) => { setPaymentMethod(value); setTransactionReference(""); setOtherPaymentMethod(""); }} />
-            {paymentMethod === "Other" ? <label>Other payment method<input name="other_payment_method" placeholder="e.g. Maya or cheque" required value={otherPaymentMethod} onChange={(event) => setOtherPaymentMethod(event.target.value)} type="text" /></label> : null}
-            {paymentMethod !== "Cash" ? <label>Transaction ID<input name="transaction_reference" placeholder="e.g. TXN-2026-0012" required value={transactionReference} onChange={(event) => setTransactionReference(event.target.value)} type="text" /></label> : null}
-            <label>
+            <ThemedSelect className={styles.paymentField} label="Payment method" name="payment_method_display" options={paymentMethodOptions} required value={paymentMethod} onChange={(value) => { setPaymentMethod(value); setTransactionReference(""); setOtherPaymentMethod(""); }} />
+            {paymentMethod === "Other" ? <label className={styles.extraField}>Other payment method<input name="other_payment_method" placeholder="e.g. Maya or cheque" required value={otherPaymentMethod} onChange={(event) => setOtherPaymentMethod(event.target.value)} type="text" /></label> : null}
+            {paymentMethod !== "Cash" ? <label className={styles.extraField}>Transaction ID<input name="transaction_reference" placeholder="e.g. TXN-2026-0012" required value={transactionReference} onChange={(event) => setTransactionReference(event.target.value)} type="text" /></label> : null}
+            <label className={styles.remarksField}>
               Remarks
               <textarea name="remarks" placeholder="e.g. Customer requested delivery on Friday" rows={4} />
             </label>
@@ -588,6 +615,7 @@ export function SalesOrderForm({
                 <NumericInput
                   min="0"
                   name="amount_paid"
+                  required
                   step="0.01"
                   value={amountPaid}
                   onChange={(event) => setAmountPaid(event.target.value)}

@@ -1,7 +1,15 @@
 import type { Metadata } from "next";
+import { Poppins } from "next/font/google";
 import "./globals.css";
 import { ActionFeedbackProvider } from "@/components/action-feedback";
 import { ConnectivityStatus } from "@/components/connectivity-status";
+
+const poppins = Poppins({
+  variable: "--font-inter",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800", "900"],
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "SeedRover Admin",
@@ -21,15 +29,15 @@ export default function RootLayout({
             __html: `
               try {
                 var theme = window.localStorage.getItem("seedrover-theme");
-                document.documentElement.dataset.theme = theme === "light" ? "light" : "dark";
+                document.documentElement.dataset.theme = theme === "dark" ? "dark" : "light";
               } catch (_) {
-                document.documentElement.dataset.theme = "dark";
+                document.documentElement.dataset.theme = "light";
               }
             `,
           }}
         />
       </head>
-      <body><ActionFeedbackProvider><ConnectivityStatus>{children}</ConnectivityStatus></ActionFeedbackProvider></body>
+      <body className={poppins.variable}><ActionFeedbackProvider><ConnectivityStatus>{children}</ConnectivityStatus></ActionFeedbackProvider></body>
     </html>
   );
 }

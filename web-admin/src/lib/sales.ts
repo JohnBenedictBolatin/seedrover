@@ -12,6 +12,15 @@ export type SellableItem = {
   quantity: number;
   unit: string;
   sellingPrice: number;
+  batches: SellableBatch[];
+};
+
+export type SellableBatch = {
+  id: string;
+  remainingQuantity: number;
+  receivedOn: string;
+  harvestOn: string | null;
+  profileName: string | null;
 };
 
 export type ReleasedDiscount = {
@@ -110,6 +119,15 @@ type SellableRow = {
   quantity: number | string;
   unit: string;
   selling_price: number | string | null;
+};
+
+type SellableBatchRow = {
+  id: string;
+  inventory_id: string;
+  remaining_quantity: number | string;
+  received_on: string;
+  harvest_on: string | null;
+  reference_profile_name: string | null;
 };
 
 type ReleasedDiscountRow = {
@@ -259,6 +277,32 @@ export async function getSellableInventory() {
     };
   }
 
+  const inventoryIds = data.map((row) => row.id);
+  let batchRows: SellableBatchRow[] = [];
+  if (inventoryIds.length > 0) {
+    const { data: batches, error } = await supabase
+      .from("inventory_stock_batches")
+      .select("id, inventory_id, remaining_quantity, received_on, harvest_on, reference_profile_name")
+      .in("inventory_id", inventoryIds)
+      .gt("remaining_quantity", 0)
+      .order("received_on", { ascending: true })
+      .returns<SellableBatchRow[]>();
+    if (error) return { items: [], error: error.message };
+    batchRows = batches ?? [];
+  }
+  const batchesByInventory = new Map<string, SellableBatch[]>();
+  for (const batch of batchRows) {
+    const itemBatches = batchesByInventory.get(batch.inventory_id) ?? [];
+    itemBatches.push({
+      id: batch.id,
+      remainingQuantity: toNumber(batch.remaining_quantity),
+      receivedOn: batch.received_on,
+      harvestOn: batch.harvest_on,
+      profileName: batch.reference_profile_name,
+    });
+    batchesByInventory.set(batch.inventory_id, itemBatches);
+  }
+
   return {
     items: data.map<SellableItem>((row) => ({
       id: row.id,
@@ -267,6 +311,7 @@ export async function getSellableInventory() {
       quantity: toNumber(row.quantity),
       unit: row.unit,
       sellingPrice: toNumber(row.selling_price),
+      batches: batchesByInventory.get(row.id) ?? [],
     })),
     error: null,
   };
@@ -696,7 +741,7 @@ export async function getSalesReceipt(id: string) {
   const receiptWithPaymentDetails = await supabase
     .from("sales_orders")
     .select(
-      "id, receipt_number, sale_date, customer_name, customer_contact, payment_method, transaction_reference, other_payment_method, subtotal, discount_type, discount_value, discount_amount, total_amount, amount_paid, change_amount, remarks, status, profiles(full_name), sales_order_items(id, item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total)",
+      "id, receipt_number, sale_date, customer_name, customer_contact, payment_method, transaction_reference, other_payment_method, subtotal, discount_type, discount_value, discount_amount, total_amount, amount_paid, change_amount, remarks, status, profiles!sales_orders_recorded_by_fkey(full_name), sales_order_items(id, item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total)",
     )
     .eq("id", id)
     .single<SalesReceiptRow>();
@@ -705,7 +750,7 @@ export async function getSalesReceipt(id: string) {
     ? await supabase
         .from("sales_orders")
         .select(
-          "id, receipt_number, sale_date, customer_name, customer_contact, payment_method, subtotal, discount_type, discount_value, discount_amount, total_amount, amount_paid, change_amount, remarks, status, profiles(full_name), sales_order_items(id, item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total)",
+          "id, receipt_number, sale_date, customer_name, customer_contact, payment_method, subtotal, discount_type, discount_value, discount_amount, total_amount, amount_paid, change_amount, remarks, status, profiles!sales_orders_recorded_by_fkey(full_name), sales_order_items(id, item_name_snapshot, unit_snapshot, quantity_sold, unit_price, line_total)",
         )
         .eq("id", id)
         .single<SalesReceiptRow>()
@@ -714,7 +759,7 @@ export async function getSalesReceipt(id: string) {
   if (error || !data) {
     return {
       receipt: null,
-      error: error?.message ?? "Receipt was not found.",
+      error: error?.message ?? "Sales record was not found.",
     };
   }
 

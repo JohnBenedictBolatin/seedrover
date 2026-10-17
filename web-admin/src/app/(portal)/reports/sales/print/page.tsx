@@ -71,7 +71,7 @@ export default async function SalesPrintPage({
                 <td>{row.transactionReference || "-"}</td>
                 <td>{row.entryKind === "sale" ? formatCurrency(row.lineTotal) : "-"}</td>
                 <td>{row.collectionAmount === null ? "-" : formatCurrency(row.collectionAmount)}</td>
-                <td>{row.status === "Voided" ? "Voided" : row.status === "Recorded" ? "Recorded" : row.status}</td>
+                <td>{row.status === "Voided" ? "Cancelled" : row.status === "Recorded" ? "Recorded" : row.status}</td>
               </tr>
             ))}
           </tbody>

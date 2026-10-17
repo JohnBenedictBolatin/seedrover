@@ -220,7 +220,7 @@ export function CalendarField({
   return (
     <div className={`${styles.calendarField}${className ? ` ${className}` : ""}`} ref={rootRef}>
       <span className={styles.fieldLabel} id={`${fieldId}-label`}>
-        {label}{required ? <b aria-hidden="true"> *</b> : null}
+        {label}{required ? <span aria-hidden="true" className="requiredFieldMarker">*</span> : null}
       </span>
       {name ? <input name={name} type="hidden" value={currentValue} /> : null}
       <button

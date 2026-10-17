@@ -4,36 +4,36 @@
   bottom: calc(116px + env(safe-area-inset-bottom, 0px));
   z-index: var(--dialog-alert-layer, 2147483600);
   display: grid;
-  width: min(500px, calc(100vw - 40px));
-  gap: 12px;
+  width: min(420px, calc(100vw - 40px));
+  gap: 8px;
 }
 
 @media (max-width: 640px) {
   .alertStack {
     right: 14px;
     bottom: calc(102px + env(safe-area-inset-bottom, 0px));
-    width: min(480px, calc(100vw - 28px));
+    width: min(420px, calc(100vw - 28px));
   }
 }
 
 .alertCard {
   display: flex;
-  min-height: 82px;
+  min-height: 58px;
   align-items: center;
-  gap: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-left: 7px solid var(--success);
-  border-radius: 12px;
-  color: #dfffe7;
-  background: rgba(25, 90, 38, 0.94);
+  gap: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-left: 4px solid var(--success);
+  border-radius: 10px;
+  color: #ffffff;
+  background: #12451f;
   cursor: default;
-  padding: 18px 20px;
+  padding: 10px 14px;
   text-align: left;
   transition:
     background 180ms ease,
     transform 180ms ease;
   animation: actionAlertIn 180ms ease-out;
-  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.36);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.32);
 }
 
 @keyframes actionAlertIn {
@@ -48,20 +48,23 @@
 }
 
 .alertCard:hover {
-  background: rgba(33, 103, 45, 0.96);
-  transform: scale(1.02);
+  background: #18572a;
+  transform: translateY(-1px);
 }
 
 .alertCard svg {
   flex: 0 0 auto;
-  width: 30px;
-  height: 30px;
+  width: 21px;
+  height: 21px;
+  color: #ffffff;
+  stroke: currentColor;
 }
 
 .alertCard span {
-  font-size: 1.15rem;
+  font-size: 0.98rem;
   font-weight: 700;
-  line-height: 1.45;
+  line-height: 1.35;
+  color: #ffffff;
   text-transform: none;
   letter-spacing: normal;
 }
@@ -69,8 +72,8 @@
 .alertCard button {
   flex: 0 0 auto;
   display: grid;
-  width: 40px;
-  height: 40px;
+  width: 30px;
+  height: 30px;
   place-items: center;
   border: 0;
   border-radius: 8px;
@@ -84,36 +87,36 @@
 }
 
 .alertCard[data-tone="info"] {
-  border-color: rgba(128, 190, 255, 0.42);
+  border-color: rgba(255, 255, 255, 0.3);
   border-left-color: var(--info);
-  color: #e3f3ff;
-  background: rgba(19, 70, 111, 0.92);
+  color: #ffffff;
+  background: #123f68;
 }
 
 .alertCard[data-tone="info"]:hover {
-  background: rgba(22, 84, 134, 0.96);
+  background: #174e7d;
 }
 
 .alertCard[data-tone="warning"] {
-  border-color: rgba(255, 201, 92, 0.48);
+  border-color: rgba(255, 255, 255, 0.3);
   border-left-color: var(--warning);
-  color: #fff1cf;
-  background: rgba(115, 78, 9, 0.92);
+  color: #ffffff;
+  background: #624300;
 }
 
 .alertCard[data-tone="warning"]:hover {
-  background: rgba(138, 93, 10, 0.96);
+  background: #765200;
 }
 
 .alertCard[data-tone="error"] {
-  border-color: rgba(255, 112, 102, 0.48);
+  border-color: rgba(255, 255, 255, 0.3);
   border-left-color: var(--danger);
-  color: #ffe4e1;
-  background: rgba(104, 28, 25, 0.94);
+  color: #ffffff;
+  background: #681b19;
 }
 
 .alertCard[data-tone="error"]:hover {
-  background: rgba(128, 34, 30, 0.98);
+  background: #7c211e;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -125,28 +128,4 @@
   .alertCard:hover {
     transform: none;
   }
-}
-
-:global(html[data-theme="light"]) .alertCard {
-  border-color: rgba(18, 60, 27, 0.2);
-  color: #123c1b;
-  background: #e7f5e9;
-}
-
-:global(html[data-theme="light"]) .alertCard[data-tone="info"] {
-  border-color: rgba(20, 58, 89, 0.22);
-  color: #143a59;
-  background: #e8f2fb;
-}
-
-:global(html[data-theme="light"]) .alertCard[data-tone="warning"] {
-  border-color: rgba(89, 61, 8, 0.24);
-  color: #593d08;
-  background: #fff4d8;
-}
-
-:global(html[data-theme="light"]) .alertCard[data-tone="error"] {
-  border-color: rgba(100, 28, 24, 0.24);
-  color: #641c18;
-  background: #fde9e7;
 }

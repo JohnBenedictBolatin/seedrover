@@ -34,7 +34,6 @@ export function RoverCommandHistory({ commands, error }: { commands: RoverComman
             >
               <ChevronLeft size={16} />
             </button>
-            <span>Page {currentPage} of {pageCount}</span>
             <button
               aria-label="Next command page"
               disabled={currentPage === pageCount}

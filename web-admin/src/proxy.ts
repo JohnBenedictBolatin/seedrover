@@ -75,7 +75,15 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (isProtectedRoute(pathname) && !user) {
+  // Redirecting a Server Action POST to the login page returns HTML where
+  // Next expects an RSC action response, which appears in the client as an
+  // "unexpected response" error. Protected actions validate the session and
+  // role themselves, so let them return a valid action response instead.
+  const isProtectedServerAction =
+    request.method === "POST" &&
+    request.headers.has("next-action");
+
+  if (isProtectedRoute(pathname) && !user && !isProtectedServerAction) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("redirectedFrom", pathname);

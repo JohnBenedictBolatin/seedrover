@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import styles from "@/app/login/page.module.css";
 
 export function LoginThemeSwitch() {
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [theme, setTheme] = useState<"dark" | "light">("light");
 
   useEffect(() => {
     const savedTheme = window.localStorage.getItem("seedrover-theme");
-    const nextTheme = savedTheme === "light" ? "light" : "dark";
+    const nextTheme = savedTheme === "dark" ? "dark" : "light";
     document.documentElement.dataset.theme = nextTheme;
     const updateThemeState = window.setTimeout(() => setTheme(nextTheme), 0);
 

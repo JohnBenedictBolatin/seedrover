@@ -59,6 +59,7 @@ export type ExportStockMovementRow = {
   source: string;
   remarks: string;
   createdAt: string;
+  performedByName: string | null;
 };
 
 export type ExportDiscountRow = {
@@ -150,6 +151,10 @@ type StockMovementRow = {
   remarks: string | null;
   source: string | null;
   created_at: string;
+  performer:
+    | { full_name: string | null }
+    | { full_name: string | null }[]
+    | null;
   inventory:
     | {
         item_name: string;
@@ -459,7 +464,7 @@ export async function getStockMovementExportRows(filters: ReportExportFilters = 
 
   let query = supabase
     .from("inventory_transactions")
-    .select("transaction_type, quantity, remarks, source, created_at, inventory(item_name, stock_code)")
+    .select("transaction_type, quantity, remarks, source, created_at, performer:profiles!inventory_transactions_performed_by_fkey(full_name), inventory(item_name, stock_code)")
     .order("created_at", { ascending: false });
 
   if (filters.start) {
@@ -484,6 +489,7 @@ export async function getStockMovementExportRows(filters: ReportExportFilters = 
   return (data ?? [])
     .map<ExportStockMovementRow>((row) => {
       const inventory = firstRelation(row.inventory);
+      const performer = firstRelation(row.performer);
 
       return {
         itemName: inventory?.item_name ?? "Unknown item",
@@ -493,6 +499,7 @@ export async function getStockMovementExportRows(filters: ReportExportFilters = 
         source: row.source ?? "manual",
         remarks: row.remarks ?? "",
         createdAt: row.created_at,
+        performedByName: performer?.full_name ?? null,
       };
     })
     .filter((row) => {

@@ -1,0 +1,56 @@
+name: SeedRover browser evidence
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Test suite
+        type: choice
+        options: [full, smoke]
+        default: full
+permissions:
+  contents: read
+concurrency:
+  group: seedrover-shared-demo-database-e2e
+  cancel-in-progress: false
+jobs:
+  browser-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: web-admin
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      E2E_EXPECTED_SUPABASE_HOST: ${{ vars.E2E_EXPECTED_SUPABASE_HOST }}
+      NODE_OPTIONS: --dns-result-order=ipv4first
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+          cache-dependency-path: web-admin/package-lock.json
+      - name: Verify required test configuration
+        run: |
+          node -e "for (const key of ['NEXT_PUBLIC_SUPABASE_URL','NEXT_PUBLIC_SUPABASE_ANON_KEY','SUPABASE_SERVICE_ROLE_KEY','E2E_EXPECTED_SUPABASE_HOST']) if (!process.env[key]) throw new Error('Missing '+key)"
+      - run: npm ci
+      - run: npm run check:tracked-secrets
+      - run: npm run lint
+      - run: npm run test:input-contract
+      - run: npm run check:shared-workflows
+      - run: npx playwright install --with-deps chromium
+      - name: Execute selected suite
+        env:
+          SELECTED_SUITE: ${{ inputs.suite }}
+        run: |
+          if [ "$SELECTED_SUITE" = smoke ]; then npm run test:e2e:smoke; else npm run test:e2e; fi
+      - name: Upload execution evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: seedrover-browser-evidence-${{ github.run_id }}
+          path: web-admin/e2e/runs/
+          if-no-files-found: warn
+          retention-days: 14

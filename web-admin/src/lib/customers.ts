@@ -52,6 +52,7 @@ export type CustomerDiscount = {
   discountValue: number;
   releasedAt: string;
   usedAt: string | null;
+  redeemedBy: string | null;
   status: string;
 };
 
@@ -99,6 +100,7 @@ type CustomerDiscountRow = {
   discount_value: number | string;
   released_at: string;
   used_at: string | null;
+  used_sales_order_id: string | null;
   status: string;
 };
 
@@ -256,7 +258,7 @@ export async function getCustomersDashboard() {
       .returns<MarketSaleRow[]>(),
     supabase
       .from("customer_discounts")
-      .select("id, discount_code, customer_name, discount_type, discount_value, released_at, used_at, status")
+      .select("id, discount_code, customer_name, discount_type, discount_value, released_at, used_at, used_sales_order_id, status")
       .order("released_at", { ascending: false })
       .returns<CustomerDiscountRow[]>(),
   ]);
@@ -281,6 +283,20 @@ export async function getCustomersDashboard() {
     };
   }
 
+  const usedSaleIds = (discountsResult.data ?? [])
+    .map((discount) => discount.used_sales_order_id)
+    .filter((id): id is string => Boolean(id));
+  const redeemedSalesResult = usedSaleIds.length > 0
+    ? await supabase
+        .from("sales_orders")
+        .select("id, customer_name")
+        .in("id", usedSaleIds)
+        .returns<Array<{ id: string; customer_name: string | null }>>()
+    : { data: [], error: null };
+  const redeemedByOrderId = new Map(
+    (redeemedSalesResult.data ?? []).map((sale) => [sale.id, normalizeText(sale.customer_name ?? "")]),
+  );
+
   const discounts = discountsResult.error
     ? []
     : (discountsResult.data ?? []).map<CustomerDiscount>((discount) => ({
@@ -291,6 +307,9 @@ export async function getCustomersDashboard() {
         discountValue: toNumber(discount.discount_value),
         releasedAt: discount.released_at,
         usedAt: discount.used_at,
+        redeemedBy: discount.used_sales_order_id
+          ? redeemedByOrderId.get(discount.used_sales_order_id) || null
+          : null,
         status: discount.status,
       }));
   const customersByKey = new Map<string, CustomerSummary>();

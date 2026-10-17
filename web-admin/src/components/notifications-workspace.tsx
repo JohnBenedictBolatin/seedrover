@@ -2,12 +2,11 @@
 
 import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { NotificationDeleteButton, NotificationReadButton } from "@/components/notification-action-buttons";
 import { formatDateTime } from "@/lib/format";
 import type { AdminNotification } from "@/lib/notifications";
 import styles from "@/app/(portal)/notifications/page.module.css";
 
-const NOTIFICATIONS_PER_PAGE = 10;
+const NOTIFICATIONS_PER_PAGE = 4;
 
 export function NotificationsWorkspace({ notifications }: { notifications: AdminNotification[] }) {
   const [page, setPage] = useState(1);
@@ -44,14 +43,6 @@ export function NotificationsWorkspace({ notifications }: { notifications: Admin
               <small>{notification.recipientName} · {formatDateTime(notification.createdAt)}</small>
             </div>
             <div className={styles.status}>{notification.isRead ? "Read" : "Unread"}</div>
-            <div className={styles.actions}>
-              <NotificationReadButton id={notification.id} isRead={notification.isRead}>
-                {notification.isRead ? "Mark unread" : "Mark read"}
-              </NotificationReadButton>
-              <NotificationDeleteButton id={notification.id} className={styles.dangerButton}>
-                Delete
-              </NotificationDeleteButton>
-            </div>
           </article>
         ))}
       </div>

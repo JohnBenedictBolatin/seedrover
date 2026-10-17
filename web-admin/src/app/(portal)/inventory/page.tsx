@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { AlertTriangle, Boxes, CircleDollarSign, PackageX, ShoppingCart, CalendarDays, Award } from "lucide-react";
+import { AlertTriangle, Boxes, CircleDollarSign, PackageX } from "lucide-react";
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { getInventoryDashboard } from "@/lib/inventory";
 import { CountUpValue } from "@/components/count-up-value";
@@ -23,13 +23,13 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
     redirect("/dashboard");
   }
 
-  const { items, summary, sales, error } = await getInventoryDashboard();
+  const { items, summary, error } = await getInventoryDashboard();
   const params = await searchParams;
   const itemParam = params?.item;
   const initialItemId = Array.isArray(itemParam) ? itemParam[0] : itemParam;
 
   return (
-    <div className={styles.page}>
+    <div className={`${styles.page} ${styles.inventoryPage} ${styles.summaryDesignScope}`}>
       <header className={styles.header}>
           <ModuleHeaderIntro mascot="inventory">
             <p className={styles.eyebrow}>Operations</p>
@@ -49,7 +49,7 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
       ) : null}
 
       <section className={styles.metricGrid} aria-label="Inventory summary">
-        <article className={styles.metric}>
+        <article className={`${styles.metric} ${styles.summaryMetric}`}>
           <div className={styles.metricMeta}>
             <span className={styles.metricIcon} aria-hidden="true">
               <Boxes size={20} />
@@ -58,7 +58,7 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
           </div>
           {summary ? <CountUpValue className="mono" value={summary.totalItems} /> : <strong>Unavailable</strong>}
         </article>
-        <article className={styles.metric}>
+        <article className={`${styles.metric} ${styles.summaryMetric}`}>
           <div className={styles.metricMeta}>
             <span className={styles.metricIcon} aria-hidden="true">
               <AlertTriangle size={20} />
@@ -67,7 +67,7 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
           </div>
           {summary ? <CountUpValue className="mono" value={summary.lowStockItems} /> : <strong>Unavailable</strong>}
         </article>
-        <article className={styles.metric}>
+        <article className={`${styles.metric} ${styles.summaryMetric}`}>
           <div className={styles.metricMeta}>
             <span className={styles.metricIcon} aria-hidden="true">
               <PackageX size={20} />
@@ -76,7 +76,7 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
           </div>
           {summary ? <CountUpValue className="mono" value={summary.outOfStockItems} /> : <strong>Unavailable</strong>}
         </article>
-        <article className={styles.metric}>
+        <article className={`${styles.metric} ${styles.summaryMetric}`}>
           <div className={styles.metricMeta}>
             <span className={styles.metricIcon} aria-hidden="true">
               <CircleDollarSign size={20} />
@@ -84,25 +84,6 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
             <p>Inventory value</p>
           </div>
           {summary?.inventoryValue != null ? <CountUpValue className="mono" currency value={summary.inventoryValue} /> : <strong>{summary ? "Incomplete cost data" : "Unavailable"}</strong>}
-        </article>
-      </section>
-
-      <section className={styles.salesBand} aria-label="Sales summary">
-        <article className={styles.metric}>
-          <div className={styles.metricMeta}><span className={styles.metricIcon}><ShoppingCart size={20} /></span><p>Sales today</p></div>
-          {sales ? <CountUpValue currency value={sales.salesToday} /> : <span>Unavailable</span>}
-        </article>
-        <article className={styles.metric}>
-          <div className={styles.metricMeta}><span className={styles.metricIcon}><CalendarDays size={20} /></span><p>Sales this month</p></div>
-          {sales ? <CountUpValue currency value={sales.salesThisMonth} /> : <span>Unavailable</span>}
-        </article>
-        <article className={styles.metric}>
-          <div className={styles.metricMeta}><span className={styles.metricIcon}><Award size={20} /></span><p>Best-selling item</p></div>
-          <strong className={styles.metricTextValue}>{sales?.bestSellingItem ?? "Unavailable"}</strong>
-        </article>
-        <article className={styles.metric}>
-          <div className={styles.metricMeta}><span className={styles.metricIcon}><CircleDollarSign size={20} /></span><p>Potential sales value</p></div>
-          {summary?.estimatedSalesValue != null ? <CountUpValue currency value={summary.estimatedSalesValue} /> : <strong>{summary ? "Incomplete price data" : "Unavailable"}</strong>}
         </article>
       </section>
 

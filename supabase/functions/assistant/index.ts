@@ -26,9 +26,20 @@ Scope:
 - Answer general planting questions for small farm use, especially calamansi,
   peanut, and sitaw.
 - Keep answers practical, concise, and friendly.
+- Use everyday English for non-technical farmers. Explain crop stages and care
+  tasks in plain words (for example, say "young tree growing" instead of
+  "juvenile", "ready to harvest" instead of "harvest ready", and "check that
+  the young plants are growing well" instead of "monitor establishment").
+- Avoid unexplained terms such as soil pre-check, calibration, establishment,
+  pegging, and reconciliation. Say "check the soil before planting", "set up
+  the sensor", "young plants settling in", "peanut stems reaching into the
+  soil", and "check the saved result" where those meanings apply.
 - Use the conversation history to avoid repeating an answer unnecessarily.
 - When operational information is provided, answer data-specific questions
   from it without describing the data source.
+- Crop entries use the planting's friendly name as "name" and the plant species
+  as "cropType". Use the friendly name to distinguish a farmer's plantings and
+  the crop type when giving crop-specific advice.
 - Do not mention backend, table, or data-source details in the answer.
 
 SeedRover app facts:
@@ -252,6 +263,8 @@ function sanitizeRover(value: unknown) {
 function sanitizeCrop(value: Record<string, unknown>) {
   return {
     name: safeText(value.name),
+    cropType: safeText(value.cropType),
+    field: safeText(value.field),
     variety: safeText(value.variety),
     quantity: safeNumber(value.quantity),
     plantingDate: safeText(value.plantingDate),

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import { useId } from "react";
 import {
   Package,
   ArrowRight,
@@ -12,8 +13,7 @@ import {
   ReceiptText,
   SlidersHorizontal,
   TrendingUp,
-  ChevronLeft,
-  ChevronRight,
+  Target,
 } from "lucide-react";
 import {
   Area,
@@ -72,13 +72,7 @@ type OperationsDashboardWorkspaceProps = {
 };
 
 export function OperationsDashboardWorkspace({ canViewInvestments, isInventoryManager, data }: OperationsDashboardWorkspaceProps) {
-  const [activityPage, setActivityPage] = useState(1);
-  const activityPageSize = 3;
-  const activityPageCount = Math.max(1, Math.ceil(data.recentActivity.length / activityPageSize));
-  const visibleActivity = data.recentActivity.slice(
-    (activityPage - 1) * activityPageSize,
-    activityPage * activityPageSize,
-  );
+  const visibleActivity = data.recentActivity.slice(0, 5);
   const rangeLabel = data.range === "day"
     ? "Daily"
     : data.range === "week"
@@ -107,7 +101,7 @@ export function OperationsDashboardWorkspace({ canViewInvestments, isInventoryMa
       currency: true,
     },
     {
-      icon: <TrendingUp size={20} />,
+      icon: <Target size={20} />,
       label: `${rangeLabel} ROI`,
       value: data.financeAvailable ? data.summary.roi : "Unavailable",
       suffix: "%",
@@ -130,23 +124,18 @@ export function OperationsDashboardWorkspace({ canViewInvestments, isInventoryMa
     <>
       <div className={styles.dashboardLayout}>
         <div className={styles.dashboardOverview}>
-          <section className={styles.rangePanel} aria-label="Dashboard range selector">
-            <div>
-              <h2>Farm overview</h2>
-            </div>
-            <div className={styles.rangeTabs} aria-label="Select dashboard date range">
-              {ranges.map((range) => (
-                <Link
-                  aria-current={data.range === range.value ? "page" : undefined}
-                  className={data.range === range.value ? styles.rangeTabActive : styles.rangeTab}
-                  href={`/dashboard?range=${range.value}`}
-                  key={range.value}
-                >
-                  {range.label}
-                </Link>
-              ))}
-            </div>
-          </section>
+          <nav className={styles.rangeSelector} aria-label="Dashboard date range">
+            {ranges.map((range) => (
+              <Link
+                aria-current={data.range === range.value ? "page" : undefined}
+                className={data.range === range.value ? styles.rangeTabActive : styles.rangeTab}
+                href={`/dashboard?range=${range.value}`}
+                key={range.value}
+              >
+                {range.label}
+              </Link>
+            ))}
+          </nav>
 
           <section className={styles.metricGrid} aria-label="Operations summary">
             {summaryCards.map((card) => (
@@ -168,18 +157,39 @@ export function OperationsDashboardWorkspace({ canViewInvestments, isInventoryMa
 
         <aside className={styles.priorityRail} aria-label="Priority operational details">
           <article className={styles.listPanel}>
-            <div className={styles.sectionHeader}>
+            <div className={`${styles.sectionHeader} ${styles.railSectionHeader} ${styles.riskSectionHeader}`}>
               <div>
                 <p className={styles.eyebrow}>Inventory</p>
                 <h2>Low stock items</h2>
               </div>
-              <span className={styles.panelPill}>{data.insights.stockWarning}</span>
+              <span
+                className={styles.panelPill}
+                aria-label={data.insights.stockWarning}
+                role="status"
+                title={data.insights.stockWarning}
+              >
+                {data.lowStock.length}
+              </span>
             </div>
             {data.lowStock.length > 0 ? (
               <div className={styles.riskList}>
                 {data.lowStock.map((item) => (
                   <div className={styles.riskItem} data-status={item.status} key={item.id}>
-                    <div>
+                    {item.imageUrl ? (
+                      <Image
+                        alt={item.itemName}
+                        className={styles.riskItemImage}
+                        height={32}
+                        src={item.imageUrl}
+                        unoptimized
+                        width={32}
+                      />
+                    ) : (
+                      <span className={styles.riskItemImageFallback} aria-hidden="true">
+                        <Package size={17} />
+                      </span>
+                    )}
+                    <div className={styles.riskItemInfo}>
                       <strong>{item.itemName}</strong>
                       <span>{item.category}</span>
                     </div>
@@ -207,32 +217,10 @@ export function OperationsDashboardWorkspace({ canViewInvestments, isInventoryMa
           </article>
 
           <article className={styles.listPanel}>
-            <div className={`${styles.sectionHeader} ${styles.activitySectionHeader}`}>
+            <div className={`${styles.sectionHeader} ${styles.railSectionHeader}`}>
               <div>
-                <p className={styles.eyebrow}>Activity</p>
                 <h2>Recent activity</h2>
               </div>
-              {activityPageCount > 1 ? (
-                <nav className={styles.activityPagination} aria-label="Recent activity pagination">
-                  <button
-                    aria-label="Previous activity page"
-                    disabled={activityPage === 1}
-                    type="button"
-                    onClick={() => setActivityPage((page) => Math.max(1, page - 1))}
-                  >
-                    <ChevronLeft size={16} />
-                  </button>
-                  <span>Page {activityPage} of {activityPageCount}</span>
-                  <button
-                    aria-label="Next activity page"
-                    disabled={activityPage === activityPageCount}
-                    type="button"
-                    onClick={() => setActivityPage((page) => Math.min(activityPageCount, page + 1))}
-                  >
-                    <ChevronRight size={16} />
-                  </button>
-                </nav>
-              ) : null}
             </div>
             {data.recentActivity.length > 0 ? (
               <div className={styles.activityList}>
@@ -274,7 +262,7 @@ export function OperationsDashboardWorkspace({ canViewInvestments, isInventoryMa
             {data.salesAvailable ? <AreaValueChart data={data.charts.salesTrend} /> : <EmptyState text={data.salesError ?? "Sales data unavailable."} />}
           </ChartPanel>
 
-          <ChartPanel title="Sales by category (before receipt discounts)">
+          <ChartPanel title="Sales by category">
             {data.salesAvailable ? <PieValueChart data={data.charts.salesByCategory} /> : <EmptyState text={data.salesError ?? "Sales data unavailable."} />}
           </ChartPanel>
 
@@ -318,6 +306,8 @@ function ChartPanel({
 }
 
 function AreaValueChart({ data }: { data: DashboardPoint[] }) {
+  const gradientId = `sales-area-${useId().replace(/:/g, "")}`;
+
   if (data.length === 0) {
     return <EmptyState text="No sales data for this range." />;
   }
@@ -326,22 +316,25 @@ function AreaValueChart({ data }: { data: DashboardPoint[] }) {
     <ResponsiveContainer height="100%" width="100%">
       <AreaChart data={data}>
         <defs>
-          <linearGradient id="salesArea" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="5%" stopColor="var(--chart-series-1)" stopOpacity={0.24} />
-            <stop offset="95%" stopColor="var(--chart-series-1)" stopOpacity={0} />
+          <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="var(--chart-series-1)" stopOpacity={0.68} />
+            <stop offset="58%" stopColor="var(--chart-series-1)" stopOpacity={0.38} />
+            <stop offset="100%" stopColor="var(--chart-series-3)" stopOpacity={0.14} />
           </linearGradient>
         </defs>
         <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
         <XAxis axisLine={false} dataKey="label" tick={{ fill: "var(--chart-axis)", fontSize: 11 }} tickLine={false} />
         <YAxis axisLine={false} tick={{ fill: "var(--chart-axis)", fontSize: 11 }} tickFormatter={(value) => formatCurrency(Number(value))} tickLine={false} width={54} />
         <Tooltip content={<ChartTooltip currency />} cursor={{ stroke: "var(--chart-cursor)", strokeWidth: 1 }} />
-        <Area dataKey="value" fill="url(#salesArea)" stroke="var(--chart-series-1)" strokeWidth={2} type="monotone" />
+        <Area dataKey="value" fill={`url(#${gradientId})`} stroke="var(--chart-series-1)" strokeWidth={2.4} type="monotone" />
       </AreaChart>
     </ResponsiveContainer>
   );
 }
 
 function BarValueChart({ currency = false, data }: { currency?: boolean; data: DashboardPoint[] }) {
+  const gradientPrefix = `bar-${useId().replace(/:/g, "")}`;
+
   if (data.length === 0) {
     return <EmptyState text="No matching records yet." />;
   }
@@ -349,6 +342,14 @@ function BarValueChart({ currency = false, data }: { currency?: boolean; data: D
   return (
     <ResponsiveContainer height="100%" width="100%">
       <BarChart data={data}>
+        <defs>
+          {chartColors.map((color, index) => (
+            <linearGradient id={`${gradientPrefix}-${index}`} key={index} x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor={color} stopOpacity={0.96} />
+              <stop offset="100%" stopColor={color} stopOpacity={0.48} />
+            </linearGradient>
+          ))}
+        </defs>
         <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
         <XAxis axisLine={false} dataKey="label" tick={{ fill: "var(--chart-axis)", fontSize: 11 }} tickLine={false} />
         <YAxis axisLine={false} tick={{ fill: "var(--chart-axis)", fontSize: 11 }} tickFormatter={(value) => currency ? formatCurrency(Number(value)) : String(value)} tickLine={false} width={54} />
@@ -356,7 +357,7 @@ function BarValueChart({ currency = false, data }: { currency?: boolean; data: D
         <Bar dataKey="value" radius={[8, 8, 0, 0]}>
           {data.map((entry, index) => (
             <Cell
-              fill={chartFillColors[index % chartFillColors.length]}
+              fill={`url(#${gradientPrefix}-${index % chartColors.length})`}
               key={entry.label}
               stroke={chartColors[index % chartColors.length]}
               strokeWidth={1}
@@ -369,6 +370,8 @@ function BarValueChart({ currency = false, data }: { currency?: boolean; data: D
 }
 
 function PieValueChart({ data }: { data: DashboardPoint[] }) {
+  const gradientPrefix = `pie-${useId().replace(/:/g, "")}`;
+
   if (data.length === 0) {
     return <EmptyState text="No matching records yet." />;
   }
@@ -380,20 +383,28 @@ function PieValueChart({ data }: { data: DashboardPoint[] }) {
       <div className={styles.pieChartGraphic}>
         <ResponsiveContainer height="100%" width="100%">
           <PieChart>
+            <defs>
+              {chartColors.map((color, index) => (
+                <linearGradient id={`${gradientPrefix}-${index}`} key={index} x1="0" x2="1" y1="0" y2="1">
+                  <stop offset="0%" stopColor={color} stopOpacity={0.98} />
+                  <stop offset="100%" stopColor={color} stopOpacity={0.58} />
+                </linearGradient>
+              ))}
+            </defs>
             <Tooltip content={<ChartTooltip currency />} />
             <Pie
               cx="50%"
               cy="50%"
               data={data}
               dataKey="value"
-              innerRadius={52}
+              innerRadius={38}
               nameKey="label"
-              outerRadius={82}
+              outerRadius={62}
               paddingAngle={data.length > 1 ? 3 : 0}
             >
               {data.map((entry, index) => (
                 <Cell
-                  fill={chartFillColors[index % chartFillColors.length]}
+                  fill={`url(#${gradientPrefix}-${index % chartColors.length})`}
                   key={entry.label}
                   stroke={chartColors[index % chartColors.length]}
                   strokeWidth={1}
@@ -418,7 +429,7 @@ function PieValueChart({ data }: { data: DashboardPoint[] }) {
                 aria-hidden="true"
                 className={styles.pieLegendSwatch}
                 style={{
-                  background: chartFillColors[index % chartFillColors.length],
+                  background: `linear-gradient(135deg, ${chartColors[index % chartColors.length]}, ${chartFillColors[index % chartFillColors.length]})`,
                   borderColor: chartColors[index % chartColors.length],
                 }}
               />
@@ -436,6 +447,8 @@ function PieValueChart({ data }: { data: DashboardPoint[] }) {
 }
 
 function StockMovementLineChart({ data }: { data: StockMovementPoint[] }) {
+  const gradientPrefix = `movement-${useId().replace(/:/g, "")}`;
+
   if (data.length === 0) {
     return <EmptyState text="No stock movement in this range." />;
   }
@@ -443,13 +456,22 @@ function StockMovementLineChart({ data }: { data: StockMovementPoint[] }) {
   return (
     <ResponsiveContainer height="100%" width="100%">
       <LineChart data={data}>
+        <defs>
+          {[1, 6, 2].map((seriesIndex, lineIndex) => (
+            <linearGradient id={`${gradientPrefix}-${lineIndex}`} key={lineIndex} x1="0" x2="1" y1="0" y2="0">
+              <stop offset="0%" stopColor={chartColors[seriesIndex - 1]} stopOpacity={0.62} />
+              <stop offset="50%" stopColor={chartColors[seriesIndex - 1]} stopOpacity={1} />
+              <stop offset="100%" stopColor={chartColors[seriesIndex - 1]} stopOpacity={0.7} />
+            </linearGradient>
+          ))}
+        </defs>
         <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
         <XAxis axisLine={false} dataKey="label" tick={{ fill: "var(--chart-axis)", fontSize: 11 }} tickLine={false} />
         <YAxis axisLine={false} tick={{ fill: "var(--chart-axis)", fontSize: 11 }} tickLine={false} width={42} />
         <Tooltip content={<ChartTooltip />} cursor={{ stroke: "var(--chart-cursor)", strokeWidth: 1 }} />
-        <Line activeDot={{ r: 4 }} dataKey="in" dot={{ r: 2 }} stroke="var(--chart-series-1)" strokeWidth={1.8} type="monotone" />
-        <Line activeDot={{ r: 4 }} dataKey="out" dot={{ r: 2 }} stroke="var(--chart-series-6)" strokeWidth={1.8} type="monotone" />
-        <Line activeDot={{ r: 4 }} dataKey="adjustment" dot={{ r: 2 }} stroke="var(--chart-series-2)" strokeWidth={1.8} type="monotone" />
+        <Line activeDot={{ r: 4 }} dataKey="in" dot={{ r: 2 }} stroke={`url(#${gradientPrefix}-0)`} strokeWidth={2.1} type="monotone" />
+        <Line activeDot={{ r: 4 }} dataKey="out" dot={{ r: 2 }} stroke={`url(#${gradientPrefix}-1)`} strokeWidth={2.1} type="monotone" />
+        <Line activeDot={{ r: 4 }} dataKey="adjustment" dot={{ r: 2 }} stroke={`url(#${gradientPrefix}-2)`} strokeWidth={2.1} type="monotone" />
       </LineChart>
     </ResponsiveContainer>
   );

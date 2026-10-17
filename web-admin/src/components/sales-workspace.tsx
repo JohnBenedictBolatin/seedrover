@@ -32,6 +32,7 @@ import type {
 } from "@/lib/sales";
 import type { ExistingSaleCustomer } from "@/lib/customers";
 import { CountUpValue } from "@/components/count-up-value";
+import inventorySummaryStyles from "@/app/(portal)/inventory/page.module.css";
 import type { AlertTone } from "@/components/action-alert-stack";
 import { useActionFeedback } from "@/components/action-feedback";
 import { useConfirmationDialog } from "@/components/confirmation-dialog";
@@ -70,11 +71,6 @@ function matchesDateRange(order: RecentSalesOrder, start: string, end: string) {
 
 function displayedSaleStatus(order: RecentSalesOrder) {
   return order.status;
-}
-
-function salesEntryType(order: RecentSalesOrder) {
-  if (order.source === "market") return "Legacy inventory sale";
-  return "Receipt sale";
 }
 
 function FilterSelect({
@@ -150,7 +146,6 @@ export function SalesWorkspace({
 }: SalesWorkspaceProps) {
   const [query, setQuery] = useState("");
   const [payment, setPayment] = useState("All");
-  const [entryType, setEntryType] = useState("All");
   const [status, setStatus] = useState("All");
   const [startDate, setStartDate] = useState(todayInputValue(-30));
   const [endDate, setEndDate] = useState(todayInputValue());
@@ -158,6 +153,7 @@ export function SalesWorkspace({
   const [salesModalOpen, setSalesModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const voidReasons = useRef<Record<string, string>>({});
+  const voidSubmissionIds = useRef<Record<string, string>>({});
   const [voidPending, startVoidTransition] = useTransition();
   const router = useRouter();
   const { notify: sendFeedback } = useActionFeedback();
@@ -178,7 +174,7 @@ export function SalesWorkspace({
     const voidReason = voidReasons.current[order.id] ?? "Incorrect sales transaction.";
     const confirmed = await confirm({
       title: "Void this sale?",
-      message: `${order.source === "market" ? "Void this legacy inventory sale" : `Void receipt ${order.receiptNumber}`} and return the sold quantity to inventory?`,
+      message: `${order.source === "market" ? "Void this legacy inventory sale" : `Void sale ${order.receiptNumber}`} and return the sold quantity to inventory?`,
       summary: <label>Void reason<textarea rows={3} defaultValue={voidReason} onChange={(event) => { voidReasons.current[order.id] = event.target.value; }} /></label>,
       confirmLabel: "Void sale",
       tone: "danger",
@@ -188,11 +184,14 @@ export function SalesWorkspace({
     formData.set("id", order.id);
     formData.set("source", source);
     formData.set("reason", voidReasons.current[order.id] ?? voidReason);
+    voidSubmissionIds.current[order.id] ??= crypto.randomUUID();
+    formData.set("submission_id", voidSubmissionIds.current[order.id]);
 
     startVoidTransition(async () => {
       try {
         await voidSalesRecordAction(formData);
         delete voidReasons.current[order.id];
+        delete voidSubmissionIds.current[order.id];
         router.refresh();
         notify("success", "Sale voided and inventory restored.");
       } catch (error) {
@@ -222,18 +221,17 @@ export function SalesWorkspace({
       return (
         (!normalized || haystack.includes(normalized)) &&
         (payment === "All" || order.paymentMethod === payment) &&
-        (entryType === "All" || salesEntryType(order) === entryType) &&
         (status === "All" || displayedSaleStatus(order) === status) &&
         matchesDateRange(order, startDate, endDate)
       );
     });
-  }, [endDate, entryType, orders, payment, query, startDate, status]);
+  }, [endDate, orders, payment, query, startDate, status]);
 
   useEffect(() => {
     const resetPage = window.setTimeout(() => setCurrentPage(1), 0);
 
     return () => window.clearTimeout(resetPage);
-  }, [endDate, entryType, payment, query, startDate, status]);
+  }, [endDate, payment, query, startDate, status]);
 
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / SALES_ROWS_PER_PAGE));
   const safeCurrentPage = Math.min(currentPage, totalPages);
@@ -246,7 +244,6 @@ export function SalesWorkspace({
 
   const paymentOptions = ["All", ...new Set(orders.map((order) => order.paymentMethod))];
   const statusOptions = ["All", ...new Set(orders.map(displayedSaleStatus))];
-  const entryTypeOptions = ["All", ...new Set(orders.map(salesEntryType))];
   const exportParams = new URLSearchParams();
 
   if (startDate) {
@@ -261,10 +258,6 @@ export function SalesWorkspace({
     exportParams.set("payment", payment);
   }
 
-  if (entryType !== "All") {
-    exportParams.set("type", entryType);
-  }
-
   if (status !== "All") {
     exportParams.set("status", status);
   }
@@ -274,86 +267,70 @@ export function SalesWorkspace({
   return (
     <>
       <section className={styles.metricGrid} aria-label="Sales summary">
-        <article className={styles.metric}>
-          <div className={styles.metricMeta}>
-            <span className={styles.metricIcon} aria-hidden="true">
+        <article className={`${inventorySummaryStyles.metric} ${inventorySummaryStyles.summaryMetric}`}>
+          <div className={inventorySummaryStyles.metricMeta}>
+            <span className={inventorySummaryStyles.metricIcon} aria-hidden="true">
               <CalendarDays size={20} />
             </span>
             <p>Sales today</p>
           </div>
           <CountUpValue className="mono" currency value={summary.salesToday} />
         </article>
-        <article className={styles.metric}>
-          <div className={styles.metricMeta}>
-            <span className={styles.metricIcon} aria-hidden="true">
+        <article className={`${inventorySummaryStyles.metric} ${inventorySummaryStyles.summaryMetric}`}>
+          <div className={inventorySummaryStyles.metricMeta}>
+            <span className={inventorySummaryStyles.metricIcon} aria-hidden="true">
               <TrendingUp size={20} />
             </span>
             <p>Sales this month</p>
           </div>
           <CountUpValue className="mono" currency value={summary.salesThisMonth} />
         </article>
-        <article className={styles.metric}>
-          <div className={styles.metricMeta}>
-            <span className={styles.metricIcon} aria-hidden="true">
+        <article className={`${inventorySummaryStyles.metric} ${inventorySummaryStyles.summaryMetric}`}>
+          <div className={inventorySummaryStyles.metricMeta}>
+            <span className={inventorySummaryStyles.metricIcon} aria-hidden="true">
               <Receipt size={20} />
             </span>
             <p>Transactions</p>
           </div>
           <CountUpValue className="mono" value={summary.transactions} />
         </article>
-        <article className={styles.metric}>
-          <div className={styles.metricMeta}>
-            <span className={styles.metricIcon} aria-hidden="true">
+        <article className={`${inventorySummaryStyles.metric} ${inventorySummaryStyles.summaryMetric}`}>
+          <div className={inventorySummaryStyles.metricMeta}>
+            <span className={inventorySummaryStyles.metricIcon} aria-hidden="true">
               <WalletCards size={20} />
             </span>
             <p>Average sale</p>
           </div>
           <CountUpValue className="mono" currency value={summary.averageTransactionValue} />
         </article>
-        <article className={styles.metric}>
-          <div className={styles.metricMeta}>
-            <span className={styles.metricIcon} aria-hidden="true">
-              <CheckCircle2 size={20} />
-            </span>
-            <p>Completed sales</p>
-          </div>
-          <CountUpValue className="mono" value={summary.completedSalesCount} />
-        </article>
       </section>
 
-      <section className={`${styles.metricGrid} ${styles.collectionMetricGrid}`} aria-label="Collections summary">
-        <article className={styles.metric}>
-          <div className={styles.metricMeta}><span className={styles.metricIcon} aria-hidden="true"><WalletCards size={20} /></span><p>Collected today</p></div>
-          <CountUpValue className="mono" currency value={summary.collectedToday} />
-        </article>
-        <article className={styles.metric}>
-          <div className={styles.metricMeta}><span className={styles.metricIcon} aria-hidden="true"><WalletCards size={20} /></span><p>Collected this month</p></div>
-          <CountUpValue className="mono" currency value={summary.collectedThisMonth} />
-        </article>
-      </section>
-
-      <section className={styles.quickActions}>
+      <section
+        className={`${styles.quickActions} ${inventorySummaryStyles.inventoryQuickActionsPanel} ${inventorySummaryStyles.salesQuickActionsPanel}`}
+        aria-label="Sales quick actions"
+      >
         <div>
-          <p className={styles.eyebrow}>Quick action</p>
-          <h2>Record a new sale</h2>
-          <span>Create a receipt and deduct the sold quantities from inventory.</span>
+          <h2>Record a sale</h2>
+          <span>Record a sale and deduct the sold quantities from inventory.</span>
         </div>
-        <button
-          className={styles.recordSaleButton}
-          type="button"
-          onClick={() => setSalesModalOpen(true)}
-        >
-          <span className={styles.recordSaleText}>Record Sale</span>
-          <span className={styles.recordSaleIcon} aria-hidden="true">
-            <Receipt size={22} />
-          </span>
-        </button>
+        <div className={inventorySummaryStyles.inventoryQuickActions}>
+          <button
+            className={`${styles.recordSaleButton} ${styles.compactQuickActionButton}`}
+            type="button"
+            onClick={() => setSalesModalOpen(true)}
+          >
+            <span className={styles.recordSaleText}>RECORD SALE</span>
+            <span className={styles.recordSaleIcon} aria-hidden="true">
+              <Receipt size={20} />
+            </span>
+          </button>
+        </div>
       </section>
 
       <section className={styles.receipts}>
         <div className={styles.sectionHeader}>
           <div>
-            <p className={styles.eyebrow}>Receipts</p>
+            <p className={styles.eyebrow}>Sales records</p>
             <h2>Sales history</h2>
           </div>
           <div className={styles.exportActions}>
@@ -376,7 +353,7 @@ export function SalesWorkspace({
           <label className={styles.searchBox}>
             <Search size={18} />
             <input
-              placeholder="Search receipt, customer, payment..."
+              placeholder="Search sale reference, customer, payment..."
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
@@ -389,13 +366,6 @@ export function SalesWorkspace({
             options={paymentOptions}
             value={payment}
             onChange={setPayment}
-          />
-          <FilterSelect
-            icon={<Receipt size={17} />}
-            label="Type"
-            options={entryTypeOptions}
-            value={entryType}
-            onChange={setEntryType}
           />
           <FilterSelect
             icon={<CheckCircle2 size={17} />}
@@ -414,10 +384,9 @@ export function SalesWorkspace({
         ) : (
           <div className={styles.salesTable}>
             <div className={styles.salesTableHead}>
-              <span>Receipt / reference</span>
+              <span>Sale reference</span>
               <span>Date/Time</span>
               <span>Customer</span>
-              <span>Type</span>
               <span>Items</span>
               <span>Payment</span>
               <span>Discount</span>
@@ -427,12 +396,9 @@ export function SalesWorkspace({
             </div>
             {paginatedOrders.map((order) => (
               <div className={styles.salesTableRow} key={order.id}>
-                <strong className={styles.receiptCell} data-label={order.source === "market" ? "Legacy reference" : "Receipt"}>{order.receiptNumber}</strong>
+                <strong className={styles.receiptCell} data-label={order.source === "market" ? "Legacy reference" : "Sale reference"}>{order.receiptNumber}</strong>
                 <span className={styles.dateCell} data-label="Date / time">{formatDateTime(order.saleDate)}</span>
                 <strong className={styles.customerCell} data-label="Customer">{order.customerName}</strong>
-                <span className={styles.typeCell} data-label="Type">
-                  {salesEntryType(order)}
-                </span>
                 <span className={styles.itemsCell} data-label="Items">{order.itemCount ?? 1}</span>
                 <span className={styles.paymentCell} data-label="Payment">
                   {order.paymentMethod}
@@ -448,7 +414,7 @@ export function SalesWorkspace({
                 <div className={styles.tableActions} data-label="Actions">
                   {order.source === "receipt" ? (
                     <button
-                      aria-label="View receipt details"
+                      aria-label="View sale details"
                       type="button"
                       onClick={() => setSaleDetail(order)}
                     >
@@ -598,7 +564,7 @@ function SalesRecordDetailModal({
             <span className={styles.modalTitleIcon} aria-hidden="true">
               {isLegacyInventorySale ? <Package size={18} /> : <Receipt size={18} />}
             </span>
-            {isLegacyInventorySale ? "Legacy Inventory Sale Details" : "Receipt Sale Details"}
+            {isLegacyInventorySale ? "Legacy Inventory Sale Details" : "Sale Details"}
           </h3>
           <button
             aria-label="Close modal"
@@ -612,7 +578,7 @@ function SalesRecordDetailModal({
 
         <div className={styles.marketDetailHero}>
           <div>
-            <span>{isLegacyInventorySale ? "Legacy reference" : "Receipt number"}</span>
+            <span>{isLegacyInventorySale ? "Legacy reference" : "Sale reference"}</span>
             <strong>{order.receiptNumber}</strong>
           </div>
           <span className={styles.statusPill} data-status={displayedSaleStatus(order).toLowerCase()}>
@@ -654,7 +620,7 @@ function SalesRecordDetailModal({
             ))
           ) : (
             <div className={styles.marketItemsRow}>
-              <strong>Receipt items</strong>
+              <strong>Sale items</strong>
               <span>{order.itemCount ?? 0} items</span>
               <span>Not shown</span>
               <strong>{formatCurrency(order.totalAmount)}</strong>
