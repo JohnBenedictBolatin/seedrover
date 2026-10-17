@@ -167,6 +167,9 @@
 }
 
 .message {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
   margin: 0;
   border: 1px solid rgba(255, 176, 0, 0.28);
   border-radius: 8px;
@@ -176,6 +179,11 @@
   font-weight: 800;
   line-height: 1.4;
   padding: 10px;
+}
+
+.message svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
 }
 
 .resetMessage {

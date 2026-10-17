@@ -49,6 +49,7 @@ import { useActionFeedback } from "@/components/action-feedback";
 import { PendingActionLabel } from "@/components/pending-action-label";
 import { FileUploadField } from "@/components/file-upload-field";
 import { formatCurrency, formatDate, formatDateTime, formatQuantity } from "@/lib/format";
+import { inventoryTransactionNote } from "@/lib/inventory-remarks.mjs";
 import { displayDate } from "@/lib/spoilage-estimates";
 import { sharedWorkflowChoices, sharedWorkflowTerms } from "@/lib/shared-workflow-terms";
 import type { InventoryItem } from "@/lib/inventory";
@@ -773,7 +774,7 @@ function InventoryDialog({
                   <div><strong data-type={transaction.type}>{transaction.type === "OPENING" ? "Opening stock" : transaction.type === "HISTORICAL" ? "Historical batch" : transaction.source === "harvest" ? "Harvest" : transaction.type === "IN" ? sharedWorkflowTerms.receiveStock : transaction.type === "OUT" ? sharedWorkflowTerms.issueStock : sharedWorkflowTerms.adjustQuantity}</strong><span>{item.itemName} · {transaction.quantity} {item.unit}</span></div>
                   <span className={styles.historyActor}>{transaction.performedByName ?? "Not recorded"}</span>
                   <div><small>{transaction.createdAt ? formatDateTime(transaction.createdAt) : "Date unknown"}</small></div>
-                  <p>{transaction.remarks || "—"}</p>
+                  <p>{inventoryTransactionNote(transaction) || "—"}</p>
                 </div>
               ))}
               {items.every((item) => item.transactions.length === 0) ? <p className={styles.historyEmpty}>No inventory movements recorded yet.</p> : null}
@@ -1345,7 +1346,7 @@ function InventoryMovementTable({ item, page, onPageChange }: { item: InventoryI
               <span data-label="Quantity">{formatQuantity(transaction.quantity, item.unit)}</span>
               <span data-label="Handled by">{transaction.performedByName ?? "Not recorded"}</span>
               <span data-label="Date / time">{transaction.createdAt ? formatDateTime(transaction.createdAt) : "Date unknown"}</span>
-              <div data-label="Notes">{transaction.remarks || "—"}{transaction.batch ? <MovementBatchEstimate batch={transaction.batch} /> : null}</div>
+              <div data-label="Notes">{inventoryTransactionNote(transaction) || "—"}{transaction.batch ? <MovementBatchEstimate batch={transaction.batch} /> : null}</div>
             </div>
           ))}
         </div>

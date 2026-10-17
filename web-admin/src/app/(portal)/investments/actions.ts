@@ -6,6 +6,7 @@ import { requireAdminRole } from "@/lib/auth";
 import { MAX_UPLOAD_SIZE_BYTES } from "@/lib/upload-limits";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { writeActivityLog } from "@/lib/activity-log";
+import { businessDateKey } from "@/lib/business-time";
 import { parseDatabaseDecimal } from "@/lib/field-validation.mjs";
 
 const receiptTypes = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
@@ -56,7 +57,7 @@ export async function createExpenseAction(formData: FormData) {
     description,
     category: text(formData, "category") || "Other",
     amount,
-    expense_date: text(formData, "expense_date") || new Date().toISOString().slice(0, 10),
+    expense_date: text(formData, "expense_date") || businessDateKey(),
     vendor: text(formData, "vendor") || null,
     payment_method: paymentMethod,
     reference_number: text(formData, "reference_number") || null,

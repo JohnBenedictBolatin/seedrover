@@ -232,6 +232,22 @@ export async function createInventoryItemAction(formData: FormData) {
     .single();
 
   if (error) {
+    const { data: committedItem, error: confirmationError } = await supabase
+      .from("inventory")
+      .select("id")
+      .eq("id", id)
+      .maybeSingle<{ id: string }>();
+
+    // The insert may have committed even if its response was lost. Delete the
+    // upload only when a follow-up read confirms that no item references it.
+    if (imagePath && !confirmationError && !committedItem) {
+      try {
+        await supabase.storage.from(STOCK_IMAGE_BUCKET).remove([imagePath]);
+      } catch {
+        // Keep the original database error as the actionable failure.
+      }
+    }
+
     // The database trigger is the final duplicate guard. Translate its error
     // (and any duplicate-name constraint error from a deployed schema) into
     // the same message used by the form's pre-insert check.

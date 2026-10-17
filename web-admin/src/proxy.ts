@@ -77,14 +77,13 @@ export async function proxy(request: NextRequest) {
 
   // Redirecting a Server Action POST to the login page returns HTML where
   // Next expects an RSC action response, which appears in the client as an
-  // "unexpected response" error. Crop actions perform their own role checks,
-  // so let them return a valid action response when the session has expired.
-  const isCropServerAction =
-    pathname === "/crops" &&
+  // "unexpected response" error. Protected actions validate the session and
+  // role themselves, so let them return a valid action response instead.
+  const isProtectedServerAction =
     request.method === "POST" &&
     request.headers.has("next-action");
 
-  if (isProtectedRoute(pathname) && !user && !isCropServerAction) {
+  if (isProtectedRoute(pathname) && !user && !isProtectedServerAction) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("redirectedFrom", pathname);

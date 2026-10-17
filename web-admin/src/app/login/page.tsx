@@ -70,7 +70,7 @@ export default async function LoginPage({
                 hasRecoveryQueryError={hasRecoveryQueryError}
                 initialResetMessage={initialResetMessage}
                 initialSessionMessage={sessionEnded
-                  ? "Your session ended. Your account may have been signed in on another device. Sign in again to continue."
+                  ? "Your session ended. It may have expired or been signed out from another device. Sign in again to continue."
                   : ""}
               />
             </div>
