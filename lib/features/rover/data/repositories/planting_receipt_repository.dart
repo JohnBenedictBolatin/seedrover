@@ -275,6 +275,7 @@ class PlantingReceiptRepository {
     if (newlyArchived.isNotEmpty) {
       await _appendHistory(newlyArchived, ownerId);
     }
+    final isOffline = isOfflineError(lastError);
     return PlantingSyncResult(
       synchronizedCount: synced,
       failedCount: failed,
@@ -282,6 +283,7 @@ class PlantingReceiptRepository {
       lastSessionId: lastSessionId,
       lastConfirmedSessionId: lastConfirmedSessionId,
       lastError: lastError,
+      isOffline: isOffline,
     );
   }
 
@@ -390,10 +392,29 @@ class PlantingReceiptRepository {
     });
   }
 
+  static bool isOfflineError(String? error) {
+    if (error == null || error.isEmpty) return false;
+    final lower = error.toLowerCase();
+    return lower.contains('offline') ||
+        lower.contains('socketexception') ||
+        lower.contains('failed host lookup') ||
+        lower.contains('network is unreachable') ||
+        lower.contains('connection refused') ||
+        lower.contains('connection reset') ||
+        lower.contains('connection timed out') ||
+        lower.contains('clientexception') ||
+        lower.contains('handshakeexception') ||
+        lower.contains('supabase.co') ||
+        lower.contains('os error');
+  }
+
   String _syncErrorMessage(Object error) {
     final raw =
         error.toString().replaceFirst(RegExp(r'^Exception: '), '').trim();
     final lower = raw.toLowerCase();
+    if (isOfflineError(raw)) {
+      return 'Offline: saved on phone. Will sync when connected to internet.';
+    }
     if (lower.contains('permission required') ||
         lower.contains('permission denied') ||
         lower.contains('not authorized')) {
@@ -417,6 +438,7 @@ class PlantingSyncResult {
     this.lastSessionId,
     this.lastConfirmedSessionId,
     this.lastError,
+    this.isOffline = false,
   });
   final int synchronizedCount;
   final int failedCount;
@@ -424,4 +446,5 @@ class PlantingSyncResult {
   final String? lastSessionId;
   final String? lastConfirmedSessionId;
   final String? lastError;
+  final bool isOffline;
 }

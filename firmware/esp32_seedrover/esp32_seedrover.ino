@@ -27,12 +27,14 @@
 #define REAR_ULTRASONIC_TRIG_PIN 16
 #define REAR_ULTRASONIC_ECHO_PIN 17
 
-// Ultrasonic Sensor 2: Field-end distance & auto-division (max 4 ft = 121.92 cm)
+// Ultrasonic Sensor 2: Field-end distance & boundary obstacle monitoring
 #define FRONT_ULTRASONIC_TRIG_PIN 5
 #define FRONT_ULTRASONIC_ECHO_PIN 15
 
-// 4 feet in centimeters (4 * 30.48 cm = 121.92 cm)
-const float MAX_FIELD_DISTANCE_CM = 121.92f;
+// Dynamic field bed distance: row distance is dynamically calculated as (targetDrops * spacingCm) + FLATTENER_OVERSHOOT_CM
+// Supports arbitrary distances from 1 meter to 50+ meters without hardcoded limits.
+const float DEFAULT_MIN_FIELD_DISTANCE_CM = 100.0f;
+const float MAX_FIELD_DISTANCE_CM = 5000.0f; // 50-meter safety cap (prevents runaway)
 #define SERVO_SOIL_SENSOR_PIN 13
 
 // 3 Seed Dispenser Gate Servos (selected based on crop/seed type)
@@ -41,20 +43,22 @@ const float MAX_FIELD_DISTANCE_CM = 121.92f;
 #define SERVO_SEED_3_PIN 23     // Seed Gate 3 (Peanut)
 
 #define SERVO_SOIL_MECH_PIN 26  // Rake / furrow mechanism
-#define SERVO_LEVELER_PIN 32    // Soil leveler / smoother mechanism (levels raked soil)
-#define SERVO_MOLDER_PIN 33     // Soil molder / ridge former mechanism (creates mountain/mound formation)
-#define SERVO_SEED_TUBE_PIN 2   // Hole punch & seed drop tube servo (lowers to make hole where seed passes through)
+#define SERVO_FLATTENER_PIN 33  // Soil flattener mechanism (flattens soil after being raked)
+#define SERVO_MOLDER_PIN SERVO_FLATTENER_PIN // Legacy alias
+// Note: Leveler (GPIO 32) and Seed Tube (GPIO 2) removed from robot build
+#define SERVO_LEVELER_PIN 32
+#define SERVO_SEED_TUBE_PIN 2
 #define SERVO_HOLE_TUBE_PIN SERVO_SEED_TUBE_PIN
 #define IN1 18
 #define IN2 19
 #define IN3 21
 #define IN4 22
 
-const char *FIRMWARE_VERSION = "2.7.0-multi-seed-dispenser";
+const char *FIRMWARE_VERSION = "3.0.0-raking-scout-planting";
 const unsigned long SOFTAP_RESTART_DELAY_MS = 5000;
 const unsigned long SOFTAP_WATCHDOG_INTERVAL_MS = 2000;
-// Generous 3.5s timeout prevents spurious connection drops during Wi-Fi retransmission
-const unsigned long APP_HEARTBEAT_TIMEOUT_MS = 3500;
+// Generous 12s timeout prevents spurious connection drops during Wi-Fi retransmission
+const unsigned long APP_HEARTBEAT_TIMEOUT_MS = 12000;
 const unsigned long SOIL_SETTLE_MS = 1000;
 const unsigned long PLANTING_PRECHECK_MAX_AGE_MS = 60000;
 const unsigned long SOIL_REFERENCE_CAPTURE_TIMEOUT_MS = 10000;
@@ -65,31 +69,56 @@ const float OBSTACLE_WARN_DISTANCE_CM = 30.0f;
 const float OBSTACLE_CLEAR_DISTANCE_CM = 35.0f;
 const unsigned long OBSTACLE_STALE_AFTER_MS = 3000;
 
-const unsigned long TUBE_PUNCH_SETTLE_MS = 400;   // Wait for hole punch tube to penetrate soil before gate opens
-const unsigned long TUBE_RETRACT_SETTLE_MS = 400; // Wait for hole punch tube to lift up before moving
-const unsigned long REVERSE_TOOL_SETTLE_MS = 500; // Time for rake to lift and leveler/molder to lower before backward drive
-const float FIELD_END_WALL_STOP_CM = 5.0f;        // Distance to front wall to stop forward run (rover reaches end of distance)
-const float LEVELER_OVERSHOOT_CM = 18.0f;         // Distance between seed tube and rear leveler/molder so rover drives past last point
+const unsigned long REVERSE_TOOL_SETTLE_MS = 500; // Time for rake to lift and flattener to lower before backward drive
+const float FIELD_END_WALL_STOP_CM = 15.0f;       // Distance to front wall to stop forward run (avoids sensor blind zone)
+const float FLATTENER_OVERSHOOT_CM = 15.0f;       // Distance between seed hatch and rear flattener so rover drives past last point
+const float LEVELER_OVERSHOOT_CM = FLATTENER_OVERSHOOT_CM; // Compatibility alias
+const unsigned long TUBE_PUNCH_SETTLE_MS = 0;
+const unsigned long TUBE_RETRACT_SETTLE_MS = 0;
 
-const int soilSensorUP = 70;
+const int soilSensorUP = 0;
 const int soilSensorDOWN = 150;
-const int seedCLOSED = 150;
-const int seedOPEN = 90;
-const int soilMechUP = 90;
-const int soilMechDOWN = 140;
+
+// Seed Dispenser Gate Servo Angles
+// Gate 1: Calamansi (GPIO 27)
+const int gate1DEFAULT = 90; // Default closed
+const int gate1OPEN    = 60; // Open hatch
+
+// Gate 2: Sitaw (GPIO 4)
+const int gate2DEFAULT = 90; // Default closed
+const int gate2OPEN    = 60; // Open hatch
+
+// Gate 3: Peanut (GPIO 23)
+const int gate3DEFAULT = 85; // Default closed
+const int gate3OPEN    = 55; // Open hatch
+
+// Seed dispenser open duration: 1 second flash move
+const unsigned long SEED_DISPENSE_OPEN_MS = 1000;
+
+// Legacy aliases for backward compatibility
+const int seedCLOSED = gate1DEFAULT;
+const int seedOPEN   = gate1OPEN;
+
+// Rake / Furrow Mechanism Servo Angles (GPIO 26)
+const int rakeDEFAULT = 0;   // Default / Raised (retracted)
+const int rakeOPEN    = 20;  // Open / Lowered to furrow & rake soil
+const int soilMechUP   = rakeDEFAULT;
+const int soilMechDOWN = rakeOPEN;
 const int levelerUP = 90;
 const int levelerDOWN = 140;
-const int molderUP = 90;
-const int molderDOWN = 140;
+const int flattenerUP = 90;
+const int flattenerDOWN = 140;
+const int molderUP = flattenerUP;
+const int molderDOWN = flattenerDOWN;
 const int seedTubeUP = 70;      // Retracted / Raised up (during travel)
 const int seedTubeDOWN = 150;   // Lowered into soil to punch hole
 
-enum class PlantingState { Idle, CheckingSoil, LoweringRake, Ready, Planting, ReturningToStart, Paused, Completed, Cancelled, Emergency, Failed, Interrupted };
+enum class PlantingState { Idle, CheckingSoil, SurveyingBed, ReturningFromSurvey, LoweringRake, Ready, Planting, ReturningToStart, Paused, Completed, Cancelled, Emergency, Failed, Interrupted };
 
 enum class DropSubState { Idle, LoweringTube, DispensingSeed, RaisingTube };
 
 struct RoverCalibration {
-  float secondsPerMeter = 1.9;
+  float secondsPerMeter = 3.5;
   int soilDryRaw = -1;
   int soilWetRaw = -1;
   float rakeToGateCm = 0;
@@ -97,6 +126,8 @@ struct RoverCalibration {
 };
 
 const char *SOIL_CALIBRATION_VERSION = "soil-linear-v1";
+// When true, allows automatic planting without waiting for or requiring calibrated soil moisture or soil temperature
+bool bypassSoilChecks = true;
 
 struct PlantingSession {
   String sessionId;
@@ -107,7 +138,7 @@ struct PlantingSession {
   int completedDrops = 0;
   float spacingCm = 0;
   float rowSpacingCm = 0;
-  unsigned long gateOpenMs = 300;
+  unsigned long gateOpenMs = SEED_DISPENSE_OPEN_MS;
   float rakeOffsetCm = 0;
   float nextDropAtCm = 0;
   unsigned long startedAtMs = 0;
@@ -145,6 +176,11 @@ struct PlantingSession {
   float detectedFieldDistanceCm = 0;
   float plantingStartDistanceCm = 0;
 
+  // Scouting / Bed Survey Tracking (Survey First)
+  float surveyDistanceCm = 0;
+  float surveyReturnDistanceCm = 0;
+  unsigned long lastSurveyReturnUpdateAtMs = 0;
+
   // Automatic Return to Start Tracking (Automatic Mode)
   float totalForwardDistanceCm = 0;
   float returnDistanceCm = 0;
@@ -152,6 +188,7 @@ struct PlantingSession {
   unsigned long lastReturnUpdateAtMs = 0;
   unsigned long reverseTransitionStartedAtMs = 0;
   bool reversingToolsDeployed = false;
+  PlantingState stateBeforePause = PlantingState::Idle;
 };
 
 WebServer server(80);
@@ -161,7 +198,8 @@ Servo seedServo2;         // Seed Gate 2 (Sitaw, GPIO 4)
 Servo seedServo3;         // Seed Gate 3 (Peanut, GPIO 23)
 Servo soilMechanismServo; // Rake mechanism (GPIO 26)
 Servo levelerServo;       // Soil leveler mechanism (GPIO 32)
-Servo molderServo;        // Soil molder / ridge former mechanism (GPIO 33)
+Servo flattenerServo;     // Soil flattener mechanism (GPIO 33 - flattens soil after raking)
+#define molderServo flattenerServo
 Servo seedTubeServo;      // Hole punch & seed drop tube servo (GPIO 2)
 OneWire oneWire(TEMP_SENSOR_PIN);
 DallasTemperature temperatureSensor(&oneWire);
@@ -171,7 +209,8 @@ RoverCalibration calibration;
 PlantingSession planting;
 bool rakeCommandedDown = false;
 bool levelerCommandedDown = false;
-bool molderCommandedDown = false;
+bool flattenerCommandedDown = false;
+#define molderCommandedDown flattenerCommandedDown
 bool seedTubeCommandedDown = false;
 PlantingState plantingState = PlantingState::Idle;
 bool plantingSoilPrecheckRequested = false;
@@ -192,6 +231,8 @@ const char *stateName(PlantingState state) {
   switch (state) {
     case PlantingState::Idle: return "IDLE";
     case PlantingState::CheckingSoil: return "CHECKING_SOIL";
+    case PlantingState::SurveyingBed: return "SURVEYING_BED";
+    case PlantingState::ReturningFromSurvey: return "RETURNING_FROM_SURVEY";
     case PlantingState::LoweringRake: return "LOWERING_RAKE";
     case PlantingState::Ready: return "READY";
     case PlantingState::Planting: return "PLANTING";
@@ -207,8 +248,12 @@ const char *stateName(PlantingState state) {
 }
 
 bool hasActivePlantingSession() {
-  return plantingState == PlantingState::CheckingSoil || plantingState == PlantingState::LoweringRake ||
-         plantingState == PlantingState::Ready || plantingState == PlantingState::Planting ||
+  return plantingState == PlantingState::CheckingSoil ||
+         plantingState == PlantingState::SurveyingBed ||
+         plantingState == PlantingState::ReturningFromSurvey ||
+         plantingState == PlantingState::LoweringRake ||
+         plantingState == PlantingState::Ready ||
+         plantingState == PlantingState::Planting ||
          plantingState == PlantingState::ReturningToStart ||
          plantingState == PlantingState::Paused;
 }
@@ -220,11 +265,49 @@ const char *signalQuality(int rssi) {
   return "weak";
 }
 
-void stopMotors() { digitalWrite(IN1, LOW); digitalWrite(IN2, LOW); digitalWrite(IN3, LOW); digitalWrite(IN4, LOW); planting.motorsMoving = false; }
-void moveForward() { digitalWrite(IN1, HIGH); digitalWrite(IN2, LOW); digitalWrite(IN3, HIGH); digitalWrite(IN4, LOW); planting.motorsMoving = true; }
-void moveBackward() { digitalWrite(IN1, LOW); digitalWrite(IN2, HIGH); digitalWrite(IN3, LOW); digitalWrite(IN4, HIGH); planting.motorsMoving = true; }
-void turnLeft() { digitalWrite(IN1, LOW); digitalWrite(IN2, HIGH); digitalWrite(IN3, HIGH); digitalWrite(IN4, LOW); planting.motorsMoving = false; }
-void turnRight() { digitalWrite(IN1, HIGH); digitalWrite(IN2, LOW); digitalWrite(IN3, LOW); digitalWrite(IN4, HIGH); planting.motorsMoving = false; }
+void stopMotors() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+  planting.motorsMoving = false;
+}
+
+void moveForward() {
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+  planting.motorsMoving = true;
+}
+
+void moveBackward() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+  planting.motorsMoving = true;
+}
+
+void turnLeft() {
+  // Turn Left: Left wheels BACKWARD, Right wheels FORWARD
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+  planting.motorsMoving = true;
+  Serial.println("[MOTOR] Turn Left (Left BACKWARD, Right FORWARD)");
+}
+
+void turnRight() {
+  // Turn Right: Left wheels FORWARD, Right wheels BACKWARD
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+  planting.motorsMoving = true;
+  Serial.println("[MOTOR] Turn Right (Left FORWARD, Right BACKWARD)");
+}
 
 int resolveSeedGate(const String &cropProfile, int explicitGate = 0) {
   if (explicitGate >= 1 && explicitGate <= 3) return explicitGate;
@@ -243,44 +326,58 @@ int resolveSeedGate(const String &cropProfile, int explicitGate = 0) {
 }
 
 void closeSeedGate() {
-  seedServo.write(seedCLOSED);
-  seedServo2.write(seedCLOSED);
-  seedServo3.write(seedCLOSED);
+  seedServo.write(gate1DEFAULT);
+  seedServo2.write(gate2DEFAULT);
+  seedServo3.write(gate3DEFAULT);
   planting.gateOpen = false;
 }
 
 void openActiveSeedGate() {
   if (planting.activeSeedGate == 2) {
-    seedServo2.write(seedOPEN);
+    seedServo2.write(gate2OPEN);
   } else if (planting.activeSeedGate == 3) {
-    seedServo3.write(seedOPEN);
+    seedServo3.write(gate3OPEN);
   } else {
-    seedServo.write(seedOPEN);
+    seedServo.write(gate1OPEN);
   }
   planting.gateOpen = true;
 }
 
 void setRakeUp() { soilMechanismServo.write(soilMechUP); rakeCommandedDown = false; }
 void setRakeDown() { soilMechanismServo.write(soilMechDOWN); rakeCommandedDown = true; }
-void setLevelerUp() { levelerServo.write(levelerUP); levelerCommandedDown = false; }
-void setLevelerDown() { levelerServo.write(levelerDOWN); levelerCommandedDown = true; }
-void setMolderUp() { molderServo.write(molderUP); molderCommandedDown = false; }
-void setMolderDown() { molderServo.write(molderDOWN); molderCommandedDown = true; }
-void setSeedTubeUp() { seedTubeServo.write(seedTubeUP); seedTubeCommandedDown = false; }
-void setSeedTubeDown() { seedTubeServo.write(seedTubeDOWN); seedTubeCommandedDown = true; }
-void raiseMechanisms() { closeSeedGate(); soilSensorServo.write(soilSensorUP); setRakeUp(); setLevelerUp(); setMolderUp(); setSeedTubeUp(); }
+inline void setLevelerUp() { levelerCommandedDown = false; }
+inline void setLevelerDown() { levelerCommandedDown = true; }
+void setFlattenerUp() { flattenerServo.write(flattenerUP); flattenerCommandedDown = false; }
+void setFlattenerDown() { flattenerServo.write(flattenerDOWN); flattenerCommandedDown = true; }
+inline void setMolderUp() { setFlattenerUp(); }
+inline void setMolderDown() { setFlattenerDown(); }
+inline void setSeedTubeUp() { seedTubeCommandedDown = false; }
+inline void setSeedTubeDown() { seedTubeCommandedDown = true; }
+void raiseMechanisms() { closeSeedGate(); soilSensorServo.write(soilSensorUP); setRakeUp(); setFlattenerUp(); }
 void safeState() { stopMotors(); raiseMechanisms(); }
 void setState(PlantingState state) { plantingState = state; planting.stateChangedAtMs = millis(); }
 
 void updateEstimatedDistance(unsigned long now) {
-  if (plantingState != PlantingState::Planting || !planting.motorsMoving || calibration.secondsPerMeter <= 0) return;
+  if ((plantingState != PlantingState::Planting && plantingState != PlantingState::SurveyingBed) || !planting.motorsMoving || calibration.secondsPerMeter <= 0) return;
   if (planting.lastDistanceUpdateAtMs == 0) {
     planting.lastDistanceUpdateAtMs = now;
     return;
   }
   const unsigned long elapsedMs = now - planting.lastDistanceUpdateAtMs;
   planting.estimatedDistanceCm += (elapsedMs / 1000.0f) * (100.0f / calibration.secondsPerMeter);
+  planting.totalForwardDistanceCm = planting.estimatedDistanceCm;
   planting.lastDistanceUpdateAtMs = now;
+}
+
+void updateSurveyReturnDistance(unsigned long now) {
+  if (plantingState != PlantingState::ReturningFromSurvey || !planting.motorsMoving || calibration.secondsPerMeter <= 0) return;
+  if (planting.lastSurveyReturnUpdateAtMs == 0) {
+    planting.lastSurveyReturnUpdateAtMs = now;
+    return;
+  }
+  const unsigned long elapsedMs = now - planting.lastSurveyReturnUpdateAtMs;
+  planting.surveyReturnDistanceCm += (elapsedMs / 1000.0f) * (100.0f / calibration.secondsPerMeter);
+  planting.lastSurveyReturnUpdateAtMs = now;
 }
 
 void updateReturnDistance(unsigned long now) {
@@ -296,14 +393,19 @@ void updateReturnDistance(unsigned long now) {
 
 void pausePlanting(const char *failureCode = nullptr) {
   updateEstimatedDistance(millis());
+  updateSurveyReturnDistance(millis());
+  updateReturnDistance(millis());
   safeState();
   if (failureCode != nullptr) planting.failureCode = failureCode;
+  planting.stateBeforePause = plantingState;
   setState(PlantingState::Paused);
   savePlantingCheckpoint();
 }
 
 void finishPlanting(PlantingState terminalState, const char *failureCode = nullptr) {
   updateEstimatedDistance(millis());
+  updateSurveyReturnDistance(millis());
+  updateReturnDistance(millis());
   safeState();
   if (failureCode != nullptr) planting.failureCode = failureCode;
   setState(terminalState);
@@ -312,14 +414,20 @@ void finishPlanting(PlantingState terminalState, const char *failureCode = nullp
 }
 
 float readUltrasonicDistanceCm(int triggerPin, int echoPin) {
+  // Clear trigger pin first
   digitalWrite(triggerPin, LOW);
-  delayMicroseconds(3);
+  delayMicroseconds(4);
   digitalWrite(triggerPin, HIGH);
   delayMicroseconds(10);
   digitalWrite(triggerPin, LOW);
-  const unsigned long duration = pulseIn(echoPin, HIGH, 18000UL);
+
+  // 20000 microseconds timeout gives ~340 cm maximum range
+  const unsigned long duration = pulseIn(echoPin, HIGH, 20000UL);
   if (duration == 0) return NAN;
-  return duration * 0.0343f / 2.0f;
+
+  const float dist = (duration * 0.0343f) / 2.0f;
+  if (dist < 2.0f || dist > 350.0f) return NAN;
+  return dist;
 }
 
 void sampleEnvironment(unsigned long now, bool force = false) {
@@ -337,28 +445,58 @@ void sampleObstacles(unsigned long now, bool force = false) {
   planting.obstacleSampleAtMs = now;
 
   // Sensor 2 (Front): Measures distance to the end of the field / boundary
-  planting.frontDistanceCm = readUltrasonicDistanceCm(FRONT_ULTRASONIC_TRIG_PIN, FRONT_ULTRASONIC_ECHO_PIN);
-  planting.frontSensorAvailable = isfinite(planting.frontDistanceCm);
-
-  delayMicroseconds(250);
-
-  // Sensor 1 (Rear / Obstacle): Monitors for obstacles and notifies the app
-  planting.rearDistanceCm = readUltrasonicDistanceCm(REAR_ULTRASONIC_TRIG_PIN, REAR_ULTRASONIC_ECHO_PIN);
-  planting.rearSensorAvailable = isfinite(planting.rearDistanceCm);
-  if (planting.rearSensorAvailable) {
-    if (!planting.rearObstacle && planting.rearDistanceCm <= OBSTACLE_WARN_DISTANCE_CM) {
-      planting.rearObstacle = true;
-      Serial.printf("[OBSTACLE NOTIFICATION] Sensor 1 detected obstacle at %.1f cm! Notifying app...\n", planting.rearDistanceCm);
-    } else if (planting.rearObstacle && planting.rearDistanceCm > OBSTACLE_CLEAR_DISTANCE_CM) {
-      planting.rearObstacle = false;
+  const float frontRaw = readUltrasonicDistanceCm(FRONT_ULTRASONIC_TRIG_PIN, FRONT_ULTRASONIC_ECHO_PIN);
+  if (isnan(frontRaw)) {
+    // Open path ahead (> 200 cm), no obstacle
+    planting.frontDistanceCm = 250.0f;
+    planting.frontSensorAvailable = true;
+    planting.frontObstacle = false;
+  } else {
+    planting.frontDistanceCm = frontRaw;
+    planting.frontSensorAvailable = true;
+    if (planting.frontDistanceCm <= 20.0f) {
+      planting.frontObstacle = true;
+    } else if (planting.frontDistanceCm > 25.0f) {
+      planting.frontObstacle = false;
     }
   }
 
-  // Also check if obstacle directly blocks front (< 20 cm)
-  if (planting.frontSensorAvailable && planting.frontDistanceCm <= 20.0f) {
-    planting.frontObstacle = true;
-  } else if (planting.frontDistanceCm > 25.0f) {
-    planting.frontObstacle = false;
+  // Brief 8ms delay prevents acoustic crosstalk into Sensor 1 without stalling WebServer loop
+  delay(8);
+
+  // Sensor 1 (Rear / Obstacle): Monitors for obstacles and notifies the app
+  const float rearRaw = readUltrasonicDistanceCm(REAR_ULTRASONIC_TRIG_PIN, REAR_ULTRASONIC_ECHO_PIN);
+  static int rearDetectCount = 0;
+  static int rearClearCount = 0;
+  static unsigned long lastObstacleLogMs = 0;
+
+  if (isnan(rearRaw)) {
+    // Open path behind (> 200 cm), no obstacle
+    planting.rearDistanceCm = 250.0f;
+    planting.rearSensorAvailable = true;
+    planting.rearObstacle = false;
+    rearDetectCount = 0;
+    rearClearCount = 0;
+  } else {
+    planting.rearDistanceCm = rearRaw;
+    planting.rearSensorAvailable = true;
+    if (planting.rearDistanceCm <= OBSTACLE_WARN_DISTANCE_CM) {
+      rearDetectCount++;
+      rearClearCount = 0;
+      if (rearDetectCount >= 2 && !planting.rearObstacle) {
+        planting.rearObstacle = true;
+        if (now - lastObstacleLogMs >= 5000) {
+          lastObstacleLogMs = now;
+          Serial.printf("[OBSTACLE] Rear obstacle detected at %.1f cm\n", planting.rearDistanceCm);
+        }
+      }
+    } else if (planting.rearDistanceCm > OBSTACLE_CLEAR_DISTANCE_CM) {
+      rearClearCount++;
+      rearDetectCount = 0;
+      if (rearClearCount >= 2 && planting.rearObstacle) {
+        planting.rearObstacle = false;
+      }
+    }
   }
 }
 
@@ -373,6 +511,19 @@ void readSoilSnapshot() {
   const float value = temperatureSensor.getTempCByIndex(0);
   planting.soilTemperatureC = value == DEVICE_DISCONNECTED_C || value < -55 || value > 125 ? NAN : value;
   sampleEnvironment(millis(), true);
+
+  // If bypass mode is active, substitute safe nominal readings so missing/uncalibrated sensors never block planting
+  if (bypassSoilChecks) {
+    if (isnan(planting.soilTemperatureC)) {
+      planting.soilTemperatureC = isfinite(planting.airTemperatureC) ? planting.airTemperatureC : 28.0f;
+    }
+    if (isnan(planting.soilPercent)) {
+      planting.soilPercent = 55.0f;
+      planting.soilSampleAvailable = true;
+      if (planting.soilRaw <= 0 || planting.soilRaw >= 4095) planting.soilRaw = 2000;
+    }
+  }
+
   planting.soilCapturedAtMs = millis();
   planting.soilCapturedOffsetMs = planting.startedAtMs == 0 ? 0 : planting.soilCapturedAtMs - planting.startedAtMs;
   if (hasActivePlantingSession() || planting.awaitingPhoneAck) {
@@ -390,8 +541,10 @@ void readSensorSnapshot() { readSoilSnapshot(); }
 
 void loadCalibration() {
   preferences.begin("rover-cal", true);
-  calibration.secondsPerMeter = preferences.getFloat("sec-per-meter", 1.9);
-  if (calibration.secondsPerMeter <= 0) calibration.secondsPerMeter = 1.9;
+  calibration.secondsPerMeter = preferences.getFloat("sec-per-meter", 3.5f);
+  if (isnan(calibration.secondsPerMeter) || calibration.secondsPerMeter < 0.5f) {
+    calibration.secondsPerMeter = 3.5f;
+  }
   calibration.soilCalibrationValid = preferences.getBool("soil-cal-valid", false);
   calibration.soilDryRaw = preferences.getInt("soil-dry", -1);
   calibration.soilWetRaw = preferences.getInt("soil-wet", -1);
@@ -399,7 +552,8 @@ void loadCalibration() {
       calibration.soilDryRaw >= 0 && calibration.soilDryRaw <= 4095 &&
       calibration.soilWetRaw >= 0 && calibration.soilWetRaw <= 4095 &&
       calibration.soilDryRaw != calibration.soilWetRaw;
-  calibration.rakeToGateCm = preferences.getFloat("rake-offset", 0);
+  calibration.rakeToGateCm = preferences.getFloat("rake-offset", 0.0f);
+  if (isnan(calibration.rakeToGateCm)) calibration.rakeToGateCm = 0.0f;
   preferences.end();
 }
 
@@ -431,6 +585,7 @@ void savePlantingCheckpoint() {
   checkpoint["rake_offset_cm"] = planting.rakeOffsetCm;
   checkpoint["estimated_distance_cm"] = planting.estimatedDistanceCm;
   checkpoint["total_forward_distance_cm"] = planting.totalForwardDistanceCm;
+  checkpoint["survey_distance_cm"] = planting.surveyDistanceCm;
   checkpoint["return_distance_cm"] = planting.returnDistanceCm;
   checkpoint["soil_sample_available"] = planting.soilSampleAvailable;
   if (planting.soilSampleAvailable) checkpoint["soil_raw"] = planting.soilRaw;
@@ -473,6 +628,7 @@ void restorePlantingCheckpoint() {
   planting.rakeOffsetCm = checkpoint["rake_offset_cm"] | 0.0f;
   planting.estimatedDistanceCm = checkpoint["estimated_distance_cm"] | 0.0f;
   planting.totalForwardDistanceCm = checkpoint["total_forward_distance_cm"] | 0.0f;
+  planting.surveyDistanceCm = checkpoint["survey_distance_cm"] | 0.0f;
   planting.returnDistanceCm = checkpoint["return_distance_cm"] | 0.0f;
   planting.soilSampleAvailable = checkpoint["soil_sample_available"] | checkpoint["soil_raw"].is<int>();
   planting.soilRaw = checkpoint["soil_raw"] | 0;
@@ -532,8 +688,9 @@ void addCalibrationJson(JsonObject data) {
   data["soil_dry_raw"] = calibration.soilDryRaw;
   data["soil_wet_raw"] = calibration.soilWetRaw;
   data["rake_to_gate_cm"] = calibration.rakeToGateCm;
-  data["soil_moisture_calibrated"] = calibration.soilCalibrationValid;
-  data["calibration_version"] = calibration.soilCalibrationValid ? SOIL_CALIBRATION_VERSION : nullptr;
+  const bool calValid = calibration.soilCalibrationValid || bypassSoilChecks;
+  data["soil_moisture_calibrated"] = calValid;
+  data["calibration_version"] = calValid ? SOIL_CALIBRATION_VERSION : nullptr;
   data["timed_movement_ready"] = calibration.secondsPerMeter > 0;
   data["movement_tracking"] = "timed_estimate";
 }
@@ -543,6 +700,7 @@ void addPlantingStatusJson(JsonObject data) {
   sampleEnvironment(now);
   sampleObstacles(now);
   updateEstimatedDistance(now);
+  updateSurveyReturnDistance(now);
   updateReturnDistance(now);
   data["state"] = stateName(plantingState);
   data["session_id"] = planting.sessionId;
@@ -556,16 +714,37 @@ void addPlantingStatusJson(JsonObject data) {
   data["distance_is_estimated"] = true;
   data["movement_tracking"] = "timed_estimate";
   data["total_forward_distance_cm"] = planting.totalForwardDistanceCm;
-  data["return_distance_cm"] = planting.returnDistanceCm;
-  if (planting.soilSampleAvailable) data["soil_raw"] = planting.soilRaw;
-  else data["soil_raw"] = nullptr;
-  data["soil_sample_available"] = planting.soilSampleAvailable;
-  if (isfinite(planting.soilPercent)) data["soil_moisture_percent"] = planting.soilPercent;
-  else data["soil_moisture_percent"] = nullptr;
-  data["soil_moisture_calibrated"] = calibration.soilCalibrationValid;
-  data["calibration_version"] = calibration.soilCalibrationValid ? SOIL_CALIBRATION_VERSION : nullptr;
-  if (isfinite(planting.soilTemperatureC)) data["soil_temperature_c"] = planting.soilTemperatureC;
-  else data["soil_temperature_c"] = nullptr;
+  data["survey_distance_cm"] = planting.surveyDistanceCm;
+  data["survey_return_distance_cm"] = planting.surveyReturnDistanceCm;
+  data["return_distance_cm"] = (plantingState == PlantingState::ReturningFromSurvey) ? planting.surveyReturnDistanceCm : planting.returnDistanceCm;
+  data["next_drop_at_cm"] = planting.nextDropAtCm;
+  data["gate_open"] = planting.gateOpen;
+  data["is_dispensing"] = (planting.dropSubState == DropSubState::DispensingSeed);
+  const bool calValid = calibration.soilCalibrationValid || bypassSoilChecks;
+  if (planting.soilSampleAvailable) {
+    data["soil_raw"] = planting.soilRaw;
+  } else if (bypassSoilChecks) {
+    data["soil_raw"] = 2000;
+  } else {
+    data["soil_raw"] = nullptr;
+  }
+  data["soil_sample_available"] = planting.soilSampleAvailable || bypassSoilChecks;
+  if (isfinite(planting.soilPercent)) {
+    data["soil_moisture_percent"] = planting.soilPercent;
+  } else if (bypassSoilChecks) {
+    data["soil_moisture_percent"] = 55.0f;
+  } else {
+    data["soil_moisture_percent"] = nullptr;
+  }
+  data["soil_moisture_calibrated"] = calValid;
+  data["calibration_version"] = calValid ? SOIL_CALIBRATION_VERSION : nullptr;
+  if (isfinite(planting.soilTemperatureC)) {
+    data["soil_temperature_c"] = planting.soilTemperatureC;
+  } else if (bypassSoilChecks) {
+    data["soil_temperature_c"] = 28.0f;
+  } else {
+    data["soil_temperature_c"] = nullptr;
+  }
   if (isfinite(planting.airTemperatureC)) data["air_temperature_c"] = planting.airTemperatureC;
   else data["air_temperature_c"] = nullptr;
   if (isfinite(planting.humidityPercent)) data["humidity_percent"] = planting.humidityPercent;
@@ -597,7 +776,8 @@ void addPlantingStatusJson(JsonObject data) {
   data["awaiting_phone_ack"] = planting.awaitingPhoneAck;
   data["rake_commanded_down"] = rakeCommandedDown;
   data["leveler_commanded_down"] = levelerCommandedDown;
-  data["molder_commanded_down"] = molderCommandedDown;
+  data["flattener_commanded_down"] = flattenerCommandedDown;
+  data["molder_commanded_down"] = flattenerCommandedDown;
   data["seed_tube_commanded_down"] = seedTubeCommandedDown;
   data["failure_code"] = planting.failureCode;
   data["firmware_version"] = FIRMWARE_VERSION;
@@ -624,17 +804,33 @@ void handleSensors() {
   }
   JsonDocument response;
   response["status"] = "success";
-  if (planting.soilSampleAvailable) response["data"]["soil_raw"] = planting.soilRaw;
-  else response["data"]["soil_raw"] = nullptr;
-  response["data"]["soil_sample_available"] = planting.soilSampleAvailable;
-  if (isfinite(planting.soilPercent)) response["data"]["soil_moisture_percent"] = planting.soilPercent;
-  else response["data"]["soil_moisture_percent"] = nullptr;
-  response["data"]["soil_moisture_calibrated"] = calibration.soilCalibrationValid;
-  response["data"]["calibration_version"] = calibration.soilCalibrationValid ? SOIL_CALIBRATION_VERSION : nullptr;
+  const bool calValid = calibration.soilCalibrationValid || bypassSoilChecks;
+  if (planting.soilSampleAvailable) {
+    response["data"]["soil_raw"] = planting.soilRaw;
+  } else if (bypassSoilChecks) {
+    response["data"]["soil_raw"] = 2000;
+  } else {
+    response["data"]["soil_raw"] = nullptr;
+  }
+  response["data"]["soil_sample_available"] = planting.soilSampleAvailable || bypassSoilChecks;
+  if (isfinite(planting.soilPercent)) {
+    response["data"]["soil_moisture_percent"] = planting.soilPercent;
+  } else if (bypassSoilChecks) {
+    response["data"]["soil_moisture_percent"] = 55.0f;
+  } else {
+    response["data"]["soil_moisture_percent"] = nullptr;
+  }
+  response["data"]["soil_moisture_calibrated"] = calValid;
+  response["data"]["calibration_version"] = calValid ? SOIL_CALIBRATION_VERSION : nullptr;
   response["data"]["firmware_version"] = FIRMWARE_VERSION;
   response["data"]["sampled_at_ms"] = millis();
-  if (isfinite(planting.soilTemperatureC)) response["data"]["soil_temperature_c"] = planting.soilTemperatureC;
-  else response["data"]["soil_temperature_c"] = nullptr;
+  if (isfinite(planting.soilTemperatureC)) {
+    response["data"]["soil_temperature_c"] = planting.soilTemperatureC;
+  } else if (bypassSoilChecks) {
+    response["data"]["soil_temperature_c"] = 28.0f;
+  } else {
+    response["data"]["soil_temperature_c"] = nullptr;
+  }
   if (isfinite(planting.airTemperatureC)) response["data"]["air_temperature_c"] = planting.airTemperatureC;
   else response["data"]["air_temperature_c"] = nullptr;
   if (isfinite(planting.humidityPercent)) response["data"]["humidity_percent"] = planting.humidityPercent;
@@ -678,9 +874,11 @@ void startPlantingRow(JsonVariantConst payload, JsonDocument &response) {
     return;
   }
   if (planting.awaitingPhoneAck) {
-    response["status"] = "result_not_acknowledged";
-    response["message"] = "Save or review the previous row result before starting another row.";
-    return;
+    // Automatically archive the previous row checkpoint and allow the new row to proceed immediately
+    preferences.begin("plant-run", false);
+    preferences.remove("checkpoint");
+    preferences.end();
+    planting.awaitingPhoneAck = false;
   }
   if (hasActivePlantingSession()) {
     response["status"] = "conflict";
@@ -706,11 +904,11 @@ void startPlantingRow(JsonVariantConst payload, JsonDocument &response) {
   int activeGate = resolveSeedGate(profile, explicitGate);
   int targetDrops = payload["target_drops"] | 5;
   float spacingCm = payload["spacing_cm"] | 50.0f;
-  unsigned long gateOpenMs = payload["gate_open_ms"] | 300UL;
+  unsigned long gateOpenMs = payload["gate_open_ms"] | SEED_DISPENSE_OPEN_MS;
   if (sessionId.isEmpty()) sessionId = String("DEMO-") + String(millis());
   if (targetDrops <= 0) targetDrops = 5;
   if (spacingCm <= 0) spacingCm = 50.0f;
-  if (gateOpenMs == 0) gateOpenMs = 300;
+  if (gateOpenMs == 0) gateOpenMs = SEED_DISPENSE_OPEN_MS;
   planting = PlantingSession();
   planting.sessionId = sessionId;
   planting.cropProfile = profile;
@@ -845,27 +1043,40 @@ void handleCommand() {
       statusCode = 409;
     } else {
       planting.failureCode = "";
-      if (planting.totalForwardDistanceCm > 0 && planting.reversingToolsDeployed) {
-        // Paused during backward return pass: restore reverse tools
+      if (planting.stateBeforePause == PlantingState::SurveyingBed) {
+        // Paused during forward raking/scouting pass
+        setRakeDown();
+        setFlattenerUp();
+        closeSeedGate();
+        moveForward();
+        setState(PlantingState::SurveyingBed);
+        planting.lastDistanceUpdateAtMs = millis();
+      } else if (planting.stateBeforePause == PlantingState::ReturningFromSurvey) {
+        // Paused during return from survey pass
         setRakeUp();
-        setLevelerDown();
-        setMolderDown();
-        setSeedTubeUp();
+        setFlattenerUp();
+        closeSeedGate();
+        moveBackward();
+        setState(PlantingState::ReturningFromSurvey);
+        planting.lastSurveyReturnUpdateAtMs = millis();
+      } else if (planting.stateBeforePause == PlantingState::ReturningToStart) {
+        // Paused during final return to start pass
+        setRakeUp();
+        setFlattenerUp();
         closeSeedGate();
         moveBackward();
         setState(PlantingState::ReturningToStart);
         planting.lastReturnUpdateAtMs = millis();
-        response["status"] = "success";
       } else {
-        // Paused during forward planting pass: restore forward tools
-        setRakeDown();
-        setLevelerUp();
-        setMolderUp();
-        setSeedTubeUp();
+        // Paused during forward planting pass: flattener DOWN, rake UP, gate closed
+        setRakeUp();
+        setFlattenerDown();
         closeSeedGate();
-        setState(PlantingState::LoweringRake);
-        response["status"] = "success";
+        moveForward();
+        setState(PlantingState::Planting);
+        planting.lastDistanceUpdateAtMs = millis();
       }
+      response["status"] = "success";
     }
   } else if (command == "CANCEL_PLANTING" || command == "STOP_PLANTING") {
     finishPlanting(PlantingState::Cancelled, "OPERATOR_CANCELLED");
@@ -949,6 +1160,8 @@ void handleCommand() {
              command == "RAKE_DOWN" || command == "RAKE_UP" ||
              command == "LEVELER_DOWN" || command == "LEVELER_UP" ||
              command == "SOIL_LEVELER_DOWN" || command == "SOIL_LEVELER_UP" ||
+             command == "FLATTENER_DOWN" || command == "FLATTENER_UP" ||
+             command == "SOIL_FLATTENER_DOWN" || command == "SOIL_FLATTENER_UP" ||
              command == "MOLDER_DOWN" || command == "MOLDER_UP" ||
              command == "SOIL_MOLDER_DOWN" || command == "SOIL_MOLDER_UP" ||
              command == "SEED_TUBE_DOWN" || command == "SEED_TUBE_UP" ||
@@ -966,15 +1179,17 @@ void handleCommand() {
       if (command == "RAKE_UP") setRakeUp();
       if (command == "LEVELER_DOWN" || command == "SOIL_LEVELER_DOWN") setLevelerDown();
       if (command == "LEVELER_UP" || command == "SOIL_LEVELER_UP") setLevelerUp();
-      if (command == "MOLDER_DOWN" || command == "SOIL_MOLDER_DOWN") setMolderDown();
-      if (command == "MOLDER_UP" || command == "SOIL_MOLDER_UP") setMolderUp();
+      if (command == "FLATTENER_DOWN" || command == "SOIL_FLATTENER_DOWN" ||
+          command == "MOLDER_DOWN" || command == "SOIL_MOLDER_DOWN") setFlattenerDown();
+      if (command == "FLATTENER_UP" || command == "SOIL_FLATTENER_UP" ||
+          command == "MOLDER_UP" || command == "SOIL_MOLDER_UP") setFlattenerUp();
       if (command == "SEED_TUBE_DOWN" || command == "HOLE_TUBE_DOWN") setSeedTubeDown();
       if (command == "SEED_TUBE_UP" || command == "HOLE_TUBE_UP") setSeedTubeUp();
       if (command == "SEED_GATE_OPEN") openActiveSeedGate();
       if (command == "SEED_GATE_CLOSE") closeSeedGate();
-      if (command == "SEED_GATE_1_OPEN") seedServo.write(seedOPEN);
-      if (command == "SEED_GATE_2_OPEN") seedServo2.write(seedOPEN);
-      if (command == "SEED_GATE_3_OPEN") seedServo3.write(seedOPEN);
+      if (command == "SEED_GATE_1_OPEN") seedServo.write(gate1OPEN);
+      if (command == "SEED_GATE_2_OPEN") seedServo2.write(gate2OPEN);
+      if (command == "SEED_GATE_3_OPEN") seedServo3.write(gate3OPEN);
       response["status"] = "success";
     }
   } else {
@@ -999,9 +1214,7 @@ void updatePlantingStateMachine() {
     soilReferenceCaptureStartedAtMs = 0;
     soilSensorServo.write(soilSensorUP);
     setRakeUp();
-    setLevelerUp();
-    setMolderUp();
-    setSeedTubeUp();
+    setFlattenerUp();
     stopMotors();
   }
   if (plantingSoilPrecheckReady &&
@@ -1014,52 +1227,179 @@ void updatePlantingStateMachine() {
     Serial.printf("[SOIL CHECK COMPLETE] Moisture: %.1f%% (Raw %d), Temp: %.1f C. Notifying app...\n",
                   planting.soilPercent, planting.soilRaw, planting.soilTemperatureC);
 
-    // STEP 2: Hardware checks the distance with Ultrasonic Sensor 2 (front sensor)
-    sampleObstacles(now, true);
-    const float dist = planting.frontDistanceCm;
-    if (planting.frontSensorAvailable && dist > 5.0f && dist <= MAX_FIELD_DISTANCE_CM) {
-      // Pasok sa 121.92 cm (4 ft): Lock distance and divide by user planting points
-      planting.fieldDistanceLocked = true;
-      planting.detectedFieldDistanceCm = dist;
-      // Reserve rear leveler clearance so rover drives past last planting point to flatten it
-      const float usablePlantingSpanCm = max(dist - LEVELER_OVERSHOOT_CM, 20.0f);
-      planting.spacingCm = usablePlantingSpanCm / (float)max(planting.targetDrops, 1);
-      planting.plantingStartDistanceCm = 0;
-      planting.nextDropAtCm = planting.spacingCm;
-      Serial.printf("[FIELD LOCK] Front wall detected within 4 ft: %.2f cm (%.2f ft).\n", dist, dist / 30.48f);
-      Serial.printf("[AUTO-SPACING] Planting span %.1f cm (with %.1f cm leveler clearance) divided into %d points = %.2f cm per station.\n",
-                    usablePlantingSpanCm, LEVELER_OVERSHOOT_CM, planting.targetDrops, planting.spacingCm);
-    } else {
-      // Distance is > 4 ft or searching: rover will advance forward until within 4 ft
-      planting.fieldDistanceLocked = false;
-      planting.detectedFieldDistanceCm = 0;
-      planting.plantingStartDistanceCm = 0;
-      planting.nextDropAtCm = 999999.0f; // Locked dynamically once within 121.92 cm
-      Serial.println("[FIELD START] Field distance > 121.92 cm (4 ft) or searching. Rover will move forward until within 4 ft...");
-    }
-
-    // STEP 3: Configure tools for forward pass (Rake DOWN, Leveler UP, Molder UP, Tube UP)
+    // =========================================================================
+    // STEP 1: RAKING & BED SCOUTING (getting the distance before the wall or getting the cm)
+    // 1. Lower Rake to till furrow (GPIO 26 -> rakeOPEN = 20 deg)
+    // 2. Raise Soil Flattener UP (GPIO 33 -> flattenerUP = 90 deg)
+    // 3. Keep Seed Gates closed
+    // 4. Move forward: tilling furrow and measuring distance until wall or target cm
+    // =========================================================================
     setRakeDown();
-    setLevelerUp();
-    setMolderUp();
-    setSeedTubeUp();
+    setFlattenerUp();
     closeSeedGate();
-    setState(PlantingState::LoweringRake);
+
+    planting.estimatedDistanceCm = 0;
+    planting.totalForwardDistanceCm = 0;
+    planting.surveyDistanceCm = 0;
+    planting.surveyReturnDistanceCm = 0;
+    planting.lastDistanceUpdateAtMs = now;
+    planting.lastHeartbeatAtMs = now;
+
+    moveForward();
+    setState(PlantingState::SurveyingBed);
     savePlantingCheckpoint();
+    Serial.println("[STEP 1: RAKING STARTED] Rake DOWN. Moving forward to till furrow and get distance before wall or target cm...");
     return;
   }
+
+  // =========================================================================
+  // STEP 1: BED SCOUTING & RAKING (FORWARD MEASURE & REVERSE TO ORIGIN)
+  // Rakes furrow, gets distance before wall (ultrasonic) or target cm
+  // =========================================================================
+  if (plantingState == PlantingState::SurveyingBed) {
+    if (now - planting.lastHeartbeatAtMs > APP_HEARTBEAT_TIMEOUT_MS) {
+      pausePlanting("HEARTBEAT_LOSS");
+      return;
+    }
+
+    updateEstimatedDistance(now);
+    sampleObstacles(now);
+
+    const float frontDist = planting.frontDistanceCm;
+    bool endOfBedReached = false;
+    bool stoppedByWall = false;
+
+    // Target cm from configured drops and spacing
+    const float targetCm = (planting.targetDrops > 0 && planting.spacingCm > 0)
+        ? (planting.targetDrops * planting.spacingCm)
+        : MAX_FIELD_DISTANCE_CM;
+
+    // Check if front sensor detected end boundary/wall (<= FIELD_END_WALL_STOP_CM)
+    static int wallDetectCount = 0;
+    const bool wallInRange = planting.frontSensorAvailable && frontDist > 2.0f && frontDist <= FIELD_END_WALL_STOP_CM;
+    if (wallInRange) {
+      wallDetectCount++;
+    } else {
+      wallDetectCount = 0;
+    }
+
+    if (wallDetectCount >= 2) {
+      wallDetectCount = 0;
+      endOfBedReached = true;
+      stoppedByWall = true;
+      Serial.printf("[STEP 1: WALL DETECTED] Front wall confirmed at %.1f cm (Traveled: %.1f cm)!\n", frontDist, planting.estimatedDistanceCm);
+    } else if (targetCm > 0 && planting.estimatedDistanceCm >= targetCm) {
+      wallDetectCount = 0;
+      endOfBedReached = true;
+      Serial.printf("[STEP 1: TARGET CM REACHED] Target row distance reached: %.1f cm.\n", targetCm);
+    } else if (planting.estimatedDistanceCm >= MAX_FIELD_DISTANCE_CM) {
+      wallDetectCount = 0;
+      endOfBedReached = true;
+      Serial.printf("[STEP 1: MAX REACHED] Max field distance reached (%.1f cm).\n", MAX_FIELD_DISTANCE_CM);
+    }
+
+    if (endOfBedReached) {
+      stopMotors();
+      planting.surveyDistanceCm = (planting.estimatedDistanceCm >= 10.0f) ? planting.estimatedDistanceCm : targetCm;
+      planting.surveyReturnDistanceCm = 0;
+      planting.lastSurveyReturnUpdateAtMs = now;
+      planting.detectedFieldDistanceCm = planting.surveyDistanceCm;
+      planting.fieldDistanceLocked = true;
+
+      const int points = max(planting.targetDrops, 1);
+      // If stopped early by wall before reaching target cm, divide the measured distance evenly
+      if (stoppedByWall && planting.surveyDistanceCm < targetCm) {
+        planting.spacingCm = planting.surveyDistanceCm / (float)(points + 1);
+      }
+      planting.plantingStartDistanceCm = 0;
+      planting.nextDropAtCm = planting.spacingCm; // First drop is at 1 * spacing
+
+      Serial.printf("[STEP 1 COMPLETE] Field distance locked: %.1f cm. Points: %d spaced every %.2f cm (first drop at %.2f cm).\n",
+                    planting.surveyDistanceCm, points, planting.spacingCm, planting.nextDropAtCm);
+
+      // =====================================================================
+      // STEP 2: GETTING BACK
+      // Lift rake UP so it doesn't drag backward through freshly raked furrow!
+      // =====================================================================
+      setRakeUp();
+      setFlattenerUp();
+      closeSeedGate();
+
+      delay(300); // Brief pause before reversing
+      moveBackward();
+      setState(PlantingState::ReturningFromSurvey);
+      savePlantingCheckpoint();
+      Serial.printf("[STEP 2: GETTING BACK] Rake UP, flattener UP. Reversing %.1f cm back to original start position...\n", planting.surveyDistanceCm);
+    }
+    return;
+  }
+
+  // =========================================================================
+  // STEP 2: GETTING BACK (RETURNING FROM SURVEY TO ORIGINAL POSITION)
+  // Reverses back to 0 cm with all tools lifted UP
+  // =========================================================================
+  if (plantingState == PlantingState::ReturningFromSurvey) {
+    if (now - planting.lastHeartbeatAtMs > APP_HEARTBEAT_TIMEOUT_MS) {
+      pausePlanting("HEARTBEAT_LOSS");
+      return;
+    }
+
+    // Keep tools raised while reversing
+    setRakeUp();
+    setFlattenerUp();
+    closeSeedGate();
+
+    if (!planting.motorsMoving) {
+      moveBackward();
+      planting.lastSurveyReturnUpdateAtMs = now;
+    }
+
+    updateSurveyReturnDistance(now);
+
+    // Rover returns to exact starting line (0 cm)
+    if (planting.surveyReturnDistanceCm >= planting.surveyDistanceCm) {
+      stopMotors();
+      planting.estimatedDistanceCm = 0;
+      planting.totalForwardDistanceCm = 0;
+      planting.lastDistanceUpdateAtMs = 0;
+      planting.completedDrops = 0;
+      planting.dropSubState = DropSubState::Idle;
+      planting.nextDropAtCm = planting.spacingCm;
+
+      Serial.printf("[ORIGINAL POSITION REACHED] Rover returned to origin (reversed %.1f cm of %.1f cm).\n",
+                    planting.surveyReturnDistanceCm, planting.surveyDistanceCm);
+
+      // =====================================================================
+      // STEP 3: PLANTING WITH FLATTENER
+      // Rover is at original position:
+      // - Rake stays UP (0 deg) - soil already raked in Step 1!
+      // - Flattener goes DOWN (140 deg) - flattens & covers soil behind seeds
+      // =====================================================================
+      setRakeUp();
+      setFlattenerDown();
+      closeSeedGate();
+
+      Serial.println("[STEP 3: PLANTING PREP] Rake UP (0 deg). Soil Flattener DOWN (140 deg).");
+      Serial.printf("[STEP 3: PLANTING] Starting planting pass with flattener DOWN! First seed at %.1f cm.\n", planting.nextDropAtCm);
+
+      setState(PlantingState::LoweringRake);
+      savePlantingCheckpoint();
+    }
+    return;
+  }
+
   if (plantingState == PlantingState::LoweringRake && now - planting.stateChangedAtMs >= RAKE_SETTLE_MS) {
     moveForward();
     setState(PlantingState::Planting);
     planting.lastDistanceUpdateAtMs = now;
     planting.lastHeartbeatAtMs = now;
+    Serial.println("[STEP 3: PLANTING STARTED] Moving forward with flattener DOWN to plant seeds and flatten soil...");
     return;
   }
 
   // =========================================================================
-  // AUTOMATIC REVERSE RETURN PHASE (Automatic Mode Only):
-  // Rover moves backward with Leveler & Molder DOWN until returning to start.
-  // Measured automatically based on total forward distance traveled.
+  // STEP 4: GETTING BACK TO ORIGINAL POSITION
+  // After planting is done, flattener is raised UP and rover returns to origin (0 cm).
   // =========================================================================
   if (plantingState == PlantingState::ReturningToStart) {
     if (now - planting.lastHeartbeatAtMs > APP_HEARTBEAT_TIMEOUT_MS) {
@@ -1067,17 +1407,15 @@ void updatePlantingStateMachine() {
       return;
     }
 
-    // Wait for tool change settling (rake UP, leveler & molder DOWN)
-    if (!planting.reversingToolsDeployed) {
-      if (now - planting.reverseTransitionStartedAtMs >= REVERSE_TOOL_SETTLE_MS) {
-        planting.reversingToolsDeployed = true;
-        moveBackward();
-        planting.returnStartedAtMs = now;
-        planting.lastReturnUpdateAtMs = now;
-        Serial.printf("[AUTO RETURN] Tools lowered. Moving backward to start! Target return: %.1f cm\n",
-                      planting.totalForwardDistanceCm);
-      }
-      return;
+    // Ensure all tools are lifted UP while reversing back so nothing drags on the planted furrow
+    setFlattenerUp();
+    setRakeUp();
+    closeSeedGate();
+
+    // Start moving backward if not already moving
+    if (!planting.motorsMoving) {
+      moveBackward();
+      planting.lastReturnUpdateAtMs = now;
     }
 
     updateReturnDistance(now);
@@ -1085,8 +1423,8 @@ void updatePlantingStateMachine() {
     // Rover returns automatically to the exact starting line
     if (planting.returnDistanceCm >= planting.totalForwardDistanceCm) {
       stopMotors();
-      setLevelerUp();
-      setMolderUp();
+      setFlattenerUp();
+      setRakeUp();
       safeState();
       Serial.printf("[AUTO COMPLETE] Rover reached exact starting position (returned %.1f cm of %.1f cm). Row complete!\n",
                     planting.returnDistanceCm, planting.totalForwardDistanceCm);
@@ -1102,88 +1440,33 @@ void updatePlantingStateMachine() {
     return;
   }
 
-  // =========================================================================
-  // SENSOR 2: Field-End Verification & Dynamic Spacing Division (<= 121.92 cm)
-  // =========================================================================
-  if (!planting.fieldDistanceLocked) {
-    sampleObstacles(now);
-    const float dist = planting.frontDistanceCm;
-    if (planting.frontSensorAvailable && dist > 5.0f && dist <= MAX_FIELD_DISTANCE_CM) {
-      // Front wall detected within 4 ft (121.92 cm)
-      planting.fieldDistanceLocked = true;
-      planting.detectedFieldDistanceCm = dist;
-      // Reserve rear leveler clearance so rover drives past last planting point to flatten it
-      const float usablePlantingSpanCm = max(dist - LEVELER_OVERSHOOT_CM, 20.0f);
-      planting.spacingCm = usablePlantingSpanCm / (float)max(planting.targetDrops, 1);
-      planting.plantingStartDistanceCm = planting.estimatedDistanceCm;
-      planting.nextDropAtCm = planting.plantingStartDistanceCm + planting.spacingCm;
-      savePlantingCheckpoint();
-
-      Serial.printf("[FIELD LOCK] Front wall detected within 4 ft: %.2f cm (%.2f ft).\n", dist, dist / 30.48f);
-      Serial.printf("[AUTO-SPACING] Planting span %.1f cm (with %.1f cm leveler clearance) divided into %d points = %.2f cm per station.\n",
-                    usablePlantingSpanCm, LEVELER_OVERSHOOT_CM, planting.targetDrops, planting.spacingCm);
-    } else {
-      // Still > 121.92 cm: keep moving forward raking the soil until within 121.92 cm
-      if (!planting.motorsMoving && planting.dropSubState == DropSubState::Idle) {
-        moveForward();
-        planting.lastDistanceUpdateAtMs = now;
-      }
-      updateEstimatedDistance(now);
-      return;
-    }
-  }
-
+  sampleObstacles(now);
   updateEstimatedDistance(now);
   const float distanceCm = planting.estimatedDistanceCm;
 
   // =========================================================================
-  // SEED PLANTING STATION SEQUENCE:
+  // SEED PLANTING STATION SEQUENCE (Direct Hatch Flash Dispense):
   // 1. Rover stops at station
-  // 2. Tube servo goes DOWN to punch hole in soil
-  // 3. Seed container gate opens -> seed drops through tube into soil
-  // 4. Seed container gate fast closes
-  // 5. Tube servo retracts UP
-  // 6. Rover resumes forward movement raking soil to next station
+  // 2. Seed container hatch opens directly (flash move: 1.0s)
+  // 3. Seed drops into raked bed
+  // 4. Seed container hatch fast closes
+  // 5. Rover resumes forward movement with flattener DOWN flattening soil with seeds
   // =========================================================================
   if (planting.dropSubState != DropSubState::Idle) {
     const unsigned long elapsedInSubState = now - planting.dropSubStateStartedAtMs;
 
-    if (planting.dropSubState == DropSubState::LoweringTube) {
-      if (elapsedInSubState >= TUBE_PUNCH_SETTLE_MS) {
-        // Tube punched into soil: open active seed gate
-        openActiveSeedGate();
-        planting.dropSubState = DropSubState::DispensingSeed;
-        planting.dropSubStateStartedAtMs = now;
-        Serial.printf("[PLANTING POINT %d] Tube lowered into soil. Seed gate opened.\n",
-                      planting.completedDrops + 1);
-      }
-      return;
-    }
-
     if (planting.dropSubState == DropSubState::DispensingSeed) {
       if (elapsedInSubState >= planting.gateOpenMs) {
-        // Seed dropped: fast close seed container gate and retract hole tube
+        // Seed dropped: fast close seed container gate
         closeSeedGate();
-        setSeedTubeUp();
-        planting.dropSubState = DropSubState::RaisingTube;
-        planting.dropSubStateStartedAtMs = now;
-        Serial.printf("[PLANTING POINT %d] Seed dropped! Gate fast closed. Retracting tube UP...\n",
-                      planting.completedDrops + 1);
-      }
-      return;
-    }
-
-    if (planting.dropSubState == DropSubState::RaisingTube) {
-      if (elapsedInSubState >= TUBE_RETRACT_SETTLE_MS) {
-        // Tube fully retracted: planting point complete
         planting.completedDrops++;
         planting.dropSubState = DropSubState::Idle;
-        planting.nextDropAtCm += planting.spacingCm;
+        planting.nextDropAtCm = (planting.completedDrops + 1) * planting.spacingCm;
         savePlantingCheckpoint();
-        Serial.printf("[PLANTING POINT %d/%d COMPLETE] Resuming forward raking...\n",
+        Serial.printf("[STATION %d/%d COMPLETE] Gate closed. Resuming forward drive with flattener DOWN to cover raked soil with seeds...\n",
                       planting.completedDrops, planting.targetDrops);
 
-        // Resume moving forward raking the soil
+        // Resume moving forward with flattener DOWN to flatten soil
         moveForward();
         planting.lastDistanceUpdateAtMs = now;
       }
@@ -1192,58 +1475,90 @@ void updatePlantingStateMachine() {
     return;
   }
 
-  // Check if rover reached the next planting point
-  if (planting.completedDrops < planting.targetDrops && distanceCm >= planting.nextDropAtCm) {
-    stopMotors();
-    setSeedTubeDown(); // Tube servo goes down to make hole in soil
-    planting.dropSubState = DropSubState::LoweringTube;
-    planting.dropSubStateStartedAtMs = now;
-    Serial.printf("[STATION ARRIVAL] Reached station %d (%.1f cm). Lowering tube to punch hole...\n",
-                  planting.completedDrops + 1, distanceCm);
-    return;
+  // =========================================================================
+  // DYNAMIC PER-POINT NAVIGATION (ANY ROW LENGTH):
+  // Drives forward and dispenses seeds at each configured spacing interval.
+  // Next drop at: (completedDrops + 1) * spacingCm.
+  // Works for arbitrary distances (from 1 meter to 50+ meters) without hardcoded limits.
+  // =========================================================================
+  if (planting.completedDrops < planting.targetDrops) {
+    if (planting.detectedFieldDistanceCm <= 0) {
+      planting.detectedFieldDistanceCm = (planting.targetDrops * planting.spacingCm) + FLATTENER_OVERSHOOT_CM;
+      planting.fieldDistanceLocked = true;
+    }
+
+    const int nextDropIndex = planting.completedDrops + 1;
+    const float targetDropDistFromStart = nextDropIndex * planting.spacingCm;
+    planting.nextDropAtCm = targetDropDistFromStart;
+
+    // Trigger station when rover has traveled to this seed position
+    if (distanceCm >= targetDropDistFromStart) {
+      stopMotors();
+      planting.estimatedDistanceCm = targetDropDistFromStart;
+      planting.totalForwardDistanceCm = targetDropDistFromStart;
+
+      openActiveSeedGate();
+      planting.dropSubState = DropSubState::DispensingSeed;
+      planting.dropSubStateStartedAtMs = now;
+
+      Serial.printf("[STATION %d/%d REACHED] Reached %.1f cm (Target: %.1f cm). Dispensing seed from Gate %d for %lu ms...\n",
+                    nextDropIndex, planting.targetDrops, distanceCm, targetDropDistFromStart, planting.activeSeedGate, planting.gateOpenMs);
+      return;
+    }
   }
 
   // =========================================================================
-  // END OF FIELD DISTANCE DETECTION & AUTOMATIC REVERSE TRANSITION
-  // All planting points completed: rover continues raking to the end of the field.
-  // Then rover stops, raises rake UP, lowers leveler & soil molder DOWN,
-  // and starts moving backward to return to start automatically.
+  // END OF PLANTING & STEP 4: GETTING BACK TO ORIGINAL POSITION
+  // All planting points completed: rover continues forward with flattener DOWN
+  // to cover the last seed, then raises flattener UP and returns to start (0 cm).
   // =========================================================================
   if (planting.completedDrops >= planting.targetDrops) {
-    // Ensure rover keeps moving forward raking the soil until reaching the end of the field distance
+    // Ensure rover keeps moving forward with flattener DOWN until reaching the end of the field distance
     if (!planting.motorsMoving && planting.dropSubState == DropSubState::Idle) {
       moveForward();
       planting.lastDistanceUpdateAtMs = now;
-      Serial.println("[FIELD ADVANCE] All planting points completed. Rover continuing forward to end of distance...");
+      Serial.println("[FIELD ADVANCE] All seeds dropped. Rover flattening soil over final seeds...");
     }
 
     sampleObstacles(now);
     const float currentFrontDist = planting.frontDistanceCm;
-    const float totalTargetCm = planting.plantingStartDistanceCm + planting.detectedFieldDistanceCm;
-
-    const bool frontWallReached = planting.frontSensorAvailable && currentFrontDist > 2.0f && currentFrontDist <= FIELD_END_WALL_STOP_CM;
-    const bool distanceEndReached = totalTargetCm > 0 && distanceCm >= totalTargetCm;
+    static int frontWallHitCount = 0;
+    // Front obstacle safety: ignore ground echoes near start; require 3 consecutive hits
+    if (planting.frontSensorAvailable && currentFrontDist > 2.0f && currentFrontDist <= FIELD_END_WALL_STOP_CM && distanceCm >= (planting.spacingCm * 0.7f)) {
+      frontWallHitCount++;
+    } else {
+      frontWallHitCount = 0;
+    }
+    const bool frontWallReached = (frontWallHitCount >= 3);
+    const float targetRowEndCm = (planting.surveyDistanceCm > 0)
+        ? planting.surveyDistanceCm
+        : ((planting.targetDrops * planting.spacingCm) + FLATTENER_OVERSHOOT_CM);
+    const bool distanceEndReached = (distanceCm >= targetRowEndCm);
 
     if (frontWallReached || distanceEndReached) {
       stopMotors();
-      planting.totalForwardDistanceCm = distanceCm; // Total distance from initial start line
+      frontWallHitCount = 0;
+      planting.totalForwardDistanceCm = distanceCm;
 
-      Serial.printf("[FIELD END REACHED] Total forward distance: %.1f cm. Reached end of distance. Stopping forward pass.\n",
-                    planting.totalForwardDistanceCm);
-      Serial.println("[AUTO RETURN INIT] Rake UP. Soil Leveler (flat) & Soil Molder (mountain) DOWN...");
+      Serial.printf("[PLANTING FINISHED] Planted %d/%d seeds. Total forward: %.1f cm (%.2f m).\n",
+                    planting.completedDrops, planting.targetDrops,
+                    planting.totalForwardDistanceCm, planting.totalForwardDistanceCm / 100.0f);
+      Serial.println("[STEP 4: GETTING BACK] Raising flattener to default UP. Rover returning to original starting position...");
 
-      // Prepare tools for backward return pass
-      setRakeUp();          // Rake UP
-      setLevelerDown();     // Servo for flat soil DOWN
-      setMolderDown();      // Servo for soil molder (mountain ridge) DOWN
-      setSeedTubeUp();      // Tube safe UP
-      closeSeedGate();      // Seed gate closed
+      // When planting is done: flattener goes UP and rake stays UP
+      setFlattenerUp();
+      setRakeUp();
+      closeSeedGate();
 
-      planting.reversingToolsDeployed = false;
-      planting.reverseTransitionStartedAtMs = now;
+      // Begin returning to original starting position
       planting.returnDistanceCm = 0;
+      planting.lastReturnUpdateAtMs = now;
+      planting.returnStartedAtMs = now;
       setState(PlantingState::ReturningToStart);
       savePlantingCheckpoint();
+
+      delay(300); // Brief pause before reversing
+      moveBackward();
       return;
     }
   }
@@ -1251,31 +1566,34 @@ void updatePlantingStateMachine() {
 
 void handleOptions() { addCommonHeaders(); server.send(204); }
 
+int staRetryAttempts = 0;
+const int MAX_STA_RETRIES = 2;
+
 void connectToWifi() {
   const IPAddress roverAddress(192, 168, 4, 1);
   const IPAddress gateway(192, 168, 4, 1);
   const IPAddress subnet(255, 255, 255, 0);
-  // Keep the phone's DHCP leases away from the ESP32-CAM at 192.168.4.2.
   const IPAddress dhcpLeaseStart(192, 168, 4, 10);
 
   // AP+STA: start the SeedRover-01 hotspot FIRST and keep it online
   WiFi.mode(WIFI_AP_STA);
   WiFi.setSleep(false);
+  // Reserves 192.168.4.2 to 192.168.4.9 for static devices like the ESP32-CAM
   WiFi.softAPConfig(roverAddress, gateway, subnet, dhcpLeaseStart);
   if (!WiFi.softAP("SeedRover-01", ROVER_TOKEN, 1, 0, 4)) {
     Serial.println("SoftAP failed to start. ROVER_TOKEN must be 8-63 characters.");
   } else {
-    WiFi.setTxPower(WIFI_POWER_19_5dBm);
+    WiFi.setTxPower(WIFI_POWER_17dBm);
     Serial.println("SeedRover Wi-Fi AP started");
-    Serial.println("  Hotspot: SeedRover-01");
+    Serial.println("  Hotspot: SeedRover-01 (Channel 1)");
     Serial.print("  AP address: http://");
     Serial.println(WiFi.softAPIP());
+    Serial.println("  DHCP pool starts at 192.168.4.10 (192.168.4.2 reserved for ESP32-CAM)");
   }
 
-  // Connect to the external network asynchronously in the background.
-  // DO NOT use a blocking loop here so that the phone can connect immediately!
+  // Attempt initial STA connection once at boot
   if (strlen(WIFI_SSID) > 0) {
-    Serial.printf("  Initiating background connection to '%s'...\n", WIFI_SSID);
+    Serial.printf("  Initiating boot connection to router '%s'...\n", WIFI_SSID);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   }
 }
@@ -1284,20 +1602,20 @@ void reconnectToWifi(const char *reason) {
   Serial.print("Wi-Fi recovery: ");
   Serial.println(reason);
   if (hasActivePlantingSession()) pausePlanting("WIFI_CONNECTION_LOSS");
-  // Trigger background reconnect without resetting SoftAP
-  if (strlen(WIFI_SSID) > 0) {
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  }
 }
 
 void monitorRoverWifi() {
-  // Periodically check if station connection is lost and retry in the background
-  // without stalling the softAP or HTTP server.
-  if (strlen(WIFI_SSID) > 0 && WiFi.status() != WL_CONNECTED) {
+  // In the field, WIFI_SSID won't exist. Stop scanning after MAX_STA_RETRIES
+  // so the SoftAP radio NEVER channel-hops and clients never drop!
+  if (strlen(WIFI_SSID) > 0 && WiFi.status() != WL_CONNECTED && staRetryAttempts < MAX_STA_RETRIES) {
     if (millis() - lastWifiAttempt > 15000) {
       lastWifiAttempt = millis();
-      Serial.printf("STA disconnected from '%s', attempting background reconnect...\n", WIFI_SSID);
+      staRetryAttempts++;
+      Serial.printf("STA retry %d/%d to router '%s'...\n", staRetryAttempts, MAX_STA_RETRIES, WIFI_SSID);
       WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+      if (staRetryAttempts >= MAX_STA_RETRIES) {
+        Serial.println("STA router unavailable. Holding pure SoftAP on Channel 1 to preserve client stability.");
+      }
     }
   }
 }
@@ -1309,9 +1627,14 @@ void printConnectedDeviceSignal() {
 
 void setup() {
   Serial.begin(115200);
+  delay(100);
+  Serial.println("\n==========================================");
+  Serial.println("       SeedRover ESP32 Firmware Boot       ");
+  Serial.println("==========================================");
 
   // Put the H-bridge in its stopped state before the radio starts or any
   // request can arrive. This avoids leaving motor inputs floating during boot.
+  Serial.println("[BOOT] 1. Initializing Motor Pins...");
   pinMode(IN1, OUTPUT);
   pinMode(IN2, OUTPUT);
   pinMode(IN3, OUTPUT);
@@ -1321,11 +1644,14 @@ void setup() {
   digitalWrite(IN3, LOW);
   digitalWrite(IN4, LOW);
 
+  Serial.println("[BOOT] 2. Configuring Wi-Fi...");
   connectToWifi();
+
+  Serial.println("[BOOT] 3. Loading Calibration & Checkpoints...");
   loadCalibration();
   restorePlantingCheckpoint();
 
-  // Setup Web Server immediately so mobile client can connect without delay
+  Serial.println("[BOOT] 4. Starting Web Server...");
   const char *headers[] = {"X-Rover-Token"};
   server.collectHeaders(headers, 1);
   server.on("/health", HTTP_GET, handleHealth);
@@ -1344,6 +1670,7 @@ void setup() {
   });
   server.begin();
 
+  Serial.println("[BOOT] 5. Initializing Sensors...");
   pinMode(SOIL_SENSOR_PIN, INPUT);
   pinMode(FRONT_ULTRASONIC_TRIG_PIN, OUTPUT);
   pinMode(FRONT_ULTRASONIC_ECHO_PIN, INPUT);
@@ -1354,32 +1681,286 @@ void setup() {
   temperatureSensor.begin();
   dht.begin();
 
+  Serial.println("[BOOT] 6. Attaching Servos...");
   soilSensorServo.setPeriodHertz(50);
   seedServo.setPeriodHertz(50);
   seedServo2.setPeriodHertz(50);
   seedServo3.setPeriodHertz(50);
   soilMechanismServo.setPeriodHertz(50);
-  levelerServo.setPeriodHertz(50);
-  molderServo.setPeriodHertz(50);
-  seedTubeServo.setPeriodHertz(50);
+  flattenerServo.setPeriodHertz(50);
 
   soilSensorServo.attach(SERVO_SOIL_SENSOR_PIN, 500, 2400);
   seedServo.attach(SERVO_SEED_1_PIN, 500, 2400);
   seedServo2.attach(SERVO_SEED_2_PIN, 500, 2400);
   seedServo3.attach(SERVO_SEED_3_PIN, 500, 2400);
   soilMechanismServo.attach(SERVO_SOIL_MECH_PIN, 500, 2400);
-  levelerServo.attach(SERVO_LEVELER_PIN, 500, 2400);
-  molderServo.attach(SERVO_MOLDER_PIN, 500, 2400);
-  seedTubeServo.attach(SERVO_SEED_TUBE_PIN, 500, 2400);
+  flattenerServo.attach(SERVO_FLATTENER_PIN, 500, 2400);
+  // Note: Leveler (GPIO 32) and Seed Tube (GPIO 2) removed from robot
 
   safeState();
   sampleEnvironment(millis(), true);
   sampleObstacles(millis(), true);
+
+  Serial.println("[BOOT] 7. Boot Complete!");
   Serial.printf("SeedRover %s ready at http://%s\n", FIRMWARE_VERSION, WiFi.softAPIP().toString().c_str());
+  Serial.println("\n[BENCH TEST] Type 'help' or '1', '2', '3', 't', 'drop1', 'soil', 'cal' in Serial Monitor!");
+}
+
+void printSerialHelp() {
+  Serial.println("\n============================================");
+  Serial.println("     SeedRover Firmware Serial Test Menu    ");
+  Serial.println("============================================");
+  Serial.println(" [1] / [gate1] : Test Gate 1 (Calamansi, GPIO 27)");
+  Serial.println(" [2] / [gate2] : Test Gate 2 (Sitaw, GPIO 4)");
+  Serial.println(" [3] / [gate3] : Test Gate 3 (Peanut, GPIO 23)");
+  Serial.println(" [c] / [close] : Close all seed gates");
+  Serial.println(" [drop1]       : Station drop test with Gate 1 (1.0s flash move)");
+  Serial.println(" [drop2]       : Station drop test with Gate 2 (1.0s flash move)");
+  Serial.println(" [drop3]       : Station drop test with Gate 3 (1.0s flash move)");
+  Serial.println(" [rake]        : Toggle rake mechanism (GPIO 26)");
+  Serial.println(" [flattener]   : Toggle soil flattener after rake (GPIO 33)");
+  Serial.println(" [soil]        : Test soil probe deploy & read (GPIO 13)");
+  Serial.println(" [cal]         : View current soil calibration status");
+  Serial.println(" [cal dry]     : Set current soil reading as DRY reference (0%)");
+  Serial.println(" [cal wet]     : Set current soil reading as WET reference (100%)");
+  Serial.println(" [cal D W]     : Manually set references (e.g. 'cal 2626 1300')");
+  Serial.println(" [plant]        : Start automatic planting row (bypasses soil checks)");
+  Serial.println(" [plant 1/2/3]  : Start automatic planting row with Gate 1, 2, or 3");
+  Serial.println(" [speed <sec>]  : Set seconds per meter (e.g. 'speed 10.0')");
+  Serial.println(" [bypass]       : Toggle soil check bypass mode");
+  Serial.println(" [dist]        : Read Front & Rear ultrasonic distances");
+  Serial.println(" [fwd]         : Test motors Forward");
+  Serial.println(" [rev]         : Test motors Backward");
+  Serial.println(" [left]        : Test Turn Left (Left Backward, Right Forward)");
+  Serial.println(" [right]       : Test Turn Right (Left Forward, Right Backward)");
+  Serial.println(" [stop]        : Stop all motors");
+  Serial.println(" [help]        : Show this menu");
+  Serial.println("============================================");
+}
+
+void handleSerialCommands() {
+  if (!Serial.available()) return;
+  String line = Serial.readStringUntil('\n');
+  line.trim();
+  if (line.isEmpty()) return;
+
+  if (line == "left" || line == "turnleft") {
+    turnLeft();
+  } else if (line == "right" || line == "turnright") {
+    turnRight();
+  } else if (line == "fwd" || line == "forward") {
+    moveForward();
+    Serial.println("[MOTOR] Moving Forward");
+  } else if (line == "rev" || line == "back" || line == "backward") {
+    moveBackward();
+    Serial.println("[MOTOR] Moving Backward");
+  } else if (line == "stop" || line == "s") {
+    stopMotors();
+    Serial.println("[MOTOR] Motors Stopped");
+  } else if (line == "1" || line == "gate1") {
+    Serial.printf("[TEST] Flash Opening Gate 1 (GPIO 27 - Calamansi: %d deg -> %d deg) for 1s...\n", gate1DEFAULT, gate1OPEN);
+    seedServo.write(gate1OPEN);
+    delay(SEED_DISPENSE_OPEN_MS);
+    seedServo.write(gate1DEFAULT);
+    Serial.printf("[TEST] Gate 1 CLOSED to %d deg.\n", gate1DEFAULT);
+  } else if (line == "2" || line == "gate2") {
+    Serial.printf("[TEST] Flash Opening Gate 2 (GPIO 4 - Sitaw: %d deg -> %d deg) for 1s...\n", gate2DEFAULT, gate2OPEN);
+    seedServo2.write(gate2OPEN);
+    delay(SEED_DISPENSE_OPEN_MS);
+    seedServo2.write(gate2DEFAULT);
+    Serial.printf("[TEST] Gate 2 CLOSED to %d deg.\n", gate2DEFAULT);
+  } else if (line == "3" || line == "gate3") {
+    Serial.printf("[TEST] Flash Opening Gate 3 (GPIO 23 - Peanut: %d deg -> %d deg) for 1s...\n", gate3DEFAULT, gate3OPEN);
+    seedServo3.write(gate3OPEN);
+    delay(SEED_DISPENSE_OPEN_MS);
+    seedServo3.write(gate3DEFAULT);
+    Serial.printf("[TEST] Gate 3 CLOSED to %d deg.\n", gate3DEFAULT);
+  } else if (line == "c" || line == "close") {
+    Serial.println("[TEST] Closing all gates...");
+    closeSeedGate();
+  } else if (line == "drop1" || line == "drop2" || line == "drop3") {
+    int g = (line == "drop2") ? 2 : (line == "drop3" ? 3 : 1);
+    Serial.printf("[TEST] Running station drop sequence for Gate %d (1.0s flash move)...\n", g);
+    Serial.printf("  Opening Gate %d...\n", g);
+    if (g == 2) seedServo2.write(gate2OPEN);
+    else if (g == 3) seedServo3.write(gate3OPEN);
+    else seedServo.write(gate1OPEN);
+    delay(SEED_DISPENSE_OPEN_MS);
+    Serial.println("  Closing seed gate...");
+    closeSeedGate();
+    Serial.println("[TEST] Station drop sequence finished!");
+  } else if (line == "rake") {
+    if (rakeCommandedDown) {
+      setRakeUp();
+      Serial.println("[TEST] Rake UP.");
+    } else {
+      setRakeDown();
+      Serial.println("[TEST] Rake DOWN.");
+    }
+  } else if (line == "leveler") {
+    Serial.println("[TEST] Leveler is retired/removed from robot.");
+  } else if (line == "flattener" || line == "flat" || line == "molder") {
+    if (flattenerCommandedDown) {
+      setFlattenerUp();
+      Serial.println("[TEST] Soil Flattener UP.");
+    } else {
+      setFlattenerDown();
+      Serial.println("[TEST] Soil Flattener DOWN (flattening raked soil).");
+    }
+  } else if (line == "soil") {
+    Serial.println("[TEST] Lowering soil probe...");
+    soilSensorServo.write(soilSensorDOWN);
+    delay(1200);
+    readSensorSnapshot();
+    soilSensorServo.write(soilSensorUP);
+    if (calibration.soilCalibrationValid && isfinite(planting.soilPercent)) {
+      Serial.printf("[TEST] Soil Raw: %d (%.1f%% Moisture) | Temp: %.1f C\n",
+                    planting.soilRaw, planting.soilPercent, planting.soilTemperatureC);
+    } else {
+      Serial.printf("[TEST] Soil Raw: %d (Uncalibrated) | Temp: %.1f C\n",
+                    planting.soilRaw, planting.soilTemperatureC);
+      Serial.println("  --> [HINT] Type 'cal dry' in air, then 'cal wet' in water/wet soil to calibrate moisture.");
+    }
+    if (isnan(planting.soilTemperatureC)) {
+      Serial.println("  --> [HINT] Soil Temp is 'nan'. Ensure DS18B20 data wire has a 4.7k pull-up resistor to 3.3V on GPIO 14.");
+    }
+  } else if (line.startsWith("cal")) {
+    int currentRaw = analogRead(SOIL_SENSOR_PIN);
+    if (line == "cal dry" || line == "cal-dry") {
+      calibration.soilDryRaw = currentRaw;
+      if (calibration.soilWetRaw > 0 && calibration.soilWetRaw < 4095 && calibration.soilDryRaw != calibration.soilWetRaw) {
+        calibration.soilCalibrationValid = true;
+      }
+      saveCalibration();
+      Serial.printf("\n[CALIBRATION] Captured DRY reference: %d (0%% moisture point).\n", calibration.soilDryRaw);
+      Serial.printf("  Current Wet Reference: %d | Status: %s\n",
+                    calibration.soilWetRaw, calibration.soilCalibrationValid ? "VALID & ACTIVE" : "AWAITING WET REFERENCE");
+      if (calibration.soilCalibrationValid) {
+        Serial.printf("  Calibration active! Current sensor reading: %.1f%% moisture.\n", calibratedSoilPercent(currentRaw));
+      } else {
+        Serial.println("  Next: Dip probe in water or wet soil and type 'cal wet'.");
+      }
+    } else if (line == "cal wet" || line == "cal-wet") {
+      calibration.soilWetRaw = currentRaw;
+      if (calibration.soilDryRaw > 0 && calibration.soilDryRaw < 4095 && calibration.soilDryRaw != calibration.soilWetRaw) {
+        calibration.soilCalibrationValid = true;
+      }
+      saveCalibration();
+      Serial.printf("\n[CALIBRATION] Captured WET reference: %d (100%% moisture point).\n", calibration.soilWetRaw);
+      Serial.printf("  Current Dry Reference: %d | Status: %s\n",
+                    calibration.soilDryRaw, calibration.soilCalibrationValid ? "VALID & ACTIVE" : "AWAITING DRY REFERENCE");
+      if (calibration.soilCalibrationValid) {
+        Serial.printf("  Calibration active! Current sensor reading: %.1f%% moisture.\n", calibratedSoilPercent(currentRaw));
+      } else {
+        Serial.println("  Next: Hold probe in dry air and type 'cal dry'.");
+      }
+    } else if (line.indexOf(' ') > 0) {
+      int firstSpace = line.indexOf(' ');
+      int secondSpace = line.indexOf(' ', firstSpace + 1);
+      if (secondSpace > 0) {
+        int d = line.substring(firstSpace + 1, secondSpace).toInt();
+        int w = line.substring(secondSpace + 1).toInt();
+        if (d > 0 && d < 4095 && w > 0 && w < 4095 && d != w) {
+          calibration.soilDryRaw = d;
+          calibration.soilWetRaw = w;
+          calibration.soilCalibrationValid = true;
+          saveCalibration();
+          Serial.printf("\n[CALIBRATION] Saved manual references -> Dry: %d | Wet: %d (Locked to flash!)\n", d, w);
+          Serial.printf("  Current sensor raw %d = %.1f%% moisture.\n", currentRaw, calibratedSoilPercent(currentRaw));
+        } else {
+          Serial.println("[CALIBRATION ERROR] Readings must be between 1 and 4094 and not equal. Example: 'cal 2626 1300'");
+        }
+      } else {
+        Serial.println("[CALIBRATION] Usage: 'cal dry', 'cal wet', or 'cal <dry_raw> <wet_raw>'");
+      }
+    } else {
+      Serial.println("\n============================================");
+      Serial.println("        Soil Moisture Calibration Status     ");
+      Serial.println("============================================");
+      Serial.printf("  Dry Raw Reference (0%%):    %d\n", calibration.soilDryRaw);
+      Serial.printf("  Wet Raw Reference (100%%):  %d\n", calibration.soilWetRaw);
+      Serial.printf("  Calibration Valid:         %s\n", calibration.soilCalibrationValid ? "YES" : "NO");
+      Serial.printf("  Live Raw Reading:          %d\n", currentRaw);
+      if (calibration.soilCalibrationValid) {
+        Serial.printf("  Calculated Moisture:       %.1f%%\n", calibratedSoilPercent(currentRaw));
+      } else {
+        Serial.println("  Calculated Moisture:       UNAVAILABLE (Needs calibration)");
+      }
+      Serial.println("--------------------------------------------");
+      Serial.println("  To calibrate:");
+      Serial.println("    1. Hold probe in air and type: 'cal dry'");
+      Serial.println("    2. Dip tip in water and type:  'cal wet'");
+      Serial.println("    Or manually set: 'cal 2626 1300'");
+      Serial.println("============================================");
+    }
+  } else if (line == "dist" || line == "ultra" || line == "sensors") {
+    sampleObstacles(millis(), true);
+    Serial.printf("[ULTRASONIC TEST]\n  Front Sensor 2 (Boundary/Field): %s (%.1f cm)\n  Rear Sensor 1 (Obstacle Alert):  %s (%.1f cm)\n",
+                  planting.frontSensorAvailable ? "DETECTED" : "CLEAR/OUT_OF_RANGE",
+                  planting.frontDistanceCm,
+                  planting.rearSensorAvailable ? "DETECTED" : "CLEAR/OUT_OF_RANGE",
+                  planting.rearDistanceCm);
+  } else if (line == "plant" || line.startsWith("plant") || line == "start") {
+    int gate = 1;
+    int drops = 5;
+    if (line == "plant2") gate = 2;
+    else if (line == "plant3") gate = 3;
+    else if (line.indexOf(' ') > 0) {
+      int sp = line.indexOf(' ');
+      gate = line.substring(sp + 1).toInt();
+      if (gate < 1 || gate > 3) gate = 1;
+    }
+    Serial.printf("\n[AUTO PLANTING] Starting automatic planting row with Gate %d (%d drops)...\n",
+                  gate, drops);
+    Serial.println("  --> Bypassing soil moisture and soil temperature checks!");
+    JsonDocument dummyReq;
+    dummyReq["session_id"] = String("SERIAL-") + String(millis());
+    dummyReq["crop_profile"] = gate == 2 ? "sitaw" : (gate == 3 ? "peanut" : "calamansi");
+    dummyReq["seed_gate"] = gate;
+    dummyReq["target_drops"] = drops;
+    dummyReq["spacing_cm"] = 25.0f;
+    dummyReq["field_label"] = "Bench Test Row";
+    JsonDocument resp;
+    startPlantingRow(dummyReq.as<JsonVariantConst>(), resp);
+    Serial.println("  --> Row started! Rover will scout/lock field end and plant seeds.");
+  } else if (line.startsWith("bypass")) {
+    if (line == "bypass on" || line == "bypass 1") {
+      bypassSoilChecks = true;
+      Serial.println("[BYPASS] Soil moisture & temperature bypass ENABLED.");
+    } else if (line == "bypass off" || line == "bypass 0") {
+      bypassSoilChecks = false;
+      Serial.println("[BYPASS] Soil moisture & temperature bypass DISABLED.");
+    } else {
+      bypassSoilChecks = !bypassSoilChecks;
+      Serial.printf("[BYPASS] Soil moisture & temperature bypass is now: %s\n",
+                    bypassSoilChecks ? "ENABLED (Will plant anyway!)" : "DISABLED (Requires sensors)");
+    }
+  } else if (line.startsWith("speed")) {
+    int sp = line.indexOf(' ');
+    if (sp > 0) {
+      float s = line.substring(sp + 1).toFloat();
+      if (s >= 1.0f && s <= 60.0f) {
+        calibration.secondsPerMeter = s;
+        saveCalibration();
+        Serial.printf("[SPEED] Calibrated to %.1f seconds per meter!\n", s);
+        Serial.printf("  Over 4 feet (122 cm), a 20 cm spacing will take %.1f seconds drive time.\n",
+                      (20.0f / 100.0f) * s);
+      } else {
+        Serial.println("[SPEED ERROR] Value must be between 1.0 and 60.0. Example: 'speed 10.0'");
+      }
+    } else {
+      Serial.printf("[SPEED] Current calibration: %.1f seconds/meter. Usage: 'speed 10.0'\n", calibration.secondsPerMeter);
+    }
+  } else if (line == "help" || line == "?") {
+    printSerialHelp();
+  } else {
+    Serial.printf("Unknown command '%s'. Type 'help' for available commands.\n", line.c_str());
+  }
 }
 
 void loop() {
   server.handleClient();
+  handleSerialCommands();
   updatePlantingStateMachine();
   monitorRoverWifi();
   if (millis() - lastHealthLog >= 10000) {

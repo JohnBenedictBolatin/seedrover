@@ -18,6 +18,8 @@ class LocalWifiRoverService {
   final _localNetworkController = StreamController<bool>.broadcast();
   bool _isConnected = false;
   bool _localNetworkActive = false;
+  int _consecutiveFailures = 0;
+  static const int _maxFailuresBeforeDisconnect = 3;
 
   Stream<bool> get connectedStream => _connectedController.stream;
   bool get isConnected => _isConnected;
@@ -263,14 +265,21 @@ class LocalWifiRoverService {
         throw StateError(
             decoded['message']?.toString() ?? 'ESP32 rejected the request.');
       }
+      _consecutiveFailures = 0;
       return decoded;
     } on SocketException {
-      _setConnected(false);
+      _consecutiveFailures++;
+      if (_consecutiveFailures >= _maxFailuresBeforeDisconnect) {
+        _setConnected(false);
+      }
       throw StateError(
         'Cannot reach the ESP32. Connect the phone to SeedRover-01 and verify ROVER_BASE_URL.',
       );
     } on TimeoutException {
-      _setConnected(false);
+      _consecutiveFailures++;
+      if (_consecutiveFailures >= _maxFailuresBeforeDisconnect) {
+        _setConnected(false);
+      }
       throw StateError(
         'The ESP32 timed out. Stay connected to SeedRover-01 and try again.',
       );

@@ -4,25 +4,30 @@ The ESP32 creates the local WPA2 hotspot `SeedRover-01` at `192.168.4.1`. DHCP l
 
 ## Hardware map
 
-- Soil ADC: GPIO 34
-- DS18B20 temperature: GPIO 14
-- DHT11 data: GPIO 25
-- Front HC-SR04: TRIG GPIO 5, ECHO GPIO 15 through voltage divider
-- Rear HC-SR04: TRIG GPIO 16, ECHO GPIO 17 through voltage divider
-- Soil probe servo: GPIO 13
-- Seed gate servo: GPIO 27
-- Rake servo: GPIO 26
-- Motor driver: GPIO 18, 19, 21, and 22
+> **Full Engineering Schematic & Level Voltage Guide:** See [WIRING_AND_PINOUTS.md](WIRING_AND_PINOUTS.md) or [docs/wiring-schematic-and-pinouts.md](../../docs/wiring-schematic-and-pinouts.md).
 
-GPIO 4 and 23 are unused. The HX711 and load cell are removed. This version does not have wheel encoders, so travel distance remains a timed estimate.
+- **Sensors:**
+  - Soil Moisture ADC: GPIO 34 (ADC1_CH6, Wi-Fi safe)
+  - DS18B20 Soil Temperature: GPIO 14 (4.7 kΩ pull-up to 3.3V)
+  - DHT11 Air Temp & Humidity: GPIO 25 (10 kΩ pull-up to 3.3V)
+  - Front Ultrasonic (Boundary): TRIG GPIO 5, ECHO GPIO 15 (through 1kΩ/2kΩ 3.3V divider)
+  - Rear Ultrasonic (Safety/Obstacle): TRIG GPIO 16, ECHO GPIO 17 (through 1kΩ/2kΩ 3.3V divider)
+- **Servos (6x on 5.5V High-Current Bus with 1000 µF cap):**
+  - Seed Gate 1 (Calamansi / Default): GPIO 27
+  - Seed Gate 2 (Sitaw): GPIO 4
+  - Seed Gate 3 (Peanut): GPIO 23
+  - Soil Rake / Furrow Opener: GPIO 26
+  - Soil Flattener (after rake): GPIO 33
+  - Deployable Soil Probe Arm: GPIO 13
+- **DC Motors (L298N H-Bridge on 12V Raw Rail):**
+  - Left Motors: IN1 GPIO 18, IN2 GPIO 19
+  - Right Motors: IN3 GPIO 21, IN4 GPIO 22
 
-The front ultrasonic now uses GPIO 5 and 15, which are ESP32 boot-strapping pins. Keep the modules from driving those pins during reset and cold-boot the board with the sensors connected; if boot becomes unreliable, move that sensor to non-strapping GPIOs and update these definitions and this table together.
+The front ultrasonic uses GPIO 5 and 15, which are ESP32 boot-strapping pins. The 1kΩ/2kΩ voltage divider pulls GPIO 15 LOW on reset, ensuring normal silent boot.
 
 Install the ESP32 board package, ArduinoJson 7, ESP32Servo, OneWire, DallasTemperature, and the Adafruit DHT sensor library. Copy `secrets.example.h` to `secrets.h`; set a unique 8-63 character token and use that exact token for the Flutter app's `ROVER_TOKEN`, this hotspot password/API header, and the camera's `ROVER_WIFI_PASSWORD`. The rover SSID is fixed to `SeedRover-01`, matching the Flutter connector and camera configuration.
 
-The DS18B20 measures soil temperature. The DHT11 measures air temperature and humidity. For a bare DS18B20, use a 4.7 kOhm DATA pull-up to 3.3V; a bare 4-pin DHT11 needs a 4.7-10 kOhm DATA pull-up (a module may already include it). A disconnected or invalid sensor is reported as unavailable, never as a measured zero.
-
-Power both HC-SR04 modules from 5V and share common ground. Protect each 5V ECHO output with a divider: ECHO → one 1 kOhm resistor → GPIO junction → two 1 kOhm resistors in series → ground. This produces about 3.3V at the GPIO; never connect ECHO directly to an ESP32 pin. Power the three servos from Buck 2 and use the separate motor power circuit. Join all grounds, and never connect 5V directly to the 3.3V rail. Obstacle readings are warnings only: they never reject start/resume or stop automatic/manual movement. The rover warns at 30 cm or less and clears a warning only above 35 cm. Missing/stale readings are reported as unavailable; they do not claim the path is clear.
+Power the 8 servos from Buck 1 (5.5V 5A) with a 1000 µF 16V buffer capacitor. Power the ESP32 VIN, ESP32-CAM, and HC-SR04 VCC from Buck 2 (5.0V 2A). Power the L298N directly from the fused 12V Li-ion battery rail. Join all grounds in a central star ground, and never connect 5V directly to the 3.3V rail. Obstacle readings are warnings: the rover warns at 30 cm or less and clears above 35 cm. Missing/stale readings are reported as unavailable.
 
 ## Planting protocol
 

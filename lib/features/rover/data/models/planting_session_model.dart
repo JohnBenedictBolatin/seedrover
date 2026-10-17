@@ -55,6 +55,9 @@ class PlantingRowConfig {
         'rake_offset_cm': rakeOffsetCm,
       };
 
+  double get totalDistanceCm => targetDrops * spacingCm;
+  double get totalDistanceM => totalDistanceCm / 100.0;
+
   PlantingRowConfig nextRow() => PlantingRowConfig(
         sessionId: _uuidV4(),
         seed: seed,
@@ -133,8 +136,14 @@ class PlantingOperationStatus {
     this.failureCode,
     this.totalForwardDistanceCm,
     this.returnDistanceCm,
+    this.surveyDistanceCm,
+    this.surveyReturnDistanceCm,
+    this.calculatedSpacingCm,
+    this.nextDropAtCm,
     this.fieldDistanceLocked = false,
     this.detectedFieldDistanceCm,
+    this.isDispensing = false,
+    this.gateOpen = false,
   });
 
   factory PlantingOperationStatus.fromJson(Map<String, dynamic> json) {
@@ -192,9 +201,19 @@ class PlantingOperationStatus {
       totalForwardDistanceCm:
           (json['total_forward_distance_cm'] as num?)?.toDouble(),
       returnDistanceCm: (json['return_distance_cm'] as num?)?.toDouble(),
+      surveyDistanceCm: (json['survey_distance_cm'] as num?)?.toDouble(),
+      surveyReturnDistanceCm:
+          (json['survey_return_distance_cm'] as num?)?.toDouble(),
+      calculatedSpacingCm:
+          (json['calculated_spacing_cm'] as num?)?.toDouble() ??
+              (json['spacing_cm'] as num?)?.toDouble(),
+      nextDropAtCm: (json['next_drop_at_cm'] as num?)?.toDouble(),
       fieldDistanceLocked: json['field_distance_locked'] as bool? ?? false,
       detectedFieldDistanceCm:
           (json['detected_field_distance_cm'] as num?)?.toDouble(),
+      isDispensing: json['is_dispensing'] as bool? ??
+          (json['gate_open'] as bool? ?? false),
+      gateOpen: json['gate_open'] as bool? ?? false,
     );
   }
 
@@ -230,8 +249,14 @@ class PlantingOperationStatus {
   final String? failureCode;
   final double? totalForwardDistanceCm;
   final double? returnDistanceCm;
+  final double? surveyDistanceCm;
+  final double? surveyReturnDistanceCm;
+  final double? calculatedSpacingCm;
+  final double? nextDropAtCm;
   final bool fieldDistanceLocked;
   final double? detectedFieldDistanceCm;
+  final bool isDispensing;
+  final bool gateOpen;
 
   bool get isTerminal => const {
         'COMPLETED',

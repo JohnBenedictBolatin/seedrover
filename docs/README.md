@@ -34,6 +34,7 @@ Database migrations are maintained in [`supabase/migrations`](../supabase/migrat
 ## Rover and hardware
 
 - [Hardware protocol](hardware-protocol.md)
+- [Wiring schematic, pinnings & level voltages](wiring-schematic-and-pinouts.md)
 - [Rover firmware setup](../firmware/esp32_seedrover/README.md)
 - [Camera firmware setup](../firmware/esp32_cam/README.md)
 - [Crop monitoring function deployment](../supabase/functions/CROP_MONITORING_DEPLOYMENT.md)

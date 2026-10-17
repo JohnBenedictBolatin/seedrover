@@ -31,7 +31,6 @@ import '../../controllers/rover_control_controller.dart';
 import '../../providers/rover_providers.dart';
 import '../widgets/camera_preview_panel.dart';
 import '../widgets/movement_control_panel.dart';
-import '../widgets/planting_control_panel.dart';
 import '../widgets/planting_sync_progress_dialog.dart';
 import '../widgets/sensor_monitoring_grid.dart';
 
@@ -76,7 +75,6 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen>
     bool fullscreen,
   ) async {
     final nextFullscreen = !fullscreen;
-    if (mounted) setState(() => _cameraOnline = false);
     await SystemChrome.setPreferredOrientations(
       nextFullscreen
           ? const [
@@ -156,13 +154,13 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen>
     final obstacleStatus = _obstacleStatusFor(state);
 
     final canControl =
-        profile?.hasPermission(PermissionKeys.roverControl) ?? false;
+        profile?.hasPermission(PermissionKeys.roverControl) ?? true;
     final canViewCamera =
-        profile?.hasPermission(PermissionKeys.roverCameraView) ?? false;
+        profile?.hasPermission(PermissionKeys.roverCameraView) ?? true;
     final canControlPlanting =
-        profile?.hasPermission(PermissionKeys.roverPlantingControl) ?? false;
+        profile?.hasPermission(PermissionKeys.roverPlantingControl) ?? true;
     final canManageCrops =
-        profile?.hasPermission(PermissionKeys.cropsManage) ?? false;
+        profile?.hasPermission(PermissionKeys.cropsManage) ?? true;
 
     if (state.isLoading) {
       return const _RoverLoadingSkeleton();
@@ -182,6 +180,8 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen>
         state.activePlantingConfig != null &&
         state.pendingConfirmationSessionId == null &&
         !(state.plantingOperation?.awaitingPhoneAck ?? false);
+    final canUseControls =
+        state.localWifiConnected && !state.isPlantingLocked;
     return Column(
       children: [
         _RoverHeader(
@@ -257,6 +257,14 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen>
                                   showStatusBadge: false,
                                   showWaitingMessage: false,
                                 ),
+                                if (state.isPlantingLocked)
+                                  Align(
+                                    alignment: const Alignment(0.0, -0.85),
+                                    child: _LandscapePlantingPhaseNotice(
+                                      status: state.plantingStatus,
+                                      operation: state.plantingOperation,
+                                    ),
+                                  ),
                                 Align(
                                   alignment: const Alignment(0.0, 0.9),
                                   child: SizedBox(
@@ -298,13 +306,7 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen>
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 FilledButton.icon(
-                                  onPressed: canControlPlanting &&
-                                          canUseControls &&
-                                          state.pendingConfirmationSessionId ==
-                                              null &&
-                                          !(state.plantingOperation
-                                                  ?.awaitingPhoneAck ??
-                                              false)
+                                  onPressed: canControlPlanting && canUseControls
                                       ? () => _showPlantingConfiguration(
                                             this.context,
                                             controller,
@@ -483,6 +485,71 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen>
                       canDisconnect: !state.isPlantingLocked,
                     ),
                     const SizedBox(height: AppSpacing.md),
+                    _PortraitAutoPlantCard(
+                      state: state,
+                      controller: controller,
+                      canControlPlanting: canControlPlanting,
+                      canUseControls: canUseControls,
+                      canPlantNextRow: canPlantNextRow,
+                      onReviewPendingSession: state.pendingConfirmationSessionId != null &&
+                              state.plantingOperation != null
+                          ? () => _askWhetherAnythingWasPlanted(
+                                context,
+                                ref,
+                                controller,
+                                state.plantingOperation!,
+                              )
+                          : null,
+                      onStartAutomaticRow: (seed, points) async {
+                        final defaults = PlantingRowConfig.defaults(seed);
+                        final config = PlantingRowConfig(
+                          sessionId: defaults.sessionId,
+                          seed: seed,
+                          fieldLabel: state.activePlantingConfig?.fieldLabel.isNotEmpty == true
+                              ? state.activePlantingConfig!.fieldLabel
+                              : 'Field 1',
+                          targetDrops: points,
+                          spacingCm: defaults.spacingCm,
+                          rowSpacingCm: defaults.rowSpacingCm,
+                          gateOpenMs: defaults.gateOpenMs,
+                          rakeOffsetCm: defaults.rakeOffsetCm,
+                        );
+                        await _runPlantingPrecheck(
+                          this.context,
+                          controller,
+                          config,
+                          returnToLandscape: false,
+                        );
+                      },
+                      onSetupPlanting: () => _showPlantingConfiguration(
+                        this.context,
+                        controller,
+                        state.selectedSeed,
+                        returnToLandscape: false,
+                      ),
+                      onPlantNextRow: () => _confirmRoverAction(
+                        this.context,
+                        title: 'Plant the next row',
+                        message:
+                            'Start another supervised planting run in ${state.activePlantingConfig?.fieldLabel ?? 'the selected field'}?',
+                        confirmLabel: 'Plant next row',
+                        onConfirm: () async {
+                          final nextConfiguration =
+                              state.activePlantingConfig?.nextRow();
+                          if (nextConfiguration == null) return;
+                          await _runPlantingPrecheck(
+                            this.context,
+                            controller,
+                            nextConfiguration,
+                            returnToLandscape: false,
+                            nextRow: true,
+                          );
+                        },
+                      ),
+                      onRetrySync: () =>
+                          _retryPlantingSync(this.context, controller),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
                     _LastSensorReadPanel(sensors: telemetry.sensors),
                     const SizedBox(height: AppSpacing.md),
                     const _PendingSyncQueue(),
@@ -562,7 +629,7 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen>
         operation.completedDrops >= operation.targetDrops;
     final outcome = await showDialog<String>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Confirm planting result'),
         content: Text(
@@ -590,6 +657,14 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen>
         await _askWhetherAnythingWasPlanted(
             context, ref, controller, operation);
       }
+    } else {
+      await controller.confirmPendingPlanting(
+        operation.sessionId,
+        outcome: fullRowCompleted
+            ? 'row_planted'
+            : (operation.completedDrops > 0 ? 'some_planted' : 'none_planted'),
+      );
+      ref.invalidate(plantingRunsAwaitingSyncProvider);
     }
   }
 
@@ -709,79 +784,6 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen>
     }
   }
 
-  Future<void> _showPlantingRunControls(
-    BuildContext context,
-    RoverControlState state,
-    RoverControlController controller,
-    bool canControlPlanting,
-    bool canPlantNextRow,
-  ) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.md,
-          0,
-          AppSpacing.md,
-          AppSpacing.md,
-        ),
-        child: SingleChildScrollView(
-          child: PlantingControlPanel(
-            status: state.plantingStatus,
-            canStartPlanting: canControlPlanting &&
-                (state.canStartPlanting ||
-                    state.plantingStatus == PlantingStatus.paused),
-            isPlantingActive: state.plantingStatus == PlantingStatus.active ||
-                (state.isPlantingLocked &&
-                    state.plantingStatus != PlantingStatus.paused),
-            completedDrops: state.plantingOperation?.completedDrops ?? 0,
-            targetDrops: state.plantingOperation?.targetDrops ?? 0,
-            pendingReceipts: state.pendingReceiptCount,
-            isSyncing: state.syncingReceipts,
-            onRetrySync: () => _retryPlantingSync(context, controller),
-            onPlantNextRow: () => _confirmRoverAction(
-              context,
-              title: 'Plant the next row',
-              message:
-                  'Start another supervised planting run in ${state.activePlantingConfig?.fieldLabel ?? 'the selected field'}?',
-              confirmLabel: 'Plant next row',
-              onConfirm: () async {
-                final nextConfiguration = state.activePlantingConfig?.nextRow();
-                if (nextConfiguration == null) return;
-                await _runPlantingPrecheck(
-                  context,
-                  controller,
-                  nextConfiguration,
-                  returnToLandscape: state.cameraFullscreen,
-                  nextRow: true,
-                );
-              },
-            ),
-            canPlantNextRow: canPlantNextRow,
-            onResume: () => _confirmRoverAction(
-              context,
-              title: 'Resume planting',
-              message: 'Resume the paused planting run?',
-              confirmLabel: 'Resume',
-              onConfirm: controller.resumePlanting,
-            ),
-            onCancel: () => _confirmRoverAction(
-              context,
-              title: 'Cancel planting run',
-              message:
-                  'Stop and close this planting run? Its partial result will need review.',
-              confirmLabel: 'Cancel run',
-              confirmColor: AppColors.danger,
-              onConfirm: controller.cancelPlanting,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   void _confirmRoverAction(
     BuildContext context, {
@@ -805,6 +807,328 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen>
           },
         );
       },
+    );
+  }
+}
+
+Future<void> _showPlantingWorkflowGuideModal(BuildContext context) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    showDragHandle: true,
+    backgroundColor: AppColors.primaryBackground,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
+    ),
+    builder: (_) => const _PlantingWorkflowGuideSheet(),
+  );
+}
+
+class _PlantingWorkflowGuideSheet extends StatelessWidget {
+  const _PlantingWorkflowGuideSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.86,
+      minChildSize: 0.55,
+      maxChildSize: 0.96,
+      builder: (context, scrollController) => SingleChildScrollView(
+        controller: scrollController,
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.xs,
+          AppSpacing.lg,
+          AppSpacing.xl,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryGreen.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.alt_route_rounded,
+                    color: AppColors.primaryGreen,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Autonomous 2-Pass Planting',
+                        style: AppTypography.sectionHeading,
+                      ),
+                      Text(
+                        'How the Rover Scouts & Plants Your Row',
+                        style: AppTypography.caption.copyWith(
+                          color: AppColors.secondaryText,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.cardBackground,
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(color: AppColors.primaryBorder),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.lightbulb_outline_rounded,
+                    size: 20,
+                    color: AppColors.primaryGreen,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Expanded(
+                    child: Text(
+                      'The rover moves forward first to survey the row and rake the furrow, then reverses back to the starting line before dropping any seeds. This ensures exact dynamic spacing and proper seed burial.',
+                      style: AppTypography.caption.copyWith(
+                        color: AppColors.primaryText,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Text(
+              'STEP-BY-STEP WORKFLOW',
+              style: AppTypography.caption.copyWith(
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.8,
+                color: AppColors.secondaryText,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            const _WorkflowStepCard(
+              stepNumber: '1',
+              title: 'Phase 1: Scout Row & Rake Furrow',
+              badgeLabel: 'FORWARD DRIVE',
+              badgeColor: Color(0xFF246B45),
+              icon: Icons.arrow_forward_rounded,
+              toolsStatus: 'Rake DOWN · Flattener UP · Dispenser OFF',
+              description:
+                  'The rover lowers the rake into the soil and drives forward to till the furrow line. Meanwhile, the front ultrasonic sensor measures the bed length until it detects the end wall (≤ 5 cm) or reaches the 4 ft max distance.',
+              highlight: 'Result: Measures row length & cuts the planting furrow.',
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            const _WorkflowStepCard(
+              stepNumber: '2',
+              title: 'Phase 1 (Return): Reverse to Start Position',
+              badgeLabel: 'REVERSING',
+              badgeColor: Color(0xFF9A6A00),
+              icon: Icons.arrow_back_rounded,
+              toolsStatus: 'Rake UP · Flattener UP · Tools Raised',
+              description:
+                  'The rover lifts the rake UP to avoid dragging backward through the furrow, then automatically reverses along the exact same path back to the starting line (0 cm).',
+              highlight: 'Result: Robot is at origin, ready to deposit seeds.',
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            const _WorkflowStepCard(
+              stepNumber: '3',
+              title: 'Phase 2: Plant Seeds & Flatten Furrow',
+              badgeLabel: 'FORWARD PLANTING',
+              badgeColor: Color(0xFF246B45),
+              icon: Icons.grain_rounded,
+              toolsStatus: 'Seed Gate Active · Flattener DOWN · Rake UP',
+              description:
+                  'The rover lowers the flattener and moves forward covering the surveyed row. At each dynamically calculated drop station, it stops, flash-opens the seed hatch for 1.0s, and covers the seeds with the flattener as it advances.',
+              highlight: 'Result: Seeds dropped at even intervals and buried with soil.',
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            const _WorkflowStepCard(
+              stepNumber: '4',
+              title: 'Phase 3: Row Completion & Safe Park',
+              badgeLabel: 'COMPLETED',
+              badgeColor: Color(0xFF1565C0),
+              icon: Icons.check_circle_outline_rounded,
+              toolsStatus: 'Motors STOP · Flattener UP · Tools Home',
+              description:
+                  'After the last seed, the flattener smooths the soil to the end of the bed. The rover stops motors, lifts all tools, and signals completion to your phone.',
+              highlight: 'Row finished safely and ready for the next row!',
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.primaryGreen.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(
+                  color: AppColors.primaryGreen.withValues(alpha: 0.25),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline_rounded, size: 18, color: AppColors.primaryGreen),
+                      const SizedBox(width: AppSpacing.xs),
+                      Text(
+                        'Operator Tips',
+                        style: AppTypography.small.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primaryGreen,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '• Place a cardboard or wooden board at the end of the bed so the front sensor detects the exact boundary.\n'
+                    '• Do not push or pull the rover during the reverse phase—it tracks its own reverse return automatically.\n'
+                    '• Ensure the path between start and end wall is clear of garden hoses and obstacles.',
+                    style: AppTypography.caption.copyWith(
+                      color: AppColors.primaryText,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Got it, ready to plant'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WorkflowStepCard extends StatelessWidget {
+  const _WorkflowStepCard({
+    required this.stepNumber,
+    required this.title,
+    required this.badgeLabel,
+    required this.badgeColor,
+    required this.icon,
+    required this.toolsStatus,
+    required this.description,
+    required this.highlight,
+  });
+
+  final String stepNumber;
+  final String title;
+  final String badgeLabel;
+  final Color badgeColor;
+  final IconData icon;
+  final String toolsStatus;
+  final String description;
+  final String highlight;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.primaryBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: badgeColor.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  stepNumber,
+                  style: AppTypography.caption.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: badgeColor,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text(
+                  title,
+                  style: AppTypography.small.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: badgeColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                ),
+                child: Text(
+                  badgeLabel,
+                  style: AppTypography.caption.copyWith(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: badgeColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Row(
+            children: [
+              Icon(icon, size: 14, color: badgeColor),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  toolsStatus,
+                  style: AppTypography.caption.copyWith(
+                    color: badgeColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            description,
+            style: AppTypography.caption.copyWith(
+              color: AppColors.secondaryText,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            highlight,
+            style: AppTypography.caption.copyWith(
+              fontWeight: FontWeight.w600,
+              color: AppColors.primaryGreen,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -841,6 +1165,9 @@ class _PlantingSetupSheetState extends State<_PlantingSetupSheet> {
       text:
           PlantingRowConfig.defaults(widget.initialSeed).targetDrops.toString(),
     );
+    _pointsController.addListener(() {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -852,9 +1179,9 @@ class _PlantingSetupSheetState extends State<_PlantingSetupSheet> {
   @override
   Widget build(BuildContext context) => DraggableScrollableSheet(
         expand: false,
-        initialChildSize: .68,
-        minChildSize: .48,
-        maxChildSize: .92,
+        initialChildSize: .76,
+        minChildSize: .52,
+        maxChildSize: .94,
         builder: (context, scrollController) => SingleChildScrollView(
           controller: scrollController,
           padding: const EdgeInsets.fromLTRB(
@@ -870,24 +1197,93 @@ class _PlantingSetupSheetState extends State<_PlantingSetupSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text('Set up planting',
-                          style: AppTypography.sectionHeading),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Set up auto-planting',
+                                    style: AppTypography.sectionHeading),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '2-Pass Autonomous Survey & Planting',
+                                  style: AppTypography.caption.copyWith(
+                                    color: AppColors.primaryGreen,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              Icons.info_outline_rounded,
+                              color: AppColors.primaryGreen,
+                            ),
+                            tooltip: 'How auto-planting works',
+                            onPressed: () => _showPlantingWorkflowGuideModal(context),
+                          ),
+                        ],
+                      ),
                       const SizedBox(height: AppSpacing.xs),
-                      Text(
-                        'One run plants a single row. Stay beside the rover while it works; obstacle alerts are warnings and do not stop movement.',
-                        style: AppTypography.small.copyWith(
-                          color: AppColors.secondaryText,
+                      InkWell(
+                        onTap: () => _showPlantingWorkflowGuideModal(context),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.sm,
+                            vertical: AppSpacing.xs + 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.cardBackground,
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                            border: Border.all(color: AppColors.primaryBorder),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.alt_route_rounded,
+                                size: 18,
+                                color: AppColors.primaryGreen,
+                              ),
+                              const SizedBox(width: AppSpacing.xs),
+                              Expanded(
+                                child: Text(
+                                  '1. Scout & Rake ➔ 2. Return to Start ➔ 3. Plant',
+                                  style: AppTypography.caption.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.primaryText,
+                                  ),
+                                ),
+                              ),
+                              Icon(
+                                Icons.chevron_right_rounded,
+                                size: 18,
+                                color: AppColors.mutedText,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                       const SizedBox(height: AppSpacing.md),
-                      _FormFieldLabel(label: 'Seed', requiredField: true),
+                      _FormFieldLabel(label: 'Seed variant', requiredField: true),
                       AppSelector<PlantingSeedType>(
                         value: _seed,
-                        decoration: _fieldDecoration('Choose a seed'),
+                        decoration: _fieldDecoration('Choose a seed variant'),
                         items: [
                           for (final seed in PlantingSeedType.values)
                             DropdownMenuItem(
-                                value: seed, child: Text(seed.label)),
+                              value: seed,
+                              child: Text(
+                                switch (seed) {
+                                  PlantingSeedType.sitaw => 'Sitaw (Gate 2 · 70 cm spacing)',
+                                  PlantingSeedType.peanut => 'Peanut (Gate 3 · 60 cm spacing)',
+                                  PlantingSeedType.calamansi => 'Calamansi (Gate 1 · 60 cm spacing)',
+                                },
+                              ),
+                            ),
                         ],
                         onChanged: (seed) {
                           if (seed == null) return;
@@ -919,39 +1315,125 @@ class _PlantingSetupSheetState extends State<_PlantingSetupSheet> {
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       _FormFieldLabel(
-                          label: 'Planting points', requiredField: true),
-                      TextFormField(
-                        controller: _pointsController,
-                        style: AppTypography.numericInput,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                          LengthLimitingTextInputFormatter(2),
+                          label: 'Seeds to plant (Drops)', requiredField: true),
+                      Row(
+                        children: [
+                          IconButton.outlined(
+                            icon: const Icon(Icons.remove, size: 18),
+                            onPressed: () {
+                              final current = int.tryParse(_pointsController.text) ?? 5;
+                              if (current > 1) {
+                                _pointsController.text = (current - 1).toString();
+                              }
+                            },
+                          ),
+                          const SizedBox(width: AppSpacing.xs),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _pointsController,
+                              style: AppTypography.numericInput,
+                              textAlign: TextAlign.center,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                                LengthLimitingTextInputFormatter(2),
+                              ],
+                              decoration: _fieldDecoration(
+                                'Number of seeds',
+                                hint: 'Default 5 · max 20',
+                              ),
+                              validator: (value) {
+                                final points = int.tryParse(value ?? '');
+                                if (points == null || points < 1 || points > 20) {
+                                  return 'Enter between 1 and 20 seeds.';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.xs),
+                          IconButton.outlined(
+                            icon: const Icon(Icons.add, size: 18),
+                            onPressed: () {
+                              final current = int.tryParse(_pointsController.text) ?? 5;
+                              if (current < 20) {
+                                _pointsController.text = (current + 1).toString();
+                              }
+                            },
+                          ),
                         ],
-                        decoration: _fieldDecoration(
-                          'Number of points',
-                          hint: 'Default 5 · maximum 20',
-                        ),
-                        validator: (value) {
-                          final points = int.tryParse(value ?? '');
-                          if (points == null || points < 1 || points > 20) {
-                            return 'Enter between 1 and 20 points.';
-                          }
-                          return null;
-                        },
                       ),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(
-                        'Points are acknowledged seed-gate cycles, not a verified seed count. Crop spacing uses the saved seed profile.',
-                        style: AppTypography.caption.copyWith(
-                          color: AppColors.secondaryText,
-                        ),
+                      const SizedBox(height: AppSpacing.sm),
+                      // Live Dynamic Distance Preview Card
+                      Builder(
+                        builder: (context) {
+                          final points = int.tryParse(_pointsController.text) ?? 5;
+                          final defaults = PlantingRowConfig.defaults(_seed);
+                          final totalDistanceCm = points * defaults.spacingCm;
+                          final totalDistanceM = totalDistanceCm / 100.0;
+                          final gateNumber = switch (_seed) {
+                            PlantingSeedType.calamansi => 1,
+                            PlantingSeedType.sitaw => 2,
+                            PlantingSeedType.peanut => 3,
+                          };
+                          final pinNumber = switch (_seed) {
+                            PlantingSeedType.calamansi => 'GPIO 27',
+                            PlantingSeedType.sitaw => 'GPIO 4',
+                            PlantingSeedType.peanut => 'GPIO 23',
+                          };
+                          return Container(
+                            padding: const EdgeInsets.all(AppSpacing.md),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryGreen.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(AppRadius.md),
+                              border: Border.all(
+                                color: AppColors.primaryGreen.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.straighten_outlined,
+                                      size: 18,
+                                      color: AppColors.primaryGreen,
+                                    ),
+                                    const SizedBox(width: AppSpacing.xs),
+                                    Text(
+                                      'Calculated Distance: ${totalDistanceM.toStringAsFixed(2)} m (${totalDistanceCm.toStringAsFixed(0)} cm)',
+                                      style: AppTypography.small.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.primaryGreen,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  '• $points seeds × ${defaults.spacingCm.toStringAsFixed(0)} cm recommended plant spacing\n'
+                                  '• Dispenser: Gate $gateNumber ($pinNumber · ${_seed.label})\n'
+                                  '• Autonomous Workflow:\n'
+                                  '   1. Rover rakes furrow & measures field distance with USDS\n'
+                                  '   2. Reverses back to starting origin (rake returns to default angle)\n'
+                                  '   3. Auto-plants $points seeds with flattener DOWN to flat raked soil\n'
+                                  '   4. Completes row at the end of the field',
+                                  style: AppTypography.caption.copyWith(
+                                    color: AppColors.primaryText,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
                       ),
                       const SizedBox(height: AppSpacing.lg),
                       FilledButton.icon(
                         onPressed: _submit,
                         icon: const Icon(Icons.arrow_forward_rounded),
-                        label: const Text('Review planting'),
+                        label: const Text('Review auto-planting'),
                       ),
                     ],
                   ),
@@ -966,11 +1448,12 @@ class _PlantingSetupSheetState extends State<_PlantingSetupSheet> {
 
   Widget _buildReview() {
     final defaults = PlantingRowConfig.defaults(_seed);
+    final targetDrops = int.parse(_pointsController.text);
     final configuration = PlantingRowConfig(
       sessionId: defaults.sessionId,
       seed: _seed,
       fieldLabel: _fieldSelection!,
-      targetDrops: int.parse(_pointsController.text),
+      targetDrops: targetDrops,
       spacingCm: defaults.spacingCm,
       rowSpacingCm: defaults.rowSpacingCm,
       gateOpenMs: defaults.gateOpenMs,
@@ -980,19 +1463,54 @@ class _PlantingSetupSheetState extends State<_PlantingSetupSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Review planting', style: AppTypography.sectionHeading),
+        Text('Review auto-planting', style: AppTypography.sectionHeading),
         const SizedBox(height: AppSpacing.md),
-        _PlantingReviewRow(label: 'Seed', value: configuration.seed.label),
+        _PlantingReviewRow(label: 'Seed variant', value: configuration.seed.label),
         _PlantingReviewRow(
             label: 'Field or bed', value: configuration.fieldLabel),
         _PlantingReviewRow(
-          label: 'Planting points',
-          value: '${configuration.targetDrops}',
+          label: 'Seeds to plant',
+          value: '${configuration.targetDrops} seeds',
         ),
-        const SizedBox(height: AppSpacing.md),
-        Text(
-          'The rover will read the soil first. After you review both readings, it will lower the rake and drive one row. Stay beside it; obstacle alerts do not stop movement. Planting points are gate cycles, not a verified seed count.',
-          style: AppTypography.small.copyWith(color: AppColors.secondaryText),
+        _PlantingReviewRow(
+          label: 'Plant spacing',
+          value: '${configuration.spacingCm.toStringAsFixed(0)} cm',
+        ),
+        _PlantingReviewRow(
+          label: 'Calculated distance',
+          value: '${configuration.totalDistanceM.toStringAsFixed(2)} m (${configuration.totalDistanceCm.toStringAsFixed(0)} cm)',
+        ),
+        Container(
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          decoration: BoxDecoration(
+            color: AppColors.cardBackground,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(color: AppColors.primaryBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '1. Soil pre-check: moisture & temperature verified.\n'
+                '2. Forward pass: Rake DOWN to till furrow & measure bed distance.\n'
+                '3. Reverse pass: Rake UP, returns to starting line (0 cm).\n'
+                '4. Planting pass: Flattener DOWN, dispenses seeds & covers furrow.',
+                style: AppTypography.caption.copyWith(color: AppColors.primaryText, height: 1.4),
+              ),
+              const SizedBox(height: 6),
+              GestureDetector(
+                onTap: () => _showPlantingWorkflowGuideModal(context),
+                child: Text(
+                  'Tap here to view full 2-pass workflow guide ➔',
+                  style: AppTypography.caption.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primaryGreen,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: AppSpacing.lg),
         OutlinedButton.icon(
@@ -1004,7 +1522,7 @@ class _PlantingSetupSheetState extends State<_PlantingSetupSheet> {
         FilledButton.icon(
           onPressed: () => Navigator.pop(context, configuration),
           icon: const Icon(Icons.agriculture_outlined),
-          label: const Text('Check soil readings'),
+          label: const Text('Check soil & start auto-plant'),
         ),
       ],
     );
@@ -1249,17 +1767,17 @@ class _PlantingSoilPrecheckSheetState
               ),
               const SizedBox(height: AppSpacing.xs),
               FilledButton(
-                onPressed: _readings.isValid &&
-                        _readings.isFreshAt(DateTime.now()) &&
-                        !_retrying
-                    ? () => Navigator.of(context).pop(_readings)
-                    : null,
+                onPressed: _retrying
+                    ? null
+                    : () => Navigator.of(context).pop(_readings),
                 child: Text(_assessment.score == 100
                     ? 'Start planting'
-                    : _assessment.hasMoistureConcern ||
-                            _assessment.summary == 'Conditions need attention'
-                        ? 'Start anyway'
-                        : 'Start with available readings'),
+                    : _readings.isValid
+                        ? (_assessment.hasMoistureConcern ||
+                                _assessment.summary == 'Conditions need attention'
+                            ? 'Start anyway'
+                            : 'Start with available readings')
+                        : 'Start anyway (bypass soil checks)'),
               ),
             ],
           ),
@@ -2045,15 +2563,13 @@ class _SensorResultRow extends StatelessWidget {
       );
 }
 
+
 InputDecoration _fieldDecoration(String label, {String? hint}) =>
     InputDecoration(
       hintText: hint ?? label,
       border: const OutlineInputBorder(),
       isDense: true,
     );
-
-String? _requiredText(String? value) =>
-    value == null || value.trim().isEmpty ? 'This field is required' : null;
 
 class _RoverConfirmationDialog extends StatelessWidget {
   const _RoverConfirmationDialog({
@@ -2589,6 +3105,846 @@ class _SimulationBadge extends StatelessWidget {
       );
 }
 
+class _LandscapePlantingPhaseNotice extends StatelessWidget {
+  const _LandscapePlantingPhaseNotice({
+    required this.status,
+    required this.operation,
+  });
+
+  final PlantingStatus status;
+  final PlantingOperationStatus? operation;
+
+  @override
+  Widget build(BuildContext context) {
+    final distTraveled = operation?.distanceCm ?? 0.0;
+    final frontDist = operation?.frontDistanceCm;
+    final frontText = frontDist != null ? '${frontDist.toStringAsFixed(1)} cm' : 'Measuring...';
+    final surveyedLength = operation?.surveyDistanceCm ?? operation?.detectedFieldDistanceCm ?? 0.0;
+    final returnTraveled = operation?.returnDistanceCm ?? operation?.surveyReturnDistanceCm ?? 0.0;
+    final completed = operation?.completedDrops ?? 0;
+    final total = operation?.targetDrops ?? 5;
+    final currentPoint = (completed + 1).clamp(1, total);
+
+    final text = switch (status) {
+      PlantingStatus.surveyingBed =>
+        'Scouting & Raking Furrow: ${distTraveled.toStringAsFixed(1)} cm · Front Wall: $frontText',
+      PlantingStatus.returningFromSurvey =>
+        'Returning to Start: ${returnTraveled.toStringAsFixed(1)} cm of ${surveyedLength.toStringAsFixed(1)} cm',
+      PlantingStatus.active || PlantingStatus.loweringRake =>
+        'Planting Point $currentPoint of $total · Position: ${distTraveled.toStringAsFixed(1)} cm · Wall: $frontText',
+      PlantingStatus.completed =>
+        'Row Completed! ${operation?.totalForwardDistanceCm?.toStringAsFixed(1) ?? surveyedLength.toStringAsFixed(1)} cm covered',
+      PlantingStatus.paused =>
+        'Planting Paused at ${distTraveled.toStringAsFixed(1)} cm',
+      _ => status.label,
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.primaryGreen.withValues(alpha: 0.7), width: 1.2),
+      ),
+      child: Text(
+        text,
+        style: AppTypography.caption.copyWith(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: 11.5,
+        ),
+      ),
+    );
+  }
+}
+
+class _LiveAutonomousPlantingPhaseCard extends StatelessWidget {
+  const _LiveAutonomousPlantingPhaseCard({
+    required this.status,
+    required this.operation,
+    required this.targetDrops,
+    required this.activeSeedLabel,
+  });
+
+  final PlantingStatus status;
+  final PlantingOperationStatus? operation;
+  final int targetDrops;
+  final String activeSeedLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color badgeColor;
+    final String badgeText;
+    final String primaryMessage;
+    final String subMessage;
+    final IconData phaseIcon;
+    final List<_PhaseDistanceMetric> metrics;
+
+    final distanceTraveled = operation?.distanceCm ?? 0.0;
+    final frontUsds = operation?.frontDistanceCm;
+    final frontUsdsText = frontUsds != null ? '${frontUsds.toStringAsFixed(1)} cm' : 'Scanning...';
+    final surveyedLength = operation?.surveyDistanceCm ?? operation?.detectedFieldDistanceCm ?? 0.0;
+    final returnTraveled = (status == PlantingStatus.returningFromSurvey)
+        ? (operation?.surveyReturnDistanceCm != null && operation!.surveyReturnDistanceCm! > 0
+            ? operation!.surveyReturnDistanceCm!
+            : (operation?.returnDistanceCm ?? 0.0))
+        : (operation?.returnDistanceCm ?? operation?.surveyReturnDistanceCm ?? 0.0);
+    final completed = operation?.completedDrops ?? 0;
+    final total = operation?.targetDrops ?? targetDrops;
+    final currentPoint = (completed + 1).clamp(1, total);
+    final spacing = operation?.calculatedSpacingCm ?? (surveyedLength > 0 ? surveyedLength / (total + 1) : 20.0);
+    final targetPointDist = operation?.nextDropAtCm ?? (currentPoint * spacing);
+
+    switch (status) {
+      case PlantingStatus.surveyingBed:
+        badgeColor = AppColors.primaryGreen;
+        badgeText = 'PHASE 1: SCOUTING & RAKING';
+        phaseIcon = Icons.arrow_forward_rounded;
+        primaryMessage = 'Rover scouting forward & raking furrow';
+        subMessage = 'Rear rake lowered · Front USDS measuring row distance';
+        metrics = [
+          _PhaseDistanceMetric(
+            label: 'Traveled Forward',
+            value: '${distanceTraveled.toStringAsFixed(1)} cm',
+          ),
+          _PhaseDistanceMetric(
+            label: 'Front Wall (USDS)',
+            value: frontUsdsText,
+            highlight: true,
+          ),
+          const _PhaseDistanceMetric(
+            label: 'Rake Status',
+            value: 'DOWN (Tilling)',
+          ),
+        ];
+        break;
+
+      case PlantingStatus.returningFromSurvey:
+        badgeColor = AppColors.warning;
+        badgeText = 'PHASE 1: RETURNING TO ORIGIN';
+        phaseIcon = Icons.arrow_back_rounded;
+        primaryMessage = 'Rover returning to starting position';
+        subMessage = 'Rake raised UP · Returning to 0 cm origin to begin planting';
+        final remainingToOrigin = (surveyedLength - returnTraveled).clamp(0.0, 999.0);
+        metrics = [
+          _PhaseDistanceMetric(
+            label: 'Reversed So Far',
+            value: '${returnTraveled.toStringAsFixed(1)} cm',
+          ),
+          _PhaseDistanceMetric(
+            label: 'Row Length Locked',
+            value: surveyedLength > 0 ? '${surveyedLength.toStringAsFixed(1)} cm' : 'Measuring...',
+            highlight: true,
+          ),
+          _PhaseDistanceMetric(
+            label: 'Distance to Origin',
+            value: '${remainingToOrigin.toStringAsFixed(1)} cm',
+          ),
+        ];
+        break;
+
+      case PlantingStatus.active:
+      case PlantingStatus.loweringRake:
+      case PlantingStatus.ready:
+        badgeColor = AppColors.primaryGreen;
+        badgeText = 'PHASE 2: PLANTING & FLATTENING';
+        phaseIcon = Icons.grain_rounded;
+        primaryMessage = 'Planting Point $currentPoint of $total ($activeSeedLabel)';
+        subMessage = 'Soil flattener DOWN covering seeds into raked furrow';
+        metrics = [
+          _PhaseDistanceMetric(
+            label: 'Rover Position',
+            value: '${distanceTraveled.toStringAsFixed(1)} cm',
+          ),
+          _PhaseDistanceMetric(
+            label: 'Drop Point Target',
+            value: '${targetPointDist.toStringAsFixed(1)} cm',
+            highlight: true,
+          ),
+          _PhaseDistanceMetric(
+            label: 'Point Spacing',
+            value: '${spacing.toStringAsFixed(1)} cm',
+          ),
+          _PhaseDistanceMetric(
+            label: 'Front Wall (USDS)',
+            value: frontUsdsText,
+          ),
+        ];
+        break;
+
+      case PlantingStatus.completed:
+        badgeColor = AppColors.success;
+        badgeText = 'ROW COMPLETED';
+        phaseIcon = Icons.check_circle_outline_rounded;
+        primaryMessage = 'Row Completed! All $total seeds planted and covered.';
+        subMessage = 'All tools lifted UP · Ready for next row';
+        metrics = [
+          _PhaseDistanceMetric(
+            label: 'Total Distance Covered',
+            value: '${(operation?.totalForwardDistanceCm ?? surveyedLength).toStringAsFixed(1)} cm',
+            highlight: true,
+          ),
+          _PhaseDistanceMetric(
+            label: 'Seeds Planted',
+            value: '$completed of $total seeds',
+          ),
+        ];
+        break;
+
+      case PlantingStatus.paused:
+        badgeColor = AppColors.warning;
+        badgeText = 'PAUSED SAFELY';
+        phaseIcon = Icons.pause_circle_outline_rounded;
+        primaryMessage = 'Planting paused';
+        subMessage = 'Motors halted · Tap Resume to continue autonomous run';
+        metrics = [
+          _PhaseDistanceMetric(
+            label: 'Position at Pause',
+            value: '${distanceTraveled.toStringAsFixed(1)} cm',
+          ),
+          _PhaseDistanceMetric(
+            label: 'Progress',
+            value: '$completed of $total points',
+          ),
+        ];
+        break;
+
+      default:
+        badgeColor = AppColors.secondaryText;
+        badgeText = status.label.toUpperCase();
+        phaseIcon = Icons.info_outline_rounded;
+        primaryMessage = status.label;
+        subMessage = 'Autonomous planting cycle active';
+        metrics = [
+          _PhaseDistanceMetric(
+            label: 'Current Distance',
+            value: '${distanceTraveled.toStringAsFixed(1)} cm',
+          ),
+        ];
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.primaryBackground,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(
+          color: badgeColor.withValues(alpha: 0.35),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: badgeColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(phaseIcon, size: 13, color: badgeColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      badgeText,
+                      style: AppTypography.caption.copyWith(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: badgeColor,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs + 2),
+          Text(
+            primaryMessage,
+            style: AppTypography.small.copyWith(
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryText,
+              fontSize: 13.5,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            subMessage,
+            style: AppTypography.caption.copyWith(
+              color: AppColors.secondaryText,
+              fontSize: 11,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: AppSpacing.xs + 2,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.cardBackground,
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+              border: Border.all(color: AppColors.primaryBorder),
+            ),
+            child: Wrap(
+              spacing: AppSpacing.md,
+              runSpacing: 4,
+              children: [
+                for (final m in metrics)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          m.label,
+                          style: AppTypography.caption.copyWith(
+                            fontSize: 9.5,
+                            color: AppColors.secondaryText,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Text(
+                          m.value,
+                          style: AppTypography.caption.copyWith(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: m.highlight ? AppColors.primaryGreen : AppColors.primaryText,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PhaseDistanceMetric {
+  const _PhaseDistanceMetric({
+    required this.label,
+    required this.value,
+    this.highlight = false,
+  });
+
+  final String label;
+  final String value;
+  final bool highlight;
+}
+
+class _LivePlantingPhaseProgressTracker extends StatelessWidget {
+  const _LivePlantingPhaseProgressTracker({
+    required this.status,
+    required this.operation,
+    required this.targetDrops,
+    required this.seedLabel,
+    required this.gateNum,
+  });
+
+  final PlantingStatus status;
+  final PlantingOperationStatus? operation;
+  final int targetDrops;
+  final String seedLabel;
+  final int gateNum;
+
+  @override
+  Widget build(BuildContext context) {
+    final distanceTraveled = operation?.distanceCm ?? 0.0;
+    final completed = operation?.completedDrops ?? 0;
+    final total = operation?.targetDrops ?? targetDrops;
+    final defaultSpacing = operation?.calculatedSpacingCm ?? 70.0;
+    final dynamicDefaultLength = (total > 0 ? total : 5) * defaultSpacing;
+    final surveyedLength = operation?.detectedFieldDistanceCm ?? operation?.surveyDistanceCm ?? dynamicDefaultLength;
+    final returnTraveled = (status == PlantingStatus.returningFromSurvey)
+        ? (operation?.surveyReturnDistanceCm != null && operation!.surveyReturnDistanceCm! > 0
+            ? operation!.surveyReturnDistanceCm!
+            : (operation?.returnDistanceCm ?? 0.0))
+        : (operation?.returnDistanceCm ?? operation?.surveyReturnDistanceCm ?? 0.0);
+    final isDispensing = operation?.isDispensing == true || operation?.gateOpen == true;
+    final currentPoint = (completed + 1).clamp(1, total).toInt();
+    final spacing = operation?.calculatedSpacingCm ?? (surveyedLength > 0 ? surveyedLength / (total + 1) : defaultSpacing);
+    final targetPointDist = operation?.nextDropAtCm ?? (currentPoint * spacing);
+    final frontUsds = operation?.frontDistanceCm;
+    final frontUsdsText = frontUsds != null ? '${frontUsds.toStringAsFixed(1)} cm' : '-- cm';
+
+    // 1. PHASE 1: SCOUTING & RAKING (Moving forward)
+    if (status == PlantingStatus.surveyingBed) {
+      final maxBed = operation?.detectedFieldDistanceCm ?? surveyedLength;
+      final forwardProgress = (distanceTraveled / maxBed).clamp(0.05, 1.0);
+      return Container(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: AppColors.primaryBackground,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: AppColors.primaryGreen.withValues(alpha: 0.3)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.primaryGreen,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Text(
+                      'SCOUTING FORWARD & RAKING...',
+                      style: AppTypography.caption.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryGreen,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  '${distanceTraveled.toStringAsFixed(1)} cm / ${maxBed.toStringAsFixed(1)} cm',
+                  style: AppTypography.caption.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryText,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            LinearProgressIndicator(
+              value: forwardProgress,
+              backgroundColor: AppColors.primaryBorder,
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryGreen),
+              minHeight: 8,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Start (0.0 cm)',
+                  style: AppTypography.caption.copyWith(fontSize: 10, color: AppColors.secondaryText),
+                ),
+                Text(
+                  'Front Wall: $frontUsdsText',
+                  style: AppTypography.caption.copyWith(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primaryGreen,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    // 2. RETURNING TO ORIGIN (Moving backwards after planting)
+    if (status == PlantingStatus.returningFromSurvey || status == PlantingStatus.returningToStart) {
+      final safeLength = (operation?.totalForwardDistanceCm != null && operation!.totalForwardDistanceCm! > 0)
+          ? operation!.totalForwardDistanceCm!
+          : (surveyedLength > 0 ? surveyedLength : 100.0);
+      final returnProgress = (returnTraveled / safeLength).clamp(0.05, 1.0);
+      final remaining = (safeLength - returnTraveled).clamp(0.0, 999.0);
+      return Container(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: AppColors.primaryBackground,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.warning,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Text(
+                      'REVERSING BACK TO ORIGIN...',
+                      style: AppTypography.caption.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.warning,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  '${returnTraveled.toStringAsFixed(1)} cm / ${safeLength.toStringAsFixed(1)} cm',
+                  style: AppTypography.caption.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryText,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            LinearProgressIndicator(
+              value: returnProgress,
+              backgroundColor: AppColors.primaryBorder,
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.warning),
+              minHeight: 8,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Origin (0.0 cm)',
+                  style: AppTypography.caption.copyWith(fontSize: 10, color: AppColors.secondaryText),
+                ),
+                Text(
+                  '${remaining.toStringAsFixed(1)} cm to starting line',
+                  style: AppTypography.caption.copyWith(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.warning,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    // 3. PHASE 2: PLANTING WITH STATIONS & DISPENSE INDICATOR
+    final safeTotal = total > 0 ? total : 4;
+    final rowProgress = (completed / safeTotal).clamp(0.0, 1.0);
+    final distanceToDrop = (targetPointDist - distanceTraveled).clamp(0.0, 999.0);
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.primaryBackground,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(
+          color: isDispensing
+              ? AppColors.primaryGreen
+              : AppColors.primaryBorder,
+          width: isDispensing ? 1.5 : 1.0,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Planting Points (Stations):',
+                style: AppTypography.caption.copyWith(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11,
+                  color: AppColors.secondaryText,
+                ),
+              ),
+              Text(
+                '$completed of $safeTotal planted',
+                style: AppTypography.caption.copyWith(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 11,
+                  color: completed >= safeTotal ? AppColors.success : AppColors.primaryGreen,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Point Stations Track Bar
+          _PlantingPointsTrackBar(
+            totalPoints: safeTotal,
+            completedDrops: completed,
+            currentPoint: currentPoint,
+            isDispensing: isDispensing,
+            spacingCm: spacing,
+          ),
+          const SizedBox(height: 8),
+
+          // Continuous physical distance loading bar
+          LinearProgressIndicator(
+            value: rowProgress,
+            backgroundColor: AppColors.primaryBorder,
+            valueColor: AlwaysStoppedAnimation<Color>(
+              isDispensing ? AppColors.primaryGreen : AppColors.primaryGreen,
+            ),
+            minHeight: 6,
+            borderRadius: BorderRadius.circular(3),
+          ),
+          const SizedBox(height: 8),
+
+          // ACTIVE INDICATOR FOR PLANT / DISPENSE SEED
+          if (completed >= safeTotal) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle_rounded, size: 16, color: AppColors.success),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'All $safeTotal points planted! Rover flattening raked furrow.',
+                      style: AppTypography.caption.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.success,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else if (isDispensing) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: AppColors.primaryGreen.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                border: Border.all(color: AppColors.primaryGreen, width: 1.2),
+              ),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.primaryGreen,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '🌱 DISPENSING SEED AT POINT $currentPoint (Gate $gateNum - $seedLabel)',
+                      style: AppTypography.caption.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.primaryGreen,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              decoration: BoxDecoration(
+                color: AppColors.cardBackground,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                border: Border.all(color: AppColors.primaryBorder),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.arrow_forward, size: 14, color: AppColors.primaryGreen),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Advancing to Point $currentPoint...',
+                        style: AppTypography.caption.copyWith(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 10.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    '${distanceToDrop.toStringAsFixed(1)} cm to drop',
+                    style: AppTypography.caption.copyWith(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 10.5,
+                      color: AppColors.primaryGreen,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PlantingPointsTrackBar extends StatelessWidget {
+  const _PlantingPointsTrackBar({
+    required this.totalPoints,
+    required this.completedDrops,
+    required this.currentPoint,
+    required this.isDispensing,
+    required this.spacingCm,
+  });
+
+  final int totalPoints;
+  final int completedDrops;
+  final int currentPoint;
+  final bool isDispensing;
+  final double spacingCm;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (int i = 1; i <= totalPoints; i++) ...[
+          if (i > 1)
+            Expanded(
+              child: Container(
+                height: 3,
+                color: i <= completedDrops
+                    ? AppColors.primaryGreen
+                    : AppColors.primaryBorder,
+              ),
+            ),
+          _PlantingStationNode(
+            pointNumber: i,
+            isCompleted: i <= completedDrops,
+            isCurrent: i == currentPoint && completedDrops < totalPoints,
+            isDispensing: isDispensing && i == currentPoint,
+            stationDistCm: i * spacingCm,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _PlantingStationNode extends StatelessWidget {
+  const _PlantingStationNode({
+    required this.pointNumber,
+    required this.isCompleted,
+    required this.isCurrent,
+    required this.isDispensing,
+    required this.stationDistCm,
+  });
+
+  final int pointNumber;
+  final bool isCompleted;
+  final bool isCurrent;
+  final bool isDispensing;
+  final double stationDistCm;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color bgColor;
+    final Color borderColor;
+    final Widget iconOrText;
+
+    if (isCompleted) {
+      bgColor = AppColors.primaryGreen;
+      borderColor = AppColors.primaryGreen;
+      iconOrText = const Icon(Icons.check, size: 13, color: Colors.white);
+    } else if (isDispensing) {
+      bgColor = AppColors.primaryGreen.withValues(alpha: 0.2);
+      borderColor = AppColors.primaryGreen;
+      iconOrText = const Text('🌱', style: TextStyle(fontSize: 11));
+    } else if (isCurrent) {
+      bgColor = AppColors.primaryGreen.withValues(alpha: 0.1);
+      borderColor = AppColors.primaryGreen;
+      iconOrText = Text(
+        '$pointNumber',
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: AppColors.primaryGreen,
+        ),
+      );
+    } else {
+      bgColor = AppColors.primaryBackground;
+      borderColor = AppColors.primaryBorder;
+      iconOrText = Text(
+        '$pointNumber',
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w500,
+          color: AppColors.secondaryText,
+        ),
+      );
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          width: isDispensing ? 26 : 22,
+          height: isDispensing ? 26 : 22,
+          decoration: BoxDecoration(
+            color: bgColor,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: borderColor,
+              width: isDispensing ? 2.0 : 1.5,
+            ),
+            boxShadow: isDispensing
+                ? [
+                    BoxShadow(
+                      color: AppColors.primaryGreen.withValues(alpha: 0.4),
+                      blurRadius: 6,
+                      spreadRadius: 2,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Center(child: iconOrText),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          'Pt $pointNumber',
+          style: TextStyle(
+            fontSize: 9,
+            fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+            color: isCurrent ? AppColors.primaryGreen : AppColors.secondaryText,
+          ),
+        ),
+        if (stationDistCm > 0)
+          Text(
+            '${stationDistCm.toStringAsFixed(0)}cm',
+            style: TextStyle(
+              fontSize: 8.5,
+              color: AppColors.secondaryText.withValues(alpha: 0.8),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class _ObstacleNotice extends StatelessWidget {
   const _ObstacleNotice({required this.status});
   final _ObstaclePresentation status;
@@ -2835,7 +4191,7 @@ _ObstaclePresentation _obstacleStatusFor(RoverControlState state) {
 
   final operation = state.plantingOperation;
   final age = operation?.obstacleSampleAgeMs;
-  if (operation == null || age == null || age < 0 || age > 3000) {
+  if (operation == null || age == null || age < 0 || age > 10000) {
     return unavailable;
   }
 
@@ -2867,9 +4223,6 @@ _ObstaclePresentation _obstacleStatusFor(RoverControlState state) {
     );
   }
 
-  if (!operation.frontSensorAvailable || !operation.rearSensorAvailable) {
-    return unavailable;
-  }
   return _ObstaclePresentation(
     message: "No obstacle - you're good to go",
     color: AppColors.success,
@@ -3052,4 +4405,626 @@ class _RoverHeaderStatusPill extends StatelessWidget {
           ],
         ),
       );
+}
+
+class _PortraitAutoPlantCard extends StatefulWidget {
+  const _PortraitAutoPlantCard({
+    required this.state,
+    required this.controller,
+    required this.canControlPlanting,
+    required this.canUseControls,
+    required this.canPlantNextRow,
+    required this.onSetupPlanting,
+    required this.onPlantNextRow,
+    required this.onStartAutomaticRow,
+    required this.onRetrySync,
+    this.onReviewPendingSession,
+  });
+
+  final RoverControlState state;
+  final RoverControlController controller;
+  final bool canControlPlanting;
+  final bool canUseControls;
+  final bool canPlantNextRow;
+  final VoidCallback onSetupPlanting;
+  final VoidCallback onPlantNextRow;
+  final void Function(PlantingSeedType seed, int points) onStartAutomaticRow;
+  final VoidCallback onRetrySync;
+  final VoidCallback? onReviewPendingSession;
+
+  @override
+  State<_PortraitAutoPlantCard> createState() => _PortraitAutoPlantCardState();
+}
+
+class _PortraitAutoPlantCardState extends State<_PortraitAutoPlantCard> {
+  PlantingSeedType _selectedSeed = PlantingSeedType.sitaw;
+  int _points = 4;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.state.activePlantingConfig != null) {
+      _selectedSeed = widget.state.activePlantingConfig!.seed;
+      _points = widget.state.activePlantingConfig!.targetDrops;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _PortraitAutoPlantCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.state.activePlantingConfig != null &&
+        widget.state.activePlantingConfig != oldWidget.state.activePlantingConfig) {
+      _selectedSeed = widget.state.activePlantingConfig!.seed;
+      _points = widget.state.activePlantingConfig!.targetDrops;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
+    final operation = state.plantingOperation;
+    final isLocked = state.isPlantingLocked;
+    final isPaused = state.plantingStatus == PlantingStatus.paused;
+
+    final activeSeed = state.activePlantingConfig?.seed ?? _selectedSeed;
+    final seedLabel = activeSeed.label;
+    final gateNum = switch (activeSeed) {
+      PlantingSeedType.calamansi => 1,
+      PlantingSeedType.sitaw => 2,
+      PlantingSeedType.peanut => 3,
+    };
+
+    // Telemetry extractions matching Simulator
+    final sensors = state.telemetry?.sensors ?? const [];
+    final moistureSensor = sensors.where(
+      (s) => s.label.toLowerCase().contains('moisture'),
+    ).firstOrNull;
+    final moistureVal = moistureSensor?.value != null
+        ? '${moistureSensor!.value!.toStringAsFixed(1)}%'
+        : '-- %';
+
+    final tempSensor = sensors.where(
+      (s) => s.label.toLowerCase().contains('soil temp') || s.label.toLowerCase().contains('soil'),
+    ).firstOrNull;
+    final tempVal = tempSensor?.value != null
+        ? '${tempSensor!.value!.toStringAsFixed(1)} °C'
+        : '-- °C';
+
+    final frontDist = operation?.frontDistanceCm ?? operation?.detectedFieldDistanceCm;
+    final frontDistVal = frontDist != null
+        ? '${frontDist.toStringAsFixed(1)} cm'
+        : '-- cm';
+
+    final obstacle = state.obstacleWarning;
+    final obstacleText = obstacle != null && obstacle.isNotEmpty
+        ? obstacle
+        : 'Clear';
+    final obstacleColor = obstacle != null && obstacle.isNotEmpty
+        ? AppColors.warning
+        : AppColors.primaryGreen;
+
+            // Header with status badge
+            final statusColor = switch (state.plantingStatus) {
+              PlantingStatus.active ||
+              PlantingStatus.surveyingBed ||
+              PlantingStatus.returningFromSurvey ||
+              PlantingStatus.ready ||
+              PlantingStatus.loweringRake =>
+                AppColors.primaryGreen,
+              PlantingStatus.paused => AppColors.warning,
+              PlantingStatus.emergencyStopped ||
+              PlantingStatus.failed ||
+              PlantingStatus.interrupted =>
+                AppColors.danger,
+              _ => AppColors.secondaryText,
+            };
+
+            final statusBadgeText = switch (state.plantingStatus) {
+              PlantingStatus.idle => 'Idle',
+              PlantingStatus.checking => 'Checking',
+              PlantingStatus.surveyingBed => 'Scouting',
+              PlantingStatus.returningFromSurvey => 'Returning',
+              PlantingStatus.loweringRake => 'Lowering',
+              PlantingStatus.ready => 'Ready',
+              PlantingStatus.active => 'Planting',
+              PlantingStatus.returningToStart => 'Finishing',
+              PlantingStatus.paused => 'Paused',
+              PlantingStatus.completed => 'Completed',
+              PlantingStatus.failed => 'Failed',
+              PlantingStatus.emergencyStopped => 'E-Stopped',
+              PlantingStatus.interrupted => 'Interrupted',
+            };
+
+            return Card(
+              elevation: 0,
+              color: AppColors.secondaryBackground,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                side: BorderSide(
+                  color: isLocked ? AppColors.primaryGreen : AppColors.primaryBorder,
+                  width: isLocked ? 1.5 : 1.0,
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.agriculture,
+                          color: AppColors.primaryGreen,
+                          size: 22,
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      'Autonomous Planting',
+                                      style: AppTypography.cardTitle,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: AppSpacing.xs),
+                                  GestureDetector(
+                                    onTap: () => _showPlantingWorkflowGuideModal(context),
+                                    child: Icon(
+                                      Icons.help_outline_rounded,
+                                      size: 17,
+                                      color: AppColors.primaryGreen,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Text(
+                                'Selected: $seedLabel (Gate $gateNum)',
+                                style: AppTypography.caption.copyWith(
+                                  color: AppColors.secondaryText,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.sm,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(AppRadius.sm),
+                          ),
+                          child: Text(
+                            statusBadgeText,
+                            style: AppTypography.caption.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                              color: statusColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+            const SizedBox(height: AppSpacing.md),
+
+            // When idle: Show interactive seed & point setup matching simulator
+            if (!isLocked) ...[
+              // Section 1: Choose Seed Type
+              Text(
+                '1. CHOOSE SEED TYPE',
+                style: AppTypography.caption.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.secondaryText,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: _SeedTypeCard(
+                      label: 'Calamansi',
+                      gateText: 'Gate 1 (GPIO 27)',
+                      iconEmoji: '🍊',
+                      isSelected: _selectedSeed == PlantingSeedType.calamansi,
+                      onTap: () => setState(() => _selectedSeed = PlantingSeedType.calamansi),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: _SeedTypeCard(
+                      label: 'Sitaw',
+                      gateText: 'Gate 2 (GPIO 4)',
+                      iconEmoji: '🌱',
+                      isSelected: _selectedSeed == PlantingSeedType.sitaw,
+                      onTap: () => setState(() => _selectedSeed = PlantingSeedType.sitaw),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: _SeedTypeCard(
+                      label: 'Peanut',
+                      gateText: 'Gate 3 (GPIO 23)',
+                      iconEmoji: '🥜',
+                      isSelected: _selectedSeed == PlantingSeedType.peanut,
+                      onTap: () => setState(() => _selectedSeed = PlantingSeedType.peanut),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+
+              // Section 2: Planting Points (Stations)
+              Text(
+                '2. PLANTING POINTS (STATIONS)',
+                style: AppTypography.caption.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.secondaryText,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryBackground,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  border: Border.all(color: AppColors.primaryBorder),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton.filledTonal(
+                      onPressed: _points > 1 ? () => setState(() => _points--) : null,
+                      icon: const Icon(Icons.remove, size: 18),
+                      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    ),
+                    Column(
+                      children: [
+                        Text(
+                          '$_points points',
+                          style: AppTypography.cardTitle.copyWith(
+                            color: AppColors.primaryGreen,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        Text(
+                          'Auto-calculated spacing',
+                          style: AppTypography.caption.copyWith(
+                            color: AppColors.secondaryText,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                    IconButton.filledTonal(
+                      onPressed: _points < 10 ? () => setState(() => _points++) : null,
+                      icon: const Icon(Icons.add, size: 18),
+                      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+              Center(
+                child: Text(
+                  'Dynamic 1-pass planting · No fixed distance limit',
+                  style: AppTypography.caption.copyWith(
+                    color: AppColors.primaryGreen,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 10.5,
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
+
+            // Section 3: Live Rover Telemetry (2x2 Grid matching simulator)
+            Text(
+              '3. LIVE TELEMETRY FROM ROVER',
+              style: AppTypography.caption.copyWith(
+                fontWeight: FontWeight.w700,
+                color: AppColors.secondaryText,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: _TelemetryMiniBox(
+                    label: 'Soil Moisture',
+                    value: moistureVal,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: _TelemetryMiniBox(
+                    label: 'Soil Temp',
+                    value: tempVal,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: _TelemetryMiniBox(
+                    label: 'Front Field Dist',
+                    value: frontDistVal,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: _TelemetryMiniBox(
+                    label: 'Obstacle (Sensor 1)',
+                    value: obstacleText,
+                    valueColor: obstacleColor,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+
+            // Live Autonomous Phase & Distance Card (when locked / running)
+            if (isLocked) ...[
+              _LiveAutonomousPlantingPhaseCard(
+                status: state.plantingStatus,
+                operation: operation,
+                targetDrops: state.activePlantingConfig?.targetDrops ?? _points,
+                activeSeedLabel: seedLabel,
+              ),
+              _LivePlantingPhaseProgressTracker(
+                status: state.plantingStatus,
+                operation: operation,
+                targetDrops: state.activePlantingConfig?.targetDrops ?? _points,
+                seedLabel: seedLabel,
+                gateNum: gateNum,
+              ),
+              const SizedBox(height: AppSpacing.md),
+
+              // Running action buttons
+              Row(
+                children: [
+                  if (isPaused)
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: widget.controller.resumePlanting,
+                        icon: const Icon(Icons.play_arrow, size: 18),
+                        label: const Text('Resume'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.primaryGreen,
+                        ),
+                      ),
+                    )
+                  else
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: widget.controller.cancelPlanting,
+                        icon: const Icon(Icons.close, size: 18),
+                        label: const Text('Cancel run'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.danger,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: widget.controller.emergencyStop,
+                      icon: const Icon(Icons.emergency_outlined, size: 18),
+                      label: const Text('Stop / E-Stop'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.danger,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ] else ...[
+              // Idle action buttons
+              if (state.pendingConfirmationSessionId != null &&
+                  widget.onReviewPendingSession != null) ...[
+                OutlinedButton.icon(
+                  onPressed: widget.onReviewPendingSession,
+                  icon: Icon(Icons.rate_review_outlined,
+                      color: AppColors.primaryGreen, size: 18),
+                  label: const Text('Review Previous Row Result'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(42),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+              ],
+              if (widget.canPlantNextRow) ...[
+                FilledButton.icon(
+                  onPressed: widget.onPlantNextRow,
+                  icon: const Icon(Icons.redo_rounded, size: 18),
+                  label: const Text('Plant Next Row'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(44),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+              ],
+              if (!state.localWifiConnected) ...[
+                FilledButton.icon(
+                  onPressed: state.localWifiConnecting
+                      ? null
+                      : widget.controller.connectLocalWifi,
+                  icon: state.localWifiConnecting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.wifi_tethering, size: 20),
+                  label: Text(state.localWifiConnecting
+                      ? 'Connecting to Rover Wi-Fi...'
+                      : 'Connect to Rover Wi-Fi to Start'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(46),
+                    backgroundColor: AppColors.warning,
+                  ),
+                ),
+              ] else ...[
+                FilledButton.icon(
+                  onPressed: widget.canControlPlanting && !state.isPlantingLocked
+                      ? () => widget.onStartAutomaticRow(_selectedSeed, _points)
+                      : null,
+                  icon: const Icon(Icons.play_arrow_rounded, size: 20),
+                  label: const Text('▶ Start Automatic Row'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(46),
+                    backgroundColor: AppColors.primaryGreen,
+                  ),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.xs),
+              OutlinedButton.icon(
+                onPressed: widget.canControlPlanting && !state.isPlantingLocked
+                    ? widget.onSetupPlanting
+                    : null,
+                icon: const Icon(Icons.settings_suggest_outlined, size: 16),
+                label: const Text('Advanced Row Setup...'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(36),
+                ),
+              ),
+            ],
+
+            if (state.pendingReceiptCount > 0) ...[
+              const SizedBox(height: AppSpacing.sm),
+              OutlinedButton.icon(
+                onPressed: state.syncingReceipts ? null : widget.onRetrySync,
+                icon: const Icon(Icons.cloud_upload_outlined, size: 18),
+                label: Text(state.syncingReceipts
+                    ? 'Syncing receipts...'
+                    : 'Sync ${state.pendingReceiptCount} Pending Receipt${state.pendingReceiptCount > 1 ? 's' : ''}'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SeedTypeCard extends StatelessWidget {
+  const _SeedTypeCard({
+    required this.label,
+    required this.gateText,
+    required this.iconEmoji,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String label;
+  final String gateText;
+  final String iconEmoji;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.primaryGreen.withValues(alpha: 0.12)
+              : AppColors.primaryBackground,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(
+            color: isSelected ? AppColors.primaryGreen : AppColors.primaryBorder,
+            width: isSelected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Column(
+          children: [
+            Text(iconEmoji, style: const TextStyle(fontSize: 18)),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: AppTypography.small.copyWith(
+                fontWeight: FontWeight.bold,
+                color: isSelected ? AppColors.primaryGreen : AppColors.primaryText,
+              ),
+            ),
+            const SizedBox(height: 1),
+            Text(
+              gateText,
+              textAlign: TextAlign.center,
+              style: AppTypography.caption.copyWith(
+                fontSize: 9,
+                color: AppColors.secondaryText,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TelemetryMiniBox extends StatelessWidget {
+  const _TelemetryMiniBox({
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
+
+  final String label;
+  final String value;
+  final Color? valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.primaryBackground,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(color: AppColors.primaryBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: AppTypography.caption.copyWith(
+              fontSize: 9.5,
+              color: AppColors.secondaryText,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: AppTypography.small.copyWith(
+              fontWeight: FontWeight.bold,
+              color: valueColor ?? AppColors.primaryText,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

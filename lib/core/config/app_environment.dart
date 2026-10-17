@@ -35,12 +35,31 @@ class AppEnvironment {
   }
 
   factory AppEnvironment.fromDartDefines() => AppEnvironment.fromValues({
-        'SUPABASE_URL': const String.fromEnvironment('SUPABASE_URL'),
-        'SUPABASE_ANON_KEY': const String.fromEnvironment('SUPABASE_ANON_KEY'),
-        'ROVER_TOKEN': const String.fromEnvironment('ROVER_TOKEN'),
-        'ROVER_BASE_URL': const String.fromEnvironment('ROVER_BASE_URL'),
-        'CAMERA_BASE_URL': const String.fromEnvironment('CAMERA_BASE_URL'),
-        'WEB_ADMIN_URL': const String.fromEnvironment('WEB_ADMIN_URL'),
+        'SUPABASE_URL': const String.fromEnvironment(
+          'SUPABASE_URL',
+          defaultValue: 'https://jnjezklorvdhwbjtbjsg.supabase.co',
+        ),
+        'SUPABASE_ANON_KEY': const String.fromEnvironment(
+          'SUPABASE_ANON_KEY',
+          defaultValue:
+              'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpuamV6a2xvcnZkaHdianRianNnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4MjE4NDcsImV4cCI6MjA5ODM5Nzg0N30.e1wB6BJAUAZb02d-PFZ55WioYTQWw5QW-m27Vebp9GY',
+        ),
+        'ROVER_TOKEN': const String.fromEnvironment(
+          'ROVER_TOKEN',
+          defaultValue: 'HLjHgNQoRsD1gqsBgF2zptRZXOXrVr-VqCfqZqQOjSA',
+        ),
+        'ROVER_BASE_URL': const String.fromEnvironment(
+          'ROVER_BASE_URL',
+          defaultValue: 'http://192.168.4.1',
+        ),
+        'CAMERA_BASE_URL': const String.fromEnvironment(
+          'CAMERA_BASE_URL',
+          defaultValue: 'http://192.168.4.2',
+        ),
+        'WEB_ADMIN_URL': const String.fromEnvironment(
+          'WEB_ADMIN_URL',
+          defaultValue: 'https://seedrover.vercel.app',
+        ),
       });
 
   final String supabaseUrl;
