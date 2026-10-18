@@ -257,7 +257,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('sensor history labels stale, uncalibrated readings clearly',
+  testWidgets('sensor history labels unavailable unverified readings clearly',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(390, 844));
     await tester.pumpWidget(
@@ -283,11 +283,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Stale'), findsOneWidget);
-    expect(find.textContaining('Unverified source'), findsOneWidget);
-    expect(find.textContaining('Sensor reading before setup'), findsOneWidget);
-    expect(find.textContaining('Set up the soil sensor to show this reading'),
-        findsOneWidget);
+    expect(find.text('Stale'), findsNothing);
+    expect(find.textContaining('Unverified'), findsNothing);
+    expect(find.text('2010'), findsNothing);
     expect(find.text('Unavailable'), findsWidgets);
     expect(tester.takeException(), isNull);
     await tester.binding.setSurfaceSize(null);

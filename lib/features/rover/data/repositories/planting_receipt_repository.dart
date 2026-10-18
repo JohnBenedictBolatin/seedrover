@@ -313,13 +313,12 @@ class PlantingReceiptRepository {
       }
       try {
         final completed = receipt.status.completedDrops;
-        final terminalStatus = completed >= receipt.config.targetDrops
-            ? 'Completed'
-            : receipt.status.state == 'CANCELLED'
-                ? 'Cancelled'
-                : completed > 0
-                    ? 'Partial'
-                    : 'Failed';
+        final terminalStatus = switch (receipt.status.state) {
+          'COMPLETED' => 'Completed',
+          'CANCELLED' || 'EMERGENCY_STOPPED' => 'Cancelled',
+          'FAILED' || 'INTERRUPTED' => completed > 0 ? 'Partial' : 'Failed',
+          _ => completed > 0 ? 'Partial' : 'Failed',
+        };
         final response = await _client.rpc('sync_rover_planting_run', params: {
           'p_run': {
             'session_id': receipt.config.sessionId,
@@ -381,6 +380,7 @@ class PlantingReceiptRepository {
       await _appendHistory(newlyArchived, ownerId);
     }
     await _syncPendingPlantingNames(ownerId);
+    final isOffline = isOfflineError(lastError);
     return PlantingSyncResult(
       synchronizedCount: synced,
       failedCount: failed,
@@ -388,6 +388,7 @@ class PlantingReceiptRepository {
       lastSessionId: lastSessionId,
       lastConfirmedSessionId: lastConfirmedSessionId,
       lastError: lastError,
+      isOffline: isOffline,
     );
   }
 
@@ -558,10 +559,29 @@ class PlantingReceiptRepository {
     });
   }
 
+  static bool isOfflineError(String? error) {
+    if (error == null || error.isEmpty) return false;
+    final lower = error.toLowerCase();
+    return lower.contains('offline') ||
+        lower.contains('socketexception') ||
+        lower.contains('failed host lookup') ||
+        lower.contains('network is unreachable') ||
+        lower.contains('connection refused') ||
+        lower.contains('connection reset') ||
+        lower.contains('connection timed out') ||
+        lower.contains('clientexception') ||
+        lower.contains('handshakeexception') ||
+        lower.contains('supabase.co') ||
+        lower.contains('os error');
+  }
+
   String _syncErrorMessage(Object error) {
     final raw =
         error.toString().replaceFirst(RegExp(r'^Exception: '), '').trim();
     final lower = raw.toLowerCase();
+    if (isOfflineError(raw)) {
+      return 'Offline: saved on phone. Will sync when connected to internet.';
+    }
     if (lower.contains('permission required') ||
         lower.contains('permission denied') ||
         lower.contains('not authorized')) {
@@ -585,6 +605,7 @@ class PlantingSyncResult {
     this.lastSessionId,
     this.lastConfirmedSessionId,
     this.lastError,
+    this.isOffline = false,
   });
   final int synchronizedCount;
   final int failedCount;
@@ -592,4 +613,5 @@ class PlantingSyncResult {
   final String? lastSessionId;
   final String? lastConfirmedSessionId;
   final String? lastError;
+  final bool isOffline;
 }

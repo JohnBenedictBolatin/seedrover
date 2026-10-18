@@ -38,9 +38,18 @@ class AppEnvironment {
         'SUPABASE_URL': const String.fromEnvironment('SUPABASE_URL'),
         'SUPABASE_ANON_KEY': const String.fromEnvironment('SUPABASE_ANON_KEY'),
         'ROVER_TOKEN': const String.fromEnvironment('ROVER_TOKEN'),
-        'ROVER_BASE_URL': const String.fromEnvironment('ROVER_BASE_URL'),
-        'CAMERA_BASE_URL': const String.fromEnvironment('CAMERA_BASE_URL'),
-        'WEB_ADMIN_URL': const String.fromEnvironment('WEB_ADMIN_URL'),
+        'ROVER_BASE_URL': const String.fromEnvironment(
+          'ROVER_BASE_URL',
+          defaultValue: 'http://192.168.4.1',
+        ),
+        'CAMERA_BASE_URL': const String.fromEnvironment(
+          'CAMERA_BASE_URL',
+          defaultValue: 'http://192.168.4.2',
+        ),
+        'WEB_ADMIN_URL': const String.fromEnvironment(
+          'WEB_ADMIN_URL',
+          defaultValue: 'https://seedrover.vercel.app',
+        ),
       });
 
   final String supabaseUrl;

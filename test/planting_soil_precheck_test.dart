@@ -1,106 +1,59 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seedrover/features/rover/data/models/planting_soil_precheck.dart';
-import 'package:seedrover/features/rover/data/models/planting_session_model.dart';
-import 'package:seedrover/shared/models/soil_moisture_diagnosis.dart';
 
 void main() {
-  final sampledAt = DateTime.now();
+  final capturedAt = DateTime.now().toUtc();
 
-  Map<String, dynamic> readings({
-    Object? moisture = 42.5,
-    Object? temperature = 24.0,
-    bool calibrated = true,
-    bool sampleAvailable = true,
-    Object? raw = 1800,
-    String? calibrationVersion = 'soil-linear-v1',
-  }) =>
-      {
-        'soil_moisture_percent': moisture,
-        'soil_temperature_c': temperature,
-        'air_temperature_c': 25.0,
-        'humidity_percent': 60.0,
-        'soil_moisture_calibrated': calibrated,
-        'soil_sample_available': sampleAvailable,
-        'soil_raw': raw,
-        'calibration_version': calibrationVersion,
-        'sampled_at_ms': 120000,
-        'recorded_at': sampledAt.toIso8601String(),
-      };
+  test('accepts only current, calibrated readings with trusted provenance', () {
+    final readings = PlantingSoilPrecheck.fromJson({
+      'recorded_at': capturedAt.toIso8601String(),
+      'sampled_at_ms': 12000,
+      'sensor_provenance_version': 1,
+      'soil_reading_source': 'measured',
+      'soil_sample_available': true,
+      'soil_raw': 1800,
+      'soil_moisture_percent': 47.5,
+      'soil_moisture_calibrated': true,
+      'calibration_version': 'soil-linear-v1',
+      'soil_temperature_c': 23.4,
+    });
 
-  test('accepts fresh calibrated moisture and temperature readings', () {
-    final result = PlantingSoilPrecheck.fromJson(readings());
-
-    expect(result.isValid, isTrue);
-    expect(result.soilMoisturePercent, 42.5);
-    expect(result.soilTemperatureC, 24);
-    expect(result.airTemperatureC, 25);
-    expect(result.humidityPercent, 60);
-    expect(
-        result.isFreshAt(sampledAt.add(const Duration(seconds: 30))), isTrue);
+    expect(readings.provenanceVerified, isTrue);
+    expect(readings.isValid, isTrue);
+    expect(readings.allowUnavailableSoil, isFalse);
   });
 
-  test('diagnoses from raw reading and saved calibration references', () {
-    final calibration = RoverCalibrationModel(
-      secondsPerMeter: 1,
-      soilDryRaw: 2100,
-      soilWetRaw: 1050,
-      rakeToGateCm: 10,
-    );
-    final nearPlantReady = PlantingSoilPrecheck.fromJson(
-      readings(raw: 2100),
-      calibration: calibration,
-    );
-    final tooWet = PlantingSoilPrecheck.fromJson(
-      readings(raw: 1050),
-      calibration: calibration,
-    );
+  test('keeps a successful but missing-reading pre-check nullable', () {
+    final readings = PlantingSoilPrecheck.fromJson({
+      'recorded_at': capturedAt.toIso8601String(),
+      'sampled_at_ms': 12000,
+      'sensor_provenance_version': 1,
+      'soil_reading_source': 'unavailable',
+      'soil_sample_available': false,
+      'soil_raw': null,
+      'soil_moisture_percent': null,
+      'soil_moisture_calibrated': false,
+      'soil_temperature_c': null,
+    });
+    final accepted = readings.copyWith(allowUnavailableSoil: true);
 
-    expect(nearPlantReady.diagnosis.kind, SoilMoistureDiagnosisKind.good);
-    expect(tooWet.diagnosis.kind, SoilMoistureDiagnosisKind.tooWet);
+    expect(readings.isFreshAt(DateTime.now()), isTrue);
+    expect(readings.isValid, isFalse);
+    expect(readings.soilRaw, isNull);
+    expect(readings.soilMoisturePercent, isNull);
+    expect(readings.soilTemperatureC, isNull);
+    expect(accepted.allowUnavailableSoil, isTrue);
+    expect(accepted.isValid, isFalse);
   });
 
-  test('keeps diagnosis unavailable when references are absent', () {
-    final result = PlantingSoilPrecheck.fromJson(readings());
+  test('does not let an explicit override bypass a connection error', () {
+    final failed = const PlantingSoilPrecheck.unavailable(
+      'The rover could not be reached.',
+    ).copyWith(allowUnavailableSoil: true);
 
-    expect(result.isValid, isTrue);
-    expect(result.diagnosis.kind, SoilMoistureDiagnosisKind.unavailable);
-  });
-
-  test('rejects uncalibrated moisture', () {
-    final result = PlantingSoilPrecheck.fromJson(
-      readings(calibrated: false, calibrationVersion: null),
-    );
-
-    expect(result.isValid, isFalse);
-    expect(result.unavailableReason, contains('Set up the soil sensor'));
-  });
-
-  test('rejects unavailable moisture samples and invalid values', () {
-    final missing = PlantingSoilPrecheck.fromJson(
-      readings(sampleAvailable: false, raw: null, moisture: null),
-    );
-    final invalid = PlantingSoilPrecheck.fromJson(readings(moisture: 140));
-
-    expect(missing.isValid, isFalse);
-    expect(missing.unavailableReason, contains('unavailable'));
-    expect(invalid.isValid, isFalse);
-  });
-
-  test('rejects missing or invalid soil temperature', () {
-    final missing = PlantingSoilPrecheck.fromJson(readings(temperature: null));
-    final invalid = PlantingSoilPrecheck.fromJson(readings(temperature: -127));
-
-    expect(missing.isValid, isFalse);
-    expect(missing.unavailableReason, contains('temperature'));
-    expect(invalid.isValid, isFalse);
-  });
-
-  test('rejects stale or future-dated readings', () {
-    final result = PlantingSoilPrecheck.fromJson(readings());
-
-    expect(
-        result.isFreshAt(sampledAt.add(const Duration(minutes: 2))), isFalse);
-    expect(result.isFreshAt(sampledAt.subtract(const Duration(seconds: 1))),
-        isFalse);
+    expect(failed.allowUnavailableSoil, isTrue);
+    expect(failed.errorMessage, 'The rover could not be reached.');
+    expect(failed.isFreshAt(DateTime.now()), isFalse);
+    expect(failed.isValid, isFalse);
   });
 }

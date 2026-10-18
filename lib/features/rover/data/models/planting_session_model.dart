@@ -55,6 +55,9 @@ class PlantingRowConfig {
         'rake_offset_cm': rakeOffsetCm,
       };
 
+  double get totalDistanceCm => targetDrops * spacingCm;
+  double get totalDistanceM => totalDistanceCm / 100.0;
+
   PlantingRowConfig nextRow() => PlantingRowConfig(
         sessionId: _uuidV4(),
         seed: seed,
@@ -131,9 +134,24 @@ class PlantingOperationStatus {
     required this.distanceIsEstimated,
     required this.movementTracking,
     this.failureCode,
+    this.totalForwardDistanceCm,
+    this.returnDistanceCm,
+    this.surveyDistanceCm,
+    this.surveyReturnDistanceCm,
+    this.calculatedSpacingCm,
+    this.nextDropAtCm,
+    this.fieldDistanceLocked = false,
+    this.detectedFieldDistanceCm,
+    this.isDispensing = false,
+    this.gateOpen = false,
+    this.sensorProvenanceVersion,
+    this.soilReadingSource,
+    this.soilChecksBypassed = false,
   });
 
   factory PlantingOperationStatus.fromJson(Map<String, dynamic> json) {
+    final provenanceVerified = json['sensor_provenance_version'] == 1 &&
+        json['soil_reading_source'] == 'measured';
     return PlantingOperationStatus(
       state: json['state']?.toString() ?? 'IDLE',
       sessionId: json['session_id']?.toString() ?? '',
@@ -145,17 +163,23 @@ class PlantingOperationStatus {
           (json['estimated_distance_cm'] as num?)?.toDouble() ??
           (json['encoder_distance_cm'] as num?)?.toDouble() ??
           0,
-      soilRaw: json['soil_sample_available'] == true
+      soilRaw: provenanceVerified && json['soil_sample_available'] == true
           ? _boundedSensorNumber(json['soil_raw'], 1, 4094)?.toInt()
           : null,
-      soilPercent: json['soil_moisture_calibrated'] == true &&
+      soilPercent: provenanceVerified &&
+              json['soil_moisture_calibrated'] == true &&
               _nullableText(json['calibration_version']) != null
           ? _boundedSensorNumber(json['soil_moisture_percent'], 0, 100)
           : null,
-      soilTemperatureC:
-          _boundedSensorNumber(json['soil_temperature_c'], -55, 125),
-      airTemperatureC: _boundedSensorNumber(json['air_temperature_c'], -40, 80),
-      humidityPercent: _boundedSensorNumber(json['humidity_percent'], 0, 100),
+      soilTemperatureC: provenanceVerified
+          ? _boundedSensorNumber(json['soil_temperature_c'], -55, 125)
+          : null,
+      airTemperatureC: provenanceVerified
+          ? _boundedSensorNumber(json['air_temperature_c'], -40, 80)
+          : null,
+      humidityPercent: provenanceVerified
+          ? _boundedSensorNumber(json['humidity_percent'], 0, 100)
+          : null,
       frontDistanceCm: json['front_sensor_available'] == true
           ? _boundedSensorNumber(json['front_distance_cm'], 0, 310)
           : null,
@@ -171,12 +195,14 @@ class PlantingOperationStatus {
       soilSampleAgeMs: (json['soil_sample_age_ms'] as num?)?.toInt(),
       environmentSampleAgeMs:
           (json['environment_sample_age_ms'] as num?)?.toInt(),
-      soilMoistureCalibrated: !json.containsKey('soil_moisture_calibrated')
-          ? null
-          : json['soil_moisture_calibrated'] == true &&
-                  _nullableText(json['calibration_version']) != null
-              ? true
-              : false,
+      soilMoistureCalibrated: !provenanceVerified
+          ? false
+          : !json.containsKey('soil_moisture_calibrated')
+              ? null
+              : json['soil_moisture_calibrated'] == true &&
+                      _nullableText(json['calibration_version']) != null
+                  ? true
+                  : false,
       calibrationVersion: _nullableText(json['calibration_version']),
       awaitingPhoneAck: json['awaiting_phone_ack'] as bool? ?? false,
       rakeCommandedDown: json['rake_commanded_down'] as bool?,
@@ -185,6 +211,26 @@ class PlantingOperationStatus {
       movementTracking: json['movement_tracking']?.toString() ??
           (json.containsKey('encoder_distance_cm') ? 'encoder' : 'unknown'),
       failureCode: _nullableText(json['failure_code']),
+      totalForwardDistanceCm:
+          (json['total_forward_distance_cm'] as num?)?.toDouble(),
+      returnDistanceCm: (json['return_distance_cm'] as num?)?.toDouble(),
+      surveyDistanceCm: (json['survey_distance_cm'] as num?)?.toDouble(),
+      surveyReturnDistanceCm:
+          (json['survey_return_distance_cm'] as num?)?.toDouble(),
+      calculatedSpacingCm:
+          (json['calculated_spacing_cm'] as num?)?.toDouble() ??
+              (json['spacing_cm'] as num?)?.toDouble(),
+      nextDropAtCm: (json['next_drop_at_cm'] as num?)?.toDouble(),
+      fieldDistanceLocked: json['field_distance_locked'] as bool? ?? false,
+      detectedFieldDistanceCm:
+          (json['detected_field_distance_cm'] as num?)?.toDouble(),
+      isDispensing: json['is_dispensing'] as bool? ??
+          (json['gate_open'] as bool? ?? false),
+      gateOpen: json['gate_open'] as bool? ?? false,
+      sensorProvenanceVersion:
+          (json['sensor_provenance_version'] as num?)?.toInt(),
+      soilReadingSource: _nullableText(json['soil_reading_source']),
+      soilChecksBypassed: json['soil_checks_bypassed'] as bool? ?? false,
     );
   }
 
@@ -218,6 +264,19 @@ class PlantingOperationStatus {
   final bool distanceIsEstimated;
   final String movementTracking;
   final String? failureCode;
+  final double? totalForwardDistanceCm;
+  final double? returnDistanceCm;
+  final double? surveyDistanceCm;
+  final double? surveyReturnDistanceCm;
+  final double? calculatedSpacingCm;
+  final double? nextDropAtCm;
+  final bool fieldDistanceLocked;
+  final double? detectedFieldDistanceCm;
+  final bool isDispensing;
+  final bool gateOpen;
+  final int? sensorProvenanceVersion;
+  final String? soilReadingSource;
+  final bool soilChecksBypassed;
 
   bool get isTerminal => const {
         'COMPLETED',
@@ -376,6 +435,9 @@ class PendingPlantingReceipt {
           'awaiting_phone_ack': status.awaitingPhoneAck,
           'firmware_version': status.firmwareVersion,
           'failure_code': status.failureCode,
+          'sensor_provenance_version': status.sensorProvenanceVersion,
+          'soil_reading_source': status.soilReadingSource,
+          'soil_checks_bypassed': status.soilChecksBypassed,
         },
       };
 }

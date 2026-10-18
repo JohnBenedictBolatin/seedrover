@@ -33,7 +33,6 @@ import '../../controllers/rover_control_controller.dart';
 import '../../providers/rover_providers.dart';
 import '../widgets/camera_preview_panel.dart';
 import '../widgets/movement_control_panel.dart';
-import '../widgets/planting_control_panel.dart';
 import '../widgets/planting_sync_progress_dialog.dart';
 import '../widgets/sensor_monitoring_grid.dart';
 
@@ -171,10 +170,6 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen>
         .crops
         .where((crop) => !crop.isCompleted)
         .toList(growable: false);
-    final canPlantNextRow = !state.isPlantingLocked &&
-        state.activePlantingConfig != null &&
-        state.pendingConfirmationSessionId == null &&
-        !(state.plantingOperation?.awaitingPhoneAck ?? false);
     return Column(
       children: [
         _RoverHeader(
@@ -290,6 +285,15 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen>
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               mainAxisSize: MainAxisSize.min,
                               children: [
+                                if (state.isPlantingLocked) ...[
+                                  _PlantingRunSummary(
+                                    state: state,
+                                    onStop: controller.emergencyStop,
+                                    canStop: false,
+                                    compact: true,
+                                  ),
+                                  SizedBox(height: gap),
+                                ],
                                 FilledButton.icon(
                                   onPressed: canControlPlanting &&
                                           canUseControls &&
@@ -442,6 +446,14 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen>
               : ListView(
                   padding: const EdgeInsets.all(AppSpacing.md),
                   children: [
+                    if (state.isPlantingLocked) ...[
+                      _PlantingRunSummary(
+                        state: state,
+                        onStop: controller.emergencyStop,
+                        canStop: canControlPlanting,
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                    ],
                     if (telemetry.isSimulated) ...[
                       const Align(
                         alignment: Alignment.centerLeft,
@@ -494,24 +506,6 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen>
         ),
       ],
     );
-  }
-
-  Future<void> _retryPlantingSync(
-    BuildContext context,
-    RoverControlController controller,
-  ) async {
-    await showPlantingSyncProgressDialog(
-      context,
-      synchronize: controller.synchronizePendingReceipts,
-    );
-    ref.invalidate(plantingRunsAwaitingSyncProvider);
-    ref.invalidate(pendingPlantingAttentionProvider(
-      ref.read(authControllerProvider).profile?.id,
-    ));
-    final syncError = ref.read(roverControlControllerProvider).errorMessage;
-    if (syncError != null && context.mounted) {
-      showActionResult(context, message: syncError, success: false);
-    }
   }
 
   Future<void> _confirmDisconnectRover(
@@ -734,6 +728,7 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen>
       await controller.startPlanting(
         configuration,
         soilPrecheck: confirmedReadings,
+        allowUnavailableSoil: confirmedReadings.allowUnavailableSoil,
       );
     }
   }
@@ -768,80 +763,6 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen>
     }
   }
 
-  Future<void> _showPlantingRunControls(
-    BuildContext context,
-    RoverControlState state,
-    RoverControlController controller,
-    bool canControlPlanting,
-    bool canPlantNextRow,
-  ) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.md,
-          0,
-          AppSpacing.md,
-          AppSpacing.md,
-        ),
-        child: SingleChildScrollView(
-          child: PlantingControlPanel(
-            status: state.plantingStatus,
-            canStartPlanting: canControlPlanting &&
-                (state.canStartPlanting ||
-                    state.plantingStatus == PlantingStatus.paused),
-            isPlantingActive: state.plantingStatus == PlantingStatus.active ||
-                (state.isPlantingLocked &&
-                    state.plantingStatus != PlantingStatus.paused),
-            completedDrops: state.plantingOperation?.completedDrops ?? 0,
-            targetDrops: state.plantingOperation?.targetDrops ?? 0,
-            pendingReceipts: state.pendingReceiptCount,
-            isSyncing: state.syncingReceipts,
-            onRetrySync: () => _retryPlantingSync(context, controller),
-            onPlantNextRow: () => _confirmRoverAction(
-              context,
-              title: 'Plant the next row',
-              message:
-                  'Start another supervised planting run in ${state.activePlantingConfig?.fieldLabel ?? 'the selected field'}?',
-              confirmLabel: 'Plant next row',
-              onConfirm: () async {
-                final nextConfiguration = state.activePlantingConfig?.nextRow();
-                if (nextConfiguration == null) return;
-                await _runPlantingPrecheck(
-                  context,
-                  controller,
-                  nextConfiguration,
-                  returnToLandscape: state.cameraFullscreen,
-                  nextRow: true,
-                );
-              },
-            ),
-            canPlantNextRow: canPlantNextRow,
-            onResume: () => _confirmRoverAction(
-              context,
-              title: 'Resume planting',
-              message: 'Resume the paused planting run?',
-              confirmLabel: 'Resume',
-              onConfirm: controller.resumePlanting,
-            ),
-            onCancel: () => _confirmRoverAction(
-              context,
-              title: 'Cancel planting run',
-              message:
-                  'Stop and close this planting run? Its partial result will need review.',
-              confirmLabel: 'Cancel run',
-              confirmColor: AppColors.danger,
-              onConfirm: controller.cancelPlanting,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   void _confirmRoverAction(
     BuildContext context, {
     required String title,
@@ -866,6 +787,96 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen>
       },
     );
   }
+}
+
+class _PlantingRunSummary extends StatelessWidget {
+  const _PlantingRunSummary({
+    required this.state,
+    required this.onStop,
+    required this.canStop,
+    this.compact = false,
+  });
+
+  final RoverControlState state;
+  final VoidCallback onStop;
+  final bool canStop;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final operation = state.plantingOperation;
+    final target = operation?.targetDrops ?? 0;
+    final completed = operation?.completedDrops ?? 0;
+    return AppCard(
+      backgroundColor: AppColors.secondaryBackground,
+      borderColor: AppColors.inactiveBorder,
+      radius: AppRadius.sm,
+      padding: EdgeInsets.all(compact ? AppSpacing.xs : AppSpacing.sm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.agriculture, color: AppColors.primaryGreen),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text(
+                  state.plantingStatus.label,
+                  style: AppTypography.body.copyWith(
+                    color: AppColors.primaryGreen,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              if (!compact && canStop) _EmergencyStopButton(onPressed: onStop),
+            ],
+          ),
+          if (target > 0) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Planting cycles', style: AppTypography.small),
+                Text('$completed of $target', style: AppTypography.small),
+              ],
+            ),
+            const SizedBox(height: 4),
+            LinearProgressIndicator(
+              value: (completed / target).clamp(0, 1),
+              minHeight: 5,
+              color: AppColors.primaryGreen,
+              backgroundColor: AppColors.inactiveBorder,
+            ),
+          ],
+          const SizedBox(height: AppSpacing.xs),
+          Text(state.soilCheckMessage, style: AppTypography.small),
+          if (compact && canStop) ...[
+            const SizedBox(height: AppSpacing.xs),
+            _EmergencyStopButton(onPressed: onStop),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _EmergencyStopButton extends StatelessWidget {
+  const _EmergencyStopButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => FilledButton.icon(
+        onPressed: onPressed,
+        icon: const Icon(Icons.emergency_outlined, size: 18),
+        label: const Text('Stop rover'),
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, 42),
+          backgroundColor: AppColors.danger,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+        ),
+      );
 }
 
 class _PlantingSetupSheet extends StatefulWidget {
@@ -1050,7 +1061,7 @@ class _PlantingSetupSheetState extends State<_PlantingSetupSheet> {
         ),
         const SizedBox(height: AppSpacing.md),
         Text(
-          'The rover will read the soil first. After you review both readings, it will lower the rake and drive one row. Stay beside it; obstacle alerts do not stop movement. Planting points are gate cycles, not a verified seed count.',
+          'The rover checks the soil, rakes and measures the row, returns to the start, plants while flattening the soil, then returns again. If readings are unavailable, you can choose to continue after the warning. Missing readings will stay unrecorded. Stay beside the rover; obstacle alerts do not stop it. Planting points count gate cycles, not verified seeds.',
           style: AppTypography.small.copyWith(color: AppColors.secondaryText),
         ),
         const SizedBox(height: AppSpacing.lg),
@@ -1271,8 +1282,8 @@ class _PlantingSoilPrecheckSheetState
                       Expanded(
                         child: Text(
                           !_readings.isFreshAt(DateTime.now())
-                              ? 'Reading expired. Retry before proceeding.'
-                              : _readings.unavailableReason,
+                              ? 'This check expired. Retry to confirm current readings. You can continue only after a new check from the connected rover.'
+                              : '${_readings.unavailableReason} You can continue without readings, but these values will not be saved as measured data.',
                           style: AppTypography.small.copyWith(
                             color: AppColors.primaryText,
                           ),
@@ -1308,10 +1319,14 @@ class _PlantingSoilPrecheckSheetState
               ),
               const SizedBox(height: AppSpacing.xs),
               FilledButton(
-                onPressed: _readings.isValid &&
-                        _readings.isFreshAt(DateTime.now()) &&
+                onPressed: _readings.isFreshAt(DateTime.now()) &&
+                        _readings.errorMessage == null &&
                         !_retrying
-                    ? () => Navigator.of(context).pop(_readings)
+                    ? () => Navigator.of(context).pop(
+                          _readings.isValid
+                              ? _readings
+                              : _readings.copyWith(allowUnavailableSoil: true),
+                        )
                     : null,
                 child: Text(_assessment.score == 100
                     ? 'Start planting'
@@ -1319,7 +1334,7 @@ class _PlantingSoilPrecheckSheetState
                             _assessment.summary ==
                                 'Check the soil before planting'
                         ? 'Start anyway'
-                        : 'Start with available readings'),
+                        : 'Continue without soil readings'),
               ),
             ],
           ),
@@ -2105,9 +2120,6 @@ InputDecoration _fieldDecoration(String label, {String? hint}) =>
       border: const OutlineInputBorder(),
       isDense: true,
     );
-
-String? _requiredText(String? value) =>
-    value == null || value.trim().isEmpty ? 'This field is required' : null;
 
 class _RoverConfirmationDialog extends StatelessWidget {
   const _RoverConfirmationDialog({

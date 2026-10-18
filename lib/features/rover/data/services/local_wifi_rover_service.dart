@@ -18,6 +18,8 @@ class LocalWifiRoverService {
   final _localNetworkController = StreamController<bool>.broadcast();
   bool _isConnected = false;
   bool _localNetworkActive = false;
+  int _consecutiveFailures = 0;
+  static const int _maxFailuresBeforeDisconnect = 3;
 
   Stream<bool> get connectedStream => _connectedController.stream;
   bool get isConnected => _isConnected;
@@ -150,12 +152,14 @@ class LocalWifiRoverService {
   Future<void> startPlantingRow(
     PlantingRowConfig configuration, {
     required int soilSampledAtMs,
+    bool allowUnavailableSoil = false,
   }) async {
     await sendCommand(
       'START_PLANTING_ROW',
       payload: {
         ...configuration.toProtocolPayload(),
         'soil_sampled_at_ms': soilSampledAtMs,
+        'allow_unavailable_soil': allowUnavailableSoil,
       },
     );
   }
@@ -168,7 +172,7 @@ class LocalWifiRoverService {
       final readings = Map<String, dynamic>.from(response['data'] as Map);
       readings['recorded_at'] = DateTime.now().toUtc().toIso8601String();
       readings['source'] = 'SeedRover local Wi-Fi';
-      return readings;
+      return _applySensorProvenance(readings);
     } finally {
       try {
         await sendCommand('SOIL_SENSOR_UP');
@@ -204,7 +208,7 @@ class LocalWifiRoverService {
       } else if (readings['soil_sample_available'] != true) {
         readings['soil_raw'] = null;
       }
-      return readings;
+      return _applySensorProvenance(readings);
     } finally {
       try {
         await sendCommand('SOIL_SENSOR_UP');
@@ -213,6 +217,25 @@ class LocalWifiRoverService {
         // stopping motion if the phone loses its local connection.
       }
     }
+  }
+
+  Map<String, dynamic> _applySensorProvenance(Map<String, dynamic> readings) {
+    final verified = readings['sensor_provenance_version'] == 1 &&
+        readings['soil_reading_source'] == 'measured';
+    if (!verified) {
+      readings['source'] = 'Rover readings are unverified';
+      readings['soil_moisture_percent'] = null;
+      readings['soil_temperature_c'] = null;
+      readings['air_temperature_c'] = null;
+      readings['humidity_percent'] = null;
+      readings['soil_raw'] = null;
+      readings['soil_sample_available'] = false;
+      readings['soil_moisture_calibrated'] = false;
+      readings['calibration_version'] = null;
+    } else if (readings['soil_sample_available'] != true) {
+      readings['soil_raw'] = null;
+    }
+    return readings;
   }
 
   Future<Map<String, dynamic>> sendRawCommand(
@@ -263,14 +286,21 @@ class LocalWifiRoverService {
         throw StateError(
             decoded['message']?.toString() ?? 'ESP32 rejected the request.');
       }
+      _consecutiveFailures = 0;
       return decoded;
     } on SocketException {
-      _setConnected(false);
+      _consecutiveFailures++;
+      if (_consecutiveFailures >= _maxFailuresBeforeDisconnect) {
+        _setConnected(false);
+      }
       throw StateError(
         'Cannot reach the ESP32. Connect the phone to SeedRover-01 and verify ROVER_BASE_URL.',
       );
     } on TimeoutException {
-      _setConnected(false);
+      _consecutiveFailures++;
+      if (_consecutiveFailures >= _maxFailuresBeforeDisconnect) {
+        _setConnected(false);
+      }
       throw StateError(
         'The ESP32 timed out. Stay connected to SeedRover-01 and try again.',
       );

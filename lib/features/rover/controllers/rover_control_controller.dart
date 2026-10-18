@@ -49,9 +49,9 @@ class RoverControlController extends StateNotifier<RoverControlState> {
       (_) => unawaited(_refreshPlantingStatus()),
     );
     _obstacleStaleTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      final last = _lastObstacleStatusAt;
-      final baseline =
-          last ?? _obstacleMonitoringStartedAt ?? _controllerStartedAt;
+      final baseline = _lastObstacleStatusAt ??
+          _obstacleMonitoringStartedAt ??
+          _controllerStartedAt;
       if (DateTime.now().difference(baseline).inSeconds >= 3) {
         state =
             state.copyWith(obstacleWarning: 'OBSTACLE INFORMATION UNAVAILABLE');
@@ -492,6 +492,7 @@ class RoverControlController extends StateNotifier<RoverControlState> {
   Future<void> startPlanting(
     PlantingRowConfig configuration, {
     required PlantingSoilPrecheck soilPrecheck,
+    bool allowUnavailableSoil = false,
   }) async {
     if (!state.isConnected) {
       state = state.copyWith(errorMessage: 'Reconnect before planting.');
@@ -521,11 +522,15 @@ class RoverControlController extends StateNotifier<RoverControlState> {
       );
       return;
     }
-    if (!soilPrecheck.isValid || !soilPrecheck.isFreshAt(DateTime.now())) {
+    if (!soilPrecheck.isFreshAt(DateTime.now()) ||
+        soilPrecheck.errorMessage != null ||
+        (!soilPrecheck.isValid &&
+            !(allowUnavailableSoil && soilPrecheck.allowUnavailableSoil))) {
       state = state.copyWith(
-        errorMessage: soilPrecheck.isValid
-            ? 'The soil reading expired. Check the soil again before planting.'
-            : soilPrecheck.unavailableReason,
+        errorMessage: !soilPrecheck.isFreshAt(DateTime.now())
+            ? 'This soil check expired. Check again before planting.'
+            : soilPrecheck.errorMessage ??
+                'Confirm that you want to continue without verified soil readings.',
       );
       await cancelPlantingSoilPrecheck();
       return;
@@ -540,18 +545,23 @@ class RoverControlController extends StateNotifier<RoverControlState> {
         selectedSeed: configuration.seed,
         activePlantingConfig: configuration,
         clearConfirmedPlantingSessionId: true,
+        clearPendingConfirmationSessionId: true,
       );
       await _localWifiService.startPlantingRow(
         configuration,
-        soilSampledAtMs: soilPrecheck.sampledAtMs!,
+        soilSampledAtMs:
+            soilPrecheck.sampledAtMs ?? DateTime.now().millisecondsSinceEpoch,
+        allowUnavailableSoil:
+            soilPrecheck.isValid ? false : soilPrecheck.allowUnavailableSoil,
       );
       state = state.copyWith(
         selectedSeed: configuration.seed,
         plantingStatus: PlantingStatus.checking,
         activePlantingConfig: configuration,
         clearActiveMovement: true,
-        soilCheckMessage:
-            'Soil check complete. Lowering the rake before planting.',
+        soilCheckMessage: soilPrecheck.isValid
+            ? 'Soil pre-check confirmed. Lowering the rake before planting.'
+            : 'You chose to continue without soil readings. Lowering the rake before planting.',
         lastCommand: 'Row ${configuration.sessionId.substring(0, 8)} accepted',
         clearErrorMessage: true,
       );
@@ -566,7 +576,9 @@ class RoverControlController extends StateNotifier<RoverControlState> {
             activePlantingConfig: configuration,
             plantingStatus: operation.state == 'PLANTING'
                 ? PlantingStatus.active
-                : PlantingStatus.checking,
+                : (operation.state == 'RETURNING_TO_START'
+                    ? PlantingStatus.returningToStart
+                    : PlantingStatus.checking),
             lastCommand: 'Planting run recovered from rover status',
             clearErrorMessage: true,
           );
@@ -588,7 +600,9 @@ class RoverControlController extends StateNotifier<RoverControlState> {
   }) async {
     final previous = state.activePlantingConfig;
     if (previous == null || state.isPlantingLocked) return;
-    await startPlanting(previous.nextRow(), soilPrecheck: soilPrecheck);
+    await startPlanting(previous.nextRow(),
+        soilPrecheck: soilPrecheck,
+        allowUnavailableSoil: soilPrecheck.allowUnavailableSoil);
   }
 
   Future<Map<String, dynamic>> checkCropSensors() async {
@@ -754,9 +768,12 @@ class RoverControlController extends StateNotifier<RoverControlState> {
       );
       final mapped = switch (operation.state) {
         'CHECKING_SOIL' => PlantingStatus.checking,
+        'SURVEYING_BED' => PlantingStatus.surveyingBed,
+        'RETURNING_FROM_SURVEY' => PlantingStatus.returningFromSurvey,
         'LOWERING_RAKE' => PlantingStatus.loweringRake,
         'READY' => PlantingStatus.ready,
         'PLANTING' => PlantingStatus.active,
+        'RETURNING_TO_START' => PlantingStatus.returningToStart,
         'PAUSED' => PlantingStatus.paused,
         'COMPLETED' => PlantingStatus.completed,
         'INTERRUPTED' => PlantingStatus.interrupted,
@@ -768,7 +785,10 @@ class RoverControlController extends StateNotifier<RoverControlState> {
         state = state.copyWith(
           plantingStatus: mapped,
           plantingOperation: operation,
-          clearActiveMovement: mapped != PlantingStatus.active,
+          clearActiveMovement: mapped != PlantingStatus.active &&
+              mapped != PlantingStatus.surveyingBed &&
+              mapped != PlantingStatus.returningFromSurvey &&
+              mapped != PlantingStatus.returningToStart,
         );
         return;
       }
@@ -800,11 +820,39 @@ class RoverControlController extends StateNotifier<RoverControlState> {
                 ? operation.sessionId
                 : state.lastConfirmedSyncedSessionId,
         soilCheckPassed: operation.state != 'CHECKING_SOIL',
-        soilCheckMessage:
-            '${operation.completedDrops}/${operation.targetDrops} planting cycles acknowledged. Seed quantity and exact distance are not measured.',
-        activeMovement:
-            operation.state == 'PLANTING' ? RoverMovementCommand.forward : null,
-        clearActiveMovement: operation.state != 'PLANTING',
+        soilCheckMessage: switch (operation.state) {
+          'CHECKING_SOIL' => 'Checking current soil readings.',
+          'SURVEYING_BED' =>
+            'Checking the row length before planting. Travel distance is estimated.',
+          'RETURNING_FROM_SURVEY' =>
+            'Returning to the starting point before planting.',
+          'RETURNING_TO_START' =>
+            'All ${operation.targetDrops} planting cycles are complete. Returning to the start.',
+          'PAUSED' => 'The rover is paused. Check the row before resuming.',
+          'COMPLETED' =>
+            'The run is complete. Confirm Planted or Not planted based on what you observed.',
+          'CANCELLED' ||
+          'EMERGENCY_STOPPED' =>
+            'The run stopped. Confirm the result based on what you observed.',
+          'FAILED' ||
+          'INTERRUPTED' =>
+            'The run did not finish. Review the row before confirming the result.',
+          _ =>
+            '${operation.completedDrops}/${operation.targetDrops} planting cycles completed. The rover cannot confirm individual seeds or germination.',
+        },
+        activeMovement: switch (operation.state) {
+          'PLANTING' || 'SURVEYING_BED' => RoverMovementCommand.forward,
+          'RETURNING_FROM_SURVEY' ||
+          'RETURNING_TO_START' =>
+            RoverMovementCommand.backward,
+          _ => null,
+        },
+        clearActiveMovement: !const {
+          'PLANTING',
+          'SURVEYING_BED',
+          'RETURNING_FROM_SURVEY',
+          'RETURNING_TO_START',
+        }.contains(operation.state),
         clearErrorMessage: true,
       );
       if (operation.isTerminal) {
@@ -922,6 +970,8 @@ class RoverControlController extends StateNotifier<RoverControlState> {
     try {
       final result = await _receiptRepository.synchronize();
       final pending = await _receiptRepository.loadPending();
+      final isOffline = result.isOffline ||
+          PlantingReceiptRepository.isOfflineError(result.lastError);
       state = state.copyWith(
         syncingReceipts: false,
         pendingReceiptCount: pending.length,
@@ -932,17 +982,22 @@ class RoverControlController extends StateNotifier<RoverControlState> {
             result.lastConfirmedSessionId ?? state.lastConfirmedSyncedSessionId,
         lastCommand: result.synchronizedCount > 0
             ? '${result.synchronizedCount} planting record${result.synchronizedCount == 1 ? '' : 's'} synchronized'
-            : state.lastCommand,
-        errorMessage: result.failedCount > 0
+            : (isOffline && pending.isNotEmpty
+                ? 'Planting record saved locally on phone'
+                : state.lastCommand),
+        errorMessage: (result.failedCount > 0 && !isOffline)
             ? 'Could not sync ${result.failedCount} planting run${result.failedCount == 1 ? '' : 's'}: ${result.lastError ?? 'Check your internet and retry.'}'
             : null,
-        clearErrorMessage: result.failedCount == 0,
+        clearErrorMessage: result.failedCount == 0 || isOffline,
       );
-    } catch (_) {
+    } catch (e) {
+      final isOffline = PlantingReceiptRepository.isOfflineError(e.toString());
       state = state.copyWith(
         syncingReceipts: false,
-        errorMessage:
-            'Could not save the planting run. Check your internet and retry.',
+        errorMessage: isOffline
+            ? null
+            : 'Could not save the planting run. Check your internet and retry.',
+        clearErrorMessage: isOffline,
       );
     }
   }

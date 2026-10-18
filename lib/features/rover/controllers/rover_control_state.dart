@@ -5,9 +5,12 @@ import '../data/models/planting_session_model.dart';
 enum PlantingStatus {
   idle,
   checking,
+  surveyingBed,
+  returningFromSurvey,
   loweringRake,
   ready,
   active,
+  returningToStart,
   paused,
   completed,
   failed,
@@ -20,9 +23,12 @@ extension PlantingStatusLabel on PlantingStatus {
     return switch (this) {
       PlantingStatus.idle => 'Idle',
       PlantingStatus.checking => 'Checking Soil',
-      PlantingStatus.loweringRake => 'Lowering Rake',
+      PlantingStatus.surveyingBed => 'Checking Row Length',
+      PlantingStatus.returningFromSurvey => 'Returning to Start',
+      PlantingStatus.loweringRake => 'Getting Row Ready',
       PlantingStatus.ready => 'Ready to Plant',
-      PlantingStatus.active => 'Planting',
+      PlantingStatus.active => 'Planting Row',
+      PlantingStatus.returningToStart => 'Returning to Start',
       PlantingStatus.paused => 'Paused Safely',
       PlantingStatus.completed => 'Row Completed',
       PlantingStatus.failed => 'Planting Failed',
@@ -129,9 +135,12 @@ class RoverControlState {
   bool get isPlantingLocked {
     return const {
       PlantingStatus.checking,
+      PlantingStatus.surveyingBed,
+      PlantingStatus.returningFromSurvey,
       PlantingStatus.loweringRake,
       PlantingStatus.ready,
       PlantingStatus.active,
+      PlantingStatus.returningToStart,
       PlantingStatus.paused,
     }.contains(plantingStatus);
   }

@@ -29,6 +29,8 @@ void main() {
           'soil_moisture_calibrated': true,
           'calibration_version': 'soil-linear-v1',
           'soil_sample_available': true,
+          'sensor_provenance_version': 1,
+          'soil_reading_source': 'measured',
           'soil_raw': raw,
           'sampled_at_ms': 1000,
           'recorded_at': (recordedAt ?? now).toIso8601String(),
@@ -88,8 +90,8 @@ void main() {
     final sitaw = evaluate(sample(), seed: PlantingSeedType.sitaw);
     final calamansi = evaluate(sample(), seed: PlantingSeedType.calamansi);
     expect(sitaw.score, isNull);
-    expect(
-        sitaw.soilTemperatureAdvice, contains('full temperature range for sitaw'));
+    expect(sitaw.soilTemperatureAdvice,
+        contains('full temperature range for sitaw'));
     expect(
       evaluate(sample(soilTemperature: 22), seed: PlantingSeedType.sitaw)
           .soilTemperatureAdvice,
@@ -101,7 +103,8 @@ void main() {
       contains('warmer than 22'),
     );
     expect(calamansi.score, isNull);
-    expect(calamansi.soilTemperatureAdvice, contains('no confirmed temperature range'));
+    expect(calamansi.soilTemperatureAdvice,
+        contains('no confirmed temperature range'));
   });
 
   test('expired pre-check loses score and prompts a fresh assessment', () {

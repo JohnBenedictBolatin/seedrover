@@ -15,6 +15,8 @@ class PlantingSoilPrecheck {
     required this.dryReferenceRaw,
     required this.moistReferenceRaw,
     this.errorMessage,
+    this.provenanceVerified = false,
+    this.allowUnavailableSoil = false,
   });
 
   factory PlantingSoilPrecheck.fromJson(
@@ -31,27 +33,40 @@ class PlantingSoilPrecheck {
     final rawDate = DateTime.tryParse(json['recorded_at']?.toString() ?? '');
     final soilRaw =
         json['soil_raw'] is num ? (json['soil_raw'] as num).toInt() : null;
+    final provenanceVerified = json['sensor_provenance_version'] == 1 &&
+        json['soil_reading_source'] == 'measured';
     return PlantingSoilPrecheck(
-      soilMoisturePercent: finiteNumber(
-        json['soil_moisture_percent'],
-        0,
-        100,
-      ),
-      soilTemperatureC: finiteNumber(json['soil_temperature_c'], -55, 125),
+      soilMoisturePercent: provenanceVerified
+          ? finiteNumber(
+              json['soil_moisture_percent'],
+              0,
+              100,
+            )
+          : null,
+      soilTemperatureC: provenanceVerified
+          ? finiteNumber(json['soil_temperature_c'], -55, 125)
+          : null,
       // The rover uses a DHT11. Ignore values outside its operating range.
-      airTemperatureC: finiteNumber(json['air_temperature_c'], 0, 50),
-      humidityPercent: finiteNumber(json['humidity_percent'], 20, 90),
+      airTemperatureC: provenanceVerified
+          ? finiteNumber(json['air_temperature_c'], 0, 50)
+          : null,
+      humidityPercent: provenanceVerified
+          ? finiteNumber(json['humidity_percent'], 20, 90)
+          : null,
       sampledAt: rawDate?.toLocal(),
       sampledAtMs: (json['sampled_at_ms'] as num?)?.toInt(),
-      moistureCalibrated: json['soil_moisture_calibrated'] == true &&
+      moistureCalibrated: provenanceVerified &&
+          json['soil_moisture_calibrated'] == true &&
           (json['calibration_version']?.toString().trim().isNotEmpty ?? false),
-      soilSampleAvailable: json['soil_sample_available'] == true &&
+      soilSampleAvailable: provenanceVerified &&
+          json['soil_sample_available'] == true &&
           soilRaw != null &&
           soilRaw > 0 &&
           soilRaw < 4095,
-      soilRaw: soilRaw,
+      soilRaw: provenanceVerified ? soilRaw : null,
       dryReferenceRaw: calibration?.soilDryRaw,
       moistReferenceRaw: calibration?.soilWetRaw,
+      provenanceVerified: provenanceVerified,
     );
   }
 
@@ -67,7 +82,9 @@ class PlantingSoilPrecheck {
         soilRaw = null,
         dryReferenceRaw = null,
         moistReferenceRaw = null,
-        errorMessage = message;
+        errorMessage = message,
+        provenanceVerified = false,
+        allowUnavailableSoil = false;
 
   final double? soilMoisturePercent;
   final double? soilTemperatureC;
@@ -81,6 +98,26 @@ class PlantingSoilPrecheck {
   final int? dryReferenceRaw;
   final int? moistReferenceRaw;
   final String? errorMessage;
+  final bool provenanceVerified;
+  final bool allowUnavailableSoil;
+
+  PlantingSoilPrecheck copyWith({bool? allowUnavailableSoil}) =>
+      PlantingSoilPrecheck(
+        soilMoisturePercent: soilMoisturePercent,
+        soilTemperatureC: soilTemperatureC,
+        airTemperatureC: airTemperatureC,
+        humidityPercent: humidityPercent,
+        sampledAt: sampledAt,
+        sampledAtMs: sampledAtMs,
+        moistureCalibrated: moistureCalibrated,
+        soilSampleAvailable: soilSampleAvailable,
+        soilRaw: soilRaw,
+        dryReferenceRaw: dryReferenceRaw,
+        moistReferenceRaw: moistReferenceRaw,
+        errorMessage: errorMessage,
+        provenanceVerified: provenanceVerified,
+        allowUnavailableSoil: allowUnavailableSoil ?? this.allowUnavailableSoil,
+      );
 
   SoilMoistureDiagnosis get diagnosis => !moistureCalibrated
       ? const SoilMoistureDiagnosis.unavailable()
@@ -101,6 +138,9 @@ class PlantingSoilPrecheck {
 
   String get unavailableReason {
     if (errorMessage != null) return errorMessage!;
+    if (!provenanceVerified) {
+      return 'The rover could not verify these readings.';
+    }
     if (!soilSampleAvailable) return 'The soil water reading is unavailable.';
     if (!moistureCalibrated || soilMoisturePercent == null) {
       return 'Set up the soil sensor before planting.';
