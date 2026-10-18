@@ -10,6 +10,7 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/content_skeleton.dart';
+import '../../../../shared/widgets/action_result_dialog.dart';
 import '../../data/models/crop_model.dart';
 import '../../controllers/crop_monitoring_controller.dart';
 import '../../controllers/crop_monitoring_state.dart';
@@ -67,9 +68,11 @@ class _CropMonitoringScreenState extends ConsumerState<CropMonitoringScreen>
         ref.watch(plantingRunsAwaitingSyncProvider).asData?.value ?? const [];
 
     if (state.crops.isEmpty &&
-        (state.isLoading || state.errorMessage != null)) {
+        ((state.isLoading && !state.hasLoaded) ||
+            (state.errorMessage != null && !state.hasLoaded))) {
       return StartupRecovery(
         loading: const _CropLoadingSkeleton(),
+        loadingLabel: 'Loading crop details…',
         errorMessage: state.errorMessage,
         onRetry: controller.loadCrops,
         destinations: [
@@ -83,6 +86,7 @@ class _CropMonitoringScreenState extends ConsumerState<CropMonitoringScreen>
     return RefreshIndicator(
       onRefresh: () async {
         ref.invalidate(plantingRunsAwaitingSyncProvider);
+        ref.invalidate(pendingPlantingAttentionProvider(profile?.id));
         ref.invalidate(cropWeatherProvider);
         await controller.refreshCrops();
       },
@@ -177,12 +181,13 @@ class _CropMonitoringScreenState extends ConsumerState<CropMonitoringScreen>
       synchronize: roverController.synchronizePendingReceipts,
     );
     ref.invalidate(plantingRunsAwaitingSyncProvider);
+    ref.invalidate(pendingPlantingAttentionProvider(
+      ref.read(authControllerProvider).profile?.id,
+    ));
     await ref.read(cropMonitoringControllerProvider.notifier).loadCrops();
     final syncError = ref.read(roverControlControllerProvider).errorMessage;
     if (syncError != null && mounted) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(syncError)));
+      showActionResult(context, message: syncError, success: false);
     }
   }
 }
@@ -231,7 +236,7 @@ class _PlantingRunsAwaitingSync extends StatelessWidget {
                 style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
               ),
               Text(
-                '${run.status.completedDrops} of ${run.status.targetDrops} planting cycles • ${_plantingOutcomeLabel(run.confirmationOutcome)}',
+                'Planting cycles: ${run.status.completedDrops} of ${run.status.targetDrops} • ${_plantingOutcomeLabel(run.confirmationOutcome)}',
                 style: AppTypography.small,
               ),
             ],
@@ -253,9 +258,8 @@ class _PlantingRunsAwaitingSync extends StatelessWidget {
 }
 
 String _plantingOutcomeLabel(String? outcome) => switch (outcome) {
-      'row_planted' => 'Row planted',
-      'some_planted' => 'Some planted',
-      'none_planted' => 'None planted',
+      'row_planted' || 'some_planted' => 'Planted',
+      'none_planted' => 'Not planted',
       _ => 'Confirmation pending',
     };
 
@@ -394,6 +398,12 @@ class _CareDraftsPanel extends StatefulWidget {
 class _CareDraftsPanelState extends State<_CareDraftsPanel> {
   late Future<List<Map<String, dynamic>>> _drafts;
 
+  String _cropLabel(Map<String, dynamic> draft) {
+    final crop = widget.controller.cropById(draft['crop_id'] as String? ?? '');
+    if (crop == null) return 'Crop record';
+    return '${crop.displayName} · ${crop.name} · ${crop.trackingCode}';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -442,7 +452,7 @@ class _CareDraftsPanelState extends State<_CareDraftsPanel> {
                             '${draft['activity_type'] ?? 'Crop activity'} • ${draft['status'] == 'Needs review' ? 'Needs attention' : 'Saved on this phone'}',
                           ),
                           subtitle: Text(
-                            '${widget.controller.cropById(draft['crop_id'] as String? ?? '')?.trackingCode ?? 'Crop record'}\n'
+                            '${_cropLabel(draft)}\n'
                             '${draft['status'] == 'Needs review' ? 'This record needs attention before it can sync.' : 'Waiting for an internet connection.'}',
                           ),
                           trailing: IconButton(

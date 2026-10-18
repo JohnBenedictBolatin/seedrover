@@ -112,9 +112,11 @@ class _AssistantChatSheetState extends ConsumerState<AssistantChatSheet> {
               if (state.errorMessage != null)
                 AssistantNotice(
                   message: state.errorMessage,
-                  onRetry: state.canRetry
-                      ? _retryLastMessage
-                      : null,
+                  onRetry: state.canRetry ? _retryLastMessage : null,
+                ),
+              if (state.showSlowMessage)
+                const AssistantNotice(
+                  message: 'This is taking longer than usual. Please wait.',
                 ),
               if (state.messages.length == 1)
                 AssistantSuggestionRow(

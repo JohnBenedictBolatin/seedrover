@@ -391,12 +391,16 @@ export async function getCropsDashboard() {
           .range(from, to)
           .returns<TaskRow[]>()),
     supabase.from("crop_profile_images").select("profile_key, image_path").returns<SeedImageRow[]>(),
-    fetchAllPages<{ id: string; crop_id: string; activity_type: string; performed_at: string }>((from, to) => supabase
-      .from("crop_activities")
-      .select("id, crop_id, activity_type, performed_at")
-      .order("performed_at", { ascending: false })
-      .order("id", { ascending: true })
-      .range(from, to)),
+    cropIds.length === 0
+      ? Promise.resolve({ data: [] as { crop_id: string; last_observed_at: string | null; weekly_activity_count: number; latest_drop_cycles: number | null }[], error: null })
+      : supabase.rpc("get_crop_activity_summaries", {
+          p_crop_ids: cropIds,
+          p_week_start: weekStart.toISOString(),
+          p_as_of: assessmentNow.toISOString(),
+        }) as PromiseLike<{
+          data: { crop_id: string; last_observed_at: string | null; weekly_activity_count: number; latest_drop_cycles: number | null }[] | null;
+          error: { message: string } | null;
+        }>,
     getWeatherApiForecast(),
   ]);
   const sensorData = sensorResult.data ?? [];
@@ -413,6 +417,7 @@ export async function getCropsDashboard() {
   }
   const nextTask = new Map<string, TaskRow>();
   for (const task of taskData ?? []) if (!nextTask.has(task.crop_id)) nextTask.set(task.crop_id, task);
+  const activitySummary = new Map(activityData.map((activity) => [activity.crop_id, activity]));
   const seedImages = new Map((seedImageData ?? []).map((row) => [row.profile_key, row.image_path]));
   const crops: CropItem[] = (data ?? []).map((row) => {
     const sensor = latestSensor.get(row.id);
@@ -449,11 +454,8 @@ export async function getCropsDashboard() {
       harvestCount: Number(harvestSummaries.get(row.id)?.harvest_count ?? 0),
       harvestedQuantity: Number(harvestSummaries.get(row.id)?.total_quantity ?? 0),
       cropProfileKey: row.crop_profile_key ?? null,
-      lastObservedAt: (activityData ?? []).find((a) => a.crop_id === row.id && ["Inspected", "Stage Observed"].includes(a.activity_type))?.performed_at ?? null,
-      weeklyActivities: (activityData ?? []).filter((a) => {
-        const timestamp = new Date(a.performed_at).getTime();
-        return a.crop_id === row.id && timestamp >= weekStart.getTime() && timestamp <= assessmentNow.getTime();
-      }).length,
+      lastObservedAt: activitySummary.get(row.id)?.last_observed_at ?? null,
+      weeklyActivities: Number(activitySummary.get(row.id)?.weekly_activity_count ?? 0),
       batchCode: row.batch_code?.trim() || fallbackBatchCode(row.id),
       cropName: row.crop_name,
       assignedPlantingName: row.assigned_planting_name?.trim() || `Garden ${row.crop_name}`,

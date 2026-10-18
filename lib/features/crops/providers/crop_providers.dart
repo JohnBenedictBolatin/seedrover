@@ -20,3 +20,9 @@ final cropSensorHistoryProvider =
     FutureProvider.autoDispose.family<List<CropSensorReading>, String>(
   (ref, cropId) => ref.watch(cropRepositoryProvider).getSensorHistory(cropId),
 );
+
+final cropActivityHistoryProvider =
+    FutureProvider.autoDispose.family<List<CropMaintenanceRecord>, String>(
+  (ref, cropId) =>
+      ref.watch(cropRepositoryProvider).getActivityHistory(cropId),
+);

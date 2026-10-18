@@ -49,6 +49,7 @@ class StockInventoryState {
     required this.isSalesSummaryLoading,
     required this.hasSalesSummary,
     required this.isLoading,
+    required this.hasLoaded,
     required this.isSavingSale,
     required this.successMessage,
     required this.errorMessage,
@@ -67,6 +68,7 @@ class StockInventoryState {
       isSalesSummaryLoading: true,
       hasSalesSummary: false,
       isLoading: true,
+      hasLoaded: false,
       isSavingSale: false,
       successMessage: null,
       errorMessage: null,
@@ -84,6 +86,7 @@ class StockInventoryState {
   final bool isSalesSummaryLoading;
   final bool hasSalesSummary;
   final bool isLoading;
+  final bool hasLoaded;
   final bool isSavingSale;
   final String? successMessage;
   final String? errorMessage;
@@ -100,6 +103,7 @@ class StockInventoryState {
     bool? isSalesSummaryLoading,
     bool? hasSalesSummary,
     bool? isLoading,
+    bool? hasLoaded,
     bool? isSavingSale,
     Object? successMessage = _noChange,
     Object? errorMessage = _noChange,
@@ -121,6 +125,7 @@ class StockInventoryState {
           isSalesSummaryLoading ?? this.isSalesSummaryLoading,
       hasSalesSummary: hasSalesSummary ?? this.hasSalesSummary,
       isLoading: isLoading ?? this.isLoading,
+      hasLoaded: hasLoaded ?? this.hasLoaded,
       isSavingSale: isSavingSale ?? this.isSavingSale,
       successMessage: successMessage == _noChange
           ? this.successMessage

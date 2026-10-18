@@ -36,36 +36,34 @@ class CropCard extends StatelessWidget {
             horizontal: AppSpacing.smd, vertical: AppSpacing.sm),
         child: Row(
           children: [
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: AppColors.sageSurface,
-                borderRadius: BorderRadius.circular(AppRadius.md),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.xs),
-                child: CropPlantImage(crop: crop, size: 44),
-              ),
-            ),
+            CropPlantImage(crop: crop, size: 64),
             const SizedBox(width: AppSpacing.smd),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(crop.name,
+                  Text(crop.displayName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppTypography.cardTitle),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text('${crop.fieldLabel} · ${crop.growthStageLabel}',
+                  if (crop.plantingNameSyncStatus != null)
+                    Text(crop.plantingNameSyncStatus!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.numericCaption
+                            .copyWith(color: AppColors.warning)),
+                  Text('${crop.fieldLabel} · ${crop.farmerGrowthStageLabel}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppTypography.small),
                   Text(crop.trackingCode,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTypography.numericCaption
-                          .copyWith(color: AppColors.primaryGreen)),
+                      style: AppTypography.body.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primaryGreen,
+                      )),
                 ],
               ),
             ),
@@ -74,7 +72,7 @@ class CropCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                StatusBadge(label: crop.status.label, color: statusColor),
+                StatusBadge(label: crop.status.farmerLabel, color: statusColor),
                 if (crop.harvestWindowStart != null) ...[
                   const SizedBox(height: AppSpacing.xs),
                   Text(_formatDate(crop.harvestWindowStart!),

@@ -2,11 +2,11 @@ begin;
 
 select plan(12);
 
-select has_column('public', 'sensor_readings', 'provenance_status');
-select has_column('public', 'sensor_readings', 'soil_moisture_calibrated');
-select has_column('public', 'sensor_readings', 'calibration_version');
-select has_column('public', 'sensor_readings', 'firmware_version');
-select has_column('public', 'sensor_readings', 'soil_raw');
+select has_column('public'::name, 'sensor_readings'::name, 'provenance_status'::name, 'sensor reading provenance is stored');
+select has_column('public'::name, 'sensor_readings'::name, 'soil_moisture_calibrated'::name, 'calibrated moisture is stored');
+select has_column('public'::name, 'sensor_readings'::name, 'calibration_version'::name, 'calibration version is stored');
+select has_column('public'::name, 'sensor_readings'::name, 'firmware_version'::name, 'firmware version is stored');
+select has_column('public'::name, 'sensor_readings'::name, 'soil_raw'::name, 'raw soil readings are retained');
 select ok(
   exists(select 1 from pg_constraint where conrelid='public.sensor_readings'::regclass and conname='sensor_readings_provenance_status_allowed'),
   'sensor provenance is constrained to known classifications'

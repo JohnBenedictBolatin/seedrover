@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -126,6 +127,8 @@ class PlantingReceiptRepository {
           confirmationOutcome: previous.confirmationOutcome,
           remoteLogId: previous.remoteLogId,
           confirmationSynced: previous.confirmationSynced,
+          plantingNamePrompted: previous.plantingNamePrompted ||
+              ownedReceipt.plantingNamePrompted,
           soilCapturedAt:
               ownedReceipt.soilCapturedAt ?? previous.soilCapturedAt,
         );
@@ -165,6 +168,108 @@ class PlantingReceiptRepository {
       );
       await _persistAll(all);
     });
+  }
+
+  Future<bool> markPlantingNamePrompted(String sessionId) async {
+    final ownerId = _client.auth.currentUser?.id;
+    if (ownerId == null) return false;
+    final pending = await _loadAll();
+    final index = pending.indexWhere(
+        (r) => r.ownerId == ownerId && r.config.sessionId == sessionId);
+    if (index >= 0) {
+      if (pending[index].plantingNamePrompted) return false;
+      pending[index] = pending[index].copyWith(plantingNamePrompted: true);
+      await _persistAll(pending);
+      return true;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getStringList(_historyKey) ?? const [];
+    final history = raw
+        .map((value) => PendingPlantingReceipt.fromJson(
+            jsonDecode(value) as Map<String, dynamic>))
+        .toList();
+    final historyIndex = history.indexWhere(
+        (r) => r.ownerId == ownerId && r.config.sessionId == sessionId);
+    if (historyIndex < 0 || history[historyIndex].plantingNamePrompted) {
+      return false;
+    }
+    history[historyIndex] =
+        history[historyIndex].copyWith(plantingNamePrompted: true);
+    await prefs.setStringList(
+        _historyKey, history.map((r) => jsonEncode(r.toJson())).toList());
+    return true;
+  }
+
+  Future<String?> assignedPlantingName(String sessionId) async {
+    try {
+      final log = await _client
+          .from('planting_logs')
+          .select('crop_id')
+          .eq('client_session_id', sessionId)
+          .maybeSingle();
+      final cropId = log?['crop_id']?.toString();
+      if (cropId == null) return null;
+      final crop = await _client
+          .from('crops')
+          .select('assigned_planting_name')
+          .eq('id', cropId)
+          .maybeSingle();
+      final name = crop?['assigned_planting_name']?.toString().trim();
+      return name == null || name.isEmpty ? null : name;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> savePlantingNameDraft(String sessionId, String name) async {
+    final ownerId = _client.auth.currentUser?.id;
+    if (ownerId == null) {
+      throw StateError('Sign in again to save the planting name.');
+    }
+    final normalized = name.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (normalized.isEmpty ||
+        normalized.length > 60 ||
+        normalized.contains(RegExp(r'[\r\n\x00-\x1f]'))) {
+      throw ArgumentError('Use 1 to 60 characters on one line.');
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'pending_crop_planting_names_v1_$ownerId';
+    final raw = prefs.getString(key);
+    final drafts = raw == null || raw.isEmpty
+        ? <Map<String, dynamic>>[]
+        : (jsonDecode(raw) as List<dynamic>)
+            .map((v) => Map<String, dynamic>.from(v as Map))
+            .toList();
+    drafts.removeWhere((draft) => draft['session_id'] == sessionId);
+    drafts.add({
+      'owner_id': ownerId,
+      'session_id': sessionId,
+      'crop_id': null,
+      'planting_name': normalized,
+      'expected_version': 0,
+      'use_assigned': false,
+      'submission_id': _newSubmissionId(),
+      'status': 'Waiting for planting sync'
+    });
+    await prefs.setString(key, jsonEncode(drafts));
+  }
+
+  Future<bool> hasPendingPlantingName(String sessionId) async {
+    final ownerId = _client.auth.currentUser?.id;
+    if (ownerId == null) return false;
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('pending_crop_planting_names_v1_$ownerId');
+    if (raw == null) return false;
+    return (jsonDecode(raw) as List<dynamic>).cast<Map>().any((draft) =>
+        draft['owner_id'] == ownerId && draft['session_id'] == sessionId);
+  }
+
+  String _newSubmissionId() {
+    final bytes = List<int>.generate(16, (_) => Random.secure().nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex = bytes.map((v) => v.toRadixString(16).padLeft(2, '0')).join();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
   }
 
   Future<void> saveCalibration(RoverCalibrationModel calibration) async {
@@ -275,6 +380,7 @@ class PlantingReceiptRepository {
     if (newlyArchived.isNotEmpty) {
       await _appendHistory(newlyArchived, ownerId);
     }
+    await _syncPendingPlantingNames(ownerId);
     return PlantingSyncResult(
       synchronizedCount: synced,
       failedCount: failed,
@@ -283,6 +389,65 @@ class PlantingReceiptRepository {
       lastConfirmedSessionId: lastConfirmedSessionId,
       lastError: lastError,
     );
+  }
+
+  Future<void> _syncPendingPlantingNames(String ownerId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'pending_crop_planting_names_v1_$ownerId';
+    final raw = prefs.getString(key);
+    if (raw == null || raw.isEmpty) return;
+    final drafts = (jsonDecode(raw) as List<dynamic>)
+        .map((value) => Map<String, dynamic>.from(value as Map))
+        .where((value) => value['owner_id'] == ownerId)
+        .toList();
+    var changed = false;
+    for (final draft in drafts
+        .where((value) =>
+            value['status'] == 'Waiting for planting sync' ||
+            value['status'] == 'Waiting to sync')
+        .toList()) {
+      var cropId = draft['crop_id']?.toString();
+      if (cropId == null || cropId.isEmpty) {
+        final sessionId = draft['session_id']?.toString();
+        if (sessionId == null) continue;
+        try {
+          final log = await _client
+              .from('planting_logs')
+              .select('crop_id')
+              .eq('client_session_id', sessionId)
+              .maybeSingle();
+          cropId = log?['crop_id']?.toString();
+          if (cropId == null || cropId.isEmpty) continue;
+          draft['crop_id'] = cropId;
+          draft['status'] = 'Waiting to sync';
+          changed = true;
+        } catch (_) {
+          continue;
+        }
+      }
+      try {
+        await _client.rpc('rename_crop_planting', params: {
+          'p_entry': {
+            'crop_id': cropId,
+            'planting_name': draft['planting_name'],
+            'expected_version': draft['expected_version'] ?? 0,
+            'use_assigned': draft['use_assigned'] ?? false,
+            'submission_id': draft['submission_id'],
+          }
+        });
+        drafts.remove(draft);
+        changed = true;
+      } catch (error) {
+        if (error
+            .toString()
+            .toLowerCase()
+            .contains('changed on another device')) {
+          draft['status'] = 'Needs review';
+          changed = true;
+        }
+      }
+    }
+    if (changed) await prefs.setString(key, jsonEncode(drafts));
   }
 
   Future<void> _synchronizeCalibration() async {
@@ -378,7 +543,10 @@ class PlantingReceiptRepository {
             item.ownerId == ownerId &&
             item.config.sessionId == receipt.config.sessionId);
         if (index >= 0) {
-          all[index] = receipt;
+          all[index] = receipt.copyWith(
+            plantingNamePrompted:
+                all[index].plantingNamePrompted || receipt.plantingNamePrompted,
+          );
         } else {
           all.add(receipt);
         }
@@ -403,7 +571,7 @@ class PlantingReceiptRepository {
       return 'The seed profile for this older run is no longer active. Ask an administrator to review the crop profile.';
     }
     if (lower.contains('already confirmed differently')) {
-      return 'The server has a different planting confirmation for this run. It needs reconciliation before retrying.';
+      return 'The saved planting result is different from this phone. Check the planting record before trying again.';
     }
     return raw.length > 180 ? '${raw.substring(0, 177)}…' : raw;
   }

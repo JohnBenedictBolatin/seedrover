@@ -1,0 +1,3 @@
+﻿Defect ID,Severity,Summary,Status,Evidence case,Run IDs,Notes
+DEF-001,Medium,Insufficient stock was rejected in the database but the portal previously displayed a generic server-component error.,Fixed; focused retest and current regression passed,SR-INV-006,20261005T144631592-7060; 20261005T153119448-21704,Current UI shows actionable insufficient-stock guidance; saved balance remains unchanged.
+DEF-002,Medium,Sales receipt query had an ambiguous sales_orders-to-profiles relationship.,Fixed; receipt case passed,SR-SALE-001,20261005T141625648-47936; 20261005T153119448-21704,Query now specifies the recorded_by foreign key.

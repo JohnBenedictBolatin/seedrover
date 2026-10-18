@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app_environment.dart';
@@ -13,8 +16,18 @@ class AppBootstrap {
       url: environment.supabaseUrl,
       anonKey: environment.supabaseAnonKey,
     );
-    await PushNotificationService.instance.initialize(Supabase.instance.client);
+    unawaited(_initializePushNotifications());
 
     return environment;
+  }
+
+  static Future<void> _initializePushNotifications() async {
+    try {
+      await PushNotificationService.instance.initialize(
+        Supabase.instance.client,
+      );
+    } catch (error) {
+      debugPrint('Unable to initialize push notifications: $error');
+    }
   }
 }

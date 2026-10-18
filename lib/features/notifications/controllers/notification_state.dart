@@ -11,6 +11,7 @@ class NotificationState {
     required this.selectedDate,
     required this.selectedSort,
     required this.isLoading,
+    required this.hasLoaded,
     required this.successMessage,
     required this.errorMessage,
   });
@@ -26,6 +27,7 @@ class NotificationState {
       selectedDate: NotificationDateFilter.all,
       selectedSort: NotificationSortType.newest,
       isLoading: true,
+      hasLoaded: false,
       successMessage: null,
       errorMessage: null,
     );
@@ -40,6 +42,7 @@ class NotificationState {
   final NotificationDateFilter selectedDate;
   final NotificationSortType selectedSort;
   final bool isLoading;
+  final bool hasLoaded;
   final String? successMessage;
   final String? errorMessage;
 
@@ -57,6 +60,7 @@ class NotificationState {
     NotificationDateFilter? selectedDate,
     NotificationSortType? selectedSort,
     bool? isLoading,
+    bool? hasLoaded,
     Object? successMessage = _noChange,
     Object? errorMessage = _noChange,
   }) {
@@ -75,6 +79,7 @@ class NotificationState {
       selectedDate: selectedDate ?? this.selectedDate,
       selectedSort: selectedSort ?? this.selectedSort,
       isLoading: isLoading ?? this.isLoading,
+      hasLoaded: hasLoaded ?? this.hasLoaded,
       successMessage: successMessage == _noChange
           ? this.successMessage
           : successMessage as String?,

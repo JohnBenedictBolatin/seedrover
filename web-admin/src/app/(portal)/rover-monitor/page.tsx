@@ -28,7 +28,6 @@ export default async function RoverMonitorPage() {
 
   return (
     <div className={styles.page}>
-      <RoverLiveRefresh />
       <header className={styles.header}>
         <ModuleHeaderIntro mascot="rover_monitor">
           <p className={styles.eyebrow}>Farm</p>
@@ -39,6 +38,7 @@ export default async function RoverMonitorPage() {
           <LiveDateTime />
         </div>
       </header>
+      <RoverLiveRefresh />
 
       <section className={styles.monitorGrid} aria-label="Rover monitoring details">
         <article className={styles.panel}>

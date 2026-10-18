@@ -212,14 +212,45 @@
 }
 
 .notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin: 0 18px 14px;
   border-left: 4px solid var(--warning);
   border-radius: 8px;
-  color: #ffe6ae;
-  background: rgba(255, 176, 0, 0.08);
+  color: #604400;
+  background: #fff6dc;
   font-size: 0.82rem;
   font-weight: 800;
   padding: 10px 12px;
+}
+
+.notice button {
+  flex: 0 0 auto;
+  border: 1px solid rgba(var(--green-rgb), 0.35);
+  border-radius: 7px;
+  color: var(--green);
+  background: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  padding: 5px 10px;
+}
+
+.slowNotice {
+  margin: 0 18px 10px;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+:global(html[data-theme="dark"]) .notice {
+  color: #ffe6ae;
+  background: rgba(255, 176, 0, 0.1);
+}
+
+:global(html[data-theme="dark"]) .notice button {
+  color: var(--green-accent);
+  background: var(--surface);
 }
 
 .suggestions {

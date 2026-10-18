@@ -6,6 +6,8 @@ void main() {
   group('inventory sales calculations', () {
     test('formats Philippine peso values consistently', () {
       expect(CurrencyFormatter.php(125), 'PHP 125.00');
+      expect(CurrencyFormatter.php(1234.5), 'PHP 1,234.50');
+      expect(CurrencyFormatter.number(1000), '1,000');
       expect(CurrencyFormatter.phpOrUnset(null), 'Not set');
     });
 

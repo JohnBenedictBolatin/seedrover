@@ -5,6 +5,7 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/history_pagination.dart';
+import '../../../../shared/widgets/history_loading_skeleton.dart';
 import '../../data/models/inventory_history_model.dart';
 import '../../data/repositories/stock_repository.dart';
 
@@ -147,7 +148,7 @@ class _InventoryHistorySheetState extends State<_InventoryHistorySheet> {
                               style: AppTypography.sectionHeading,
                             ),
                             Text(
-                              'All stock-in and stock-out movements from crops, sales, and manual adjustments.',
+                              'Items added or removed through crops, sales, or quantity changes.',
                               style: AppTypography.caption,
                             ),
                           ],
@@ -167,7 +168,9 @@ class _InventoryHistorySheetState extends State<_InventoryHistorySheet> {
                     future: _records,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
+                        return const HistoryLoadingSkeleton(
+                          label: 'Loading inventory history…',
+                        );
                       }
                       if (snapshot.hasError) {
                         return _HistoryMessage(
@@ -238,71 +241,128 @@ class _MovementTile extends StatelessWidget {
   final InventoryHistoryRecord record;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(AppSpacing.sm),
-        decoration: BoxDecoration(
-          color: AppColors.secondaryBackground,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(color: AppColors.inactiveBorder),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+  Widget build(BuildContext context) {
+    final color = _movementColor(record.movementType);
+    final label = _movementLabel(record.movementType, record.source);
+    final quantity = _signedQuantity(record.movementType, record.quantity);
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.secondaryBackground,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(_movementIcon(record.movementType), color: color, size: 20),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
                         record.itemName,
                         style: AppTypography.body.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      Text(record.stockCode, style: AppTypography.caption),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Text(
+                      quantity,
+                      style: AppTypography.numericSmall.copyWith(
+                        color: color,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: AppSpacing.sm),
-                Text(
-                  _formatQuantity(record.quantity),
-                  style: AppTypography.numericSmall.copyWith(
-                    color: AppColors.primaryGreen,
-                    fontWeight: FontWeight.w700,
-                  ),
+                Text(record.stockCode, style: AppTypography.caption),
+                const SizedBox(height: AppSpacing.xs),
+                Wrap(
+                  spacing: AppSpacing.md,
+                  runSpacing: AppSpacing.xs,
+                  children: [
+                    Text(label,
+                        style: AppTypography.small.copyWith(color: color)),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _MovementField(
+                          label: 'Date',
+                          value: _formatDate(record.createdAt),
+                        ),
+                        _MovementField(
+                          label: 'Time',
+                          value: _formatTime(record.createdAt),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
+                if (record.note.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  _MovementField(label: 'Note', value: record.note),
+                ],
               ],
             ),
-            const SizedBox(height: AppSpacing.xs),
-            Wrap(
-              spacing: AppSpacing.md,
-              runSpacing: AppSpacing.xs,
-              children: [
-                _MovementField(label: 'Movement', value: record.movementType),
-                _MovementField(label: 'Source', value: record.source),
-                _MovementField(
-                    label: 'Date', value: _formatDate(record.createdAt)),
-              ],
-            ),
-            if (record.remarks.trim().isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.xs),
-              _MovementField(label: 'Remarks', value: record.remarks),
-            ],
-          ],
-        ),
-      );
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _movementColor(String type) => switch (type.toUpperCase()) {
+        'IN' => AppColors.primaryGreen,
+        'OUT' => AppColors.warning,
+        'ADJUSTMENT' => AppColors.information,
+        _ => AppColors.secondaryText,
+      };
+
+  IconData _movementIcon(String type) => switch (type.toUpperCase()) {
+        'IN' => Icons.add_circle_outline_rounded,
+        'OUT' => Icons.remove_circle_outline_rounded,
+        'ADJUSTMENT' => Icons.tune_rounded,
+        _ => Icons.history_rounded,
+      };
+
+  String _movementLabel(String type, String source) {
+    if (type.toUpperCase() == 'IN') return 'Stock added';
+    if (type.toUpperCase() == 'OUT') {
+      return source == 'sale' ? 'Sold' : 'Stock removed';
+    }
+    if (type.toUpperCase() == 'ADJUSTMENT') return 'Quantity adjusted';
+    return type;
+  }
+
+  String _signedQuantity(String type, double value) {
+    final formatted = _formatQuantity(value);
+    return switch (type.toUpperCase()) {
+      'IN' => '+$formatted',
+      'OUT' => '−$formatted',
+      _ => formatted,
+    };
+  }
 
   String _formatQuantity(double value) =>
       value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
 
   String _formatDate(DateTime value) {
     final local = value.toLocal();
+    return '${local.month}/${local.day}/${local.year}';
+  }
+
+  String _formatTime(DateTime value) {
+    final local = value.toLocal();
     final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
     final minute = local.minute.toString().padLeft(2, '0');
     final period = local.hour >= 12 ? 'PM' : 'AM';
-    return '${local.month}/${local.day}/${local.year} · $hour:$minute $period';
+    return '$hour:$minute $period';
   }
 }
 

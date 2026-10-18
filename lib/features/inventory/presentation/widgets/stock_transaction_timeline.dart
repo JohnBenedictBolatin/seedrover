@@ -58,16 +58,7 @@ class _TransactionTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: .12),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(_transactionIcon(transaction.type),
-                color: color, size: 19),
-          ),
+          Icon(_transactionIcon(transaction.type), color: color, size: 19),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Column(
@@ -182,8 +173,7 @@ class _BatchEstimateTile extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(top: 4),
-      child:
-          Text('Estimated spoilage: $estimate', style: AppTypography.caption),
+      child: Text('Best used by: $estimate', style: AppTypography.caption),
     );
   }
 }

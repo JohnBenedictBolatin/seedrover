@@ -2,11 +2,11 @@ begin;
 
 select plan(14);
 
-select has_table('public', 'crop_activity_photos');
-select has_table('public', 'crop_notification_preferences');
-select has_column('public', 'crops', 'harvest_inventory_id');
-select has_column('public', 'crops', 'harvested_at');
-select has_column('public', 'crop_harvests', 'submission_id');
+select has_table('public'::name, 'crop_activity_photos'::name);
+select has_table('public'::name, 'crop_notification_preferences'::name);
+select has_column('public'::name, 'crops'::name, 'harvest_inventory_id'::name, 'crop harvest inventory is linked');
+select has_column('public'::name, 'crops'::name, 'harvested_at'::name, 'crop harvest time is stored');
+select has_column('public'::name, 'crop_harvests'::name, 'submission_id'::name, 'harvest submission is deduplicated');
 select ok(
   exists(select 1 from pg_indexes where schemaname='public' and indexname='crop_harvest_submission_idx'),
   'harvest submission IDs are unique for retry safety'

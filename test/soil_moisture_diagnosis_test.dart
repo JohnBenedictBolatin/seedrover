@@ -24,7 +24,7 @@ void main() {
     expect(diagnose(89.9).kind, SoilMoistureDiagnosisKind.tooWet);
     expect(diagnose(90).kind, SoilMoistureDiagnosisKind.tooWet);
     expect(diagnose(110).kind, SoilMoistureDiagnosisKind.tooWet);
-    expect(diagnose(0).label, 'Moisture is in the plant-ready range');
+    expect(diagnose(0).label, 'Good for planting');
     expect(diagnose(-11).label, 'Too dry');
     expect(diagnose(11).label, 'Too wet');
   });

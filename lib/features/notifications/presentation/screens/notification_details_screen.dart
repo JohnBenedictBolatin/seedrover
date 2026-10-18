@@ -10,6 +10,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/app_card.dart';
 import '../../../../shared/widgets/status_badge.dart';
+import '../../../../shared/widgets/action_result_dialog.dart';
 import '../../providers/notification_providers.dart';
 import '../widgets/notification_card.dart';
 
@@ -114,11 +115,9 @@ class NotificationDetailsScreen extends ConsumerWidget {
                           await controller.markAsRead(notification.id);
                         } catch (_) {
                           if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Unable to update notification.'),
-                              ),
-                            );
+                            showActionResult(context,
+                                message: 'Unable to update notification.',
+                                success: false);
                           }
                           return;
                         }

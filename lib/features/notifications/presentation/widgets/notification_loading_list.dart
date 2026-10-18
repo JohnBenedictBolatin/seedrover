@@ -14,7 +14,7 @@ class NotificationLoadingList extends StatelessWidget {
       itemBuilder: (context, index) => const _LoadingCard(),
       separatorBuilder: (context, index) =>
           const SizedBox(height: AppSpacing.md),
-      itemCount: 5,
+      itemCount: 4,
     );
   }
 }

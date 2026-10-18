@@ -1,0 +1,43 @@
+﻿Figure,Case ID,Run ID,Description,File,Evidence type
+1,SR-AUTH-001,20261005T153119448-21704,Login succeeds and opens the authenticated dashboard,evidence/20261005T153119448-21704/SR-AUTH-001_verified-result.png,Playwright screenshot attachment
+2,SR-AUTH-002,20261005T153119448-21704,Invalid credentials are rejected,evidence/20261005T153119448-21704/SR-AUTH-002_verified-result.png,Playwright screenshot attachment
+3,SR-AUTH-003,20261005T153119448-21704,Required username and password prevent empty submission,evidence/20261005T153119448-21704/SR-AUTH-003_verified-result.png,Playwright screenshot attachment
+4,SR-AUTH-005,20261005T153119448-21704,@smoke Logout prevents subsequent protected access,evidence/20261005T153119448-21704/SR-AUTH-005_verified-result.png,Playwright screenshot attachment
+5,SR-AUTH-006,20261005T153119448-21704,Inactive account cannot access portal,evidence/20261005T153119448-21704/SR-AUTH-006_verified-result.png,Playwright screenshot attachment
+6,SR-ROLE-001,20261005T153119448-21704,System Administrator receives the correct landing page,evidence/20261005T153119448-21704/SR-ROLE-001_verified-result.png,Playwright screenshot attachment
+7,SR-ROLE-002,20261005T153119448-21704,Farm Planting Manager receives the correct landing page,evidence/20261005T153119448-21704/SR-ROLE-002_verified-result.png,Playwright screenshot attachment
+8,SR-ROLE-003,20261005T153119448-21704,Farm Inventory Manager receives the correct landing page,evidence/20261005T153119448-21704/SR-ROLE-003_verified-result.png,Playwright screenshot attachment
+9,SR-ROLE-004,20261005T153119448-21704,Planting Staff lands on its authorized workspace,evidence/20261005T153119448-21704/SR-ROLE-004_verified-result.png,Playwright screenshot attachment
+10,SR-ROLE-005,20261005T153119448-21704,Inventory Staff receives the correct landing page,evidence/20261005T153119448-21704/SR-ROLE-005_verified-result.png,Playwright screenshot attachment
+11,SR-CROP-001,20261005T153119448-21704,Synthetic crop batch details are visible in the portal,evidence/20261005T153119448-21704/SR-CROP-001_verified-result.png,Playwright screenshot attachment
+12,SR-CROP-002,20261005T153119448-21704,Edit crop details through a reachable UI control,evidence/20261005T153119448-21704/SR-CROP-002_missing-edit-control.png,Playwright screenshot attachment
+13,SR-CROP-003,20261005T153119448-21704,A saved field observation is visible in crop activity history,evidence/20261005T153119448-21704/SR-CROP-003_verified-result.png,Playwright screenshot attachment
+14,SR-CROP-004,20261005T153119448-21704,Missing field observation prevents saving care,evidence/20261005T153119448-21704/SR-CROP-004_verified-result.png,Playwright screenshot attachment
+15,SR-CUST-001,20261005T153119448-21704,Completed sale appears in customer purchase history,evidence/20261005T153119448-21704/SR-CUST-001_verified-result.png,Playwright screenshot attachment
+16,SR-CUST-002,20261005T153119448-21704,Released ten percent discount appears in the saved receipt,evidence/20261005T153119448-21704/SR-CUST-002_discounted-receipt.png,Playwright screenshot attachment
+17,SR-CUST-003,20261005T153119448-21704,Expired discount cannot be selected for a new sale,evidence/20261005T153119448-21704/SR-CUST-003_verified-result.png,Playwright screenshot attachment
+18,SR-DASH-001,20261005T153119448-21704,Dashboard period selectors respond in the local timezone,evidence/20261005T153119448-21704/SR-DASH-001_verified-result.png,Playwright screenshot attachment
+19,SR-DASH-002,20261005T153119448-21704,A controlled sale reconciles against the dashboard baseline,evidence/20261005T153119448-21704/SR-DASH-002_verified-result.png,Playwright screenshot attachment
+20,SR-DASH-003,20261005T153119448-21704,Empty customer search displays an explicit empty state,evidence/20261005T153119448-21704/SR-DASH-003_verified-result.png,Playwright screenshot attachment
+21,SR-REPORT-003,20261005T153119448-21704,Receipt and sales print view render test sale data,evidence/20261005T153119448-21704/SR-REPORT-003_verified-result.png,Playwright screenshot attachment
+22,SR-INV-001,20261005T153119448-21704,@smoke Inventory displays a persisted test item,evidence/20261005T153119448-21704/SR-INV-001_verified-result.png,Playwright screenshot attachment
+23,SR-INV-002,20261005T153119448-21704,An AUTOTEST inventory item is saved and found after reload,evidence/20261005T153119448-21704/SR-INV-002_verified-result.png,Playwright screenshot attachment
+24,SR-INV-003,20261005T153119448-21704,Edit inventory location and verify after reload,evidence/20261005T153119448-21704/SR-INV-003_verified-result.png,Playwright screenshot attachment
+25,SR-INV-004,20261005T153119448-21704,Receiving five kilograms updates stock and movement history,evidence/20261005T153119448-21704/SR-INV-004_verified-result.png,Playwright screenshot attachment
+26,SR-INV-005,20261005T153119448-21704,Issue stock updates balance and movement history,evidence/20261005T153119448-21704/SR-INV-005_verified-result.png,Playwright screenshot attachment
+27,SR-INV-006,20261005T153119448-21704,Insufficient stock displays guidance and preserves the two kilogram balance,evidence/20261005T153119448-21704/SR-INV-006_verified-result.png,Playwright screenshot attachment
+28,SR-INV-007,20261005T153119448-21704,Negative selling price is rejected,evidence/20261005T153119448-21704/SR-INV-007_verified-result.png,Playwright screenshot attachment
+29,SR-OBS-001,20261005T153119448-21704,Mark a dedicated notification read and verify persistence,evidence/20261005T153119448-21704/SR-OBS-001_verified-result.png,Playwright screenshot attachment
+30,SR-OBS-002,20261005T153119448-21704,Inventory edit creates an attributable activity record,evidence/20261005T153119448-21704/SR-OBS-002_verified-result.png,Playwright screenshot attachment
+31,SR-OBS-003,20261005T153119448-21704,Rover monitoring presents existing stale or unavailable data honestly,evidence/20261005T153119448-21704/SR-OBS-003_current-sensor-state.png,Playwright screenshot attachment
+32,SR-OBS-004,20261005T153119448-21704,Rover monitor is read-only in the browser interface,evidence/20261005T153119448-21704/SR-OBS-004_verified-result.png,Playwright screenshot attachment
+33,SR-SALE-001,20261005T153119448-21704,The sale leaves 17 kilograms from a 20 kilogram opening balance,evidence/20261005T153119448-21704/SR-SALE-001_remaining-stock.png,Playwright screenshot attachment
+34,SR-SALE-002,20261005T153119448-21704,Multi-item sale deducts each stock once,evidence/20261005T153119448-21704/SR-SALE-002_verified-result.png,Playwright screenshot attachment
+35,SR-SALE-003,20261005T153119448-21704,Overselling is rejected without a stock deduction,evidence/20261005T153119448-21704/SR-SALE-003_verified-result.png,Playwright screenshot attachment
+36,SR-SALE-004,20261005T153119448-21704,Non-cash payment requires a transaction reference,evidence/20261005T153119448-21704/SR-SALE-004_verified-result.png,Playwright screenshot attachment
+37,SR-SALE-005,20261005T153119448-21704,Authorized void restores stock to its original balance,evidence/20261005T153119448-21704/SR-SALE-005_verified-result.png,Playwright screenshot attachment
+38,SR-SALE-006,20261005T153119448-21704,Inventory staff cannot cancel a completed sale,evidence/20261005T153119448-21704/SR-SALE-006_verified-result.png,Playwright screenshot attachment
+39,SR-USER-001,20261005T153119448-21704,Administrator creates a user through UI,evidence/20261005T153119448-21704/SR-USER-001_verified-result.png,Playwright screenshot attachment
+40,SR-USER-002,20261005T153119448-21704,Duplicate username is rejected,evidence/20261005T153119448-21704/SR-USER-002_verified-result.png,Playwright screenshot attachment
+41,SR-USER-003,20261005T153119448-21704,Update account details and role persists,evidence/20261005T153119448-21704/SR-USER-003_verified-result.png,Playwright screenshot attachment
+42,SR-USER-004,20261005T153119448-21704,Deactivate account through UI and deny its login,evidence/20261005T153119448-21704/SR-USER-004_deactivated.png,Playwright screenshot attachment

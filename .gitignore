@@ -15,6 +15,8 @@
 migrate_working_dir/
 supabase/.temp/
 /tmp/node-runtime/
+/tmp/playwright-browsers/
+/tmp/report-venv/
 /tmp/node-*.zip
 /tmp/imagegen/
 

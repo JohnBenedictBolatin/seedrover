@@ -175,14 +175,14 @@ class _RangeSelector extends StatelessWidget {
     return Row(
       children: [
         for (var index = 0; index < _SalesRange.values.length; index++) ...[
-          if (index > 0) const SizedBox(width: AppSpacing.xs),
+          if (index > 0) const SizedBox(width: 3),
           Expanded(
             child: InkWell(
               onTap: () => onChanged(_SalesRange.values[index]),
               borderRadius: BorderRadius.circular(AppRadius.sm),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
-                height: 32,
+                height: 30,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: selected == _SalesRange.values[index]
@@ -195,15 +195,23 @@ class _RangeSelector extends StatelessWidget {
                         : AppColors.inactiveBorder,
                   ),
                 ),
-                child: Text(
-                  _SalesRange.values[index].label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.caption.copyWith(
-                    color: selected == _SalesRange.values[index]
-                        ? AppColors.primaryText
-                        : AppColors.mutedText,
-                    fontWeight: FontWeight.w600,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      _SalesRange.values[index].label,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: AppTypography.caption.copyWith(
+                        fontSize: 10,
+                        height: 1,
+                        color: selected == _SalesRange.values[index]
+                            ? AppColors.primaryText
+                            : AppColors.mutedText,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -246,33 +254,36 @@ class _PerformanceHero extends StatelessWidget {
       child: Stack(
         children: [
           Positioned(
-            top: 0,
-            right: 0,
-            bottom: 0,
-            width: 144,
+            top: -48,
+            right: -64,
+            bottom: -48,
+            width: 200,
             child: ExcludeSemantics(
               child: Center(
                 child: Transform.rotate(
                   angle: -.16,
                   child: Container(
-                    width: 108,
-                    height: 108,
+                    width: 170,
+                    height: 170,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Colors.white.withValues(alpha: .06),
+                      color: Colors.white.withValues(alpha: .10),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: .18),
+                        color: Colors.white,
                         width: 5,
                       ),
                     ),
-                    child: Text(
-                      '₱',
-                      style: AppTypography.numericValue.copyWith(
-                        fontSize: 72,
-                        fontWeight: FontWeight.w700,
-                        fontVariations: const [FontVariation('wght', 700)],
-                        color: Colors.white.withValues(alpha: .28),
+                    child: Transform.translate(
+                      offset: const Offset(0, 8),
+                      child: Text(
+                        '₱',
+                        style: AppTypography.numericValue.copyWith(
+                          fontSize: 136,
+                          height: 1,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ),
@@ -288,11 +299,18 @@ class _PerformanceHero extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Sales - $label',
-                        style: AppTypography.sectionHeading.copyWith(
-                          color: AppColors.heroSecondaryText,
-                          fontWeight: FontWeight.w600,
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Sales - $label',
+                          maxLines: 1,
+                          softWrap: false,
+                          style: AppTypography.sectionHeading.copyWith(
+                            color: AppColors.heroSecondaryText,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                       const SizedBox(height: AppSpacing.sm),
@@ -307,13 +325,12 @@ class _PerformanceHero extends StatelessWidget {
                             color: Colors.white,
                             fontSize: 22,
                             fontWeight: FontWeight.w700,
-                            fontVariations: const [FontVariation('wght', 700)],
                           ),
                         ),
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       Text(
-                        '$transactions completed transactions',
+                        '${CurrencyFormatter.number(transactions)} completed transactions',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTypography.caption.copyWith(

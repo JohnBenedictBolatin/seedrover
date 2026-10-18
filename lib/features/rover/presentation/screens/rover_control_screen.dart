@@ -13,6 +13,7 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/app_card.dart';
+import '../../../../shared/widgets/action_result_dialog.dart';
 import '../../../../shared/widgets/app_selector.dart';
 import '../../../../shared/models/soil_moisture_diagnosis.dart';
 import '../../../../features/authentication/providers/auth_providers.dart';
@@ -20,6 +21,7 @@ import '../../../../features/crops/controllers/crop_monitoring_controller.dart';
 import '../../../../features/crops/data/models/crop_model.dart';
 import '../../../../features/crops/providers/crop_providers.dart';
 import '../../../../shared/widgets/content_skeleton.dart';
+import '../../../../shared/widgets/initial_loading_skeleton.dart';
 import '../../../../shared/widgets/seedrover_mascot.dart';
 import '../../controllers/rover_control_state.dart';
 import '../../data/models/rover_command_model.dart';
@@ -100,9 +102,7 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen>
                   .toLowerCase()
                   .startsWith('reconnect before sending commands') &&
               !next.cameraFullscreen)) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(content: Text(message)));
+        showActionResult(context, message: message, success: false);
       }
       final confirmationSession = next.pendingConfirmationSessionId;
       if (confirmationSession != null &&
@@ -121,32 +121,22 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen>
       if (syncedConfirmation != null &&
           syncedConfirmation != previous?.lastConfirmedSyncedSessionId) {
         ref.invalidate(plantingRunsAwaitingSyncProvider);
+        ref.invalidate(pendingPlantingAttentionProvider(
+          ref.read(authControllerProvider).profile?.id,
+        ));
         ref.read(cropMonitoringControllerProvider.notifier).loadCrops();
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(const SnackBar(
-            content: Text('Planting record synced and saved to history.'),
-          ));
+        showActionResult(context,
+            message: 'Planting record synced and saved to history.');
       } else if (next.confirmedPlantingSessionId != null &&
           next.confirmedPlantingSessionId !=
               previous?.confirmedPlantingSessionId) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(const SnackBar(
-            content: Text('Planting result saved on this phone; syncing.'),
-          ));
+        showActionResult(context,
+            message: 'Planting result saved on this phone; syncing.');
       }
       final cropId = next.lastCreatedCropId;
       if (cropId != null && cropId != previous?.lastCreatedCropId) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(
-            content: const Text('Crop saved from the rover planting run.'),
-            action: SnackBarAction(
-              label: 'VIEW CROP',
-              onPressed: () => context.go(AppRoutes.cropDetailsPath(cropId)),
-            ),
-          ));
+        showActionResult(context,
+            message: 'Crop saved from the rover planting run.');
       }
     });
     final state = ref.watch(roverControlControllerProvider);
@@ -165,7 +155,10 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen>
         profile?.hasPermission(PermissionKeys.cropsManage) ?? false;
 
     if (state.isLoading) {
-      return const _RoverLoadingSkeleton();
+      return const InitialLoadingSkeleton(
+        skeleton: _RoverLoadingSkeleton(),
+        label: 'Connecting to the rover…',
+      );
     }
 
     final telemetry = state.telemetry ?? RoverControlModel.offline();
@@ -512,11 +505,12 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen>
       synchronize: controller.synchronizePendingReceipts,
     );
     ref.invalidate(plantingRunsAwaitingSyncProvider);
+    ref.invalidate(pendingPlantingAttentionProvider(
+      ref.read(authControllerProvider).profile?.id,
+    ));
     final syncError = ref.read(roverControlControllerProvider).errorMessage;
     if (syncError != null && context.mounted) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(syncError)));
+      showActionResult(context, message: syncError, success: false);
     }
   }
 
@@ -558,15 +552,13 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen>
     RoverControlController controller,
     PlantingOperationStatus operation,
   ) async {
-    final fullRowCompleted = operation.targetDrops > 0 &&
-        operation.completedDrops >= operation.targetDrops;
     final outcome = await showDialog<String>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Confirm planting result'),
         content: Text(
-          '${operation.completedDrops} of ${operation.targetDrops} planting cycles were acknowledged. Did planting take place?',
+          'Planting cycles: ${operation.completedDrops} of ${operation.targetDrops}. This counts rover cycles, not individual seeds or germination. Were seeds planted in the row?',
         ),
         actions: [
           TextButton(
@@ -574,9 +566,7 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen>
             child: const Text('Not planted'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(
-              fullRowCompleted ? 'row_planted' : 'some_planted',
-            ),
+            onPressed: () => Navigator.of(dialogContext).pop('row_planted'),
             child: const Text('Planted'),
           ),
         ],
@@ -586,9 +576,78 @@ class _RoverControlScreenState extends ConsumerState<RoverControlScreen>
       final saved = await controller.confirmPendingPlanting(operation.sessionId,
           outcome: outcome);
       ref.invalidate(plantingRunsAwaitingSyncProvider);
+      ref.invalidate(pendingPlantingAttentionProvider(
+        ref.read(authControllerProvider).profile?.id,
+      ));
       if (!saved && context.mounted) {
         await _askWhetherAnythingWasPlanted(
             context, ref, controller, operation);
+      } else if (saved && outcome != 'none_planted' && context.mounted) {
+        final shouldPrompt =
+            await controller.markPlantingNamePrompted(operation.sessionId);
+        if (!context.mounted || !shouldPrompt) return;
+        final assignedName =
+            await controller.assignedPlantingName(operation.sessionId);
+        if (!context.mounted) return;
+        final nameController = TextEditingController(
+          text: assignedName ?? '${operation.cropProfile} planting',
+        );
+        final name = await showDialog<String>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Name your planting'),
+            content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                      'This ${operation.cropProfile.toLowerCase()} planting can have a name of its own. You can change it later in crop details.'),
+                  const SizedBox(height: AppSpacing.md),
+                  TextField(
+                      controller: nameController,
+                      autofocus: true,
+                      maxLength: 60,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: InputDecoration(
+                          labelText: 'Planting name',
+                          hintText: assignedName == null
+                              ? 'Name to use while planting syncs'
+                              : null)),
+                ]),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(null),
+                  child: const Text('Keep assigned name')),
+              FilledButton(
+                  onPressed: () {
+                    final value = nameController.text.trim();
+                    if (value.isNotEmpty) {
+                      Navigator.of(dialogContext).pop(value);
+                    }
+                  },
+                  child: const Text('Save name')),
+            ],
+          ),
+        );
+        nameController.dispose();
+        if (name != null && context.mounted) {
+          try {
+            final pendingName = await controller.savePlantingNameDraft(
+                operation.sessionId, name);
+            if (context.mounted) {
+              await showActionResult(context,
+                  message: pendingName
+                      ? 'Name saved on this phone; waiting to sync.'
+                      : 'Planting name saved.');
+            }
+          } catch (error) {
+            if (context.mounted) {
+              await showActionResult(context,
+                  message: error.toString().replaceFirst('Exception: ', ''),
+                  success: false);
+            }
+          }
+        }
       }
     }
   }
@@ -1124,7 +1183,7 @@ class _PlantingSoilPrecheckSheetState
               ],
               const SizedBox(height: AppSpacing.md),
               _PlantingAdviceReadingCard(
-                label: 'Soil moisture',
+                label: 'Water in soil',
                 icon: Icons.water_drop_outlined,
                 value: _readings.soilMoisturePercent == null
                     ? 'Unavailable'
@@ -1257,7 +1316,8 @@ class _PlantingSoilPrecheckSheetState
                 child: Text(_assessment.score == 100
                     ? 'Start planting'
                     : _assessment.hasMoistureConcern ||
-                            _assessment.summary == 'Conditions need attention'
+                            _assessment.summary ==
+                                'Check the soil before planting'
                         ? 'Start anyway'
                         : 'Start with available readings'),
               ),
@@ -1275,7 +1335,7 @@ class _AssessmentSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final attention = assessment.hasMoistureConcern ||
-        assessment.summary == 'Conditions need attention';
+        assessment.summary == 'Check the soil before planting';
     final color = attention
         ? AppColors.warning
         : assessment.isComplete
@@ -1334,7 +1394,7 @@ class _ConditionsMatchCard extends StatelessWidget {
     final progress = (score / 100).clamp(0.0, 1.0);
     return Semantics(
       label:
-          'Conditions match: $score percent. $matchedChecks of $checkCount soil checks matched.',
+          'Planting guide match: $score percent. $matchedChecks of $checkCount soil checks matched.',
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
@@ -1348,7 +1408,8 @@ class _ConditionsMatchCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text('Conditions match', style: AppTypography.body),
+                  child:
+                      Text('Planting guide match', style: AppTypography.body),
                 ),
                 Text('$score%',
                     style: AppTypography.numericValue.copyWith(
@@ -1365,19 +1426,19 @@ class _ConditionsMatchCard extends StatelessWidget {
                 minHeight: 9,
                 backgroundColor: AppColors.primaryBorder,
                 color: AppColors.primaryGreen,
-                semanticsLabel: 'Conditions match',
+                semanticsLabel: 'Planting guide match',
                 semanticsValue: '$score percent',
               ),
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
-              '$matchedChecks of $checkCount soil checks matched · moisture and soil temperature',
+              '$matchedChecks of $checkCount soil checks match the available guide.',
               style: AppTypography.caption.copyWith(
                 color: AppColors.secondaryText,
               ),
             ),
             Text(
-              'A share of supported checks, not a success probability.',
+              'This is not a prediction of how well the crop will grow.',
               style: AppTypography.caption.copyWith(
                 color: AppColors.secondaryText,
               ),
@@ -1486,12 +1547,11 @@ class _AssessmentWhyDetails extends StatelessWidget {
       PlantingSeedType.calamansi =>
         'No direct-seeding temperature source is used because a crop-specific range is incomplete.',
     };
-    final vpd = assessment.vaporPressureDeficitKpa;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Local assessment rules ${PlantingConditionAssessment.ruleVersion}',
+          'Planting guidance used',
           style: AppTypography.caption.copyWith(
             color: AppColors.secondaryText,
           ),
@@ -1505,20 +1565,11 @@ class _AssessmentWhyDetails extends StatelessWidget {
         SelectableText(source, style: AppTypography.caption),
         const SizedBox(height: AppSpacing.sm),
         Text(
-          vpd == null
-              ? 'Atmospheric drying demand (VPD) is unavailable without valid air temperature and humidity.'
-              : 'Current atmospheric drying demand (VPD): ${vpd.toStringAsFixed(2)} kPa. Calculated from air temperature and relative humidity using the FAO saturation-vapour-pressure method.',
+          'Air temperature and humidity describe conditions during this soil check. They do not predict future weather.',
           style: AppTypography.caption.copyWith(
             color: AppColors.secondaryText,
           ),
         ),
-        if (vpd != null) ...[
-          const SizedBox(height: AppSpacing.xs),
-          SelectableText(
-            'FAO method: https://www.fao.org/4/x0490e/x0490e07.htm',
-            style: AppTypography.caption,
-          ),
-        ],
         const SizedBox(height: AppSpacing.sm),
         for (final limitation in assessment.limitations)
           Padding(
@@ -1681,22 +1732,22 @@ class _CropSensorReadingSheetState extends State<_CropSensorReadingSheet> {
                   style: AppTypography.sectionHeading),
               const SizedBox(height: AppSpacing.xs),
               Text(
-                'Choose a crop ID. Its seed type and location will appear below.',
+                'Choose a planting. Its crop type and location will appear below.',
                 style: AppTypography.small.copyWith(
                   color: AppColors.secondaryText,
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
-              _FormFieldLabel(label: 'Crop ID', requiredField: true),
+              _FormFieldLabel(label: 'Planting', requiredField: true),
               AppSelector<String>(
                 value: _cropId,
-                decoration: _fieldDecoration('Select crop ID'),
+                decoration: _fieldDecoration('Select planting'),
                 items: [
                   for (final crop in widget.crops)
                     DropdownMenuItem(
                       value: crop.id,
                       child: Text(
-                        crop.trackingCode,
+                        '${crop.displayName} · ${crop.name} · ${crop.trackingCode}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -1833,10 +1884,13 @@ class _CropSensorReadingSheetState extends State<_CropSensorReadingSheet> {
       final message = await widget.onSave(cropId: cropId, readings: readings);
       if (!mounted) return;
       if (message.startsWith('Sensor reading saved')) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
+        final rootNavigator = Navigator.of(context, rootNavigator: true);
         Navigator.of(context).pop();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (rootNavigator.mounted) {
+            showActionResult(rootNavigator.context, message: message);
+          }
+        });
       } else {
         setState(() => _error = message);
       }
@@ -1992,7 +2046,7 @@ class _SensorResultCard extends StatelessWidget {
           ]),
           const SizedBox(height: AppSpacing.sm),
           _SensorResultRow(
-              label: 'Soil moisture',
+              label: 'Water in soil',
               value: calibrated
                   ? value('soil_moisture_percent', '%')
                   : 'Unavailable'),
@@ -2327,7 +2381,7 @@ class _PendingSyncQueueState extends ConsumerState<_PendingSyncQueue> {
     if (pendingCalibration != null) {
       items.add(const _PendingSyncItem(
         icon: Icons.tune_rounded,
-        title: 'Soil moisture calibration',
+        title: 'Set up soil sensor',
         detail: 'Saved on rover and this phone · waiting to sync to cloud',
       ));
     }
@@ -2352,6 +2406,8 @@ class _PendingSyncQueueState extends ConsumerState<_PendingSyncQueue> {
 
     for (final draft in sensorDrafts) {
       final crop = cropById[draft['crop_id']?.toString()];
+      final cropReference =
+          crop == null ? '' : '${crop.name} · ${crop.trackingCode} · ';
       final readings = Map<String, dynamic>.from(draft['readings'] as Map);
       final recordedAt = DateTime.tryParse(
         readings['recorded_at']?.toString() ?? '',
@@ -2361,9 +2417,9 @@ class _PendingSyncQueueState extends ConsumerState<_PendingSyncQueue> {
           : '${recordedAt.month}/${recordedAt.day} ${recordedAt.hour.toString().padLeft(2, '0')}:${recordedAt.minute.toString().padLeft(2, '0')}';
       items.add(_PendingSyncItem(
         icon: Icons.sensors_outlined,
-        title: 'Soil reading · ${crop?.trackingCode ?? crop?.name ?? 'Crop'}',
+        title: 'Soil reading · ${crop?.displayName ?? crop?.name ?? 'Crop'}',
         detail:
-            'Saved on this phone${recordedLabel.isEmpty ? '' : ' · $recordedLabel'} · waiting to sync',
+            '${cropReference}Saved on this phone${recordedLabel.isEmpty ? '' : ' · $recordedLabel'} · waiting to sync',
       ));
     }
 
@@ -2371,11 +2427,13 @@ class _PendingSyncQueueState extends ConsumerState<_PendingSyncQueue> {
       final status = draft['status']?.toString();
       if (status != 'Saved on device' && status != 'Syncing') continue;
       final crop = cropById[draft['crop_id']?.toString()];
+      final cropReference =
+          crop == null ? '' : '${crop.name} · ${crop.trackingCode} · ';
       items.add(_PendingSyncItem(
         icon: Icons.edit_note_outlined,
         title:
-            '${draft['activity_type'] ?? 'Crop activity'} · ${crop?.trackingCode ?? crop?.name ?? 'Crop'}',
-        detail: 'Saved on this phone · waiting to sync',
+            '${draft['activity_type'] ?? 'Crop activity'} · ${crop?.displayName ?? crop?.name ?? 'Crop'}',
+        detail: '${cropReference}Saved on this phone · waiting to sync',
       ));
     }
     return items;

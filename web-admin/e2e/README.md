@@ -51,11 +51,11 @@ Authentication state and generated passwords are stored only under ignored `e2e/
 
 ## Scope and limitations
 
-The suite covers authentication, five roles, inventory, ordinary sales, customers/discounts, crop care, user management, dashboard, CSV/print views, notifications/logs, and read-only rover monitoring. API authorization cases are labelled separately in their titles. CSV content is tested through the browser's authenticated request context. Chromium renders a real receipt PDF; native OS print dialogs are not automated.
+The suite covers login/logout and inactive-account rejection, five roles, API authorization, inventory and stock history, ordinary sales and cancellation, customers/discounts, field care and crop history, repeat harvest and crop closure, planting-name updates, user management, dashboard, CSV/print views, notifications/logs, read-only rover monitoring, and visible refresh/connectivity recovery. CSV content is tested through the browser's authenticated request context. Chromium renders a real receipt PDF; native OS print dialogs are not automated.
 
 Crop editing is explicitly blocked when no edit control is reachable. Stale/no-data rover testing is blocked when the shared database contains fresh readings: the suite does not overwrite the global rover state. A blocked case is not a pass.
 
-Deferred: investments, installment collection, advanced crop closure/harvest, email delivery, live AI/weather, Flutter mobile, and physical rover behavior.
+Deferred: password recovery, session-expiry and account-switching scenarios, investments, installment collection, single-harvest/correction workflows, photo upload, email delivery, live AI/weather, Flutter mobile, and physical rover behavior.
 
 ## Report generation
 
@@ -69,4 +69,4 @@ The generator produces Word/PDF reports, CSV registers, and an evidence index in
 
 ## GitHub Actions
 
-`SeedRover browser evidence` is a **workflow_dispatch** workflow. It must be pointed at an isolated local Supabase service before it can run; the browser runner now rejects the previous shared-demo setup. Choose `smoke` or `full` in Actions only after the workflow starts local Supabase from the canonical migrations. Reports upload even after failure; external notifications are not configured.
+`SeedRover browser evidence` is a **workflow_dispatch** workflow. It starts an isolated local Supabase stack from the canonical root migrations, exports only that stack's credentials to the test process, and stops the stack after the run. It does not require hosted Supabase secrets. Reports upload even after failure; external notifications are not configured.

@@ -10,7 +10,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: seedrover-shared-demo-database-e2e
+  group: seedrover-local-database-e2e
   cancel-in-progress: false
 jobs:
   browser-tests:
@@ -20,10 +20,6 @@ jobs:
       run:
         working-directory: web-admin
     env:
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      E2E_EXPECTED_SUPABASE_HOST: ${{ vars.E2E_EXPECTED_SUPABASE_HOST }}
       NODE_OPTIONS: --dns-result-order=ipv4first
     steps:
       - uses: actions/checkout@v4
@@ -32,14 +28,33 @@ jobs:
           node-version: 22.x
           cache: npm
           cache-dependency-path: web-admin/package-lock.json
-      - name: Verify required test configuration
-        run: |
-          node -e "for (const key of ['NEXT_PUBLIC_SUPABASE_URL','NEXT_PUBLIC_SUPABASE_ANON_KEY','SUPABASE_SERVICE_ROLE_KEY','E2E_EXPECTED_SUPABASE_HOST']) if (!process.env[key]) throw new Error('Missing '+key)"
       - run: npm ci
+      - uses: supabase/setup-cli@v3
+      - name: Start isolated local Supabase
+        run: supabase start --workdir ..
+      - name: Export local Supabase credentials
+        shell: bash
+        run: |
+          service_role_key_name=SUPABASE_SERVICE_ROLE_KEY
+          supabase status --workdir .. -o env \
+            --override-name api.url=NEXT_PUBLIC_SUPABASE_URL \
+            --override-name auth.anon_key=NEXT_PUBLIC_SUPABASE_ANON_KEY \
+            --override-name "auth.service_role_key=$service_role_key_name" \
+            >> "$GITHUB_ENV"
+      - name: Configure the E2E local host guard
+        shell: bash
+        run: |
+          {
+            echo "E2E_LOCAL_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL"
+            echo "E2E_LOCAL_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY"
+            echo "E2E_LOCAL_SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY"
+          } >> "$GITHUB_ENV"
       - run: npm run check:tracked-secrets
       - run: npm run lint
       - run: npm run test:input-contract
       - run: npm run check:shared-workflows
+      - run: npm run test:e2e:safety
+      - run: npm run test:e2e:preflight
       - run: npx playwright install --with-deps chromium
       - name: Execute selected suite
         env:
@@ -54,3 +69,6 @@ jobs:
           path: web-admin/e2e/runs/
           if-no-files-found: warn
           retention-days: 14
+      - name: Stop isolated local Supabase
+        if: always()
+        run: supabase stop --workdir ..

@@ -35,17 +35,11 @@ class StockCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: ColoredBox(
-                  color: AppColors.sageSurface,
-                  child: StockProduceImage(
-                    itemName: stock.name,
-                    imageUrl: stock.imageUrl,
-                    assetPath: stock.imageAssetPath,
-                    size: 44,
-                  ),
-                ),
+              StockProduceImage(
+                itemName: stock.name,
+                imageUrl: stock.imageUrl,
+                assetPath: stock.imageAssetPath,
+                size: 44,
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(

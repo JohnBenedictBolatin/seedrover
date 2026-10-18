@@ -6,6 +6,7 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/history_pagination.dart';
+import '../../../../shared/widgets/history_loading_skeleton.dart';
 
 class CropHistoryButton extends StatelessWidget {
   const CropHistoryButton({this.client, this.onPressed, super.key})
@@ -187,7 +188,9 @@ class _CropHistorySheetState extends State<_CropHistorySheet> {
                     future: _records,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
+                        return const HistoryLoadingSkeleton(
+                          label: 'Loading crop history…',
+                        );
                       }
                       if (snapshot.hasError) {
                         return _HistoryMessage(
@@ -274,16 +277,20 @@ class _OutcomeTile extends StatelessWidget {
         (row['recorded_by'] == null ? 'Not recorded' : 'Former user');
     final quantity = row['quantity'];
     final outcome = row['outcome']?.toString() ?? 'Outcome recorded';
+    final reason = row['reason']?.toString().trim();
+    final reasonKey = reason?.replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+    const generatedSoilDisclaimer =
+        'amounts are field estimates. verify soil condition, drainage, variety, and product label before applying water or fertilizer.';
     return _HistoryCard(
       icon: outcome.toLowerCase() == 'harvested'
           ? Icons.spa_outlined
           : Icons.info_outline_rounded,
       title:
-          '${row['crop_name']?.toString() ?? 'Crop'} · ${outcome == 'Failed' ? 'Closed without harvest' : outcome}',
+          '${row['crop_name']?.toString() ?? 'Crop'} · ${outcome == 'Failed' ? 'Ended without a harvest' : outcome}',
       subtitle: quantity == null ? '' : '$quantity kg',
       detail: [
-        if ((row['reason']?.toString().trim().isNotEmpty ?? false))
-          row['reason'].toString(),
+        if (reason?.isNotEmpty == true && reasonKey != generatedSoilDisclaimer)
+          reason!,
         'By $recorder${recordedAt == null ? '' : ' · ${_formatDate(recordedAt)}'}',
       ].join('\n'),
       tone: outcome.toLowerCase() == 'harvested'
@@ -314,20 +321,11 @@ class _HistoryCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.secondaryBackground,
           borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(color: AppColors.inactiveBorder),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: tone.withValues(alpha: .1),
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-              ),
-              child: Icon(icon, color: tone, size: 20),
-            ),
+            Icon(icon, color: tone, size: 20),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Column(

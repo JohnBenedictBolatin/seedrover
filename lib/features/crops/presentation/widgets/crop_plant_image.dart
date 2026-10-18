@@ -10,11 +10,13 @@ class CropPlantImage extends StatelessWidget {
   const CropPlantImage({
     required this.crop,
     this.size = 48,
+    this.zoomToSubject = false,
     super.key,
   });
 
   final CropModel crop;
   final double size;
+  final bool zoomToSubject;
 
   @override
   Widget build(BuildContext context) {
@@ -41,17 +43,38 @@ class CropPlantImage extends StatelessWidget {
   }
 
   Widget _assetFallback(String cropKey, String visualState) {
-    return Image.asset(
-      'assets/images/crops/${cropKey}_$visualState.png',
+    final image = Image.asset(
+      'assets/images/crops/${cropKey}_$visualState.webp',
       fit: BoxFit.contain,
-      errorBuilder: (_, __, ___) => _CropStatePlaceholder(
-        cropName: crop.name,
-        label: _visualLabelFor(crop),
-        size: size,
-        color: _stateColorFor(crop),
+      errorBuilder: (_, __, ___) => Image.asset(
+        'assets/images/crops/$cropKey.png',
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => _CropStatePlaceholder(
+          cropName: crop.name,
+          label: _visualLabelFor(crop),
+          size: size,
+          color: _stateColorFor(crop),
+        ),
+      ),
+    );
+
+    if (!zoomToSubject) return image;
+
+    return ClipRect(
+      child: Transform.scale(
+        scale: _expandedStageScale(visualState),
+        child: image,
       ),
     );
   }
+
+  double _expandedStageScale(String stage) => switch (stage) {
+        'seeded' || 'seedbed' => 2.2,
+        'germinating' => 1.8,
+        'nursery_seedling' || 'transplant_review' => 1.55,
+        'establishing' || 'juvenile' || 'vegetative' => 1.3,
+        _ => 1.0,
+      };
 
   String _cropKeyFor(String cropName) {
     final normalizedName = cropName.trim().toLowerCase();
@@ -75,37 +98,45 @@ class CropPlantImage extends StatelessWidget {
 
   String _visualStateFor(CropModel crop) {
     return switch (crop.status) {
-      CropStatus.needsAttention => 'needs_attention',
+      CropStatus.needsAttention => _growthStageKey(crop.growthStage),
       CropStatus.readyForHarvest => 'harvest_ready',
       CropStatus.harvested => 'harvested',
-      CropStatus.notHarvested => 'harvested',
-      CropStatus.active ||
-      CropStatus.needsAttention =>
-        _growthStageKey(crop.growthStage),
+      CropStatus.notHarvested => _growthStageKey(crop.growthStage),
+      CropStatus.active => _growthStageKey(crop.growthStage),
     };
   }
 
   String _growthStageKey(CropGrowthStage stage) {
     return switch (stage) {
       CropGrowthStage.seeded => 'seeded',
+      CropGrowthStage.seedbed => 'seedbed',
       CropGrowthStage.germinating => 'germinating',
+      CropGrowthStage.nurserySeedling => 'nursery_seedling',
+      CropGrowthStage.transplantReview => 'transplant_review',
+      CropGrowthStage.establishing => 'establishing',
+      CropGrowthStage.juvenile => 'juvenile',
       CropGrowthStage.vegetative => 'vegetative',
+      CropGrowthStage.trellising => 'trellising',
       CropGrowthStage.flowering => 'flowering',
+      CropGrowthStage.podFormation => 'pod_formation',
+      CropGrowthStage.pegging => 'pegging',
+      CropGrowthStage.podDevelopment => 'pod_development',
+      CropGrowthStage.maturityCheck => 'maturity_check',
+      CropGrowthStage.firstBearing => 'first_bearing',
       CropGrowthStage.fruiting => 'fruiting',
       CropGrowthStage.harvestReady => 'harvest_ready',
       CropGrowthStage.harvested => 'harvested',
       CropGrowthStage.other => 'unknown',
-      _ => 'unknown',
     };
   }
 
   String _visualLabelFor(CropModel crop) {
     return switch (crop.status) {
-      CropStatus.needsAttention => 'Needs Attention',
-      CropStatus.readyForHarvest => 'Harvest Ready',
-      CropStatus.harvested => 'Harvested',
-      CropStatus.notHarvested => 'Closed without harvest',
-      CropStatus.active => crop.growthStageLabel,
+      CropStatus.needsAttention => crop.status.farmerLabel,
+      CropStatus.readyForHarvest => crop.status.farmerLabel,
+      CropStatus.harvested => crop.status.farmerLabel,
+      CropStatus.notHarvested => crop.status.farmerLabel,
+      CropStatus.active => crop.farmerGrowthStageLabel,
     };
   }
 
@@ -138,50 +169,42 @@ class _CropStatePlaceholder extends StatelessWidget {
     final showText = size >= 96;
     final iconSize = showText ? size * 0.28 : size * 0.52;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        border: Border.all(color: color.withOpacity(0.65)),
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(showText ? AppSpacing.sm : AppSpacing.xs),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              _placeholderIcon,
-              color: color,
-              size: iconSize,
+    return Padding(
+      padding: EdgeInsets.all(showText ? AppSpacing.sm : AppSpacing.xs),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            _placeholderIcon,
+            color: color,
+            size: iconSize,
+          ),
+          if (showText) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              cropName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: AppTypography.numericCaption.copyWith(
+                color: AppColors.primaryText,
+                fontSize: size >= 120 ? 12 : 9,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-            if (showText) ...[
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                cropName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: AppTypography.numericCaption.copyWith(
-                  color: AppColors.primaryText,
-                  fontSize: size >= 120 ? 12 : 9,
-                  fontWeight: FontWeight.w700,
-                  fontVariations: const [FontVariation('wght', 700)],
-                ),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: AppTypography.numericCaption.copyWith(
+                color: color,
+                fontSize: size >= 120 ? 11 : 8,
               ),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: AppTypography.numericCaption.copyWith(
-                  color: color,
-                  fontSize: size >= 120 ? 11 : 8,
-                ),
-              ),
-            ],
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -195,7 +218,7 @@ class _CropStatePlaceholder extends StatelessWidget {
       return Icons.science_outlined;
     }
 
-    if (label == 'Harvest Ready' || label == 'Harvested') {
+    if (label == 'Ready to harvest' || label == 'Harvested') {
       return Icons.agriculture_outlined;
     }
 

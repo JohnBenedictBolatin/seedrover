@@ -72,7 +72,7 @@ void main() {
     );
 
     expect(result.isValid, isFalse);
-    expect(result.unavailableReason, contains('Calibrate'));
+    expect(result.unavailableReason, contains('Set up the soil sensor'));
   });
 
   test('rejects unavailable moisture samples and invalid values', () {

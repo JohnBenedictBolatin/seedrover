@@ -4,17 +4,21 @@ import '../../../../shared/widgets/task_form.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'dart:math' as math;
 
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/constants/permission_keys.dart';
 import '../../../../core/constants/workspace_action.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/utils/date_time_formatter.dart';
 import '../../../../core/utils/currency_formatter.dart';
 import '../../../../shared/widgets/app_card.dart';
-import '../../../../shared/widgets/loading_indicator.dart';
+import '../../../../shared/widgets/action_result_dialog.dart';
+import '../../../../shared/widgets/history_pagination.dart';
+import '../../../../shared/widgets/content_skeleton.dart';
+import '../../../../shared/widgets/initial_loading_skeleton.dart';
 import '../../../authentication/providers/auth_providers.dart';
 import '../../controllers/stock_inventory_controller.dart';
 import '../../data/models/stock_model.dart';
@@ -62,21 +66,51 @@ class _StockDetailsScreenState extends ConsumerState<StockDetailsScreen>
     final profile = ref.watch(authControllerProvider).profile;
     final stock = controller.stockById(widget.stockId);
 
-    ref.listen(stockInventoryControllerProvider, (previous, next) {
-      final message = next.successMessage;
-
-      if (message != null && message != previous?.successMessage) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
-        ref
-            .read(stockInventoryControllerProvider.notifier)
-            .clearSuccessMessage();
-      }
-    });
-
     if (state.isLoading && stock == null) {
-      return const InventoryTextScale(child: LoadingIndicator());
+      return const InventoryTextScale(
+        child: InitialLoadingSkeleton(
+          skeleton: Padding(
+            padding: EdgeInsets.all(AppSpacing.md),
+            child: SkeletonCard(
+              height: 260,
+              children: [
+                SkeletonLine(widthFactor: .54, height: 24),
+                SizedBox(height: AppSpacing.lg),
+                SkeletonBlock(height: 100),
+                SizedBox(height: AppSpacing.md),
+                SkeletonLine(widthFactor: .82),
+                SizedBox(height: AppSpacing.sm),
+                SkeletonLine(widthFactor: .6),
+              ],
+            ),
+          ),
+          label: 'Loading item details…',
+        ),
+      );
+    }
+
+    if (stock == null && state.errorMessage != null) {
+      return InventoryTextScale(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.cloud_off_outlined),
+                const SizedBox(height: AppSpacing.sm),
+                Text('Item details could not be loaded.',
+                    style: AppTypography.body),
+                TextButton.icon(
+                  onPressed: controller.loadStocks,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
     }
 
     if (stock == null) {
@@ -93,9 +127,9 @@ class _StockDetailsScreenState extends ConsumerState<StockDetailsScreen>
         if (!mounted) return;
         final action = widget.initialAction!;
         if (!(profile?.hasPermission(action.permission) ?? false)) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('This task is no longer available for your account.'),
-          ));
+          showActionResult(context,
+              message: 'This task is no longer available for your account.',
+              success: false);
           return;
         }
         switch (action) {
@@ -126,6 +160,8 @@ class _StockDetailsScreenState extends ConsumerState<StockDetailsScreen>
     }
 
     final canDelete = profile?.isAdministrator ?? false;
+    final canCancelSales =
+        profile?.isAdministrator == true || profile?.isInventoryManager == true;
     final canManage =
         profile?.hasPermission(PermissionKeys.stocksManage) ?? false;
     final canEditPricing = profile?.isAdministrator == true ||
@@ -177,10 +213,6 @@ class _StockDetailsScreenState extends ConsumerState<StockDetailsScreen>
                                 initialReason: 'Staff Allocation',
                               )
                           : null,
-                      onAdjust: canManage
-                          ? () => _showAdjustDialog(
-                              context, controller, stock, performedBy)
-                          : null,
                       onEdit: canManage
                           ? () => _showEditDialog(
                                 context,
@@ -194,7 +226,14 @@ class _StockDetailsScreenState extends ConsumerState<StockDetailsScreen>
                 ),
                 InventoryTabPage(
                   children: [
-                    StockHistorySection(stock: stock),
+                    StockHistorySection(
+                      stock: stock,
+                      canCancelSales: canCancelSales,
+                      onCancelSale: canCancelSales
+                          ? (sale) => _confirmCancelSale(
+                              context, controller, stock, sale)
+                          : null,
+                    ),
                   ],
                 ),
               ],
@@ -229,19 +268,72 @@ class _StockDetailsScreenState extends ConsumerState<StockDetailsScreen>
               ? InventoryTask.issue
               : InventoryTask.sale);
 
-  void _showAdjustDialog(
-          BuildContext context,
-          StockInventoryController controller,
-          StockModel stock,
-          String performedBy) =>
-      showInventoryTransaction(
-          context, ref, controller, stock, InventoryTask.adjust);
-
   void _showEditDialog(BuildContext context,
           StockInventoryController controller, StockModel stock,
           {required bool canEditPricing}) =>
       showInventoryEditor(context, ref, controller,
           stock: stock, canEditPricing: canEditPricing);
+
+  Future<void> _confirmCancelSale(
+    BuildContext context,
+    StockInventoryController controller,
+    StockModel stock,
+    SalesTransactionModel sale,
+  ) async {
+    final unresolved = await controller.pendingWriteFor(stock.id);
+    if (!context.mounted) return;
+    if (unresolved != null) {
+      await reconcileInventoryWrite(context, controller, stock.id);
+      return;
+    }
+    final reason = TextEditingController(text: 'Incorrect sales transaction.');
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancel this sale?'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text(
+              'The sold quantity will be returned to its original stock batch.'),
+          const SizedBox(height: AppSpacing.sm),
+          TextField(
+              controller: reason,
+              maxLength: 500,
+              maxLines: 2,
+              decoration: const InputDecoration(labelText: 'Reason')),
+        ]),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Keep sale')),
+          FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Cancel sale')),
+        ],
+      ),
+    );
+    final reasonText = reason.text.trim();
+    reason.dispose();
+    if (confirmed != true || !context.mounted) return;
+    if (reasonText.isEmpty) {
+      await showActionResult(context,
+          message: 'Enter a reason before cancelling this sale.',
+          success: false);
+      return;
+    }
+    final submissionId = _newVoidSubmissionId();
+    final error = await controller.voidSale(
+      stockId: stock.id,
+      saleId: sale.id,
+      reason: reasonText,
+      submissionId: submissionId,
+    );
+    if (!context.mounted) return;
+    await showActionResult(
+      context,
+      message: error ?? 'Sale cancelled and inventory restored.',
+      success: error == null,
+    );
+  }
 
   Future<void> _confirmDelete(BuildContext context,
       StockInventoryController controller, StockModel stock) async {
@@ -368,7 +460,6 @@ class StockOverviewCard extends StatelessWidget {
     this.onDelete,
     this.onReceive,
     this.onIssue,
-    this.onAdjust,
     this.onEdit,
     super.key,
   });
@@ -378,7 +469,6 @@ class StockOverviewCard extends StatelessWidget {
   final VoidCallback? onDelete;
   final VoidCallback? onReceive;
   final VoidCallback? onIssue;
-  final VoidCallback? onAdjust;
   final VoidCallback? onEdit;
 
   @override
@@ -388,12 +478,6 @@ class StockOverviewCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                Icons.inventory_2_outlined,
-                color: AppColors.primaryGreen,
-                size: 20,
-              ),
-              const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -415,6 +499,16 @@ class StockOverviewCard extends StatelessWidget {
                   ],
                 ),
               ),
+              if (onEdit != null)
+                IconButton(
+                  tooltip: 'Edit item',
+                  onPressed: onEdit,
+                  style: IconButton.styleFrom(
+                    foregroundColor: AppColors.primaryGreen,
+                    minimumSize: const Size(48, 48),
+                  ),
+                  icon: const Icon(Icons.edit_outlined),
+                ),
               if (onDelete != null)
                 IconButton(
                   tooltip: 'Delete item',
@@ -422,10 +516,6 @@ class StockOverviewCard extends StatelessWidget {
                   style: IconButton.styleFrom(
                     foregroundColor: AppColors.danger,
                     minimumSize: const Size(48, 48),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.sm),
-                      side: BorderSide(color: AppColors.danger),
-                    ),
                   ),
                   icon: const Icon(Icons.delete_outline_rounded),
                 ),
@@ -442,9 +532,8 @@ class StockOverviewCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           AppCard(
-            backgroundColor: AppColors.secondaryBackground,
-            borderColor: AppColors.inactiveBorder,
-            padding: const EdgeInsets.all(AppSpacing.md),
+            backgroundColor: Colors.transparent,
+            padding: EdgeInsets.zero,
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final gap = AppSpacing.sm;
@@ -458,7 +547,7 @@ class StockOverviewCard extends StatelessWidget {
                       children: [
                         _InventoryOverviewFact(
                           width: tileWidth,
-                          label: 'Available quantity',
+                          label: 'Quantity',
                           value:
                               '${quantityText(stock.currentQuantity)} ${stock.unit}',
                           icon: Icons.inventory_outlined,
@@ -472,7 +561,7 @@ class StockOverviewCard extends StatelessWidget {
                         ),
                         _InventoryOverviewFact(
                           width: tileWidth,
-                          label: 'Storage location',
+                          label: 'Location',
                           value: stock.storageLocation.trim().isEmpty
                               ? 'Not recorded'
                               : stock.storageLocation,
@@ -495,16 +584,11 @@ class StockOverviewCard extends StatelessWidget {
                         onTap: onRecordSale!,
                       ),
                     ],
-                    if (onReceive != null &&
-                        onIssue != null &&
-                        onAdjust != null &&
-                        onEdit != null) ...[
-                      const SizedBox(height: AppSpacing.md),
+                    if (onReceive != null && onIssue != null) ...[
+                      const SizedBox(height: AppSpacing.sm),
                       InventoryActionSection(
                         onReceive: onReceive!,
                         onIssue: onIssue!,
-                        onAdjust: onAdjust!,
-                        onEdit: onEdit!,
                       ),
                     ],
                   ],
@@ -532,12 +616,8 @@ class _InventoryOverviewFact extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SizedBox(
         width: width,
-        child: Container(
+        child: Padding(
           padding: const EdgeInsets.all(AppSpacing.sm),
-          decoration: BoxDecoration(
-            color: AppColors.cardBackground,
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -565,22 +645,16 @@ class InventoryActionSection extends StatelessWidget {
   const InventoryActionSection({
     required this.onReceive,
     required this.onIssue,
-    required this.onAdjust,
-    required this.onEdit,
     super.key,
   });
 
   final VoidCallback onReceive;
   final VoidCallback onIssue;
-  final VoidCallback onAdjust;
-  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Manage item', style: AppTypography.cardTitle),
-          const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
               Expanded(
@@ -596,26 +670,6 @@ class InventoryActionSection extends StatelessWidget {
                   label: 'Issue stock',
                   icon: Icons.indeterminate_check_box_outlined,
                   onTap: onIssue,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: [
-              Expanded(
-                child: _ManageActionButton(
-                  label: 'Adjust quantity',
-                  icon: Icons.tune_rounded,
-                  onTap: onAdjust,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: _ManageActionButton(
-                  label: 'Edit item',
-                  icon: Icons.edit_outlined,
-                  onTap: onEdit,
                 ),
               ),
             ],
@@ -638,64 +692,152 @@ class _ManageActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SizedBox(
         width: double.infinity,
-        child: OutlinedButton(
+        child: OutlinedButton.icon(
           onPressed: onTap,
           style: OutlinedButton.styleFrom(
             foregroundColor: AppColors.primaryGreen,
-            side: BorderSide(color: AppColors.primaryGreen),
             backgroundColor: Colors.transparent,
-            minimumSize: const Size.fromHeight(64),
+            side: BorderSide(color: AppColors.primaryGreen),
+            minimumSize: const Size.fromHeight(48),
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.xs,
-              vertical: AppSpacing.sm,
+              vertical: AppSpacing.xs,
             ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 18),
-              const SizedBox(height: AppSpacing.xs),
-              Text(label, textAlign: TextAlign.center),
-            ],
+          icon: Icon(icon, size: 18),
+          label: Text(
+            label,
+            maxLines: 1,
+            softWrap: false,
+            style: AppTypography.caption.copyWith(fontWeight: FontWeight.w600),
           ),
         ),
       );
 }
 
-class StockHistorySection extends StatelessWidget {
-  const StockHistorySection({required this.stock, super.key});
+class StockHistorySection extends StatefulWidget {
+  const StockHistorySection({
+    required this.stock,
+    this.canCancelSales = false,
+    this.onCancelSale,
+    super.key,
+  });
 
   final StockModel stock;
+  final bool canCancelSales;
+  final ValueChanged<SalesTransactionModel>? onCancelSale;
 
   @override
-  Widget build(BuildContext context) => AppCard(
-        backgroundColor: AppColors.cardBackground,
-        borderColor: AppColors.inactiveBorder,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text('Transaction history',
-                      style: AppTypography.cardTitle),
+  State<StockHistorySection> createState() => _StockHistorySectionState();
+}
+
+class _StockHistorySectionState extends State<StockHistorySection> {
+  static const _pageSize = 5;
+  int _pageIndex = 0;
+  int _salePageIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final transactions = [...widget.stock.transactions]
+      ..sort((left, right) => right.performedAt.compareTo(left.performedAt));
+    final pageCount =
+        transactions.isEmpty ? 1 : (transactions.length / _pageSize).ceil();
+    final pageIndex = _pageIndex.clamp(0, pageCount - 1);
+    final visibleTransactions = transactions
+        .skip(pageIndex * _pageSize)
+        .take(_pageSize)
+        .toList(growable: false);
+    final sales = [...widget.stock.sales]
+      ..sort((left, right) => right.saleDate.compareTo(left.saleDate));
+    final visibleSales = sales
+        .skip(_salePageIndex * _pageSize)
+        .take(_pageSize)
+        .toList(growable: false);
+
+    return AppCard(
+      backgroundColor: Colors.transparent,
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child:
+                    Text('Transaction history', style: AppTypography.cardTitle),
+              ),
+              Text('${transactions.length}',
+                  style: AppTypography.numericCaption),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          StockTransactionTimeline(
+            transactions: visibleTransactions,
+            unit: widget.stock.unit,
+          ),
+          if (transactions.length > _pageSize)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.md),
+              child: HistoryPagination(
+                pageIndex: pageIndex,
+                totalRecords: transactions.length,
+                pageSize: _pageSize,
+                onPageChanged: (nextPage) => setState(() {
+                  _pageIndex = nextPage;
+                }),
+              ),
+            ),
+          if (sales.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.lg),
+            Row(children: [
+              Expanded(child: Text('Sales', style: AppTypography.cardTitle)),
+              Text('${sales.length}', style: AppTypography.numericCaption),
+            ]),
+            for (final sale in visibleSales)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                    '${sale.quantitySold.toStringAsFixed(2)} kg · ${sale.customerName ?? 'Customer'}'),
+                subtitle: Text(
+                    '${DateTimeFormatter.formatDate(sale.saleDate)} · PHP ${sale.totalAmount.toStringAsFixed(2)} · ${sale.status.label}'),
+                trailing: widget.canCancelSales &&
+                        widget.onCancelSale != null &&
+                        sale.status == SalesTransactionStatus.completed
+                    ? TextButton(
+                        onPressed: () => widget.onCancelSale!(sale),
+                        child: const Text('Cancel'))
+                    : null,
+              ),
+            if (sales.length > _pageSize)
+              Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.sm),
+                child: HistoryPagination(
+                  pageIndex: _salePageIndex,
+                  totalRecords: sales.length,
+                  pageSize: _pageSize,
+                  onPageChanged: (nextPage) =>
+                      setState(() => _salePageIndex = nextPage),
                 ),
-                Text('${stock.transactions.length}',
-                    style: AppTypography.numericCaption),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.md),
-            StockTransactionTimeline(
-              transactions: stock.transactions,
-              unit: stock.unit,
-            ),
+              ),
           ],
-        ),
-      );
+        ],
+      ),
+    );
+  }
 }
 
 String _formatDate(DateTime date) =>
     '${date.month}/${date.day}/${date.year.toString().substring(2)}';
+
+String _newVoidSubmissionId() {
+  final random = math.Random.secure();
+  final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  final hex =
+      bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+  return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
+}
 
 class InventoryPrimaryActionTile extends StatelessWidget {
   const InventoryPrimaryActionTile({

@@ -2,10 +2,11 @@ begin;
 
 select plan(8);
 
-select has_function('public', 'has_permission', array['text']);
-select has_function('public', 'void_sales_record', array['uuid', 'text', 'text']);
-select has_function('public', 'void_sales_record_internal', array['uuid', 'text', 'text']);
-select has_function('public', 'rollback_failed_installment_sale', array['uuid', 'uuid', 'text']);
+select has_function('public'::name, 'has_permission'::name, array['text']::name[]);
+select has_function('public'::name, 'void_sales_record'::name, array['uuid', 'text', 'text']::name[]);
+select has_function('public'::name, 'void_sales_record_internal'::name, array['uuid', 'text', 'text']::name[]);
+select ok(to_regprocedure('public.rollback_failed_installment_sale(uuid, uuid, text)') is null,
+  'the removed installment compensation function stays unavailable');
 
 select ok(
   has_function_privilege('authenticated', 'public.void_sales_record(uuid, text, text)', 'EXECUTE'),
@@ -16,12 +17,12 @@ select ok(
   'authenticated users cannot bypass the role check through the internal void function'
 );
 select ok(
-  not has_function_privilege('authenticated', 'public.rollback_failed_installment_sale(uuid, uuid, text)', 'EXECUTE'),
-  'authenticated users cannot call the installment compensation function'
+  has_function_privilege('authenticated', 'public.void_sales_record_v2(jsonb)', 'EXECUTE'),
+  'authenticated users can use the idempotent sale cancellation workflow'
 );
 select ok(
-  has_function_privilege('service_role', 'public.rollback_failed_installment_sale(uuid, uuid, text)', 'EXECUTE'),
-  'the server service role can compensate for a failed installment setup'
+  not has_function_privilege('anon', 'public.void_sales_record_v2(jsonb)', 'EXECUTE'),
+  'anonymous users cannot cancel sales'
 );
 
 select * from finish();

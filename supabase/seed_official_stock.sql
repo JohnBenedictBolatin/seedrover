@@ -45,60 +45,60 @@ begin
   )
   values
     -- Leafy Vegetables
-    ('STK-LFY-001', 'Pechay', 'Leafy Vegetables', 'kg', 45, 10, 'Cold Storage A', 42, 70),
-    ('STK-LFY-002', 'Mustasa', 'Leafy Vegetables', 'kg', 36, 8, 'Cold Storage A', 38, 65),
-    ('STK-LFY-003', 'Kangkong', 'Leafy Vegetables', 'kg', 80, 20, 'Cold Storage A', 8, 15),
-    ('STK-LFY-004', 'Malunggay', 'Leafy Vegetables', 'kg', 75, 20, 'Cold Storage A', 6, 12),
-    ('STK-LFY-005', 'Lettuce', 'Leafy Vegetables', 'kg', 30, 8, 'Cold Storage B', 65, 100),
+    ('STK-LFY-001', 'Pechay', 'Leafy Vegetables', 'kg', 45, 10, 'Leafy Greens Chiller', 42, 70),
+    ('STK-LFY-002', 'Mustasa', 'Leafy Vegetables', 'kg', 36, 8, 'Leafy Greens Chiller', 38, 65),
+    ('STK-LFY-003', 'Kangkong', 'Leafy Vegetables', 'kg', 80, 20, 'Leafy Greens Chiller', 8, 15),
+    ('STK-LFY-004', 'Malunggay', 'Leafy Vegetables', 'kg', 75, 20, 'Leafy Greens Chiller', 6, 12),
+    ('STK-LFY-005', 'Lettuce', 'Leafy Vegetables', 'kg', 30, 8, 'Leafy Greens Chiller', 65, 100),
 
     -- Fruit Vegetables
-    ('STK-FVG-001', 'Tomato', 'Fruit Vegetables', 'kg', 60, 15, 'Crate Rack B', 55, 85),
-    ('STK-FVG-002', 'Eggplant', 'Fruit Vegetables', 'kg', 48, 12, 'Crate Rack B', 42, 70),
-    ('STK-FVG-003', 'Okra', 'Fruit Vegetables', 'kg', 35, 8, 'Crate Rack B', 35, 60),
-    ('STK-FVG-004', 'Ampalaya', 'Fruit Vegetables', 'kg', 32, 8, 'Crate Rack B', 50, 85),
-    ('STK-FVG-005', 'Cucumber', 'Fruit Vegetables', 'kg', 50, 12, 'Crate Rack B', 38, 65),
+    ('STK-FVG-001', 'Tomato', 'Fruit Vegetables', 'kg', 60, 15, 'Produce Crate Bay', 55, 85),
+    ('STK-FVG-002', 'Eggplant', 'Fruit Vegetables', 'kg', 48, 12, 'Produce Crate Bay', 42, 70),
+    ('STK-FVG-003', 'Okra', 'Fruit Vegetables', 'kg', 35, 8, 'Produce Crate Bay', 35, 60),
+    ('STK-FVG-004', 'Ampalaya', 'Fruit Vegetables', 'kg', 32, 8, 'Produce Crate Bay', 50, 85),
+    ('STK-FVG-005', 'Cucumber', 'Fruit Vegetables', 'kg', 50, 12, 'Produce Crate Bay', 38, 65),
 
     -- Legumes
-    ('STK-LGM-001', 'Sitaw', 'Legumes', 'kg', 35, 8, 'Crate Rack C', 40, 70),
-    ('STK-LGM-002', 'Baguio Beans', 'Legumes', 'kg', 30, 8, 'Crate Rack C', 55, 90),
-    ('STK-LGM-003', 'Snow Peas', 'Legumes', 'kg', 20, 5, 'Cold Storage B', 110, 170),
-    ('STK-LGM-004', 'Green Peas', 'Legumes', 'kg', 22, 5, 'Cold Storage B', 90, 145),
-    ('STK-LGM-005', 'Winged Beans', 'Legumes', 'kg', 24, 6, 'Crate Rack C', 55, 90),
+    ('STK-LGM-001', 'Sitaw', 'Legumes', 'kg', 35, 8, 'Produce Crate Bay', 40, 70),
+    ('STK-LGM-002', 'Baguio Beans', 'Legumes', 'kg', 30, 8, 'Produce Crate Bay', 55, 90),
+    ('STK-LGM-003', 'Snow Peas', 'Legumes', 'kg', 20, 5, 'Harvest Cooler', 110, 170),
+    ('STK-LGM-004', 'Green Peas', 'Legumes', 'kg', 22, 5, 'Harvest Cooler', 90, 145),
+    ('STK-LGM-005', 'Winged Beans', 'Legumes', 'kg', 24, 6, 'Produce Crate Bay', 55, 90),
 
     -- Root Crops
-    ('STK-RTC-001', 'Carrot', 'Root Crops', 'kg', 45, 12, 'Dry Storage B', 55, 90),
-    ('STK-RTC-002', 'Radish', 'Root Crops', 'kg', 40, 10, 'Dry Storage B', 30, 55),
-    ('STK-RTC-003', 'Sweet Potato', 'Root Crops', 'kg', 70, 18, 'Dry Storage B', 28, 50),
-    ('STK-RTC-004', 'Cassava', 'Root Crops', 'kg', 65, 18, 'Dry Storage B', 25, 45),
-    ('STK-RTC-005', 'Taro', 'Root Crops', 'kg', 42, 12, 'Dry Storage B', 45, 75),
+    ('STK-RTC-001', 'Carrot', 'Root Crops', 'kg', 45, 12, 'Root Crop Cellar', 55, 90),
+    ('STK-RTC-002', 'Radish', 'Root Crops', 'kg', 40, 10, 'Root Crop Cellar', 30, 55),
+    ('STK-RTC-003', 'Sweet Potato', 'Root Crops', 'kg', 70, 18, 'Root Crop Cellar', 28, 50),
+    ('STK-RTC-004', 'Cassava', 'Root Crops', 'kg', 65, 18, 'Root Crop Cellar', 25, 45),
+    ('STK-RTC-005', 'Taro', 'Root Crops', 'kg', 42, 12, 'Root Crop Cellar', 45, 75),
 
     -- Fruits
-    ('STK-FRT-001', 'Calamansi', 'Fruits', 'kg', 38, 10, 'Crate Rack D', 55, 90),
-    ('STK-FRT-002', 'Green Papaya', 'Fruits', 'kg', 42, 10, 'Crate Rack D', 35, 60),
-    ('STK-FRT-003', 'Ripe Papaya', 'Fruits', 'kg', 30, 8, 'Crate Rack D', 40, 70),
-    ('STK-FRT-004', 'Banana', 'Fruits', 'kg', 70, 15, 'Crate Rack D', 35, 60),
-    ('STK-FRT-005', 'Watermelon', 'Fruits', 'kg', 95, 20, 'Crate Rack D', 28, 50),
+    ('STK-FRT-001', 'Calamansi', 'Fruits', 'kg', 38, 10, 'Harvest Cooler', 55, 90),
+    ('STK-FRT-002', 'Green Papaya', 'Fruits', 'kg', 42, 10, 'Harvest Cooler', 35, 60),
+    ('STK-FRT-003', 'Ripe Papaya', 'Fruits', 'kg', 30, 8, 'Harvest Cooler', 40, 70),
+    ('STK-FRT-004', 'Banana', 'Fruits', 'kg', 70, 15, 'Harvest Cooler', 35, 60),
+    ('STK-FRT-005', 'Watermelon', 'Fruits', 'kg', 95, 20, 'Harvest Cooler', 28, 50),
 
     -- Herbs
-    ('STK-HRB-001', 'Basil', 'Herbs', 'kg', 45, 10, 'Cold Storage C', 18, 35),
-    ('STK-HRB-002', 'Mint', 'Herbs', 'kg', 42, 10, 'Cold Storage C', 18, 35),
-    ('STK-HRB-003', 'Parsley', 'Herbs', 'kg', 32, 8, 'Cold Storage C', 20, 38),
-    ('STK-HRB-004', 'Cilantro', 'Herbs', 'kg', 34, 8, 'Cold Storage C', 20, 38),
-    ('STK-HRB-005', 'Spring Onion', 'Herbs', 'kg', 65, 15, 'Cold Storage C', 12, 24),
+    ('STK-HRB-001', 'Basil', 'Herbs', 'kg', 45, 10, 'Leafy Greens Chiller', 18, 35),
+    ('STK-HRB-002', 'Mint', 'Herbs', 'kg', 42, 10, 'Leafy Greens Chiller', 18, 35),
+    ('STK-HRB-003', 'Parsley', 'Herbs', 'kg', 32, 8, 'Leafy Greens Chiller', 20, 38),
+    ('STK-HRB-004', 'Cilantro', 'Herbs', 'kg', 34, 8, 'Leafy Greens Chiller', 20, 38),
+    ('STK-HRB-005', 'Spring Onion', 'Herbs', 'kg', 65, 15, 'Leafy Greens Chiller', 12, 24),
 
     -- Prepared Produce
-    ('STK-PRP-001', 'Washed Lettuce Pack', 'Prepared Produce', 'kg', 35, 10, 'Packing Bay A', 45, 75),
-    ('STK-PRP-002', 'Mixed Pinakbet Pack', 'Prepared Produce', 'kg', 32, 10, 'Packing Bay A', 70, 110),
-    ('STK-PRP-003', 'Chopped Kangkong Pack', 'Prepared Produce', 'kg', 40, 10, 'Packing Bay A', 25, 45),
-    ('STK-PRP-004', 'Peeled Garlic Pack', 'Prepared Produce', 'kg', 26, 8, 'Packing Bay A', 55, 90),
-    ('STK-PRP-005', 'Sliced Tomato Pack', 'Prepared Produce', 'kg', 28, 8, 'Packing Bay A', 45, 75),
+    ('STK-PRP-001', 'Washed Lettuce Pack', 'Prepared Produce', 'kg', 35, 10, 'Packing Shed', 45, 75),
+    ('STK-PRP-002', 'Mixed Pinakbet Pack', 'Prepared Produce', 'kg', 32, 10, 'Packing Shed', 70, 110),
+    ('STK-PRP-003', 'Chopped Kangkong Pack', 'Prepared Produce', 'kg', 40, 10, 'Packing Shed', 25, 45),
+    ('STK-PRP-004', 'Peeled Garlic Pack', 'Prepared Produce', 'kg', 26, 8, 'Packing Shed', 55, 90),
+    ('STK-PRP-005', 'Sliced Tomato Pack', 'Prepared Produce', 'kg', 28, 8, 'Packing Shed', 45, 75),
 
     -- Others
-    ('STK-OTH-001', 'Mushroom', 'Others', 'kg', 24, 6, 'Cold Storage D', 120, 180),
-    ('STK-OTH-002', 'Bamboo Shoots', 'Others', 'kg', 22, 6, 'Cold Storage D', 65, 100),
-    ('STK-OTH-003', 'Banana Blossom', 'Others', 'kg', 30, 10, 'Cold Storage D', 25, 45),
-    ('STK-OTH-004', 'Young Corn', 'Others', 'kg', 26, 6, 'Cold Storage D', 80, 125),
-    ('STK-OTH-005', 'Corn', 'Others', 'kg', 100, 20, 'Crate Rack E', 15, 25);
+    ('STK-OTH-001', 'Mushroom', 'Others', 'kg', 24, 6, 'Harvest Cooler', 120, 180),
+    ('STK-OTH-002', 'Bamboo Shoots', 'Others', 'kg', 22, 6, 'Harvest Cooler', 65, 100),
+    ('STK-OTH-003', 'Banana Blossom', 'Others', 'kg', 30, 10, 'Produce Crate Bay', 25, 45),
+    ('STK-OTH-004', 'Young Corn', 'Others', 'kg', 26, 6, 'Produce Crate Bay', 80, 125),
+    ('STK-OTH-005', 'Corn', 'Others', 'kg', 100, 20, 'Produce Crate Bay', 15, 25);
 
   -- If the earlier 10-per-category seed was already run, remove unused official overflow rows.
   -- Rows with sales or stock movement history are preserved to avoid breaking records.

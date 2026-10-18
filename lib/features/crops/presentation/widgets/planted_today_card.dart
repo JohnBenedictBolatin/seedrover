@@ -29,11 +29,11 @@ class PlantedTodayCard extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.sm),
         child: Row(
           children: [
-            CropPlantImage(crop: crop, size: 32),
+            CropPlantImage(crop: crop, size: 44),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
-                '${crop.name} crop recorded in ${crop.location}',
+                '${crop.displayName} (${crop.name}) recorded in ${crop.location}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTypography.small.copyWith(

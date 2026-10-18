@@ -101,9 +101,9 @@ class PlantingSoilPrecheck {
 
   String get unavailableReason {
     if (errorMessage != null) return errorMessage!;
-    if (!soilSampleAvailable) return 'Soil moisture reading is unavailable.';
+    if (!soilSampleAvailable) return 'The soil water reading is unavailable.';
     if (!moistureCalibrated || soilMoisturePercent == null) {
-      return 'Calibrate the soil-moisture sensor before planting.';
+      return 'Set up the soil sensor before planting.';
     }
     if (soilTemperatureC == null) {
       return 'Soil temperature reading is unavailable.';

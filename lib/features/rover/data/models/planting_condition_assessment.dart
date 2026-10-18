@@ -4,8 +4,8 @@ import '../../../../shared/models/soil_moisture_diagnosis.dart';
 import 'planting_soil_precheck.dart';
 import 'rover_command_model.dart';
 
-/// Local farmer-facing advice. A score is the share of supported soil checks
-/// that match the cited guidance; it is not a probability of crop success.
+/// Local farmer-facing advice. A score counts soil checks that match available
+/// guidance; it does not predict whether a crop will grow successfully.
 class PlantingConditionAssessment {
   static const ruleVersion = '2026-09-v1';
 
@@ -58,52 +58,52 @@ class PlantingConditionAssessment {
     final limitations = <String>[];
     switch (seed) {
       case PlantingSeedType.peanut:
-        temperatureGuidance = 'Peanut reference: 20–30°C soil temperature.';
+        temperatureGuidance = 'Suggested soil temperature for peanuts: 20–30°C.';
         if (soilTemp == null) {
           temperatureAdvice =
               'Soil temperature is unavailable. Retry the soil check.';
         } else if (soilTemp < 18) {
           temperatureMatches = false;
           temperatureAdvice =
-              'Soil is below 18°C, where peanut germination faces stronger cold-soil concern. Recheck after the soil warms.';
+              'The soil is below 18°C. Wait for it to warm before planting peanuts.';
         } else if (soilTemp < 20) {
           temperatureMatches = false;
           temperatureAdvice =
-              'Soil is cooler than the cited 20–30°C peanut range. Recheck after the soil warms.';
+              'The soil is cooler than the suggested range for peanuts. Check again after it warms.';
         } else if (soilTemp <= 30) {
           temperatureMatches = true;
           temperatureAdvice =
-              'Soil temperature is within the cited peanut germination range.';
+              'The soil is within the suggested temperature range for peanuts.';
         } else {
           temperatureMatches = false;
           temperatureAdvice =
-              'This reading is above the cited peanut range. Verify seed-specific guidance before deciding.';
+              'The soil is warmer than the suggested range for peanuts. Check local planting advice before deciding.';
         }
         break;
       case PlantingSeedType.sitaw:
         temperatureGuidance =
-            'Sitaw reference: soil above 22°C supports germination; a full upper range is not established here.';
+            'Available guidance suggests planting sitaw when the soil is above 22°C. An upper limit is not known.';
         if (soilTemp == null) {
           temperatureAdvice =
               'Soil temperature is unavailable. Retry the soil check.';
         } else if (soilTemp <= 22) {
           temperatureAdvice =
-              'Soil has not exceeded the published 22°C warm-soil reference. Recheck after it warms.';
+              'The soil is not warmer than 22°C yet. Check again after it warms.';
         } else {
           temperatureAdvice =
-              'Soil exceeds the published 22°C minimum reference. A full sitaw temperature range is not established, so this is not scored.';
+              'The soil is warmer than 22°C. Available guidance does not give a full temperature range for sitaw, so no score is shown.';
         }
         limitations.add(
-            'Sitaw guidance provides a warm-soil reference, not a full temperature range.');
+            'Available sitaw guidance gives a minimum temperature, but no upper limit.');
         break;
       case PlantingSeedType.calamansi:
         temperatureGuidance =
-            'A crop-specific direct-seeding soil-temperature range is not established.';
+            'There is no confirmed soil-temperature range for planting calamansi seeds directly.';
         temperatureAdvice = soilTemp == null
             ? 'Soil temperature is unavailable. Retry the soil check.'
-            : 'Measured soil temperature is ${soilTemp.toStringAsFixed(1)}°C. A crop-specific direct-seeding range is not established, so no temperature verdict is given.';
+            : 'Soil temperature is ${soilTemp.toStringAsFixed(1)}°C. There is no confirmed temperature range for planting calamansi seeds directly, so no advice is available.';
         limitations.add(
-            'Calamansi direct-seeding temperature guidance is incomplete; another citrus profile is not substituted.');
+            'There is not enough confirmed temperature guidance for planting calamansi seeds directly.');
         break;
     }
 
@@ -127,18 +127,18 @@ class PlantingConditionAssessment {
         : null;
     final score = complete && matched != null ? matched * 50 : null;
     final summary = !complete
-        ? 'Assessment incomplete'
+        ? 'Soil check incomplete'
         : score == 100
-            ? 'Current soil checks match'
-            : 'Conditions need attention';
+            ? 'Soil checks look good'
+            : 'Check the soil before planting';
 
     if (!envAvailable) {
       limitations.add(
-          'Air temperature and humidity are required for a complete assessment and Conditions match percentage.');
+          'Air temperature and humidity are needed before the app can show a complete check and match percentage.');
     }
     if (!fresh) {
       limitations.add(
-          'This pre-check is older than 60 seconds. Retry before proceeding.');
+          'This soil reading is over a minute old. Check the soil again before planting.');
     }
     limitations.add(
         'The percentage counts supported checks only; it is not a probability of germination or harvest success.');

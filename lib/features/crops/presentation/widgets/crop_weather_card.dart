@@ -61,18 +61,10 @@ class _WeatherContent extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: weatherColor.withValues(alpha: .12),
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                ),
-                child: Icon(
-                  _weatherIcon(snapshot.currentCondition),
-                  color: weatherColor,
-                  size: 23,
-                ),
+              Icon(
+                _weatherIcon(snapshot.currentCondition),
+                color: weatherColor,
+                size: 23,
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
@@ -176,15 +168,10 @@ class _WeatherMetric extends StatelessWidget {
   final Color color;
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.sm,
           vertical: AppSpacing.sm,
-        ),
-        decoration: BoxDecoration(
-          color: AppColors.primaryBackground,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(color: AppColors.inactiveBorder),
         ),
         child: Row(
           children: [

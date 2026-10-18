@@ -452,6 +452,8 @@ class RecordSaleRequest {
     this.paymentMethod = 'Cash',
     this.transactionReference,
     this.otherPaymentMethod,
+    this.batchId,
+    this.submissionId,
     required this.customerName,
     required this.customerContact,
     this.remarks,
@@ -464,6 +466,8 @@ class RecordSaleRequest {
   final String paymentMethod;
   final String? transactionReference;
   final String? otherPaymentMethod;
+  final String? batchId;
+  final String? submissionId;
   final String customerName;
   final String customerContact;
   final String? remarks;

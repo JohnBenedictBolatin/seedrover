@@ -85,8 +85,7 @@ class _RoverSensorCardState extends State<RoverSensorCard> {
                         fontWeight: FontWeight.w700,
                       ))),
               const SizedBox(width: AppSpacing.xs),
-              AnimatedMetricText(
-                  displayValue,
+              AnimatedMetricText(displayValue,
                   style: AppTypography.numericValue.copyWith(
                     color: Colors.white,
                     fontSize: 15,
@@ -183,10 +182,10 @@ class _RoverSensorCardState extends State<RoverSensorCard> {
 
   String _shortLabel(String label) {
     return switch (label) {
-      'Soil Moisture' => 'Soil H2O',
-      'Soil Temperature' => 'Soil Temp',
-      'Air Temperature' => 'Air Temp',
-      'Environmental Temperature' => 'Env Temp',
+      'Soil Moisture' => 'Water in soil',
+      'Soil Temperature' => 'Soil temperature',
+      'Air Temperature' => 'Air temperature',
+      'Environmental Temperature' => 'Air temperature',
       _ => label,
     };
   }
@@ -214,5 +213,4 @@ class _RoverSensorCardState extends State<RoverSensorCard> {
 
   bool _usesFractionalPrecision(RoverSensorModel sensor) =>
       sensor.label.toLowerCase().contains('moisture');
-
 }

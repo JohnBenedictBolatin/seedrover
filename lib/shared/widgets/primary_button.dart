@@ -34,7 +34,6 @@ class PrimaryButton extends StatelessWidget {
           textStyle: AppTypography.body.copyWith(
             fontWeight: FontWeight.w600,
             letterSpacing: 0,
-            fontVariations: const [FontVariation('wght', 600)],
           ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.md),

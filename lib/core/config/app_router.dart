@@ -43,6 +43,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ref.invalidate(profileControllerProvider);
       ref.invalidate(roverControlControllerProvider);
       ref.invalidate(plantingRunsAwaitingSyncProvider);
+      for (final accountId in {
+        previous?.profile?.id,
+        next.profile?.id,
+      }.whereType<String>()) {
+        ref.invalidate(pendingPlantingAttentionProvider(accountId));
+      }
     }
   });
 

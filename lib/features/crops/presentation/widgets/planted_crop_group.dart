@@ -4,6 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/utils/farmer_friendly_copy.dart';
 import '../../data/models/crop_model.dart';
 import 'crop_plant_image.dart';
 
@@ -28,18 +29,10 @@ class PlantedCropGroup extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: AppSpacing.sm),
           child: Row(
             children: [
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: AppColors.sageSurface,
-                  borderRadius: BorderRadius.circular(AppRadius.sm),
-                ),
-                child: Icon(
-                  Icons.eco_rounded,
-                  size: 18,
-                  color: AppColors.primaryGreen,
-                ),
+              Icon(
+                Icons.eco_rounded,
+                size: 18,
+                color: AppColors.primaryGreen,
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
@@ -85,6 +78,12 @@ class _CropListTile extends StatelessWidget {
       CropStatus.harvested => 'Harvested',
       CropStatus.notHarvested => 'Not harvested',
     };
+    final nextCareTask = crop.nextCareTask;
+    final careTaskColor = nextCareTask == null
+        ? AppColors.secondaryText
+        : nextCareTask.status == 'Upcoming'
+            ? AppColors.secondaryText
+            : AppColors.warning;
 
     final largeText = MediaQuery.textScalerOf(context).scale(1) >= 1.5;
 
@@ -116,10 +115,21 @@ class _CropListTile extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                crop.trackingCode,
+                                crop.displayName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: AppTypography.body.copyWith(
                                   fontWeight: FontWeight.w800,
                                   color: AppColors.primaryText,
+                                ),
+                              ),
+                              Text(
+                                crop.trackingCode,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTypography.body.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.primaryGreen,
                                 ),
                               ),
                               Text(
@@ -141,11 +151,21 @@ class _CropListTile extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Recorded stage: ${crop.recordedGrowthStage?.trim().isNotEmpty == true ? crop.recordedGrowthStage : 'Not recorded'}',
+                            'Growth stage: ${crop.recordedGrowthStage?.trim().isNotEmpty == true ? FarmerFriendlyCopy.growthStage(crop.recordedGrowthStage!) : 'Not recorded'}',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: AppTypography.caption,
                           ),
+                          if (nextCareTask != null)
+                            Text(
+                              '${nextCareTask.status}: ${nextCareTask.farmerTitle}',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.caption.copyWith(
+                                color: careTaskColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           Align(
                             alignment: Alignment.centerLeft,
                             child: _CropStatusBadge(
@@ -171,7 +191,9 @@ class _CropListTile extends StatelessWidget {
                             children: [
                               Expanded(
                                 child: Text(
-                                  crop.trackingCode,
+                                  crop.displayName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: AppTypography.body.copyWith(
                                     fontWeight: FontWeight.w800,
                                     color: AppColors.primaryText,
@@ -181,17 +203,36 @@ class _CropListTile extends StatelessWidget {
                             ],
                           ),
                           Text(
+                            crop.trackingCode,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.body.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primaryGreen,
+                            ),
+                          ),
+                          Text(
                             crop.fieldLabel,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: AppTypography.caption,
                           ),
                           Text(
-                            'Recorded stage: ${crop.recordedGrowthStage?.trim().isNotEmpty == true ? crop.recordedGrowthStage : 'Not recorded'}',
+                            'Growth stage: ${crop.recordedGrowthStage?.trim().isNotEmpty == true ? FarmerFriendlyCopy.growthStage(crop.recordedGrowthStage!) : 'Not recorded'}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: AppTypography.caption,
                           ),
+                          if (nextCareTask != null)
+                            Text(
+                              '${nextCareTask.status}: ${nextCareTask.farmerTitle}',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.caption.copyWith(
+                                color: careTaskColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           Align(
                             alignment: Alignment.centerLeft,
                             child: _CropStatusBadge(
@@ -245,14 +286,5 @@ class _CropThumbnail extends StatelessWidget {
   final CropModel crop;
 
   @override
-  Widget build(BuildContext context) => ClipRRect(
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-        child: SizedBox.square(
-          dimension: 46,
-          child: ColoredBox(
-            color: AppColors.cardBackground,
-            child: CropPlantImage(crop: crop, size: 42),
-          ),
-        ),
-      );
+  Widget build(BuildContext context) => CropPlantImage(crop: crop, size: 64);
 }

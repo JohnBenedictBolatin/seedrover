@@ -176,7 +176,6 @@ class _BottomNavigationItem extends StatelessWidget {
                     style: AppTypography.numericCaption.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.w700,
-                      fontVariations: const [FontVariation('wght', 700)],
                     ),
                   ),
                   child: Container(
@@ -268,9 +267,6 @@ class _NavigationLabel extends StatelessWidget {
         height: 1.1,
         fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
         color: selected ? AppColors.secondaryGreen : AppColors.mutedText,
-        fontVariations: [
-          FontVariation('wght', selected ? 600 : 400),
-        ],
       ),
     );
   }

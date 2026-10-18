@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seedrover/core/theme/app_theme.dart';
 import 'package:seedrover/shared/widgets/action_confirmation.dart';
+import 'package:seedrover/shared/widgets/action_result_dialog.dart';
 import 'package:seedrover/shared/widgets/app_selector.dart';
 import 'package:seedrover/shared/widgets/task_form.dart';
 
@@ -20,6 +21,28 @@ Future<void> openForm(WidgetTester tester, TaskForm Function() form) async {
 }
 
 void main() {
+  testWidgets('action result closes automatically after three seconds',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      theme: AppTheme.light,
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: TextButton(
+            onPressed: () => showActionResult(context, message: 'Saved.'),
+            child: const Text('Show result'),
+          ),
+        ),
+      ),
+    ));
+    await tester.tap(find.text('Show result'));
+    await tester.pumpAndSettle();
+    expect(find.text('Saved.'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+    expect(find.text('Saved.'), findsNothing);
+  });
+
   testWidgets('failed saves retain input and repeated taps submit only once',
       (tester) async {
     final pending = Completer<ActionOutcome>();
@@ -41,14 +64,43 @@ void main() {
     await tester.enterText(find.byType(TextFormField), '12.5');
     await tester.tap(find.text('Save watering'));
     await tester.pump();
-    await tester.tap(find.text('Saving…'));
-    await tester.pump();
+    expect(find.text('Saving watering…'), findsOneWidget);
+    expect(find.text('Saving…'), findsOneWidget);
+    expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+        isNull);
     expect(submissions, 1);
     pending.complete(const ActionOutcome.failure('Could not save. Try again.'));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not save. Try again.'), findsNWidgets(2));
+    await tester.tap(find.byTooltip('Close message'));
     await tester.pumpAndSettle();
     expect(find.text('12.5'), findsOneWidget);
     expect(find.text('Could not save. Try again.'), findsOneWidget);
     expect(find.text('Save watering'), findsOneWidget);
+  });
+
+  testWidgets('slow submit stays blocked and reports that it is still working',
+      (tester) async {
+    final pending = Completer<ActionOutcome>();
+    await openForm(
+        tester,
+        () => TaskForm(
+              title: 'Record sale',
+              submitLabel: 'Record sale',
+              builder: (_, __) => const Text('Sale details'),
+              onSubmit: () => pending.future,
+            ));
+    await tester.tap(find.byType(FilledButton));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 10));
+    expect(find.text('This is taking longer than usual. Please wait.'),
+        findsOneWidget);
+    expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+        isNull);
+    pending.complete(const ActionOutcome.failure('Still not saved.'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Close message'));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('review never submits and editing retains values',
@@ -82,6 +134,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(submissions, 1);
     expect(find.text('Open task'), findsOneWidget);
+    expect(find.text('Changes saved successfully.'), findsOneWidget);
+    await tester.tap(find.byTooltip('Close message'));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('step actions use the footer and Back preserves entered values',
@@ -180,12 +235,73 @@ void main() {
               submissions++;
               return const ActionOutcome.unknown('Check transactions.');
             }));
-    await tester.tap(find.text('Record sale'));
+    await tester.tap(find.byType(FilledButton));
     await tester.pumpAndSettle();
     expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
         isNull);
     expect(submissions, 1);
-    expect(find.text('Check transactions.'), findsOneWidget);
+    expect(find.text('Check transactions.'), findsNWidgets(2));
+    await tester.tap(find.byTooltip('Close message'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('reconciliation closes the busy form after confirming a write',
+      (tester) async {
+    await openForm(
+        tester,
+        () => TaskForm(
+              title: 'Record sale',
+              submitLabel: 'Record sale',
+              builder: (_, __) => const Text('Sale details'),
+              onSubmit: () async =>
+                  const ActionOutcome.unknown('Check transactions.'),
+              onReconcile: () async => const ActionOutcome.success(),
+            ));
+    await tester.tap(find.byType(FilledButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Close message'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Check latest records'));
+    await tester.pumpAndSettle();
+    expect(find.text('Open task'), findsOneWidget);
+    expect(find.text('Changes saved successfully.'), findsOneWidget);
+    await tester.tap(find.byTooltip('Close message'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('slow reconciliation stays blocked and announces its progress',
+      (tester) async {
+    final reconciliation = Completer<ActionOutcome>();
+    await openForm(
+        tester,
+        () => TaskForm(
+              title: 'Record harvest',
+              submitLabel: 'Record harvest',
+              builder: (_, __) => const Text('Harvest details'),
+              onSubmit: () async =>
+                  const ActionOutcome.unknown('Check the saved record.'),
+              onReconcile: () => reconciliation.future,
+            ));
+    await tester.tap(find.byType(FilledButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Close message'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Check latest records'));
+    await tester.pump();
+    expect(find.text('Checking latest records…'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 10));
+    expect(find.text('This is taking longer than usual. Please wait.'),
+        findsOneWidget);
+    expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+        isNull);
+
+    reconciliation.complete(const ActionOutcome.success());
+    await tester.pumpAndSettle();
+    expect(find.text('Open task'), findsOneWidget);
+    expect(find.text('Changes saved successfully.'), findsOneWidget);
+    await tester.tap(find.byTooltip('Close message'));
+    await tester.pumpAndSettle();
   });
 
   testWidgets(
@@ -265,7 +381,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Delete item'));
     await tester.pumpAndSettle();
-    expect(find.text('This item has transactions.'), findsOneWidget);
+    expect(find.text('This item has transactions.'), findsNWidgets(2));
     expect(find.byType(AlertDialog), findsOneWidget);
+    await tester.tap(find.byTooltip('Close message'));
+    await tester.pumpAndSettle();
   });
 }

@@ -39,12 +39,12 @@ begin
     updated_by
   )
   values
-    ('STK-DEMO-001', 'Malunggay', 0, 'kg', 10, 'Cold Storage A', 'Leafy Vegetables', 6, 10, demo_actor),
-    ('STK-DEMO-002', 'Pechay', 0, 'kg', 8, 'Cold Storage A', 'Leafy Vegetables', 45, 70, demo_actor),
-    ('STK-DEMO-003', 'Tomato', 0, 'kg', 12, 'Crate Rack B', 'Fruit Vegetables', 55, 85, demo_actor),
-    ('STK-DEMO-004', 'Okra', 0, 'kg', 6, 'Crate Rack B', 'Fruit Vegetables', 35, 60, demo_actor),
-    ('STK-DEMO-005', 'Sitaw', 0, 'kg', 5, 'Crate Rack C', 'Legumes', 40, 65, demo_actor),
-    ('STK-DEMO-006', 'Lettuce', 0, 'kg', 7, 'Cold Storage B', 'Leafy Vegetables', 65, 95, demo_actor)
+    ('STK-DEMO-001', 'Malunggay', 0, 'kg', 10, 'Leafy Greens Chiller', 'Leafy Vegetables', 6, 10, demo_actor),
+    ('STK-DEMO-002', 'Pechay', 0, 'kg', 8, 'Leafy Greens Chiller', 'Leafy Vegetables', 45, 70, demo_actor),
+    ('STK-DEMO-003', 'Tomato', 0, 'kg', 12, 'Produce Crate Bay', 'Fruit Vegetables', 55, 85, demo_actor),
+    ('STK-DEMO-004', 'Okra', 0, 'kg', 6, 'Produce Crate Bay', 'Fruit Vegetables', 35, 60, demo_actor),
+    ('STK-DEMO-005', 'Sitaw', 0, 'kg', 5, 'Produce Crate Bay', 'Legumes', 40, 65, demo_actor),
+    ('STK-DEMO-006', 'Lettuce', 0, 'kg', 7, 'Leafy Greens Chiller', 'Leafy Vegetables', 65, 95, demo_actor)
   on conflict do nothing;
 
   select id into malunggay_id from public.inventory where stock_code = 'STK-DEMO-001';

@@ -47,6 +47,7 @@ class CropMonitoringState {
     required this.selectedGrowthStage,
     required this.selectedSort,
     required this.isLoading,
+    required this.hasLoaded,
     required this.successMessage,
     required this.errorMessage,
   });
@@ -64,6 +65,7 @@ class CropMonitoringState {
       selectedGrowthStage: null,
       selectedSort: CropSortType.newest,
       isLoading: true,
+      hasLoaded: false,
       successMessage: null,
       errorMessage: null,
     );
@@ -80,6 +82,7 @@ class CropMonitoringState {
   final CropGrowthStage? selectedGrowthStage;
   final CropSortType selectedSort;
   final bool isLoading;
+  final bool hasLoaded;
   final String? successMessage;
   final String? errorMessage;
 
@@ -149,6 +152,7 @@ class CropMonitoringState {
     Object? selectedGrowthStage = _noChange,
     CropSortType? selectedSort,
     bool? isLoading,
+    bool? hasLoaded,
     Object? successMessage = _noChange,
     Object? errorMessage = _noChange,
   }) {
@@ -174,6 +178,7 @@ class CropMonitoringState {
           : selectedGrowthStage as CropGrowthStage?,
       selectedSort: selectedSort ?? this.selectedSort,
       isLoading: isLoading ?? this.isLoading,
+      hasLoaded: hasLoaded ?? this.hasLoaded,
       successMessage: successMessage == _noChange
           ? this.successMessage
           : successMessage as String?,

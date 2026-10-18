@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import {
   ClipboardCheck,
   CircleHelp,
@@ -81,11 +82,17 @@ export function RovieAssistant({ profileId }: { profileId: string }) {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [failedQuestion, setFailedQuestion] = useState<string | null>(null);
+  const [slow, setSlow] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const historyLoadedRef = useRef(false);
+  const loadedStorageKeyRef = useRef<string | null>(null);
+  const activeStorageKeyRef = useRef(storageKey);
+  const requestControllerRef = useRef<AbortController | null>(null);
+  useEffect(() => () => requestControllerRef.current?.abort(), []);
 
   useEffect(() => {
-    if (!historyLoadedRef.current) {
+    if (!historyLoadedRef.current || loadedStorageKeyRef.current !== storageKey) {
       return;
     }
 
@@ -114,18 +121,38 @@ export function RovieAssistant({ profileId }: { profileId: string }) {
     });
   }, [messages, open]);
 
-  async function sendQuestion(rawQuestion: string) {
+  function friendlyError(code?: string) {
+    switch (code) {
+      case "sign_in_required": return "Your session ended. Sign in again to ask Rovie.";
+      case "account_inactive": return "This account is inactive. Ask an administrator for help.";
+      case "permission_denied": return "Your account does not have access to that information.";
+      case "rate_limited": return "Rovie is receiving too many requests. Please wait a moment, then retry.";
+      case "request_timeout": return "Rovie is taking too long to respond. Your question is saved; retry when ready.";
+      case "invalid_question": return "Please check your question and try again.";
+      case "question_too_long": return "Please keep questions under 2,000 characters.";
+      case "farm_data_unavailable": return "Farm information could not be loaded. Your question is saved; try again.";
+      default: return "Rovie is temporarily unavailable. Your question is saved; try again.";
+    }
+  }
+
+  async function sendQuestion(rawQuestion: string, retry = false) {
     const question = rawQuestion.trim();
 
     if (!question || sending) {
       return;
     }
 
-    const nextMessages: RovieMessage[] = [...messages, { role: "user", content: question }];
-    setMessages(nextMessages);
-    setInput("");
+    const nextMessages: RovieMessage[] = retry
+      ? messages
+      : [...messages, { role: "user", content: question }];
+    if (!retry) setMessages(nextMessages);
     setSending(true);
     setNotice(null);
+    setSlow(false);
+    const slowTimer = window.setTimeout(() => setSlow(true), 10_000);
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
+    const timeout = window.setTimeout(() => controller.abort(), 30_000);
 
     try {
       const response = await fetch("/api/assistant", {
@@ -135,36 +162,47 @@ export function RovieAssistant({ profileId }: { profileId: string }) {
           question,
           history: nextMessages.slice(-10),
         }),
+        signal: controller.signal,
       });
       const data = await response.json().catch(() => null);
+      if (activeStorageKeyRef.current !== storageKey) return;
 
       if (!response.ok) {
-        throw new Error(data?.error ?? "Rovie could not answer right now.");
+        setNotice(`${friendlyError(data?.code)}${data?.requestId ? ` (Ref: ${data.requestId})` : ""}`);
+        setFailedQuestion(data?.retryable ? question : null);
+        return;
+      }
+
+      if (data?.status === "error" || typeof data?.answer !== "string" || !data.answer.trim()) {
+        setNotice(`${friendlyError(data?.code)}${data?.requestId ? ` (Ref: ${data.requestId})` : ""}`);
+        setFailedQuestion(data?.retryable ? question : null);
+        return;
       }
 
       setMessages([
         ...nextMessages,
         {
           role: "assistant",
-          content: data?.answer ?? "I could not prepare an answer right now.",
+          content: data.answer,
         },
       ]);
-
-      if (data?.fallback && data?.detail) {
-        setNotice(`Using local fallback. Detail: ${data.detail}`);
-      }
-    } catch (error) {
-      setMessages([
-        ...nextMessages,
-        {
-          role: "assistant",
-          content:
-            "I had trouble connecting, but I can still help once the assistant service is available.",
-        },
-      ]);
-      setNotice(error instanceof Error ? error.message : "Rovie request failed.");
+      setFailedQuestion(null);
+      setInput("");
+      if (data?.notice) setNotice(data.notice);
+    } catch {
+      if (activeStorageKeyRef.current !== storageKey) return;
+      setNotice(controller.signal.aborted
+        ? "Rovie is taking too long to respond. Your question is saved; retry when ready."
+        : "Could not connect to Rovie. Check your connection and retry.");
+      setFailedQuestion(question);
     } finally {
-      setSending(false);
+      window.clearTimeout(timeout);
+      window.clearTimeout(slowTimer);
+      if (requestControllerRef.current === controller) {
+        requestControllerRef.current = null;
+        setSending(false);
+        setSlow(false);
+      }
     }
   }
 
@@ -174,9 +212,10 @@ export function RovieAssistant({ profileId }: { profileId: string }) {
   }
 
   function openAssistant() {
-    if (!historyLoadedRef.current) {
+    if (!historyLoadedRef.current || loadedStorageKeyRef.current !== storageKey) {
       setMessages([welcomeMessage, ...readStoredMessages(storageKey)]);
       historyLoadedRef.current = true;
+      loadedStorageKeyRef.current = storageKey;
     }
 
     setOpen(true);
@@ -192,7 +231,7 @@ export function RovieAssistant({ profileId }: { profileId: string }) {
         type="button"
         onClick={openAssistant}
       >
-        <img alt="" src="/mascots/assistant.png" />
+        <Image alt="" height={50} src="/mascots/assistant.png" width={50} />
         <span>Ask Rovie</span>
       </button>
 
@@ -202,7 +241,7 @@ export function RovieAssistant({ profileId }: { profileId: string }) {
             <header className={styles.header}>
               <div className={styles.titleGroup}>
                 <span className={styles.avatar}>
-                  <img alt="Rovie mascot" src="/mascots/assistant.png" />
+                  <Image alt="Rovie mascot" height={54} src="/mascots/assistant.png" width={54} />
                 </span>
                 <div>
                   <p>SeedRover assistant</p>
@@ -218,14 +257,14 @@ export function RovieAssistant({ profileId }: { profileId: string }) {
               {messages.map((message, index) => (
                 <article className={styles.message} data-role={message.role} key={`${message.role}-${index}`}>
                   {message.role === "assistant" ? (
-                    <img alt="" className={styles.messageMascot} src="/mascots/assistant.png" />
+                    <Image alt="" className={styles.messageMascot} height={34} src="/mascots/assistant.png" width={34} />
                   ) : null}
                   <p>{renderAssistantContent(message.content)}</p>
                 </article>
               ))}
               {sending ? (
                 <article className={styles.message} data-role="assistant">
-                  <img alt="" className={styles.messageMascot} src="/mascots/thinking.png" />
+                  <Image alt="" className={styles.messageMascot} height={34} src="/mascots/thinking.png" width={34} />
                   <p className={styles.typing}>
                     <Loader2 size={15} />
                     Rovie is preparing an answer...
@@ -248,17 +287,24 @@ export function RovieAssistant({ profileId }: { profileId: string }) {
               </div>
             ) : null}
 
-            {notice ? <div className={styles.notice}>{notice}</div> : null}
+            {slow && sending ? <div aria-live="polite" className={styles.slowNotice}>This is taking longer than usual. Please wait.</div> : null}
+            {notice ? (
+              <div className={styles.notice} role="status">
+                <span>{notice}</span>
+                {failedQuestion && !sending ? <button type="button" onClick={() => void sendQuestion(failedQuestion, true)}>Retry</button> : null}
+              </div>
+            ) : null}
 
             <form className={styles.form} onSubmit={sendMessage}>
               <input
                 aria-label="Ask Rovie"
+                disabled={sending || Boolean(failedQuestion)}
                 maxLength={2000}
                 placeholder="Ask Rovie about sales, stock, crops..."
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
               />
-              <button disabled={sending || !input.trim()} type="submit">
+              <button disabled={sending || Boolean(failedQuestion) || !input.trim()} type="submit">
                 {sending ? <Loader2 className={styles.spin} size={17} /> : <Send size={17} />}
               </button>
             </form>

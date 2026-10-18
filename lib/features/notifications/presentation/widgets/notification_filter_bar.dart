@@ -7,27 +7,23 @@ class NotificationFilterBar extends StatelessWidget {
   const NotificationFilterBar({
     required this.searchQuery,
     required this.selectedCategory,
-    required this.selectedPriority,
+    required this.selectedStatus,
     required this.selectedDate,
-    required this.selectedSort,
     required this.onSearchChanged,
     required this.onCategoryChanged,
-    required this.onPriorityChanged,
+    required this.onStatusChanged,
     required this.onDateChanged,
-    required this.onSortChanged,
     super.key,
   });
 
   final String searchQuery;
   final NotificationCategory? selectedCategory;
-  final NotificationPriority? selectedPriority;
+  final NotificationStatusFilter selectedStatus;
   final NotificationDateFilter selectedDate;
-  final NotificationSortType selectedSort;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<NotificationCategory?> onCategoryChanged;
-  final ValueChanged<NotificationPriority?> onPriorityChanged;
+  final ValueChanged<NotificationStatusFilter> onStatusChanged;
   final ValueChanged<NotificationDateFilter> onDateChanged;
-  final ValueChanged<NotificationSortType> onSortChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -47,13 +43,12 @@ class NotificationFilterBar extends StatelessWidget {
           ],
         ),
         SearchFilterGroup(
-          keyName: 'priority',
-          label: 'Priority',
-          initialValue: 'all',
-          currentValue: selectedPriority?.name ?? 'all',
+          keyName: 'status',
+          label: 'Read status',
+          initialValue: NotificationStatusFilter.all.name,
+          currentValue: selectedStatus.name,
           options: [
-            const SearchFilterOption('all', 'All priorities'),
-            for (final value in NotificationPriority.values)
+            for (final value in NotificationStatusFilter.values)
               SearchFilterOption(value.name, value.label)
           ],
         ),
@@ -67,32 +62,17 @@ class NotificationFilterBar extends StatelessWidget {
               SearchFilterOption(value.name, value.label)
           ],
         ),
-        SearchFilterGroup(
-          keyName: 'sort',
-          label: 'Sort by',
-          initialValue: NotificationSortType.newest.name,
-          currentValue: selectedSort.name,
-          options: [
-            for (final value in NotificationSortType.values)
-              SearchFilterOption(value.name, value.label)
-          ],
-        ),
       ],
       onApply: (values) {
         final category = values['category'];
-        final priority = values['priority'];
         onCategoryChanged(category == 'all'
             ? null
             : NotificationCategory.values
                 .firstWhere((value) => value.name == category));
-        onPriorityChanged(priority == 'all'
-            ? null
-            : NotificationPriority.values
-                .firstWhere((value) => value.name == priority));
+        onStatusChanged(NotificationStatusFilter.values
+            .firstWhere((value) => value.name == values['status']));
         onDateChanged(NotificationDateFilter.values
             .firstWhere((value) => value.name == values['date']));
-        onSortChanged(NotificationSortType.values
-            .firstWhere((value) => value.name == values['sort']));
       },
     );
   }

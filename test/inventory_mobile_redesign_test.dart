@@ -100,6 +100,40 @@ void main() {
     }
     await tester.binding.setSurfaceSize(null);
   });
+
+  testWidgets('inventory detail history shows five records per page',
+      (tester) async {
+    final stock = _stock(
+      transactions: [
+        for (var index = 0; index < 8; index++)
+          StockTransactionModel(
+            type: StockTransactionType.stockIn,
+            quantity: index + 1,
+            performedAt: DateTime(2026, 9, index + 1),
+            remarks: 'History entry $index',
+            performedBy: 'Farmer',
+          ),
+      ],
+    );
+    await tester.pumpWidget(_themeApp(
+      Brightness.light,
+      Scaffold(
+        body: ListView(children: [StockHistorySection(stock: stock)]),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('History entry 7'), findsOneWidget);
+    expect(find.text('History entry 3'), findsOneWidget);
+    expect(find.text('History entry 2'), findsNothing);
+    expect(find.byTooltip('Next page'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Next page'));
+    await tester.pumpAndSettle();
+    expect(find.text('History entry 2'), findsOneWidget);
+    expect(find.text('History entry 0'), findsOneWidget);
+    expect(find.text('History entry 7'), findsNothing);
+  });
 }
 
 Widget _themeApp(Brightness brightness, Widget child) => MaterialApp(
@@ -143,7 +177,6 @@ Widget _detailPreview(Brightness brightness, int initialIndex) => _themeApp(
                                 onDelete: () {},
                                 onReceive: () {},
                                 onIssue: () {},
-                                onAdjust: () {},
                                 onEdit: () {},
                               ),
                             ],
@@ -163,7 +196,7 @@ Widget _detailPreview(Brightness brightness, int initialIndex) => _themeApp(
       ),
     );
 
-StockModel _stock() => StockModel(
+StockModel _stock({List<StockTransactionModel>? transactions}) => StockModel(
       id: 'stock-18',
       displayId: 'STK-2026-000018',
       name: 'Sitaw',
@@ -178,22 +211,23 @@ StockModel _stock() => StockModel(
       notes: 'Freshly sorted produce.',
       unitCost: 20,
       sellingPrice: 45,
-      transactions: [
-        StockTransactionModel(
-          type: StockTransactionType.stockIn,
-          quantity: 15,
-          performedAt: DateTime(2026, 9, 19, 8, 30),
-          remarks: 'Harvest Bay receipt',
-          performedBy: 'Leo Santos',
-        ),
-        StockTransactionModel(
-          type: StockTransactionType.sale,
-          quantity: 2.5,
-          performedAt: DateTime(2026, 9, 20, 10, 15),
-          remarks: 'Market sale',
-          performedBy: 'Leo Santos',
-        ),
-      ],
+      transactions: transactions ??
+          [
+            StockTransactionModel(
+              type: StockTransactionType.stockIn,
+              quantity: 15,
+              performedAt: DateTime(2026, 9, 19, 8, 30),
+              remarks: 'Harvest Bay receipt',
+              performedBy: 'Leo Santos',
+            ),
+            StockTransactionModel(
+              type: StockTransactionType.sale,
+              quantity: 2.5,
+              performedAt: DateTime(2026, 9, 20, 10, 15),
+              remarks: 'Market sale',
+              performedBy: 'Leo Santos',
+            ),
+          ],
       sales: [
         SalesTransactionModel(
           id: 'sale-1',

@@ -4,24 +4,19 @@ import 'package:seedrover/core/theme/app_theme.dart';
 import 'package:seedrover/core/theme/app_typography.dart';
 
 void main() {
-  test('shared typography uses the bundled Karla, Poppins, and Nunito roles',
-      () {
+  test('shared typography uses Poppins throughout the mobile app', () {
     final theme = AppTheme.light;
 
-    expect(theme.textTheme.bodyLarge?.fontFamily, 'Karla');
-    expect(theme.primaryTextTheme.bodyLarge?.fontFamily, 'Karla');
+    expect(theme.textTheme.bodyLarge?.fontFamily, 'Poppins');
+    expect(theme.primaryTextTheme.bodyLarge?.fontFamily, 'Poppins');
     expect(theme.textTheme.headlineLarge?.fontFamily, 'Poppins');
-    expect(theme.datePickerTheme.dayStyle?.fontFamily, 'Nunito');
-    expect(theme.popupMenuTheme.textStyle?.fontFamily, 'Karla');
-    expect(AppTypography.body.fontFamily, 'Karla');
+    expect(theme.datePickerTheme.dayStyle?.fontFamily, 'Poppins');
+    expect(theme.popupMenuTheme.textStyle?.fontFamily, 'Poppins');
+    expect(AppTypography.body.fontFamily, 'Poppins');
     expect(AppTypography.screenTitle.fontFamily, 'Poppins');
     expect(AppTypography.sectionHeading.fontFamily, 'Poppins');
-    expect(AppTypography.numericValue.fontFamily, 'Nunito');
-    expect(AppTypography.numericInput.fontFamily, 'Nunito');
-    expect(
-      AppTypography.numericValue.fontFeatures,
-      contains(const FontFeature.tabularFigures()),
-    );
+    expect(AppTypography.numericValue.fontFamily, 'Poppins');
+    expect(AppTypography.numericInput.fontFamily, 'Poppins');
   });
 
   testWidgets(

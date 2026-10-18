@@ -543,7 +543,42 @@ export async function getCropActivityHistoryAction(cropId: string) {
     throw new Error(error.message);
   }
 
-  const performerIds = [...new Set((data ?? []).map((activity) => activity.performed_by).filter((id): id is string => Boolean(id)))];
+  const activities = data ?? [];
+  const activityIds = activities.map((activity) => activity.id);
+  const { data: photoRows, error: photoError } = activityIds.length
+    ? await supabase
+        .from("crop_activity_photos")
+        .select("activity_id, path")
+        .in("activity_id", activityIds)
+        .order("activity_id", { ascending: true })
+        .order("path", { ascending: true })
+    : { data: [], error: null };
+  const missingPhotoTable = photoError?.message.includes("crop_activity_photos") === true;
+  if (photoError && !missingPhotoTable) throw new Error(photoError.message);
+
+  const photosByActivity = new Map<string, { path: string; url: string }[]>();
+  const paths = (missingPhotoTable ? [] : photoRows ?? []) as { activity_id: string; path: string }[];
+  for (let offset = 0; offset < paths.length; offset += 100) {
+    const batch = paths.slice(offset, offset + 100);
+    const { data: signed, error: signingError } = await supabase.storage
+      .from("crop-journal")
+      .createSignedUrls(batch.map(({ path }) => path), 3600);
+    if (signingError) throw new Error(signingError.message);
+    const signedByPath = new Map(
+      (signed ?? []).flatMap((item) => item.path && item.signedUrl
+        ? [[item.path, item.signedUrl] as const]
+        : []),
+    );
+    for (const { activity_id: activityId, path } of batch) {
+      const url = signedByPath.get(path);
+      if (url) photosByActivity.set(activityId, [
+        ...(photosByActivity.get(activityId) ?? []),
+        { path, url },
+      ]);
+    }
+  }
+
+  const performerIds = [...new Set(activities.map((activity) => activity.performed_by).filter((id): id is string => Boolean(id)))];
   const { data: performerRows } = performerIds.length
     ? await supabase.rpc("crop_performer_names", { p_performer_ids: performerIds })
     : { data: [] };
@@ -552,18 +587,10 @@ export async function getCropActivityHistoryAction(cropId: string) {
       .map((performer) => [performer.performer_id, performer.full_name]),
   );
 
-  return Promise.all((data ?? []).map(async (activity): Promise<CropActivityRecord> => {
-    const { data: attachments, error: photoError } = await supabase.from("crop_activity_photos").select("path").eq("activity_id", activity.id);
-    const missingPhotoTable = photoError?.message.includes("crop_activity_photos") === true;
-    if (photoError && !missingPhotoTable) throw new Error(photoError.message);
-    const photos = await Promise.all((attachments ?? []).map(async ({ path }) => {
-      const { data: signed, error } = await supabase.storage.from("crop-journal").createSignedUrl(path, 3600);
-      if (error) throw new Error(error.message);
-      return { path, url: signed.signedUrl };
-    }));
+  return activities.map((activity): CropActivityRecord => {
     return {
       id: activity.id,
-      photos,
+      photos: photosByActivity.get(activity.id) ?? [],
       activityType: activity.activity_type,
       performedAt: activity.performed_at,
       performedBy: (activity.performed_by ? performerNames.get(activity.performed_by) : null) ?? (activity.source === "Rover" ? "SeedRover" : "Former user"),
@@ -574,7 +601,7 @@ export async function getCropActivityHistoryAction(cropId: string) {
       observedStage: activity.observed_stage === "First Harvest" ? "Harvest Ready" : activity.observed_stage,
       source: activity.source,
     };
-  }));
+  });
 }
 
 export async function deleteCropAction(formData: FormData) {

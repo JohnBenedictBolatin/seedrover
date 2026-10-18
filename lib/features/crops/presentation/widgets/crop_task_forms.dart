@@ -11,6 +11,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/utils/app_input_formatters.dart';
+import '../../../../core/utils/farmer_friendly_copy.dart';
 import '../../../../shared/widgets/app_selector.dart';
 import '../../../../shared/widgets/task_form.dart';
 import '../../../authentication/providers/auth_providers.dart';
@@ -26,7 +27,7 @@ Future<void> showCropCareForm(
     CropCareTask? task) async {
   final amount = TextEditingController();
   final unit = TextEditingController(
-      text: activity == CropMaintenanceActivity.watered ? 'liters' : 'grams');
+      text: activity == CropMaintenanceActivity.watered ? 'ml' : 'grams');
   final material = TextEditingController();
   final notes = TextEditingController();
   final submissionId = controller.newSubmissionId();
@@ -37,9 +38,15 @@ Future<void> showCropCareForm(
   final photoBytes = <Uint8List>[];
   final hasAmount = activity == CropMaintenanceActivity.watered ||
       activity == CropMaintenanceActivity.fertilized;
+  final waterSuggestionTask = _waterSuggestionTask(crop, task);
+  final guidanceTask = task ??
+      (activity == CropMaintenanceActivity.watered
+          ? waterSuggestionTask
+          : null);
   final isGrowth = activity == CropMaintenanceActivity.stageObserved;
   final currentStageIndex = crop.profileStages.indexWhere(
-    (value) => value.trim().toLowerCase() ==
+    (value) =>
+        value.trim().toLowerCase() ==
         crop.growthStageLabel.trim().toLowerCase(),
   );
   final observedStageChoices = currentStageIndex < 0
@@ -59,7 +66,7 @@ Future<void> showCropCareForm(
         title: isGrowth ? 'Observe growth' : 'Record $label',
         submitLabel: 'Save $label',
         contextLabel:
-            '${crop.name} · ${crop.fieldLabel} · ${crop.trackingCode}',
+            '${crop.displayName} · ${crop.name} · ${crop.fieldLabel} · ${crop.trackingCode}',
         controllers: [amount, unit, material, notes],
         canSubmit: () {
           final user = ref.read(authControllerProvider).profile;
@@ -69,8 +76,8 @@ Future<void> showCropCareForm(
               (!isGrowth || observedStageChoices.isNotEmpty);
         },
         builder: (context, form) => TaskFields(children: [
-          if (task != null) ...[
-            Text(task.recommendation, style: AppTypography.body),
+          if (guidanceTask != null) ...[
+            Text(guidanceTask.recommendation, style: AppTypography.body),
             const SizedBox(height: AppSpacing.xs),
           ],
           _CropField(
@@ -110,7 +117,9 @@ Future<void> showCropCareForm(
             _CropField(
               label: activity == CropMaintenanceActivity.harvested
                   ? 'Total batch weight (kg)'
-                  : 'Amount',
+                  : activity == CropMaintenanceActivity.watered
+                      ? 'Amount (ml)'
+                      : 'Amount',
               required: true,
               child: TextFormField(
                 controller: amount,
@@ -121,7 +130,9 @@ Future<void> showCropCareForm(
                 decoration: InputDecoration(
                   hintText: activity == CropMaintenanceActivity.harvested
                       ? 'e.g., 12.5'
-                      : 'e.g., 2.5',
+                      : activity == CropMaintenanceActivity.watered
+                          ? 'e.g., 500'
+                          : 'e.g., 2.5',
                 ),
                 validator: (v) {
                   final n = double.tryParse(v ?? '');
@@ -131,17 +142,23 @@ Future<void> showCropCareForm(
                 },
               ),
             ),
-            _CropField(
-              label: 'Unit',
-              required: true,
-              child: TextFormField(
-                controller: unit,
-                decoration: const InputDecoration(
-                  hintText: 'e.g., liters or grams',
+            if (activity == CropMaintenanceActivity.watered)
+              _CropField(
+                label: 'Unit',
+                child: Text('ml', style: AppTypography.body),
+              )
+            else
+              _CropField(
+                label: 'Unit',
+                required: true,
+                child: TextFormField(
+                  controller: unit,
+                  decoration: const InputDecoration(
+                    hintText: 'e.g., grams',
+                  ),
+                  validator: requiredCropValue,
                 ),
-                validator: requiredCropValue,
               ),
-            ),
           ],
           if (activity == CropMaintenanceActivity.fertilized)
             _CropField(
@@ -190,7 +207,7 @@ Future<void> showCropCareForm(
             ),
           if (isGrowth && observedStageChoices.isNotEmpty)
             _CropField(
-              label: 'Observed growth stage',
+              label: 'Growth stage',
               required: true,
               child: AppSelector<String>(
                   value: stage,
@@ -199,7 +216,9 @@ Future<void> showCropCareForm(
                   ),
                   items: [
                     for (final value in observedStageChoices)
-                      DropdownMenuItem(value: value, child: Text(value))
+                      DropdownMenuItem(
+                          value: value,
+                          child: Text(FarmerFriendlyCopy.growthStage(value)))
                   ],
                   validator: requiredCropValue,
                   onChanged: (value) {
@@ -209,7 +228,7 @@ Future<void> showCropCareForm(
             ),
           if (isGrowth && observedStageChoices.isEmpty)
             _CropField(
-              label: 'Observed growth stage',
+              label: 'Growth stage',
               required: true,
               child: Text(
                 'No later stage is available for this crop profile. Update its stage plan before recording another observation.',
@@ -316,6 +335,31 @@ Future<void> showCropCareForm(
             return const ActionOutcome.failure(
                 'Choose the growth stage observed in the field.');
           }
+          final suggestedWaterMl = waterSuggestionTask?.suggestedWaterMl;
+          final enteredWaterMl = double.tryParse(amount.text);
+          if (activity == CropMaintenanceActivity.watered &&
+              suggestedWaterMl != null &&
+              enteredWaterMl != null &&
+              enteredWaterMl > suggestedWaterMl) {
+            await showDialog<void>(
+              context: context,
+              barrierDismissible: false,
+              builder: (dialogContext) => AlertDialog(
+                title: const Text('Water amount exceeds the limit'),
+                content: Text(
+                  'You entered ${NumberFormat('#,##0.##').format(enteredWaterMl)} ml, above the maximum ${NumberFormat('#,##0.##').format(suggestedWaterMl)} ml for this task. Reduce the amount before saving.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Edit amount'),
+                  ),
+                ],
+              ),
+            );
+            return const ActionOutcome.failure(
+                'Watering was not recorded. Reduce the amount to continue.');
+          }
           await controller.recordCareEntry(
               cropId: crop.id,
               activity: activity,
@@ -325,7 +369,10 @@ Future<void> showCropCareForm(
               unit: hasAmount ? unit.text.trim() : null,
               material: material.text,
               observedStage: stage,
-              taskId: task?.id,
+              taskId: task?.id ??
+                  (activity == CropMaintenanceActivity.watered
+                      ? waterSuggestionTask?.id
+                      : null),
               photos: photos.map((photo) => photo.path).toList(),
               submissionId: submissionId);
           return controller.lastEntryOutcome;
@@ -336,29 +383,57 @@ Future<void> showCropCareForm(
 String? requiredCropValue(String? value) =>
     value == null || value.trim().isEmpty ? 'This field is required.' : null;
 
+CropCareTask? _waterSuggestionTask(CropModel crop, CropCareTask? task) {
+  if (task != null && task.type == 'Water' && task.suggestedWaterMl != null) {
+    return task;
+  }
+  for (final candidate in crop.careTasks) {
+    if (candidate.type == 'Water' &&
+        const ['Due', 'Overdue', 'Upcoming', 'Postponed']
+            .contains(candidate.status) &&
+        candidate.suggestedWaterMl != null) {
+      return candidate;
+    }
+  }
+  return task?.type == 'Water' ? task : null;
+}
+
 Future<void> showCropClosureForm(BuildContext context, WidgetRef ref,
     CropMonitoringController controller, CropModel crop,
     {required bool harvest}) async {
   final quantity = TextEditingController();
   final notes = TextEditingController();
   var occurredAt = DateTime.now();
+  DateTime? nextCheckOn;
+  String? endReason;
   final submissionId = controller.newSubmissionId();
   final accountId = ref.read(authControllerProvider).profile?.id;
+  final pendingHarvest = await controller.hasPendingCropEntries(crop.id);
+  if (!context.mounted) return;
   Map<String, dynamic>? destination;
+  final repeated = crop.harvestMode == 'repeat';
   await showTaskForm(
       context,
       TaskForm(
-        title: harvest ? 'Harvest batch' : 'Close without harvest',
-        submitLabel:
-            harvest ? 'Harvest and close batch' : 'Close without harvest',
+        title: harvest
+            ? repeated
+                ? 'Record harvest'
+                : 'Record final harvest'
+            : 'End crop',
+        submitLabel: harvest
+            ? repeated
+                ? 'Record harvest'
+                : SharedWorkflowTerms.harvestAndClose
+            : 'End crop',
         contextLabel:
-            '${crop.name} · ${crop.fieldLabel} · ${crop.trackingCode}',
+            '${crop.displayName} · ${crop.name} · ${crop.fieldLabel} · ${crop.trackingCode}',
         controllers: [quantity, notes],
         canSubmit: () {
           final user = ref.read(authControllerProvider).profile;
           return user?.id == accountId &&
               user?.hasPermission(PermissionKeys.cropsManage) == true &&
-              controller.cropById(crop.id)?.isCompleted == false;
+              controller.cropById(crop.id)?.isCompleted == false &&
+              !pendingHarvest;
         },
         builder: (context, form) => TaskFields(children: [
           _CropField(
@@ -420,51 +495,119 @@ Future<void> showCropClosureForm(BuildContext context, WidgetRef ref,
                 onLoaded: (value) => destination = value,
               ),
             ),
-          ],
-          _CropField(
-            label: harvest ? 'Harvest note' : 'Reason for closure',
-            suffix: harvest ? ' (optional)' : null,
-            required: !harvest,
-            child: TextFormField(
-              controller: notes,
-              minLines: 3,
-              maxLines: 5,
-              decoration: InputDecoration(
-                alignLabelWithHint: true,
-                hintText: harvest
-                    ? 'e.g., Harvested ripe pods from this batch'
-                    : 'e.g., Crop damaged by flooding',
+            if (repeated)
+              _CropField(
+                label: 'Check again on (optional)',
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.event_available_outlined),
+                  label: Text(nextCheckOn == null
+                      ? 'No reminder'
+                      : DateFormat.yMMMd().format(nextCheckOn!)),
+                  onPressed: () async {
+                    final today = DateTime.now();
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: nextCheckOn ?? today,
+                      firstDate: DateTime(today.year, today.month, today.day),
+                      lastDate: DateTime(today.year + 5, 12, 31),
+                    );
+                    if (picked == null || !context.mounted) return;
+                    nextCheckOn = picked;
+                    form.changed();
+                  },
+                ),
               ),
-              validator: harvest ? null : requiredCropValue,
+          ],
+          if (!harvest)
+            _CropField(
+              label: 'Why are you ending this crop?',
+              required: true,
+              child: DropdownButtonFormField<String>(
+                value: endReason,
+                decoration: const InputDecoration(hintText: 'Choose a reason'),
+                items: const [
+                  DropdownMenuItem(
+                      value: 'Plants stopped producing',
+                      child: Text('Plants stopped producing')),
+                  DropdownMenuItem(
+                      value: 'Plants removed', child: Text('Plants removed')),
+                  DropdownMenuItem(
+                      value: 'Plants died', child: Text('Plants died')),
+                  DropdownMenuItem(value: 'Other', child: Text('Other')),
+                ],
+                onChanged: (value) {
+                  endReason = value;
+                  form.changed();
+                },
+                validator: (value) => value == null ? 'Choose a reason.' : null,
+              ),
             ),
-          ),
+          if (harvest || endReason == 'Other')
+            _CropField(
+              label: harvest ? 'Harvest note' : 'What happened?',
+              suffix: harvest ? ' (optional)' : null,
+              required: !harvest,
+              child: TextFormField(
+                controller: notes,
+                minLines: 2,
+                maxLines: 5,
+                decoration: InputDecoration(
+                  alignLabelWithHint: true,
+                  hintText: harvest
+                      ? 'e.g., Picked the ready pods today'
+                      : 'Explain why this crop is ending',
+                ),
+                validator:
+                    harvest || endReason == 'Other' ? null : requiredCropValue,
+              ),
+            ),
         ]),
-        validate: () => harvest && destination == null
-            ? 'Load the destination inventory before reviewing this harvest.'
-            : null,
+        validate: () {
+          if (pendingHarvest)
+            return 'Sync or resolve this crop\'s saved harvest before continuing.';
+          if (harvest && destination == null)
+            return 'Load the destination inventory before reviewing this harvest.';
+          if (!harvest && endReason == null)
+            return 'Choose why this crop is ending.';
+          if (!harvest && endReason == 'Other' && notes.text.trim().isEmpty)
+            return 'Explain why this crop is ending.';
+          return null;
+        },
         reviewBuilder: () => ReviewDetails(
             values: {
               'Batch': '${crop.name} · ${crop.fieldLabel}',
               if (harvest) 'Harvest': '${quantity.text} kg',
+              if (harvest && repeated && nextCheckOn != null)
+                'Check again on': DateFormat.yMMMd().format(nextCheckOn!),
               if (harvest)
                 'Destination inventory': '${destination?['name'] ?? ''}',
+              if (!harvest && endReason != null) 'Reason': endReason!,
               if (notes.text.trim().isNotEmpty)
-                harvest ? 'Note' : 'Reason': notes.text,
+                harvest ? 'Note' : 'Details': notes.text,
             },
             consequence: harvest
-                ? 'This adds the entire harvest to the destination inventory and closes this batch.'
-                : 'This closes the batch without adding any inventory.'),
+                ? repeated
+                    ? 'This adds today\'s harvest to inventory. The crop stays active so you can record future harvests.'
+                    : 'This adds the harvest to inventory and closes the crop.'
+                : 'This ends the crop and stops its care reminders. Past harvests remain in history; no inventory is added.'),
         onSubmit: () async {
-          await controller.recordCareEntry(
-              cropId: crop.id,
-              activity: harvest
-                  ? CropMaintenanceActivity.harvested
-                  : CropMaintenanceActivity.notHarvested,
-              date: occurredAt,
-              notes: notes.text.trim(),
-              quantity: harvest ? double.parse(quantity.text) : null,
-              unit: harvest ? 'kg' : null,
-              submissionId: submissionId);
+          if (harvest) {
+            await controller.recordCareEntry(
+                cropId: crop.id,
+                activity: CropMaintenanceActivity.harvested,
+                date: occurredAt,
+                notes: notes.text.trim(),
+                quantity: double.parse(quantity.text),
+                unit: 'kg',
+                submissionId: submissionId,
+                nextCheckOn: nextCheckOn);
+          } else {
+            await controller.endCrop(
+                cropId: crop.id,
+                reason: endReason!,
+                explanation: endReason == 'Other' ? notes.text.trim() : null,
+                submissionId: submissionId);
+          }
           return controller.lastEntryOutcome;
         },
       ));

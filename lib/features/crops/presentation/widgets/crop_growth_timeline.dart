@@ -4,6 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/utils/farmer_friendly_copy.dart';
 import '../../data/models/crop_model.dart';
 
 class CropGrowthTimeline extends StatelessWidget {
@@ -99,7 +100,7 @@ class _GrowthStageTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      stage.label,
+                      FarmerFriendlyCopy.growthStage(stage.label),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppTypography.small.copyWith(

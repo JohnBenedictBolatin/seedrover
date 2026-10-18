@@ -57,6 +57,21 @@ final plantingRunsAwaitingSyncProvider =
     ..sort((left, right) => right.completedAt.compareTo(left.completedAt));
 });
 
+final pendingPlantingAttentionProvider =
+    FutureProvider.autoDispose.family<List<PendingPlantingReceipt>, String?>(
+  (ref, accountId) async {
+    if (accountId == null) return const [];
+    final receipts =
+        await ref.watch(plantingReceiptRepositoryProvider).loadPending();
+    return receipts
+        .where((receipt) =>
+            receipt.status.isTerminal &&
+            (!receipt.isConfirmed || !receipt.confirmationSynced))
+        .toList()
+      ..sort((left, right) => right.completedAt.compareTo(left.completedAt));
+  },
+);
+
 final roverControlControllerProvider =
     StateNotifierProvider<RoverControlController, RoverControlState>(
   (ref) => RoverControlController(

@@ -30,30 +30,33 @@ class CropOverviewHero extends StatelessWidget {
         child: Stack(
           children: [
             Positioned(
-              top: 0,
-              right: 0,
-              bottom: 0,
-              width: 144,
+              top: -48,
+              right: -64,
+              bottom: -48,
+              width: 200,
               child: ExcludeSemantics(
                 child: Center(
                   child: Transform.rotate(
                     angle: -.16,
                     child: Container(
-                      width: 108,
-                      height: 108,
+                      width: 170,
+                      height: 170,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.white.withValues(alpha: .06),
+                        color: Colors.white.withValues(alpha: .10),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: .18),
+                          color: Colors.white,
                           width: 5,
                         ),
                       ),
-                      child: Icon(
-                        Icons.eco_rounded,
-                        size: 68,
-                        color: Colors.white.withValues(alpha: .28),
+                      child: Transform.translate(
+                        offset: const Offset(0, -6),
+                        child: const Icon(
+                          Icons.grass_rounded,
+                          size: 120,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ),
@@ -86,17 +89,15 @@ class CropOverviewHero extends StatelessWidget {
                             softWrap: false,
                             style: AppTypography.sectionHeading.copyWith(
                               color: Colors.white,
-                              fontSize: 22,
+                              fontSize: 30,
+                              height: 1,
                               fontWeight: FontWeight.w700,
-                              fontVariations: const [
-                                FontVariation('wght', 700)
-                              ],
                             ),
                           ),
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         Text(
-                          'active crop batches',
+                          'batches',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: AppTypography.caption.copyWith(

@@ -14,10 +14,10 @@ select is(
   'generic Farm Staff role no longer exists'
 );
 
-select has_function('public', 'has_permission', array['text']);
-select has_function('public', 'notify_admin_on_activity');
+select has_function('public'::name, 'has_permission'::name, array['text']::name[]);
+select has_function('public'::name, 'notify_admin_on_activity'::name);
 
-select function_returns('public', 'has_permission', array['text'], 'boolean');
+select function_returns('public'::name, 'has_permission'::name, array['text']::name[], 'boolean');
 select trigger_is(
   'public',
   'activity_logs',
@@ -27,8 +27,8 @@ select trigger_is(
   'activity log inserts route notifications through the role-aware notifier'
 );
 
-select has_column('public', 'notifications', 'actor_id');
-select has_function('public', 'prevent_self_notification');
+select has_column('public'::name, 'notifications'::name, 'actor_id'::name, 'notifications retain the actor');
+select has_function('public'::name, 'prevent_self_notification'::name);
 select trigger_is(
   'public',
   'notifications',
@@ -38,9 +38,9 @@ select trigger_is(
   'notification inserts are guarded against self-notification'
 );
 select has_function(
-  'public',
-  'safe_notification',
-  array['uuid', 'text', 'text', 'text', 'text']
+  'public'::name,
+  'safe_notification'::name,
+  array['uuid', 'text', 'text', 'text', 'text']::name[]
 );
 
 select * from finish();

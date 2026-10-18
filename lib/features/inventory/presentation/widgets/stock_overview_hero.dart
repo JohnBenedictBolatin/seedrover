@@ -36,30 +36,30 @@ class StockOverviewHero extends StatelessWidget {
         child: Stack(
           children: [
             Positioned(
-              top: 0,
-              right: 2,
-              bottom: 0,
-              width: 136,
+              top: -48,
+              right: -60,
+              bottom: -48,
+              width: 200,
               child: ExcludeSemantics(
                 child: Center(
                   child: Transform.rotate(
-                    angle: -.15,
+                    angle: -.05,
                     child: Container(
-                      width: 104,
-                      height: 104,
+                      width: 200,
+                      height: 200,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.white.withValues(alpha: .06),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: .18),
-                          width: 5,
-                        ),
+                        color: Colors.white.withValues(alpha: .10),
+                        border: Border.all(color: Colors.white, width: 5),
                       ),
-                      child: Icon(
-                        Icons.inventory_2_outlined,
-                        size: 64,
-                        color: Colors.white.withValues(alpha: .28),
+                      child: Transform.translate(
+                        offset: const Offset(-6, 2),
+                        child: const Icon(
+                          Icons.eco_rounded,
+                          size: 150,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ),
@@ -90,7 +90,6 @@ class StockOverviewHero extends StatelessWidget {
                             color: Colors.white,
                             fontSize: 26,
                             fontWeight: FontWeight.w700,
-                            fontVariations: const [FontVariation('wght', 700)],
                           ),
                         ),
                         const SizedBox(height: AppSpacing.sm),
@@ -116,7 +115,6 @@ class StockOverviewHero extends StatelessWidget {
         ),
       );
 }
-
 class _HeroCount extends StatelessWidget {
   const _HeroCount({required this.label, required this.count});
 

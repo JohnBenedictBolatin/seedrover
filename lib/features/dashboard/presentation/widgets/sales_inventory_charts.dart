@@ -88,7 +88,7 @@ class _SalesInventoryChartsState extends ConsumerState<SalesInventoryCharts> {
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: _SignalCard(
-                title: 'Harvest ready',
+                title: 'Ready to harvest',
                 value: cropsUnavailable ? '—' : '${overview.harvestReadyCrops}',
                 caption: cropsUnavailable
                     ? 'crop data unavailable'
@@ -136,7 +136,7 @@ class _SalesInventoryChartsState extends ConsumerState<SalesInventoryCharts> {
             Expanded(
               child: Text(
                 'Inventory by Category',
-                style: AppTypography.cardTitle.copyWith(fontSize: 15),
+                style: AppTypography.sectionHeading,
               ),
             ),
             InkWell(
@@ -420,15 +420,7 @@ class _MiniStatusCard extends StatelessWidget {
           padding: const EdgeInsets.all(AppSpacing.md),
           child: Row(
             children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: color.withOpacity(.12),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: color, size: 17),
-              ),
+              Icon(icon, color: color, size: 17),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Column(
@@ -608,14 +600,6 @@ class _DarkPanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.secondaryBackground,
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.primaryGreen.withOpacity(.18)),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primaryGreen.withOpacity(.04),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
       ),
       child: child,
     );

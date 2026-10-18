@@ -28,19 +28,19 @@ class AppColors {
   static Color get mutedText =>
       _useLightPalette ? const Color(0xFF687764) : const Color(0xFF9EAE9F);
   static Color get primaryGreen =>
-      _useLightPalette ? const Color(0xFF246B45) : const Color(0xFF91C99D);
+      _useLightPalette ? const Color(0xFF1E5F2B) : const Color(0xFF91C99D);
   static Color get secondaryGreen =>
-      _useLightPalette ? const Color(0xFF1E5C3A) : const Color(0xFF78B887);
+      _useLightPalette ? const Color(0xFF123C1B) : const Color(0xFF78B887);
   static Color get accentGreen =>
-      _useLightPalette ? const Color(0xFF3D8054) : const Color(0xFFA0D4A9);
+      _useLightPalette ? const Color(0xFF1E5F2B) : const Color(0xFFA0D4A9);
   static Color get buttonGradientStart =>
-      _useLightPalette ? const Color(0xFF185C36) : const Color(0xFF8BD5A6);
+      _useLightPalette ? const Color(0xFF1E5F2B) : const Color(0xFF8BD5A6);
   static Color get buttonGradientEnd =>
-      _useLightPalette ? const Color(0xFF216E43) : const Color(0xFF68B886);
+      _useLightPalette ? const Color(0xFF123C1B) : const Color(0xFF68B886);
   static Color get darkGradientStart =>
-      _useLightPalette ? const Color(0xFF163D29) : const Color(0xFF234231);
+      _useLightPalette ? const Color(0xFF123C1B) : const Color(0xFF234231);
   static Color get success =>
-      _useLightPalette ? const Color(0xFF216E43) : const Color(0xFF8BD5A6);
+      _useLightPalette ? const Color(0xFF1E5F2B) : const Color(0xFF8BD5A6);
   static Color get warning =>
       _useLightPalette ? const Color(0xFF9A6A00) : const Color(0xFFFFB000);
   static Color get danger =>
@@ -74,9 +74,8 @@ class AppColors {
 
   static List<Color> get heroGradientColors => _useLightPalette
       ? const [
-          Color(0xFF286C48),
-          Color(0xFF20583D),
-          Color(0xFF183F32),
+          Color(0xFF1E5F2B),
+          Color(0xFF123C1B),
         ]
       : const [
           Color(0xFF284936),

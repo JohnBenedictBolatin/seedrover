@@ -57,6 +57,14 @@ add_subdirectory("runner")
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
+# The pinned notifications plugin uses experimental coroutine headers that
+# MSVC 14.51 rejects by default. Match the upstream compatibility fix until
+# the plugin is upgraded: https://github.com/MaikuB/flutter_local_notifications/issues/2777
+if(MSVC AND TARGET flutter_local_notifications_windows)
+  target_compile_definitions(flutter_local_notifications_windows PRIVATE
+    _SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
+endif()
+
 
 # === Installation ===
 # Support files are copied into place next to the executable, so that it can

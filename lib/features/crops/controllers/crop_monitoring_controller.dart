@@ -18,7 +18,7 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
       } catch (_) {/* Keep unsent drafts for the next attempt. */}
     });
     _subscription = _repository.watchCrops().listen(
-      (crops) => _setCrops(crops, successMessage: null, isLoading: false),
+      (_) => _scheduleRealtimeRefresh(),
       onError: (_) {
         state = state.copyWith(
           isLoading: state.crops.isEmpty ? state.isLoading : false,
@@ -31,8 +31,12 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
   }
 
   final CropRepository _repository;
-  StreamSubscription<List<CropModel>>? _subscription;
+  StreamSubscription<void>? _subscription;
   Timer? _draftRetryTimer;
+  Timer? _realtimeRefreshTimer;
+  Future<void>? _loadInFlight;
+  bool _refreshPending = false;
+  bool _retryingPendingDrafts = false;
   int _loadGeneration = 0;
 
   Future<List<Map<String, dynamic>>> careDrafts() =>
@@ -45,6 +49,22 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
   }
 
   Future<void> loadCrops() async {
+    final activeLoad = _loadInFlight;
+    if (activeLoad != null) return activeLoad;
+    final load = _loadCrops();
+    _loadInFlight = load;
+    try {
+      await load;
+    } finally {
+      if (identical(_loadInFlight, load)) _loadInFlight = null;
+      if (_refreshPending && mounted) {
+        _refreshPending = false;
+        _scheduleRealtimeRefresh();
+      }
+    }
+  }
+
+  Future<void> _loadCrops() async {
     final generation = ++_loadGeneration;
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
@@ -65,8 +85,19 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
 
   Future<void> refreshCrops() async {
     state = state.copyWith(isLoading: true, successMessage: null);
-    await Future<void>.delayed(const Duration(milliseconds: 450));
     await loadCrops();
+  }
+
+  void _scheduleRealtimeRefresh() {
+    _realtimeRefreshTimer?.cancel();
+    _realtimeRefreshTimer = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      if (_loadInFlight != null) {
+        _refreshPending = true;
+      } else {
+        loadCrops();
+      }
+    });
   }
 
   void updateSearch(String query) {
@@ -107,6 +138,9 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
     return null;
   }
 
+  Future<bool> hasPendingCropEntries(String cropId) =>
+      _repository.hasPendingCropEntries(cropId);
+
   Future<bool> waterCrop({
     required String cropId,
     required String notes,
@@ -126,7 +160,7 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
       date: date,
       notes: notes.trim(),
       quantity: quantity,
-      unit: unit,
+      unit: 'ml',
       successMessage: 'Watering activity recorded.',
       taskId: taskId,
     );
@@ -184,8 +218,9 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
       quantity: quantity,
       unit: 'kg',
       submissionId: submissionId,
-      successMessage:
-          '$quantity kg added to ${inventoryName ?? 'inventory'}. Batch closed.',
+      successMessage: cropById(cropId)?.harvestMode == 'repeat'
+          ? '$quantity kg added to ${inventoryName ?? 'inventory'}. You can record another harvest for this crop.'
+          : '$quantity kg added to ${inventoryName ?? 'inventory'}. The crop is closed.',
     );
   }
 
@@ -200,13 +235,42 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
       return false;
     }
 
-    return _addMaintenance(
-      cropId: cropId,
-      activity: CropMaintenanceActivity.notHarvested,
-      date: DateTime.now(),
-      notes: reason.trim(),
-      successMessage: 'Crop marked as not harvested.',
-    );
+    return endCrop(cropId: cropId, reason: 'Other', explanation: reason.trim());
+  }
+
+  Future<bool> endCrop({
+    required String cropId,
+    required String reason,
+    String? explanation,
+    String? submissionId,
+  }) async {
+    final crop = cropById(cropId);
+    if (crop == null || crop.isCompleted) {
+      lastEntryOutcome =
+          const ActionOutcome.failure('This crop has already ended.');
+      return false;
+    }
+    try {
+      await _repository.endCrop(
+        cropId: cropId,
+        reason: reason,
+        explanation: explanation,
+        submissionId: submissionId ?? newSubmissionId(),
+      );
+      await loadCrops();
+      lastEntryOutcome = const ActionOutcome.success();
+      state = state.copyWith(
+          successMessage: crop.harvestCount > 0
+              ? 'Crop ended. ${crop.harvestCount} harvests remain in its history.'
+              : 'Crop ended without a harvest. No inventory was added.');
+      return true;
+    } catch (error) {
+      final message =
+          _friendlyError(error, fallback: 'Unable to end this crop.');
+      lastEntryOutcome = ActionOutcome.failure(message);
+      state = state.copyWith(errorMessage: message);
+      return false;
+    }
   }
 
   Future<bool> recordCareEntry({
@@ -221,6 +285,7 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
     String? taskId,
     List<String> photos = const [],
     String? submissionId,
+    DateTime? nextCheckOn,
   }) =>
       _addMaintenance(
           cropId: cropId,
@@ -228,13 +293,19 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
           date: date,
           notes: notes ?? '',
           quantity: quantity,
-          unit: unit,
+          unit: activity == CropMaintenanceActivity.watered ? 'ml' : unit,
           material: material,
           observedStage: observedStage,
           taskId: taskId,
           photos: photos,
           submissionId: submissionId,
-          successMessage: 'Crop activity recorded.');
+          nextCheckOn: nextCheckOn,
+          successMessage: activity == CropMaintenanceActivity.harvested &&
+                  cropById(cropId)?.harvestMode == 'repeat'
+              ? '${quantity ?? 0} kg added to inventory. You can record another harvest for this crop.'
+              : activity == CropMaintenanceActivity.harvested
+                  ? '${quantity ?? 0} kg added to inventory. The crop is closed.'
+                  : 'Crop activity recorded.');
 
   Future<String> recordRoverSensorCheck({
     required String cropId,
@@ -280,9 +351,18 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
       _repository.getHarvestDestination(cropId);
 
   Future<void> retryPendingDrafts() async {
-    await _repository.retryPendingCareDrafts();
-    await _repository.retryPendingSensorChecks();
-    await loadCrops();
+    if (_retryingPendingDrafts) return;
+    _retryingPendingDrafts = true;
+    try {
+      final results = await Future.wait<int>([
+        _repository.retryPendingCareDrafts(),
+        _repository.retryPendingSensorChecks(),
+        _repository.retryPendingPlantingNames(),
+      ]);
+      if (results.any((count) => count > 0)) await loadCrops();
+    } finally {
+      _retryingPendingDrafts = false;
+    }
   }
 
   Future<int> pendingSensorCheckCount() =>
@@ -308,6 +388,46 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
       );
       return false;
     }
+  }
+
+  Future<String?> renamePlanting({
+    required CropModel crop,
+    required String plantingName,
+    required bool useAssigned,
+  }) async {
+    try {
+      final result = await _repository.renamePlanting(
+        cropId: crop.id,
+        plantingName: plantingName,
+        expectedVersion: crop.plantingNameVersion,
+        useAssigned: useAssigned,
+        submissionId: _repository.newSubmissionId(),
+      );
+      final status = result['status'];
+      if (status == 'Waiting to sync' || status == 'Needs review') {
+        _replaceCrop(
+          crop.copyWith(
+            customPlantingName: useAssigned ? null : plantingName.trim(),
+            plantingNameSyncStatus: status as String,
+          ),
+          successMessage: '',
+        );
+        return status == 'Waiting to sync' ? 'waiting' : 'needs-review';
+      }
+      await loadCrops();
+      return 'saved';
+    } catch (error) {
+      state = state.copyWith(
+        errorMessage: _friendlyError(error,
+            fallback: 'Unable to save the planting name.'),
+      );
+      return null;
+    }
+  }
+
+  Future<void> discardPendingPlantingName(String cropId) async {
+    await _repository.discardPendingPlantingName(cropId);
+    await loadCrops();
   }
 
   Future<bool> deleteCrop(String cropId) async {
@@ -419,6 +539,7 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
     final normalizedQuery = searchQuery.trim().toLowerCase();
     final filtered = crops.where((crop) {
       final matchesSearch = normalizedQuery.isEmpty ||
+          crop.displayName.toLowerCase().contains(normalizedQuery) ||
           crop.name.toLowerCase().contains(normalizedQuery) ||
           crop.variety.toLowerCase().contains(normalizedQuery) ||
           crop.location.toLowerCase().contains(normalizedQuery) ||
@@ -455,7 +576,7 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
       return switch (selectedSort) {
         CropSortType.newest => right.plantingDate.compareTo(left.plantingDate),
         CropSortType.oldest => left.plantingDate.compareTo(right.plantingDate),
-        CropSortType.name => left.name.compareTo(right.name),
+        CropSortType.name => left.displayName.compareTo(right.displayName),
         CropSortType.harvestSoon => (left.estimatedHarvest ?? DateTime(9999))
             .compareTo(right.estimatedHarvest ?? DateTime(9999)),
       };
@@ -476,6 +597,7 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
     String? observedStage,
     List<String> photos = const [],
     String? submissionId,
+    DateTime? nextCheckOn,
     double? quantity,
     String? unit,
     String? material,
@@ -486,6 +608,32 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
       lastEntryOutcome =
           const ActionOutcome.failure('Crop record is unavailable.');
       return false;
+    }
+
+    if (activity == CropMaintenanceActivity.watered && quantity != null) {
+      CropCareTask? waterTask;
+      for (final candidate in crop.careTasks) {
+        if (candidate.type != 'Water' || candidate.suggestedWaterMl == null) {
+          continue;
+        }
+        if (candidate.id == taskId) {
+          waterTask = candidate;
+          break;
+        }
+        if (waterTask == null &&
+            const ['Due', 'Overdue', 'Upcoming', 'Postponed']
+                .contains(candidate.status)) {
+          waterTask = candidate;
+        }
+      }
+      final suggestedWaterMl = waterTask?.suggestedWaterMl;
+      if (suggestedWaterMl != null && quantity > suggestedWaterMl) {
+        final message =
+            'Watering amount must not exceed ${suggestedWaterMl.toStringAsFixed(0)} ml for this task.';
+        lastEntryOutcome = ActionOutcome.failure(message);
+        state = state.copyWith(errorMessage: message);
+        return false;
+      }
     }
 
     try {
@@ -501,11 +649,12 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
         taskId: taskId,
         photoFiles: photos,
         submissionId: submissionId,
+        nextCheckOn: nextCheckOn,
       );
       lastEntryOutcome = result['status'] == 'Saved on device'
           ? const ActionOutcome(ActionStatus.savedLocally,
               'Saved on this phone. Waiting to sync.')
-          : const ActionOutcome.success();
+          : ActionOutcome(ActionStatus.confirmed, successMessage);
       await loadCrops();
       state = state.copyWith(
         successMessage: result['status'] == 'Saved on device'
@@ -558,6 +707,7 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
       successMessage: successMessage,
       errorMessage: null,
       isLoading: isLoading,
+      hasLoaded: true,
     );
   }
 
@@ -570,6 +720,7 @@ class CropMonitoringController extends StateNotifier<CropMonitoringState> {
   @override
   void dispose() {
     _draftRetryTimer?.cancel();
+    _realtimeRefreshTimer?.cancel();
     _subscription?.cancel();
     super.dispose();
   }
@@ -597,7 +748,6 @@ String _friendlyError(Object error, {required String fallback}) {
         message.toLowerCase().contains('not allowed')) {
       return 'You do not have permission to perform this crop action.';
     }
-
   }
 
   return fallback;

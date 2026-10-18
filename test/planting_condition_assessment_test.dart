@@ -51,7 +51,7 @@ void main() {
     final result = evaluate(sample());
     expect(result.score, 100);
     expect(result.matchedChecks, 2);
-    expect(result.summary, 'Current soil checks match');
+    expect(result.summary, 'Soil checks look good');
 
     expect(evaluate(sample(soilTemperature: 19.9)).score, 50);
     expect(evaluate(sample(soilTemperature: 18)).score, 50);
@@ -59,7 +59,7 @@ void main() {
     expect(evaluate(sample(soilTemperature: 30)).score, 100);
     expect(evaluate(sample(soilTemperature: 30.1)).score, 50);
     expect(evaluate(sample(soilTemperature: 17.9)).soilTemperatureAdvice,
-        contains('stronger cold-soil concern'));
+        contains('Wait for it to warm'));
   });
 
   test('moisture warnings remain visible even when temperature matches', () {
@@ -67,7 +67,7 @@ void main() {
     expect(result.score, 50);
     expect(result.hasMoistureConcern, isTrue);
     expect(result.moistureAdvice, 'Too wet');
-    expect(result.summary, 'Conditions need attention');
+    expect(result.summary, 'Check the soil before planting');
     expect(evaluate(sample(raw: 2211)).moistureAdvice, 'Too dry');
     expect(evaluate(sample(raw: 1900)).moistureAdvice, 'Too wet');
     expect(evaluate(sample(raw: 1155)).moistureAdvice, 'Too wet');
@@ -77,7 +77,7 @@ void main() {
     final missingAir = evaluate(sample(airTemperature: null));
     final missingHumidity = evaluate(sample(humidity: null));
     expect(missingAir.score, isNull);
-    expect(missingAir.summary, 'Assessment incomplete');
+    expect(missingAir.summary, 'Soil check incomplete');
     expect(missingHumidity.score, isNull);
     expect(missingHumidity.moistureAdvice, 'Good for planting');
     expect(evaluate(sample(airTemperature: 55)).score, isNull);
@@ -89,19 +89,19 @@ void main() {
     final calamansi = evaluate(sample(), seed: PlantingSeedType.calamansi);
     expect(sitaw.score, isNull);
     expect(
-        sitaw.soilTemperatureAdvice, contains('full sitaw temperature range'));
+        sitaw.soilTemperatureAdvice, contains('full temperature range for sitaw'));
     expect(
       evaluate(sample(soilTemperature: 22), seed: PlantingSeedType.sitaw)
           .soilTemperatureAdvice,
-      contains('has not exceeded'),
+      contains('not warmer than 22'),
     );
     expect(
       evaluate(sample(soilTemperature: 22.1), seed: PlantingSeedType.sitaw)
           .soilTemperatureAdvice,
-      contains('exceeds the published'),
+      contains('warmer than 22'),
     );
     expect(calamansi.score, isNull);
-    expect(calamansi.soilTemperatureAdvice, contains('not established'));
+    expect(calamansi.soilTemperatureAdvice, contains('no confirmed temperature range'));
   });
 
   test('expired pre-check loses score and prompts a fresh assessment', () {
@@ -109,8 +109,8 @@ void main() {
       sample(recordedAt: now.subtract(const Duration(seconds: 61))),
     );
     expect(expired.score, isNull);
-    expect(expired.summary, 'Assessment incomplete');
-    expect(expired.limitations.join(' '), contains('older than 60 seconds'));
+    expect(expired.summary, 'Soil check incomplete');
+    expect(expired.limitations.join(' '), contains('over a minute old'));
   });
 
   test('FAO VPD formula responds to temperature and humidity', () {

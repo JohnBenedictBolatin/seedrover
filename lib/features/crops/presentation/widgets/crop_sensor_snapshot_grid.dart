@@ -6,6 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/utils/farmer_friendly_copy.dart';
 import '../../../../shared/utils/soil_moisture_reference_label.dart';
 import '../../../../shared/utils/sensor_reading_age_label.dart';
 import '../../data/models/crop_model.dart';
@@ -71,21 +72,21 @@ class _CropSensorSnapshotGridState extends State<CropSensorSnapshotGrid> {
         runSpacing: AppSpacing.md,
         children: [
           _SensorTile(
-              label: 'Soil Moisture',
+              label: FarmerFriendlyCopy.sensorLabel('soil moisture'),
               value: _reading(fresh ? snapshot.soilMoisture : null, '%'),
               detail: fresh && snapshot.soilMoistureCalibrated == true
                   ? soilMoistureReferenceLabel(snapshot.soilMoisture)
                   : null),
           _SensorTile(
-              label: 'Raw soil probe (ADC)',
+              label: FarmerFriendlyCopy.sensorLabel('raw soil probe (ADC)'),
               value: fresh
                   ? snapshot.soilRaw?.toString() ?? 'Not available'
                   : 'Not available'),
           _SensorTile(
-              label: 'Soil Temp',
+              label: 'Soil temperature',
               value: _reading(fresh ? snapshot.soilTemperature : null, '°C')),
           _SensorTile(
-            label: 'Env Temp',
+            label: 'Air temperature',
             value:
                 _reading(fresh ? snapshot.environmentTemperature : null, '°C'),
           ),

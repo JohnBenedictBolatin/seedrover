@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/utils/farmer_friendly_copy.dart';
 import '../../../../core/utils/date_time_formatter.dart';
-import '../../../../shared/widgets/app_card.dart';
 import '../../data/models/crop_model.dart';
 
 class CropDetailPanel extends StatelessWidget {
@@ -20,25 +19,10 @@ class CropDetailPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final careTasks = crop.careTasks
-        .where((task) =>
-            const ['Overdue', 'Due', 'Upcoming'].contains(task.status))
-        .toList()
-      ..sort((left, right) {
-        int urgency(String status) => switch (status) {
-              'Overdue' => 0,
-              'Due' => 1,
-              _ => 2,
-            };
-        final priority = urgency(left.status).compareTo(urgency(right.status));
-        return priority == 0 ? left.dueAt.compareTo(right.dueAt) : priority;
-      });
-    final nextTask = careTasks.isEmpty ? null : careTasks.first;
+    final nextTask = crop.nextCareTask;
 
-    return AppCard(
-      backgroundColor: AppColors.secondaryBackground,
-      borderColor: AppColors.inactiveBorder,
-      padding: const EdgeInsets.all(AppSpacing.md),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -58,9 +42,10 @@ class CropDetailPanel extends StatelessWidget {
                   ),
                   _OverviewFact(
                     width: tileWidth,
-                    label: 'Observed stage',
+                    label: 'Growth stage',
                     value: crop.recordedGrowthStage?.trim().isNotEmpty == true
-                        ? crop.recordedGrowthStage!
+                        ? FarmerFriendlyCopy.growthStage(
+                            crop.recordedGrowthStage!)
                         : 'Not recorded',
                     icon: Icons.eco_outlined,
                   ),
@@ -77,7 +62,8 @@ class CropDetailPanel extends StatelessWidget {
                     label: 'Next care',
                     value: nextTask == null
                         ? 'No task scheduled'
-                        : _compactCareTaskTitle(nextTask.title, crop.name),
+                        : FarmerFriendlyCopy.careTask(
+                            _compactCareTaskTitle(nextTask.title, crop.name)),
                     icon: nextTask?.status == 'Overdue'
                         ? Icons.warning_amber_rounded
                         : Icons.task_alt_rounded,
@@ -95,7 +81,7 @@ class CropDetailPanel extends StatelessWidget {
                   ),
                   _OverviewFact(
                     width: tileWidth,
-                    label: 'Planting drops',
+                    label: 'Planting cycles',
                     value: _plantingDropLabel(crop),
                     icon: Icons.water_drop_outlined,
                   ),
@@ -156,12 +142,8 @@ class _OverviewFact extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SizedBox(
         width: width,
-        child: Container(
+        child: Padding(
           padding: const EdgeInsets.all(AppSpacing.sm),
-          decoration: BoxDecoration(
-            color: AppColors.cardBackground,
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

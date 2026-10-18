@@ -442,7 +442,7 @@ class RoverControlController extends StateNotifier<RoverControlState> {
 
     state = state.copyWith(
       plantingStatus: PlantingStatus.checking,
-      soilCheckMessage: 'Reading soil moisture and temperature…',
+      soilCheckMessage: 'Checking water in the soil and soil temperature…',
       clearErrorMessage: true,
     );
     try {
@@ -464,8 +464,8 @@ class RoverControlController extends StateNotifier<RoverControlState> {
             ? 'Soil readings are ready to review.'
             : result.unavailableReason,
         lastCommand: result.isValid
-            ? 'Planting soil pre-check completed'
-            : 'Planting soil pre-check needs attention',
+            ? 'Soil check before planting completed'
+            : 'Soil check needs attention before planting',
         clearErrorMessage: true,
       );
       return result;
@@ -551,7 +551,7 @@ class RoverControlController extends StateNotifier<RoverControlState> {
         activePlantingConfig: configuration,
         clearActiveMovement: true,
         soilCheckMessage:
-            'Soil pre-check confirmed. Lowering the rake before planting.',
+            'Soil check complete. Lowering the rake before planting.',
         lastCommand: 'Row ${configuration.sessionId.substring(0, 8)} accepted',
         clearErrorMessage: true,
       );
@@ -991,6 +991,18 @@ class RoverControlController extends StateNotifier<RoverControlState> {
       );
       return false;
     }
+  }
+
+  Future<bool> markPlantingNamePrompted(String sessionId) =>
+      _receiptRepository.markPlantingNamePrompted(sessionId);
+
+  Future<String?> assignedPlantingName(String sessionId) =>
+      _receiptRepository.assignedPlantingName(sessionId);
+
+  Future<bool> savePlantingNameDraft(String sessionId, String name) async {
+    await _receiptRepository.savePlantingNameDraft(sessionId, name);
+    await synchronizePendingReceipts();
+    return _receiptRepository.hasPendingPlantingName(sessionId);
   }
 
   Future<void> _acknowledgeConfirmedRoverResult(String sessionId) async {

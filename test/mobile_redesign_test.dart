@@ -98,7 +98,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('Recorded stage: Vegetative'), findsOneWidget);
+        expect(find.textContaining('Growth stage: Leaves and stems growing'),
+            findsOneWidget);
         expect(find.text('Overdue: Water the batch'), findsOneWidget);
         await tester.tap(find.byType(InkWell).last);
         expect(selected?.id, 'crop-1');
@@ -229,7 +230,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('60%'), findsOneWidget);
-      expect(find.textContaining('Stage 3 of 5'), findsOneWidget);
+      expect(find.textContaining('Step 3 of 5'), findsOneWidget);
       expect(tester.takeException(), isNull);
     }
     await tester.binding.setSurfaceSize(null);
@@ -284,7 +285,9 @@ void main() {
 
     expect(find.text('Stale'), findsOneWidget);
     expect(find.textContaining('Unverified source'), findsOneWidget);
-    expect(find.textContaining('probe not calibrated'), findsOneWidget);
+    expect(find.textContaining('Sensor reading before setup'), findsOneWidget);
+    expect(find.textContaining('Set up the soil sensor to show this reading'),
+        findsOneWidget);
     expect(find.text('Unavailable'), findsWidgets);
     expect(tester.takeException(), isNull);
     await tester.binding.setSurfaceSize(null);

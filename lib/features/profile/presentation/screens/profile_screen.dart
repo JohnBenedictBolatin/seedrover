@@ -8,6 +8,8 @@ import '../../../../shared/models/action_outcome.dart';
 import '../../../../shared/widgets/action_confirmation.dart';
 import '../../../../shared/widgets/app_page_header.dart';
 import '../../../../shared/widgets/status_badge.dart';
+import '../../../../shared/widgets/content_skeleton.dart';
+import '../../../../shared/widgets/initial_loading_skeleton.dart';
 import '../../../authentication/data/models/auth_profile_model.dart';
 import '../../../authentication/providers/auth_providers.dart';
 import '../../../crops/data/repositories/crop_repository.dart';
@@ -24,7 +26,24 @@ class ProfileScreen extends ConsumerWidget {
     final profile = authState.profile;
 
     if (authState.isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const InitialLoadingSkeleton(
+        skeleton: Padding(
+          padding: EdgeInsets.all(AppSpacing.md),
+          child: SkeletonCard(
+            height: 220,
+            children: [
+              SkeletonLine(widthFactor: .45, height: 24),
+              SizedBox(height: AppSpacing.lg),
+              SkeletonLine(widthFactor: .82),
+              SizedBox(height: AppSpacing.md),
+              SkeletonLine(widthFactor: .64),
+              SizedBox(height: AppSpacing.lg),
+              SkeletonBlock(height: 58),
+            ],
+          ),
+        ),
+        label: 'Loading your account…',
+      );
     }
 
     if (profile == null) {

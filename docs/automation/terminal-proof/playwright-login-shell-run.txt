@@ -1,0 +1,8 @@
+PS> npx.cmd playwright test --config=playwright.terminal-proof.config.ts
+
+Running 1 test using 1 worker
+
+  ok 1 e2e\terminal-proof.spec.ts:3:5 > Supplementary terminal proof: SeedRover login screen renders (704ms)
+
+  1 passed (1.6s)
+Exit code: 0

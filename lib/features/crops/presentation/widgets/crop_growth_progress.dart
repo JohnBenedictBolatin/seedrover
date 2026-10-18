@@ -4,7 +4,6 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
-import '../../../../shared/widgets/app_card.dart';
 import '../../data/models/crop_model.dart';
 
 class CropGrowthProgress extends StatelessWidget {
@@ -19,9 +18,7 @@ class CropGrowthProgress extends StatelessWidget {
     final available = stages.isNotEmpty && stageIndex >= 0;
     final progress = available ? (stageIndex + 1) / stages.length : null;
 
-    return AppCard(
-      backgroundColor: AppColors.secondaryBackground,
-      borderColor: AppColors.inactiveBorder,
+    return Padding(
       padding: const EdgeInsets.all(AppSpacing.sm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -39,7 +36,7 @@ class CropGrowthProgress extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      crop.growthStageLabel,
+                      crop.farmerGrowthStageLabel,
                       style: AppTypography.body.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
@@ -70,14 +67,14 @@ class CropGrowthProgress extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
-              'Stage ${stageIndex + 1} of ${stages.length} · based on the recorded stage',
+              'Step ${stageIndex + 1} of ${stages.length} in this crop\'s growth',
               style: AppTypography.caption,
             ),
           ] else
             Text(
               stages.isEmpty
                   ? 'Progress unavailable · no crop stage plan recorded'
-                  : 'Progress unavailable · recorded stage is not in this crop’s stage plan',
+                  : 'Growth progress is unavailable because this stage is not in the crop\'s plan.',
               style: AppTypography.caption,
             ),
         ],

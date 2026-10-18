@@ -242,6 +242,7 @@ class PendingPlantingReceipt {
     bool plantingConfirmed = false,
     bool? plantingSuccessful,
     this.ownerId,
+    this.plantingNamePrompted = false,
   }) : confirmationOutcome = confirmationOutcome ??
             (plantingConfirmed
                 ? (plantingSuccessful == false ? 'none_planted' : 'row_planted')
@@ -274,6 +275,7 @@ class PendingPlantingReceipt {
       confirmationSynced: json['confirmation_synced'] as bool? ?? false,
       syncError: _nullableText(json['sync_error']),
       ownerId: _nullableText(json['owner_id']),
+      plantingNamePrompted: json['planting_name_prompted'] as bool? ?? false,
     );
   }
 
@@ -287,6 +289,7 @@ class PendingPlantingReceipt {
   final bool confirmationSynced;
   final String? syncError;
   final String? ownerId;
+  final bool plantingNamePrompted;
 
   bool get isConfirmed => confirmationOutcome != null;
   bool get plantingConfirmed => isConfirmed;
@@ -309,6 +312,7 @@ class PendingPlantingReceipt {
     bool clearSyncError = false,
     DateTime? soilCapturedAt,
     String? ownerId,
+    bool? plantingNamePrompted,
   }) {
     return PendingPlantingReceipt(
       config: config,
@@ -323,6 +327,7 @@ class PendingPlantingReceipt {
       confirmationSynced: confirmationSynced ?? this.confirmationSynced,
       syncError: clearSyncError ? null : syncError ?? this.syncError,
       ownerId: ownerId ?? this.ownerId,
+      plantingNamePrompted: plantingNamePrompted ?? this.plantingNamePrompted,
     );
   }
 
@@ -340,6 +345,7 @@ class PendingPlantingReceipt {
         'confirmation_synced': confirmationSynced,
         'sync_error': syncError,
         'owner_id': ownerId,
+        'planting_name_prompted': plantingNamePrompted,
         'status': {
           'state': status.state,
           'session_id': status.sessionId,

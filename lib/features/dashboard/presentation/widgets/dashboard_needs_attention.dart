@@ -29,49 +29,29 @@ class DashboardNeedsAttention extends ConsumerStatefulWidget {
 
 class _DashboardNeedsAttentionState
     extends ConsumerState<DashboardNeedsAttention> {
-  late Future<List<PendingPlantingReceipt>> _pendingReceipts;
+  String? _pendingAccountId;
   List<PendingPlantingReceipt> _pendingRecords = [];
-
-  @override
-  void initState() {
-    super.initState();
-    final profile = ref.read(authControllerProvider).profile;
-    if (profile?.hasPermission(PermissionKeys.roverView) == true) {
-      _loadPendingReceipts();
-    } else {
-      _pendingReceipts = Future.value(const <PendingPlantingReceipt>[]);
-    }
-  }
-
-  void _loadPendingReceipts() {
-    final future = ref.read(plantingReceiptRepositoryProvider).loadPending();
-    _pendingReceipts = future;
-    future.then(
-      (receipts) {
-        if (!mounted) return;
-        final pending = receipts
-            .where((receipt) =>
-                receipt.status.isTerminal &&
-                (!receipt.isConfirmed || !receipt.confirmationSynced))
-            .toList()
-          ..sort((a, b) => b.completedAt.compareTo(a.completedAt));
-        setState(() => _pendingRecords = pending);
-      },
-      onError: (Object _) {
-        if (mounted) setState(() => _pendingRecords = []);
-      },
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     final profile = ref.watch(authControllerProvider).profile;
+    if (_pendingAccountId != profile?.id) {
+      _pendingAccountId = profile?.id;
+      _pendingRecords = [];
+    }
     final canViewCrops =
         profile?.hasPermission(PermissionKeys.cropsView) ?? false;
     final canViewStocks =
         profile?.hasPermission(PermissionKeys.stocksView) ?? false;
     final canUseRover =
         profile?.hasPermission(PermissionKeys.roverView) ?? false;
+    final pendingState = canUseRover
+        ? ref.watch(pendingPlantingAttentionProvider(profile?.id))
+        : const AsyncData<List<PendingPlantingReceipt>>([]);
+    final latestPendingRecords = pendingState.asData?.value;
+    if (latestPendingRecords != null) _pendingRecords = latestPendingRecords;
+    final List<PendingPlantingReceipt> pendingRecords =
+        canUseRover ? _pendingRecords : const <PendingPlantingReceipt>[];
     final cropState = canViewCrops
         ? ref.watch(cropMonitoringControllerProvider)
         : CropMonitoringState.initial();
@@ -80,7 +60,7 @@ class _DashboardNeedsAttentionState
         : StockInventoryState.initial();
 
     final care = <({CropModel crop, CropCareTask task})>[];
-    if (canViewCrops && !cropState.isLoading) {
+    if (canViewCrops) {
       for (final crop in cropState.crops) {
         if (profile == null ||
             (!profile.isAdministrator &&
@@ -102,28 +82,28 @@ class _DashboardNeedsAttentionState
         return order == 0 ? a.task.dueAt.compareTo(b.task.dueAt) : order;
       });
     }
-    final lowStocks = canViewStocks && !stockState.isLoading
+    final lowStocks = canViewStocks
         ? stockState.stocks
             .where((stock) => stock.status != StockStatus.inStock)
             .toList()
         : <StockModel>[];
     final allAttentionEntries = <_AttentionEntry>[
-      for (final receipt in _pendingRecords)
+      for (final receipt in pendingRecords)
         _AttentionEntry(
           icon: receipt.isConfirmed
               ? Icons.cloud_upload_outlined
               : Icons.rate_review_outlined,
           title:
               receipt.isConfirmed ? 'Planting sync pending' : 'Review planting',
-          subtitle:
-              '${receipt.config.seed.label} · ${receipt.config.fieldLabel.isEmpty ? 'Field not labeled' : receipt.config.fieldLabel}',
+          subtitle: _plantingReceiptSubtitle(receipt),
           onTap: () => context.push(AppRoutes.rover),
         ),
       for (final item in care)
         _AttentionEntry(
           icon: Icons.eco_outlined,
-          title: item.task.title,
-          subtitle: '${item.crop.name} · ${item.crop.fieldLabel}',
+          title: item.task.farmerTitle,
+          subtitle:
+              '${item.crop.displayName} · ${item.crop.name} · ${item.crop.fieldLabel}',
           onTap: () => context.push(
             '${AppRoutes.cropDetailsPath(item.crop.id)}?task=${Uri.encodeComponent(item.task.id)}',
           ),
@@ -141,155 +121,119 @@ class _DashboardNeedsAttentionState
         ),
     ];
 
-    return Card(
-      color: AppColors.secondaryBackground,
-      surfaceTintColor: Colors.transparent,
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Row(children: [
-              Expanded(
-                  child:
-                      Text('Needs attention', style: AppTypography.cardTitle)),
-              Icon(
-                Icons.warning_amber_rounded,
-                color: AppColors.danger,
+            Expanded(
+              child: Text(
+                'Needs attention',
+                style: AppTypography.sectionHeading,
               ),
-            ]),
-            const SizedBox(height: AppSpacing.xs),
-            if (canUseRover)
-              FutureBuilder<List<PendingPlantingReceipt>>(
-                future: _pendingReceipts,
-                builder: (context, snapshot) {
-                  if (snapshot.hasError) {
-                    return _SourceMessage(
-                      text: 'Planting records could not be checked.',
-                      action: 'Retry',
-                      onPressed: () => setState(_loadPendingReceipts),
-                    );
-                  }
-                  if (snapshot.connectionState != ConnectionState.done) {
-                    return const _SourceMessage(
-                        text: 'Checking planting records…');
-                  }
-                  final pending = snapshot.data!
-                      .where((receipt) =>
-                          receipt.status.isTerminal &&
-                          (!receipt.isConfirmed || !receipt.confirmationSynced))
-                      .toList()
-                    ..sort((a, b) => b.completedAt.compareTo(a.completedAt));
-                  final allSourcesReady = (!canViewCrops ||
-                          (!cropState.isLoading &&
-                              cropState.errorMessage == null)) &&
-                      (!canViewStocks ||
-                          (!stockState.isLoading &&
-                              stockState.errorMessage == null));
-                  final nothingElseNeedsAttention =
-                      care.isEmpty && lowStocks.isEmpty;
-                  if (pending.isEmpty &&
-                      allSourcesReady &&
-                      nothingElseNeedsAttention) {
-                    return const _SourceMessage(text: 'You’re up to date');
-                  }
-                  return _PendingRows(
-                    receipts: pending.take(1).toList(),
-                    emptyMessage: 'No unresolved planting records',
-                  );
-                },
-              ),
-            if (canViewCrops && cropState.isLoading)
-              const _SourceMessage(text: 'Checking crop tasks…'),
-            if (canViewCrops && cropState.errorMessage != null)
-              _SourceMessage(
-                text: cropState.crops.isEmpty
-                    ? 'Crop tasks are unavailable.'
-                    : 'Showing saved crop tasks; refresh may be needed.',
-                action: 'Retry',
-                onPressed: () => ref
-                    .read(cropMonitoringControllerProvider.notifier)
-                    .loadCrops(),
-              ),
-            if (canViewCrops && !cropState.isLoading)
-              for (final item in care.take(1))
-                _AttentionRow(
-                  icon: Icons.eco_outlined,
-                  title: item.task.title,
-                  subtitle: '${item.crop.name} · ${item.crop.fieldLabel}',
-                  onTap: () => context.push(
-                    '${AppRoutes.cropDetailsPath(item.crop.id)}?task=${Uri.encodeComponent(item.task.id)}',
-                  ),
-                ),
-            if (canViewStocks && stockState.isLoading)
-              const _SourceMessage(text: 'Checking inventory…'),
-            if (canViewStocks && stockState.errorMessage != null)
-              _SourceMessage(
-                text: stockState.stocks.isEmpty
-                    ? 'Inventory status is unavailable.'
-                    : 'Showing saved stock status; refresh may be needed.',
-                action: 'Retry',
-                onPressed: () => ref
-                    .read(stockInventoryControllerProvider.notifier)
-                    .loadStocks(),
-              ),
-            if (canViewStocks && !stockState.isLoading)
-              for (final stock in lowStocks.take(1))
-                _AttentionRow(
-                  icon: stock.status == StockStatus.outOfStock
-                      ? Icons.remove_shopping_cart_outlined
-                      : Icons.inventory_2_outlined,
-                  title: stock.name,
-                  subtitle: stock.status == StockStatus.outOfStock
-                      ? 'Out of stock · ${stock.storageLocation}'
-                      : '${stock.status.label} · ${stock.currentQuantity} ${stock.unit}',
-                  onTap: () =>
-                      context.push(AppRoutes.stockDetailsPath(stock.id)),
-                ),
-            if (!canUseRover && !canViewCrops && !canViewStocks)
-              const _SourceMessage(
-                  text: 'No attention items for this account.'),
-            if (!canUseRover &&
-                (canViewCrops || canViewStocks) &&
-                (!canViewCrops ||
-                    (!cropState.isLoading &&
-                        cropState.errorMessage == null &&
-                        care.isEmpty)) &&
-                (!canViewStocks ||
-                    (!stockState.isLoading &&
-                        stockState.errorMessage == null &&
-                        lowStocks.isEmpty)))
-              const _SourceMessage(text: 'You’re up to date'),
+            ),
             if (allAttentionEntries.length > 3)
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => showModalBottomSheet<void>(
-                    context: context,
-                    isScrollControlled: true,
-                    backgroundColor: Colors.transparent,
-                    builder: (_) => _AttentionHistorySheet(
-                      entries: allAttentionEntries,
-                    ),
+              TextButton(
+                onPressed: () => showModalBottomSheet<void>(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (_) => _AttentionHistorySheet(
+                    entries: allAttentionEntries,
                   ),
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppColors.primaryGreen,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm,
-                      vertical: AppSpacing.xs,
-                    ),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    textStyle: AppTypography.small.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  child: const Text('View All'),
                 ),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.primaryGreen,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xs,
+                  ),
+                  minimumSize: const Size(0, 32),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                  textStyle: AppTypography.caption.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                child: const Text('View All'),
               ),
           ],
         ),
-      ),
+        const SizedBox(height: AppSpacing.sm),
+        if ((canUseRover && pendingState.isLoading) ||
+            (canViewCrops && cropState.isLoading) ||
+            (canViewStocks && stockState.isLoading))
+          const Padding(
+            padding: EdgeInsets.only(bottom: AppSpacing.sm),
+            child: LinearProgressIndicator(minHeight: 2),
+          ),
+        if (canUseRover && pendingState.isLoading && !pendingState.hasValue)
+          const SizedBox.shrink(),
+        if (canUseRover && pendingState.hasError && !pendingState.hasValue)
+          _SourceMessage(
+            text: 'Planting records are unavailable.',
+            action: 'Retry',
+            onPressed: () => ref.invalidate(
+              pendingPlantingAttentionProvider(profile?.id),
+            ),
+          ),
+        if (canUseRover && pendingState.hasValue && pendingRecords.isNotEmpty)
+          _PendingRows(receipts: pendingRecords.take(1).toList()),
+        if (canViewCrops &&
+            cropState.errorMessage != null &&
+            cropState.crops.isEmpty)
+          _SourceMessage(
+            text: 'Crop tasks are unavailable.',
+            action: 'Retry',
+            onPressed: () =>
+                ref.read(cropMonitoringControllerProvider.notifier).loadCrops(),
+          ),
+        if (canViewCrops && cropState.crops.isNotEmpty)
+          for (final item in care.take(1))
+            _AttentionRow(
+              icon: Icons.eco_outlined,
+              title: item.task.farmerTitle,
+              subtitle:
+                  '${item.crop.displayName} · ${item.crop.name} · ${item.crop.fieldLabel}',
+              onTap: () => context.push(
+                '${AppRoutes.cropDetailsPath(item.crop.id)}?task=${Uri.encodeComponent(item.task.id)}',
+              ),
+            ),
+        if (canViewStocks &&
+            stockState.errorMessage != null &&
+            stockState.stocks.isEmpty)
+          _SourceMessage(
+            text: 'Inventory status is unavailable.',
+            action: 'Retry',
+            onPressed: () => ref
+                .read(stockInventoryControllerProvider.notifier)
+                .loadStocks(),
+          ),
+        if (canViewStocks && stockState.stocks.isNotEmpty)
+          for (final stock in lowStocks.take(1))
+            _AttentionRow(
+              icon: stock.status == StockStatus.outOfStock
+                  ? Icons.remove_shopping_cart_outlined
+                  : Icons.inventory_2_outlined,
+              title: stock.name,
+              subtitle: stock.status == StockStatus.outOfStock
+                  ? 'Out of stock · ${stock.storageLocation}'
+                  : '${stock.status.label} · ${stock.currentQuantity} ${stock.unit}',
+              onTap: () => context.push(AppRoutes.stockDetailsPath(stock.id)),
+            ),
+        if (!canUseRover && !canViewCrops && !canViewStocks)
+          const _SourceMessage(text: 'No attention items for this account.'),
+        if ((canUseRover || canViewCrops || canViewStocks) &&
+            (!canViewCrops || cropState.hasLoaded) &&
+            (!canViewStocks || stockState.hasLoaded) &&
+            (!canUseRover || pendingState.hasValue) &&
+            (!canViewCrops || cropState.errorMessage == null) &&
+            (!canViewStocks || stockState.errorMessage == null) &&
+            (!canUseRover || pendingState.hasValue) &&
+            care.isEmpty &&
+            lowStocks.isEmpty &&
+            pendingRecords.isEmpty)
+          const _SourceMessage(text: 'You’re up to date'),
+      ],
     );
   }
 }
@@ -415,13 +359,11 @@ class _AttentionHistorySheetState extends State<_AttentionHistorySheet> {
 }
 
 class _PendingRows extends StatelessWidget {
-  const _PendingRows({required this.receipts, required this.emptyMessage});
+  const _PendingRows({required this.receipts});
   final List<PendingPlantingReceipt> receipts;
-  final String emptyMessage;
 
   @override
   Widget build(BuildContext context) => Column(children: [
-        if (receipts.isEmpty) _SourceMessage(text: emptyMessage),
         for (final receipt in receipts)
           _AttentionRow(
             icon: receipt.isConfirmed
@@ -430,8 +372,7 @@ class _PendingRows extends StatelessWidget {
             title: receipt.isConfirmed
                 ? 'Planting sync pending'
                 : 'Review planting',
-            subtitle:
-                '${receipt.config.seed.label} · ${receipt.config.fieldLabel.isEmpty ? 'Field not labeled' : receipt.config.fieldLabel}',
+            subtitle: _plantingReceiptSubtitle(receipt),
             onTap: () => context.push(AppRoutes.rover),
           ),
       ]);
@@ -451,13 +392,21 @@ class _AttentionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListTile(
+        dense: true,
         contentPadding: EdgeInsets.zero,
-        leading: CircleAvatar(
-          backgroundColor: AppColors.primaryGreen.withValues(alpha: 0.1),
-          child: Icon(icon, color: AppColors.primaryGreen),
+        leading: Icon(icon, color: AppColors.primaryGreen),
+        title: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTypography.small.copyWith(fontWeight: FontWeight.w700),
         ),
-        title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
-        subtitle: Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
+        subtitle: Text(
+          subtitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTypography.caption,
+        ),
         trailing: Icon(
           Icons.arrow_forward_rounded,
           color: AppColors.mutedText,
@@ -465,6 +414,11 @@ class _AttentionRow extends StatelessWidget {
         ),
         onTap: onTap,
       );
+}
+
+String _plantingReceiptSubtitle(PendingPlantingReceipt receipt) {
+  final field = receipt.config.fieldLabel.trim();
+  return '${receipt.config.seed.label} · ${field.isEmpty ? 'No field' : field}';
 }
 
 class _SourceMessage extends StatelessWidget {

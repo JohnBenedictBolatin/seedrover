@@ -30,7 +30,7 @@ class RecentActivityPanel extends StatelessWidget {
             Expanded(
               child: Text(
                 'Recent Activities',
-                style: AppTypography.cardTitle.copyWith(fontSize: 16),
+                style: AppTypography.sectionHeading,
               ),
             ),
             if (activities.length > 3)
@@ -189,24 +189,15 @@ class _RecentActivityEmptyState extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.secondaryBackground,
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.inactiveBorder),
       ),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Row(
           children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: AppColors.primaryGreen.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-              ),
-              child: Icon(
-                Icons.history_toggle_off_rounded,
-                color: AppColors.primaryGreen,
-                size: 20,
-              ),
+            Icon(
+              Icons.history_toggle_off_rounded,
+              color: AppColors.primaryGreen,
+              size: 20,
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
@@ -233,27 +224,16 @@ class _RecentActivityTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.secondaryBackground,
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(
-          color: AppColors.primaryGreen.withValues(alpha: 0.14),
-        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: AppColors.primaryGreen.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-              ),
-              child: Icon(
-                Icons.schedule_rounded,
-                color: AppColors.primaryGreen,
-                size: 18,
-              ),
+            Icon(
+              Icons.schedule_rounded,
+              color: AppColors.primaryGreen,
+              size: 18,
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(

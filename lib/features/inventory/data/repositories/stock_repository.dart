@@ -27,12 +27,24 @@ class StockRepository {
   final SupabaseClient _client;
   String? get currentAccountId => _client.auth.currentUser?.id;
 
-  Stream<List<StockModel>> watchStocks() {
+  Future<Map<String, dynamic>?> getOperationSubmission(
+    String operation,
+    String submissionId,
+  ) async {
+    final response = await _client.rpc('get_operation_submission', params: {
+      'p_operation': operation,
+      'p_submission_id': submissionId,
+    });
+    if (response is! Map) return null;
+    return Map<String, dynamic>.from(response);
+  }
+
+  Stream<void> watchStocks() {
     return _client
         .from(DatabaseTables.inventory)
         .stream(primaryKey: ['id'])
         .order('updated_at')
-        .asyncMap((_) => getStocks());
+        .map((_) {});
   }
 
   Future<List<StockModel>> getStocks() async {
@@ -82,6 +94,7 @@ class StockRepository {
     StockModel stock, {
     StockImageUpload? imageUpload,
   }) async {
+    _validateStorageLocation(stock.storageLocation);
     if (stock.name.trim().isEmpty ||
         stock.storageLocation.trim().isEmpty ||
         stock.unit.trim().isEmpty ||
@@ -128,6 +141,7 @@ class StockRepository {
   }
 
   Future<StockModel> updateStock(StockModel stock) async {
+    _validateStorageLocation(stock.storageLocation);
     final previousStock = await _stockById(stock.id);
 
     await _updateStockRow(stock);
@@ -152,6 +166,12 @@ class StockRepository {
       throw UnconfirmedWrite(
           'The item update was sent, but its refreshed details could not be confirmed.',
           stockId: stock.id);
+    }
+  }
+
+  void _validateStorageLocation(String location) {
+    if (!SharedWorkflowChoices.storageLocations.contains(location.trim())) {
+      throw ArgumentError('Choose one of the available storage locations.');
     }
   }
 
@@ -391,11 +411,6 @@ class StockRepository {
     );
 
     try {
-      await _recordActivity(
-        activity: 'Receive stock recorded',
-        description: '${stock.name}: $quantity ${stock.unit} added.',
-      );
-
       return await _stockById(stock.id).then(
         (updatedStock) => updatedStock.copyWith(
           displayId: stock.displayId,
@@ -432,11 +447,6 @@ class StockRepository {
     );
 
     try {
-      await _recordActivity(
-        activity: 'Issue stock recorded',
-        description: '${stock.name}: $quantity ${stock.unit} deducted.',
-      );
-
       return await _stockById(stock.id).then(
         (updatedStock) => updatedStock.copyWith(
           displayId: stock.displayId,
@@ -457,24 +467,27 @@ class StockRepository {
       request.customerContact,
       required: true,
     )!;
-    final params = {
-      'p_inventory_id': request.stock.id,
-      'p_quantity_sold': request.quantitySold,
-      'p_unit_price': request.unitPrice,
-      'p_sale_date': request.saleDate.toUtc().toIso8601String(),
-      'p_customer_name': request.customerName,
-      'p_remarks': request.remarks,
-      'p_payment_method': request.paymentMethod,
-      'p_transaction_reference': request.transactionReference,
-      'p_other_payment_method': request.otherPaymentMethod,
-    };
-    final response = await _client.rpc(
-      'record_inventory_sale_receipt',
-      params: {
-        ...params,
-        'p_customer_contact': customerContact,
+    final submissionId = request.submissionId;
+    if (submissionId == null || submissionId.trim().isEmpty) {
+      throw StateError(
+          'The sale could not be saved safely. Reopen the form and try again.');
+    }
+    final response = await _client.rpc('record_sales_order_v2', params: {
+      'p_entry': {
+        'submission_id': submissionId,
+        'inventory_id': request.stock.id,
+        'quantity_sold': request.quantitySold,
+        'unit_price': request.unitPrice,
+        'sale_date': request.saleDate.toUtc().toIso8601String(),
+        'customer_name': request.customerName,
+        'remarks': request.remarks,
+        'payment_method': request.paymentMethod,
+        'transaction_reference': request.transactionReference,
+        'other_payment_method': request.otherPaymentMethod,
+        'target_batch_id': request.batchId,
+        'customer_contact': customerContact,
       },
-    );
+    });
     try {
       final sale = _saleFromResponse(response, request);
       final saleTransaction = StockTransactionModel(
@@ -510,6 +523,22 @@ class StockRepository {
     }
   }
 
+  Future<void> voidSale({
+    required String saleId,
+    required String source,
+    required String reason,
+    required String submissionId,
+  }) async {
+    await _client.rpc('void_sales_record_v2', params: {
+      'p_entry': {
+        'id': saleId,
+        'source': source,
+        'reason': reason,
+        'submission_id': submissionId,
+      },
+    });
+  }
+
   Future<StockModel> adjustStock({
     required StockModel stock,
     required double newQuantity,
@@ -530,12 +559,6 @@ class StockRepository {
     );
 
     try {
-      await _recordActivity(
-        activity: 'Stock quantity adjusted',
-        description:
-            '${stock.name}: stock adjusted to $newQuantity ${stock.unit}.',
-      );
-
       return await _stockById(stock.id).then(
         (updatedStock) => updatedStock.copyWith(
           displayId: stock.displayId,
@@ -669,20 +692,41 @@ class StockRepository {
       throw StateError('Sign in before changing inventory.');
     }
 
-    await _client.from(DatabaseTables.inventoryTransactions).insert({
-      'inventory_id': stockId,
-      'transaction_type': type,
-      'quantity': quantity,
-      'remarks': remarks,
-      if (source != null) 'source': source,
-      if (batchReceivedOn != null)
-        'batch_received_on': _dateOnly(batchReceivedOn),
-      if (batchHarvestOn != null) 'batch_harvest_on': _dateOnly(batchHarvestOn),
-      if (batchProfileId != null) 'batch_profile_id': batchProfileId,
-      if (requestId != null) 'request_id': requestId,
-      if (targetBatchId != null) 'target_batch_id': targetBatchId,
-      'performed_by': userId,
+    if (requestId == null || requestId.trim().isEmpty) {
+      throw StateError('A saved inventory action ID is required.');
+    }
+    await _client.rpc('record_inventory_movement_v2', params: {
+      'p_entry': {
+        'submission_id': requestId,
+        'inventory_id': stockId,
+        'transaction_type': type,
+        'quantity': quantity,
+        'remarks': remarks,
+        'received_on':
+            batchReceivedOn == null ? null : _dateOnly(batchReceivedOn),
+        'harvest_on': batchHarvestOn == null ? null : _dateOnly(batchHarvestOn),
+        'profile_id': batchProfileId,
+        'target_batch_id': targetBatchId,
+      },
     });
+  }
+
+  Future<void> replaySavedOperation({
+    required String operation,
+    required String submissionId,
+    required Map<String, Object?> payload,
+  }) async {
+    final entry = <String, Object?>{
+      ...payload,
+      'submission_id': submissionId,
+    };
+    final rpc = switch (operation) {
+      'inventory_movement' => 'record_inventory_movement_v2',
+      'sales_order' => 'record_sales_order_v2',
+      'void_sale' => 'void_sales_record_v2',
+      _ => throw StateError('This saved action needs a manual review.'),
+    };
+    await _client.rpc(rpc, params: {'p_entry': entry});
   }
 
   Future<StockModel> _stockFromRow(

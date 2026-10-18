@@ -4,6 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/utils/farmer_friendly_copy.dart';
 import '../../../../shared/widgets/history_pagination.dart';
 import '../../data/models/crop_model.dart';
 
@@ -136,23 +137,14 @@ class _ActivityHistoryRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 38,
-            height: 38,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: .12),
-              borderRadius: BorderRadius.circular(AppRadius.sm),
-            ),
-            child: Icon(_activityIcon(record.activity), color: color, size: 20),
-          ),
+          Icon(_activityIcon(record.activity), color: color, size: 20),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  record.activity.label,
+                  record.activity.farmerLabel,
                   style: AppTypography.body.copyWith(
                     color: AppColors.primaryText,
                     fontWeight: FontWeight.w700,
@@ -200,7 +192,8 @@ String _activityDetails(CropMaintenanceRecord record) {
     details.add(record.material!.trim());
   }
   if (record.observedStage?.trim().isNotEmpty == true) {
-    details.add('Stage: ${record.observedStage!.trim()}');
+    details.add(
+        'Growth stage: ${FarmerFriendlyCopy.growthStage(record.observedStage!.trim())}');
   }
   return details.join(' · ');
 }

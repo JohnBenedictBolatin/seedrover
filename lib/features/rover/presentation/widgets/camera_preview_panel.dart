@@ -403,18 +403,10 @@ class _CameraWaitingPlaceholder extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: AppColors.primaryGreen.withValues(alpha: .10),
-                  shape: BoxShape.circle,
-                ),
-                child: SizedBox.square(
-                  dimension: 44,
-                  child: Icon(
-                    Icons.videocam_off_outlined,
-                    color: AppColors.primaryGreen,
-                  ),
-                ),
+              Icon(
+                Icons.videocam_off_outlined,
+                color: AppColors.primaryGreen,
+                size: 44,
               ),
               const SizedBox(height: AppSpacing.sm),
               Text(

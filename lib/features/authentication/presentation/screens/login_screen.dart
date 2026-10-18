@@ -10,6 +10,7 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/primary_button.dart';
+import '../../../../shared/widgets/action_result_dialog.dart';
 import '../../../../shared/widgets/seedrover_mascot.dart';
 import '../../providers/auth_providers.dart';
 
@@ -111,11 +112,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         origin.host.isEmpty ||
         !const {'http', 'https'}.contains(origin.scheme) ||
         origin.userInfo.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password recovery website is not configured.'),
-        ),
-      );
+      showActionResult(context,
+          message: 'Password recovery website is not configured.',
+          success: false);
       return;
     }
 
@@ -130,18 +129,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
       if (opened || !mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not open the SeedRover recovery website.'),
-        ),
-      );
+      showActionResult(context,
+          message: 'Could not open the SeedRover recovery website.',
+          success: false);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not open the SeedRover recovery website.'),
-        ),
-      );
+      showActionResult(context,
+          message: 'Could not open the SeedRover recovery website.',
+          success: false);
     }
   }
 
@@ -309,7 +304,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                         const SizedBox(height: AppSpacing.md),
                                         _LoginMessage(
                                           message: authState.errorMessage!,
-                                          color: AppColors.danger,
+                                          color: authState.errorMessage!
+                                                  .startsWith('Your session ended.')
+                                              ? AppColors.warning
+                                              : AppColors.danger,
+                                          warning: authState.errorMessage!
+                                              .startsWith('Your session ended.'),
                                         ),
                                       ],
                                       if (authState.successMessage != null) ...[
@@ -485,10 +485,12 @@ class _LoginMessage extends StatelessWidget {
   const _LoginMessage({
     required this.message,
     required this.color,
+    this.warning = false,
   });
 
   final String message;
   final Color color;
+  final bool warning;
 
   @override
   Widget build(BuildContext context) {
@@ -500,9 +502,20 @@ class _LoginMessage extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
-        child: Text(
-          message,
-          style: AppTypography.small.copyWith(color: AppColors.primaryText),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (warning) ...[
+              Icon(Icons.warning_amber_rounded, color: color, size: 20),
+              const SizedBox(width: AppSpacing.sm),
+            ],
+            Expanded(
+              child: Text(
+                message,
+                style: AppTypography.small.copyWith(color: AppColors.primaryText),
+              ),
+            ),
+          ],
         ),
       ),
     );

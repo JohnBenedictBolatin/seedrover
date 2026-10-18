@@ -34,10 +34,6 @@ class DashboardController {
     final activityError = results[2] is! List<ActivityPreviewModel>
         ? 'Recent activity is unavailable.'
         : null;
-    if (roverError != null && sensorError != null && activityError != null) {
-      throw StateError('Dashboard data is unavailable. Retry when connected.');
-    }
-
     return DashboardModel(
       rover: results[0] is RoverOverviewModel
           ? results[0] as RoverOverviewModel
@@ -64,22 +60,33 @@ class DashboardController {
 
   Stream<void> watchDashboard() {
     return Stream<void>.multi((controller) {
-      final subscriptions = <StreamSubscription<dynamic>>[
-        _client
-            .from(DatabaseTables.robotStatus)
-            .stream(primaryKey: ['id']).listen((_) => controller.add(null)),
-        _client
-            .from(DatabaseTables.sensorReadings)
-            .stream(primaryKey: ['id']).listen((_) => controller.add(null)),
-        _client
-            .from(DatabaseTables.activityLogs)
-            .stream(primaryKey: ['id']).listen((_) => controller.add(null)),
-      ];
+      Timer? debounce;
+      void signalChange() {
+        debounce?.cancel();
+        debounce = Timer(const Duration(milliseconds: 200), () {
+          if (!controller.isClosed) controller.add(null);
+        });
+      }
+
+      final channel = _client.channel(
+          'dashboard:${DateTime.now().microsecondsSinceEpoch}');
+      for (final table in [
+        DatabaseTables.robotStatus,
+        DatabaseTables.sensorReadings,
+        DatabaseTables.activityLogs,
+      ]) {
+        channel.onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: table,
+          callback: (_) => signalChange(),
+        );
+      }
+      channel.subscribe();
 
       controller.onCancel = () {
-        for (final subscription in subscriptions) {
-          subscription.cancel();
-        }
+        debounce?.cancel();
+        _client.removeChannel(channel);
       };
     });
   }
@@ -221,6 +228,7 @@ class DashboardController {
         .select(
           'activity, description, module, created_at, actor:profiles!activity_logs_user_id_fkey(full_name)',
         )
+        .not('activity', 'ilike', 'notification%')
         .order('created_at', ascending: false)
         .limit(5) as List<dynamic>;
 

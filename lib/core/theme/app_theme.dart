@@ -136,7 +136,6 @@ class AppTheme {
           ),
           textStyle: AppTypography.body.copyWith(
             fontWeight: FontWeight.w600,
-            fontVariations: const [FontVariation('wght', 600)],
           ),
         ),
       ),
@@ -150,7 +149,6 @@ class AppTheme {
           ),
           textStyle: AppTypography.body.copyWith(
             fontWeight: FontWeight.w600,
-            fontVariations: const [FontVariation('wght', 600)],
           ),
         ),
       ),
@@ -178,9 +176,6 @@ class AppTheme {
           return AppTypography.caption.copyWith(
             color: selected ? AppColors.secondaryGreen : AppColors.mutedText,
             fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-            fontVariations: [
-              FontVariation('wght', selected ? 700 : 500),
-            ],
           );
         }),
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
@@ -233,47 +228,29 @@ class AppTheme {
     );
   }
 
-  // Flutter 3.27 does not derive the variable-font weight axis from
-  // FontWeight, so carry the text style's declared weight into the Karla face.
+  // Keep framework-provided text styles consistent with the app's typography.
   static TextTheme _withAppFonts(TextTheme textTheme) {
-    TextStyle? style(TextStyle? source, String family) {
+    TextStyle? style(TextStyle? source) {
       if (source == null) return null;
-      return source.copyWith(
-        fontFamily: family,
-        fontVariations: family == 'Karla'
-            ? [FontVariation('wght', _weightAxis(source.fontWeight))]
-            : null,
-      );
+      return source.copyWith(fontFamily: 'Poppins', fontVariations: null);
     }
 
     return textTheme.copyWith(
-      displayLarge: style(textTheme.displayLarge, 'Poppins'),
-      displayMedium: style(textTheme.displayMedium, 'Poppins'),
-      displaySmall: style(textTheme.displaySmall, 'Poppins'),
-      headlineLarge: style(textTheme.headlineLarge, 'Poppins'),
-      headlineMedium: style(textTheme.headlineMedium, 'Poppins'),
-      headlineSmall: style(textTheme.headlineSmall, 'Poppins'),
-      titleLarge: style(textTheme.titleLarge, 'Poppins'),
-      titleMedium: style(textTheme.titleMedium, 'Karla'),
-      titleSmall: style(textTheme.titleSmall, 'Karla'),
-      bodyLarge: style(textTheme.bodyLarge, 'Karla'),
-      bodyMedium: style(textTheme.bodyMedium, 'Karla'),
-      bodySmall: style(textTheme.bodySmall, 'Karla'),
-      labelLarge: style(textTheme.labelLarge, 'Karla'),
-      labelMedium: style(textTheme.labelMedium, 'Karla'),
-      labelSmall: style(textTheme.labelSmall, 'Karla'),
+      displayLarge: style(textTheme.displayLarge),
+      displayMedium: style(textTheme.displayMedium),
+      displaySmall: style(textTheme.displaySmall),
+      headlineLarge: style(textTheme.headlineLarge),
+      headlineMedium: style(textTheme.headlineMedium),
+      headlineSmall: style(textTheme.headlineSmall),
+      titleLarge: style(textTheme.titleLarge),
+      titleMedium: style(textTheme.titleMedium),
+      titleSmall: style(textTheme.titleSmall),
+      bodyLarge: style(textTheme.bodyLarge),
+      bodyMedium: style(textTheme.bodyMedium),
+      bodySmall: style(textTheme.bodySmall),
+      labelLarge: style(textTheme.labelLarge),
+      labelMedium: style(textTheme.labelMedium),
+      labelSmall: style(textTheme.labelSmall),
     );
-  }
-
-  static double _weightAxis(FontWeight? weight) {
-    if (weight == FontWeight.w100) return 100;
-    if (weight == FontWeight.w200) return 200;
-    if (weight == FontWeight.w300) return 300;
-    if (weight == FontWeight.w500) return 500;
-    if (weight == FontWeight.w600) return 600;
-    if (weight == FontWeight.w700) return 700;
-    if (weight == FontWeight.w800) return 800;
-    if (weight == FontWeight.w900) return 800;
-    return 400;
   }
 }

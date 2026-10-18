@@ -1,3 +1,5 @@
+import '../../../../core/utils/farmer_friendly_copy.dart';
+
 enum CropGrowthStage {
   seeded,
   seedbed,
@@ -54,8 +56,10 @@ enum CropStatus {
         CropStatus.needsAttention => 'Needs Attention',
         CropStatus.readyForHarvest => 'Harvest Ready',
         CropStatus.harvested => 'Harvested',
-        CropStatus.notHarvested => 'Closed without harvest',
+        CropStatus.notHarvested => 'Ended without a harvest',
       };
+
+  String get farmerLabel => FarmerFriendlyCopy.cropStatus(label);
 }
 
 enum CropMaintenanceActivity {
@@ -82,6 +86,12 @@ enum CropMaintenanceActivity {
       CropMaintenanceActivity.plantingFailed => 'Planting Failed',
     };
   }
+
+  String get farmerLabel => switch (this) {
+        CropMaintenanceActivity.stageObserved => 'Growth stage recorded',
+        CropMaintenanceActivity.plantingFailed => 'Planting did not finish',
+        _ => label,
+      };
 }
 
 class CropWeatherSnapshot {
@@ -202,6 +212,7 @@ class CropCareTask {
     required this.dueAt,
     required this.priority,
     required this.status,
+    this.suggestedWaterMl,
   });
 
   final String id;
@@ -211,6 +222,9 @@ class CropCareTask {
   final DateTime dueAt;
   final String priority;
   final String status;
+  final double? suggestedWaterMl;
+
+  String get farmerTitle => FarmerFriendlyCopy.careTask(title);
 }
 
 class CropModel {
@@ -249,10 +263,16 @@ class CropModel {
     this.harvestedQuantity,
     this.harvestInventoryName,
     this.harvestTaskCount = 0,
+    this.harvestMode = 'single',
+    this.harvestCount = 0,
     this.profileStages = const [],
     this.careTasks = const [],
     this.plantingTargetDrops,
     this.plantingCompletedDrops,
+    this.assignedPlantingName,
+    this.customPlantingName,
+    this.plantingNameVersion = 0,
+    this.plantingNameSyncStatus,
   });
 
   final String id;
@@ -289,14 +309,31 @@ class CropModel {
   final double? harvestedQuantity;
   final String? harvestInventoryName;
   final int harvestTaskCount;
+  final String harvestMode;
+  final int harvestCount;
   final List<String> profileStages;
   final List<CropCareTask> careTasks;
   final int? plantingTargetDrops;
   final int? plantingCompletedDrops;
+  final String? assignedPlantingName;
+  final String? customPlantingName;
+  final int plantingNameVersion;
+  final String? plantingNameSyncStatus;
+
+  String get displayName {
+    final custom = customPlantingName?.trim();
+    if (custom != null && custom.isNotEmpty) return custom;
+    final assigned = assignedPlantingName?.trim();
+    if (assigned != null && assigned.isNotEmpty) return assigned;
+    return 'Garden $name';
+  }
 
   String get growthStageLabel => recordedGrowthStage?.trim().isNotEmpty == true
       ? recordedGrowthStage!
       : growthStage.label;
+
+  String get farmerGrowthStageLabel =>
+      FarmerFriendlyCopy.growthStage(growthStageLabel);
 
   int get cropAgeDays {
     return DateTime.now().difference(plantingDate).inDays;
@@ -314,6 +351,28 @@ class CropModel {
   bool get isCompleted =>
       status == CropStatus.harvested || status == CropStatus.notHarvested;
   bool get isHarvestReady => status == CropStatus.readyForHarvest;
+
+  List<CropCareTask> get pendingCareTasks {
+    final tasks = careTasks
+        .where((task) =>
+            const ['Overdue', 'Due', 'Upcoming'].contains(task.status))
+        .toList()
+      ..sort((left, right) {
+        int urgency(String status) => switch (status) {
+              'Overdue' => 0,
+              'Due' => 1,
+              _ => 2,
+            };
+        final priority = urgency(left.status).compareTo(urgency(right.status));
+        return priority == 0 ? left.dueAt.compareTo(right.dueAt) : priority;
+      });
+    return tasks;
+  }
+
+  CropCareTask? get nextCareTask {
+    final tasks = pendingCareTasks;
+    return tasks.isEmpty ? null : tasks.first;
+  }
 
   String get trackingCode {
     if (batchCode.trim().isNotEmpty) return batchCode.trim();
@@ -355,6 +414,12 @@ class CropModel {
     String? recordedGrowthStage,
     Object? plantingTargetDrops = _noChange,
     Object? plantingCompletedDrops = _noChange,
+    String? harvestMode,
+    int? harvestCount,
+    String? assignedPlantingName,
+    Object? customPlantingName = _noChange,
+    int? plantingNameVersion,
+    Object? plantingNameSyncStatus = _noChange,
   }) {
     return CropModel(
       id: id ?? this.id,
@@ -401,6 +466,16 @@ class CropModel {
       plantingCompletedDrops: plantingCompletedDrops == _noChange
           ? this.plantingCompletedDrops
           : plantingCompletedDrops as int?,
+      harvestMode: harvestMode ?? this.harvestMode,
+      harvestCount: harvestCount ?? this.harvestCount,
+      assignedPlantingName: assignedPlantingName ?? this.assignedPlantingName,
+      customPlantingName: customPlantingName == _noChange
+          ? this.customPlantingName
+          : customPlantingName as String?,
+      plantingNameVersion: plantingNameVersion ?? this.plantingNameVersion,
+      plantingNameSyncStatus: plantingNameSyncStatus == _noChange
+          ? this.plantingNameSyncStatus
+          : plantingNameSyncStatus as String?,
     );
   }
 }

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/utils/farmer_friendly_copy.dart';
 import '../../../../shared/widgets/app_selector.dart';
 import '../../../../shared/widgets/task_form.dart';
 import '../../data/models/crop_model.dart';
@@ -70,7 +71,9 @@ class _CropPhotoRecordTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = record.observedStage ?? record.activity.label;
+    final title = record.observedStage == null
+        ? record.activity.farmerLabel
+        : FarmerFriendlyCopy.growthStage(record.observedStage!);
     final date =
         DateFormat.yMMMd().add_jm().format(record.performedAt.toLocal());
     return Card(
@@ -221,7 +224,7 @@ class _PhotoComparisonState extends State<_PhotoComparison> {
                 DropdownMenuItem(
                     value: i,
                     child: Text(
-                        '${DateFormat.yMMMd().add_jm().format(widget.records[i].performedAt.toLocal())} · ${widget.records[i].observedStage ?? widget.records[i].activity.label}'))
+                        '${DateFormat.yMMMd().add_jm().format(widget.records[i].performedAt.toLocal())} · ${widget.records[i].observedStage == null ? widget.records[i].activity.farmerLabel : FarmerFriendlyCopy.growthStage(widget.records[i].observedStage!)}'))
             ],
             onChanged: (value) {
               if (value != null) setState(() => select(value));

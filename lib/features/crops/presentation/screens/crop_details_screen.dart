@@ -10,11 +10,16 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/utils/date_time_formatter.dart';
+import '../../../../core/utils/farmer_friendly_copy.dart';
 import '../../../../shared/widgets/app_card.dart';
-import '../../../../shared/widgets/loading_indicator.dart';
+import '../../../../shared/widgets/action_result_dialog.dart';
+import '../../../../shared/widgets/content_skeleton.dart';
+import '../../../../shared/widgets/initial_loading_skeleton.dart';
 import '../../../authentication/providers/auth_providers.dart';
+import '../../../inventory/providers/stock_providers.dart';
 import '../../controllers/crop_monitoring_controller.dart';
 import '../../data/models/crop_model.dart';
+import '../../data/repositories/crop_repository.dart';
 import '../../providers/crop_providers.dart';
 import '../widgets/crop_task_forms.dart';
 import '../widgets/crop_photo_history.dart';
@@ -69,6 +74,159 @@ class _CropDetailsScreenState extends ConsumerState<CropDetailsScreen>
     }
   }
 
+  Widget _activityHistoryTab(
+    AsyncValue<List<CropMaintenanceRecord>> history,
+    String cropId,
+    Widget Function(List<CropMaintenanceRecord> records) builder,
+  ) =>
+      history.when(
+        data: builder,
+        loading: () => const Center(
+          child: Padding(
+            padding: EdgeInsets.all(AppSpacing.lg),
+            child: CircularProgressIndicator.adaptive(),
+          ),
+        ),
+        error: (_, __) => Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Crop activity history could not be loaded.'),
+              TextButton.icon(
+                onPressed: () =>
+                    ref.invalidate(cropActivityHistoryProvider(cropId)),
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+
+  Future<void> _renamePlanting(
+      BuildContext context, CropMonitoringController controller, CropModel crop,
+      {String? initialName}) async {
+    if (crop.plantingNameSyncStatus == 'Needs review') {
+      final useMyName = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Planting name changed elsewhere'),
+          content: const Text(
+              'Another device saved a different name. Keep that saved name, or send your name again?'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Keep saved name')),
+            FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('Use my name')),
+          ],
+        ),
+      );
+      final savedName = crop.displayName;
+      await controller.discardPendingPlantingName(crop.id);
+      if (!context.mounted) return;
+      if (useMyName != true) return;
+      final refreshed = controller.cropById(crop.id);
+      if (refreshed != null) {
+        await _renamePlanting(context, controller, refreshed,
+            initialName: savedName);
+      }
+      return;
+    }
+    final input = TextEditingController(text: initialName ?? crop.displayName);
+    var useAssigned = false;
+    var saving = false;
+    String? errorText;
+    final shouldSave = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) =>
+          StatefulBuilder(builder: (context, setDialogState) {
+        Future<void> save() async {
+          final normalized = input.text.trim().replaceAll(RegExp(r'\s+'), ' ');
+          if (normalized.isEmpty ||
+              normalized.length > 60 ||
+              normalized.contains(RegExp(r'[\r\n\x00-\x1f]'))) {
+            setDialogState(
+                () => errorText = 'Use 1 to 60 characters on one line.');
+            return;
+          }
+          setDialogState(() {
+            saving = true;
+            errorText = null;
+          });
+          final result = await controller.renamePlanting(
+            crop: crop,
+            plantingName: normalized,
+            useAssigned: useAssigned,
+          );
+          if (!context.mounted) return;
+          if (result != null) {
+            Navigator.of(dialogContext).pop(result);
+          } else {
+            setDialogState(() {
+              saving = false;
+              errorText =
+                  'Could not save the name. Check your connection and try again.';
+            });
+          }
+        }
+
+        return AlertDialog(
+          title: const Text('Rename planting'),
+          content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                    'Name this ${crop.name} planting. Tracking ID: ${crop.trackingCode}.'),
+                const SizedBox(height: AppSpacing.md),
+                TextField(
+                    controller: input,
+                    enabled: !saving && !useAssigned,
+                    maxLength: 60,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                        labelText: 'Planting name', errorText: errorText)),
+                if (crop.customPlantingName?.isNotEmpty == true)
+                  TextButton(
+                      onPressed: saving
+                          ? null
+                          : () =>
+                              setDialogState(() => useAssigned = !useAssigned),
+                      child: Text(useAssigned
+                          ? 'Keep saved name'
+                          : 'Use assigned name')),
+              ]),
+          actions: [
+            TextButton(
+                onPressed:
+                    saving ? null : () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: saving ? null : save,
+                child: saving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('Save name')),
+          ],
+        );
+      }),
+    );
+    input.dispose();
+    if (shouldSave != null && context.mounted) {
+      await showActionResult(context,
+          message: switch (shouldSave) {
+            'waiting' => 'Name saved on this phone; waiting to sync.',
+            'needs-review' =>
+              'Name saved on this phone; review the change from the other device.',
+            _ => 'Planting name saved.',
+          });
+    }
+  }
+
   @override
   void dispose() {
     _controller?.removeListener(_handleTabChange);
@@ -79,32 +237,59 @@ class _CropDetailsScreenState extends ConsumerState<CropDetailsScreen>
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(cropMonitoringControllerProvider);
+    ref.listen(cropMonitoringControllerProvider, (previous, next) {
+      if (previous != null && !identical(previous.crops, next.crops)) {
+        ref.invalidate(cropActivityHistoryProvider(widget.cropId));
+      }
+    });
     final controller = ref.read(cropMonitoringControllerProvider.notifier);
     final profile = ref.watch(authControllerProvider).profile;
     final crop = controller.cropById(widget.cropId);
-
-    ref.listen(cropMonitoringControllerProvider, (previous, next) {
-      final message = next.successMessage;
-
-      if (message != null && message != previous?.successMessage) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            action: message.contains('kg added to')
-                ? SnackBarAction(
-                    label: 'View inventory',
-                    onPressed: () => context.push(AppRoutes.stocks))
-                : null,
-          ),
-        );
-        ref
-            .read(cropMonitoringControllerProvider.notifier)
-            .clearSuccessMessage();
-      }
-    });
+    final activityHistory = _selectedTab >= 2
+        ? ref.watch(cropActivityHistoryProvider(widget.cropId))
+        : null;
 
     if (state.isLoading && crop == null) {
-      return const LoadingIndicator();
+      return const InitialLoadingSkeleton(
+        skeleton: Padding(
+          padding: EdgeInsets.all(AppSpacing.md),
+          child: SkeletonCard(
+            height: 300,
+            children: [
+              SkeletonLine(widthFactor: .58, height: 24),
+              SizedBox(height: AppSpacing.lg),
+              SkeletonBlock(height: 130),
+              SizedBox(height: AppSpacing.md),
+              SkeletonLine(widthFactor: .8),
+              SizedBox(height: AppSpacing.sm),
+              SkeletonLine(widthFactor: .6),
+            ],
+          ),
+        ),
+        label: 'Loading crop details…',
+      );
+    }
+
+    if (crop == null && state.errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.cloud_off_outlined),
+              const SizedBox(height: AppSpacing.sm),
+              Text('Crop details could not be loaded.',
+                  style: AppTypography.body),
+              TextButton.icon(
+                onPressed: controller.loadCrops,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     if (crop == null) {
@@ -121,9 +306,9 @@ class _CropDetailsScreenState extends ConsumerState<CropDetailsScreen>
         final action = widget.initialAction;
         if (action != null &&
             !(profile?.hasPermission(action.permission) ?? false)) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content:
-                  Text('This task is no longer available for your account.')));
+          showActionResult(context,
+              message: 'This task is no longer available for your account.',
+              success: false);
           return;
         }
         if (action == WorkspaceAction.observeGrowth) {
@@ -161,6 +346,16 @@ class _CropDetailsScreenState extends ConsumerState<CropDetailsScreen>
           controller: _tabController,
           isScrollable: false,
           tabAlignment: TabAlignment.fill,
+          dividerColor: AppColors.primaryGreen,
+          indicatorColor: AppColors.primaryGreen,
+          labelStyle: AppTypography.caption.copyWith(
+            color: AppColors.primaryGreen,
+            fontWeight: FontWeight.w700,
+          ),
+          unselectedLabelStyle: AppTypography.caption.copyWith(
+            color: AppColors.secondaryText,
+            fontWeight: FontWeight.w600,
+          ),
           tabs: const [
             Tab(text: 'Overview'),
             Tab(text: 'Sensors'),
@@ -175,6 +370,9 @@ class _CropDetailsScreenState extends ConsumerState<CropDetailsScreen>
               _CropTabPage(children: [
                 _CropOverviewIdentity(
                   crop: crop,
+                  onRename: canManage
+                      ? () => _renamePlanting(context, controller, crop)
+                      : null,
                   onCloseWithoutHarvest: canManage && !crop.isCompleted
                       ? () => _showNotHarvestedDialog(context, controller, crop)
                       : null,
@@ -192,17 +390,44 @@ class _CropDetailsScreenState extends ConsumerState<CropDetailsScreen>
                 embedded: true,
                 enabled: _selectedTab == 1,
               ),
-              _CropTabPage(children: [
-                _CropGrowthJourney(
-                  crop: crop,
-                  onRecordHarvest: canManage && !crop.isCompleted
-                      ? () => _showHarvestDialog(context, controller, crop)
-                      : null,
-                ),
-              ]),
-              _CropTabPage(children: [
-                CropActivityHistory(records: crop.maintenanceHistory),
-              ]),
+              activityHistory == null
+                  ? const SizedBox.shrink()
+                  : _activityHistoryTab(
+                      activityHistory,
+                      crop.id,
+                      (records) => _CropTabPage(children: [
+                        _CropGrowthJourney(
+                          crop: crop.copyWith(maintenanceHistory: records),
+                          onRecordHarvest: canManage && !crop.isCompleted
+                              ? () =>
+                                  _showHarvestDialog(context, controller, crop)
+                              : null,
+                        ),
+                        if (profile?.isAdministrator == true &&
+                            crop.harvestCount > 0 &&
+                            !crop.isCompleted)
+                          _CropHarvestCorrectionHistory(
+                            cropId: crop.id,
+                            repository: ref.read(cropRepositoryProvider),
+                            onCorrected: () async {
+                              await controller.loadCrops();
+                              await ref
+                                  .read(stockInventoryControllerProvider
+                                      .notifier)
+                                  .loadStocks();
+                            },
+                          ),
+                      ]),
+                    ),
+              activityHistory == null
+                  ? const SizedBox.shrink()
+                  : _activityHistoryTab(
+                      activityHistory,
+                      crop.id,
+                      (records) => _CropTabPage(children: [
+                        CropActivityHistory(records: records),
+                      ]),
+                    ),
             ],
           ),
         ),
@@ -249,7 +474,7 @@ class _CropDetailsScreenState extends ConsumerState<CropDetailsScreen>
               CropMaintenanceActivity.stageObserved
             ),
             (
-              'Harvest batch',
+              'Record harvest',
               Icons.agriculture_outlined,
               CropMaintenanceActivity.harvested
             ),
@@ -270,7 +495,7 @@ class _CropDetailsScreenState extends ConsumerState<CropDetailsScreen>
                 subtitle: choice.$3 == CropMaintenanceActivity.harvested &&
                         !canHarvest
                     ? Text(
-                        'Available at Harvest Ready',
+                        'Available when this crop is ready to harvest',
                         style: AppTypography.caption.copyWith(
                           color: AppColors.mutedText,
                         ),
@@ -349,15 +574,17 @@ class _CropDetailsHeader extends StatelessWidget {
 class _CropOverviewIdentity extends StatelessWidget {
   const _CropOverviewIdentity({
     required this.crop,
+    this.onRename,
     this.onCloseWithoutHarvest,
   });
 
   final CropModel crop;
+  final VoidCallback? onRename;
   final VoidCallback? onCloseWithoutHarvest;
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+        padding: EdgeInsets.zero,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -370,7 +597,12 @@ class _CropOverviewIdentity extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(crop.name, style: AppTypography.cardTitle),
+                      Text(crop.displayName, style: AppTypography.cardTitle),
+                      Text(crop.name, style: AppTypography.caption),
+                      if (crop.plantingNameSyncStatus != null)
+                        Text(crop.plantingNameSyncStatus!,
+                            style: AppTypography.caption
+                                .copyWith(color: AppColors.warning)),
                       Text(
                         '${crop.fieldLabel} - ${crop.trackingCode}',
                         style: AppTypography.caption,
@@ -378,7 +610,7 @@ class _CropOverviewIdentity extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
-                        crop.status.label,
+                        crop.status.farmerLabel,
                         style: AppTypography.caption.copyWith(
                           color: crop.status == CropStatus.needsAttention
                               ? AppColors.warning
@@ -389,16 +621,20 @@ class _CropOverviewIdentity extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (onRename != null)
+                  IconButton(
+                      tooltip: 'Rename planting',
+                      onPressed: onRename,
+                      icon: const Icon(Icons.edit_outlined)),
                 if (onCloseWithoutHarvest != null)
                   IconButton(
-                    tooltip: 'Close without harvest',
+                    tooltip: 'End crop',
                     onPressed: onCloseWithoutHarvest,
                     style: IconButton.styleFrom(
                       foregroundColor: AppColors.danger,
                       minimumSize: const Size(48, 48),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(AppRadius.sm),
-                        side: BorderSide(color: AppColors.danger),
                       ),
                     ),
                     icon: const Icon(Icons.delete_outline_rounded),
@@ -406,8 +642,30 @@ class _CropOverviewIdentity extends StatelessWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.sm),
-            Center(child: CropPlantImage(crop: crop, size: 112)),
+            Center(
+              child: CropPlantImage(
+                crop: crop,
+                size: 160,
+                zoomToSubject: true,
+              ),
+            ),
             const SizedBox(height: AppSpacing.sm),
+            if (crop.harvestCount > 0) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: AppColors.cardBackground,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                child: Text(
+                  '${crop.harvestCount} ${crop.harvestCount == 1 ? 'harvest' : 'harvests'} · ${(crop.harvestedQuantity ?? 0).toStringAsFixed(2)} kg total${crop.harvestDate == null ? '' : ' · Last picked ${DateTimeFormatter.formatDate(crop.harvestDate!)}'}',
+                  style:
+                      AppTypography.body.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+            ],
             CropGrowthProgress(crop: crop),
           ],
         ),
@@ -468,7 +726,7 @@ class _CropGrowthJourneyState extends State<_CropGrowthJourney> {
                     Text('Growth journey', style: AppTypography.sectionHeading),
               ),
               _GrowthStageBadge(
-                label: crop.isCompleted ? crop.status.label : 'In progress',
+                label: crop.isCompleted ? crop.status.farmerLabel : 'Growing',
                 color: crop.isCompleted
                     ? AppColors.mutedText
                     : AppColors.primaryGreen,
@@ -495,7 +753,7 @@ class _CropGrowthJourneyState extends State<_CropGrowthJourney> {
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  crop.growthStageLabel,
+                  crop.farmerGrowthStageLabel,
                   style: AppTypography.body.copyWith(
                     color: AppColors.primaryText,
                     fontWeight: FontWeight.w700,
@@ -536,9 +794,16 @@ class _CropGrowthJourneyState extends State<_CropGrowthJourney> {
                   });
                 },
                 onRecordHarvest: index == currentStageIndex &&
-                        _normalizeStage(stages[index]) == 'harvest ready'
+                        (_normalizeStage(stages[index]) == 'harvest ready' ||
+                            (crop.harvestMode == 'repeat' &&
+                                crop.harvestCount > 0) ||
+                            (crop.harvestMode == 'repeat' &&
+                                crop.cropProfileKey == 'calamansi' &&
+                                _normalizeStage(stages[index]) ==
+                                    'first bearing'))
                     ? widget.onRecordHarvest
                     : null,
+                repeatHarvest: crop.harvestMode == 'repeat',
               ),
           ] else
             Text(
@@ -570,6 +835,7 @@ class _GrowthStageRow extends StatelessWidget {
     required this.photosExpanded,
     required this.onTogglePhotos,
     required this.onRecordHarvest,
+    required this.repeatHarvest,
   });
 
   final String stage;
@@ -580,6 +846,7 @@ class _GrowthStageRow extends StatelessWidget {
   final bool photosExpanded;
   final VoidCallback onTogglePhotos;
   final VoidCallback? onRecordHarvest;
+  final bool repeatHarvest;
 
   @override
   Widget build(BuildContext context) {
@@ -664,7 +931,7 @@ class _GrowthStageRow extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(stage,
+                              Text(FarmerFriendlyCopy.growthStage(stage),
                                   style: AppTypography.body.copyWith(
                                     fontWeight: FontWeight.w700,
                                   )),
@@ -738,7 +1005,9 @@ class _GrowthStageRow extends StatelessWidget {
                       ),
                       const SizedBox(height: AppSpacing.xs),
                       Text(
-                        'The saved harvest is added to inventory and closes this batch.',
+                        repeatHarvest
+                            ? 'Each picking is added to inventory. This crop stays active for future harvests.'
+                            : 'The harvest is added to inventory and closes this crop.',
                         style: AppTypography.caption,
                       ),
                     ],
@@ -862,6 +1131,12 @@ String _normalizeStage(String value) =>
     value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 
 bool _hasReachedHarvestReady(CropModel crop) {
+  if (crop.harvestMode == 'repeat' && crop.harvestCount > 0) return true;
+  if (crop.harvestMode == 'repeat' &&
+      crop.cropProfileKey == 'calamansi' &&
+      _normalizeStage(crop.growthStageLabel) == 'first bearing') {
+    return true;
+  }
   if (crop.isHarvestReady) return true;
   final readyIndex = crop.profileStages
       .indexWhere((stage) => _normalizeStage(stage) == 'harvest ready');
@@ -893,9 +1168,243 @@ class _CropTabPage extends StatelessWidget {
             for (var index = 0; index < children.length; index++) ...[
               children[index],
               if (index < children.length - 1)
-                const SizedBox(height: AppSpacing.md),
+                const SizedBox(height: AppSpacing.sm),
             ],
           ],
         ),
       );
+}
+
+class _CropHarvestCorrectionHistory extends ConsumerStatefulWidget {
+  const _CropHarvestCorrectionHistory({
+    required this.cropId,
+    required this.repository,
+    required this.onCorrected,
+  });
+
+  final String cropId;
+  final CropRepository repository;
+  final Future<void> Function() onCorrected;
+
+  @override
+  ConsumerState<_CropHarvestCorrectionHistory> createState() =>
+      _CropHarvestCorrectionHistoryState();
+}
+
+class _CropHarvestCorrectionHistoryState
+    extends ConsumerState<_CropHarvestCorrectionHistory> {
+  List<Map<String, dynamic>> _rows = const [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final rows = await widget.repository.getCropHarvestHistory(widget.cropId);
+      if (!mounted) return;
+      setState(() => _rows = rows);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = 'Harvest history could not be loaded.');
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _openCorrection(Map<String, dynamic> row) async {
+    final canCorrect =
+        ref.read(authControllerProvider).profile?.isAdministrator == true;
+    if (!canCorrect) return;
+    final pendingCrop =
+        await widget.repository.hasPendingCropEntries(widget.cropId);
+    final pendingCorrection =
+        await widget.repository.hasPendingHarvestCorrection(widget.cropId);
+    if (!mounted) return;
+    if (pendingCrop || pendingCorrection) {
+      await showActionResult(context,
+          message: pendingCrop
+              ? 'Sync or review this crop’s saved entries before correcting a harvest.'
+              : 'Finish the saved correction for this harvest before starting another.',
+          success: false);
+      return;
+    }
+    List<Map<String, dynamic>> revisions;
+    try {
+      revisions = await widget.repository
+          .getCropHarvestCorrections(row['id'] as String);
+    } catch (_) {
+      if (mounted) {
+        await showActionResult(context,
+            message:
+                'Correction history could not be checked. Try again when connected.',
+            success: false);
+      }
+      return;
+    }
+    if (!mounted) return;
+    final quantity =
+        TextEditingController(text: (row['quantity'] as num).toString());
+    final notes = TextEditingController(text: row['remarks'] as String? ?? '');
+    final reason = TextEditingController();
+    var saving = false;
+    String? error;
+    final saved = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(builder: (context, update) {
+        Future<void> save() async {
+          final value = double.tryParse(quantity.text.trim());
+          if (value == null ||
+              !value.isFinite ||
+              value <= 0 ||
+              value != double.parse(value.toStringAsFixed(2))) {
+            update(() => error =
+                'Enter a weight greater than zero with up to two decimal places.');
+            return;
+          }
+          if (reason.text.trim().isEmpty) {
+            update(() => error = 'Explain why this harvest needs correction.');
+            return;
+          }
+          update(() {
+            saving = true;
+            error = null;
+          });
+          try {
+            await widget.repository.correctCropHarvest(
+              cropId: widget.cropId,
+              harvestId: row['id'] as String,
+              expectedRevision: revisions.isEmpty
+                  ? 0
+                  : (revisions.first['revision'] as num).toInt(),
+              quantity: value,
+              notes: notes.text,
+              reason: reason.text,
+            );
+            if (dialogContext.mounted) Navigator.of(dialogContext).pop(true);
+          } catch (caught) {
+            update(() {
+              saving = false;
+              error = caught.toString().replaceFirst('Exception: ', '');
+            });
+          }
+        }
+
+        return AlertDialog(
+          title: const Text('Correct harvest'),
+          content: SingleChildScrollView(
+              child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                  'Only weight and notes can change. Crop, harvest date, and inventory destination stay fixed.'),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                  'Previous weight: ${(row['quantity'] as num).toStringAsFixed(2)} kg'),
+              TextField(
+                controller: quantity,
+                enabled: !saving,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration:
+                    const InputDecoration(labelText: 'Correct weight (kg)'),
+              ),
+              ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: quantity,
+                  builder: (_, value, __) => Text(
+                      'Proposed weight: ${double.tryParse(value.text)?.toStringAsFixed(2) ?? '—'} kg')),
+              TextField(
+                  controller: notes,
+                  enabled: !saving,
+                  maxLength: 2000,
+                  maxLines: 2,
+                  decoration: const InputDecoration(labelText: 'Notes')),
+              TextField(
+                  controller: reason,
+                  enabled: !saving,
+                  maxLength: 500,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                      labelText: 'Why are you correcting this harvest?')),
+              if (error != null)
+                Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.xs),
+                    child: Text(error!,
+                        style: TextStyle(color: AppColors.danger))),
+            ],
+          )),
+          actions: [
+            TextButton(
+                onPressed: saving
+                    ? null
+                    : () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: saving ? null : save,
+                child: saving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('Save correction')),
+          ],
+        );
+      }),
+    );
+    quantity.dispose();
+    notes.dispose();
+    reason.dispose();
+    if (saved == true && mounted) {
+      await widget.onCorrected();
+      await _load();
+      if (mounted) {
+        await showActionResult(context, message: 'Harvest correction saved.');
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final admin =
+        ref.watch(authControllerProvider).profile?.isAdministrator == true;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Text('Harvest history', style: AppTypography.sectionHeading),
+      if (_loading)
+        const Padding(
+            padding: EdgeInsets.all(AppSpacing.md),
+            child: Center(child: CircularProgressIndicator())),
+      if (_error != null)
+        Row(children: [
+          Expanded(child: Text(_error!, style: AppTypography.caption)),
+          TextButton(onPressed: _load, child: const Text('Retry'))
+        ]),
+      for (final row in _rows)
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(
+              '${(row['quantity'] as num).toStringAsFixed(2)} kg · ${DateTimeFormatter.formatDate(DateTime.parse(row['harvest_date'].toString()))}'),
+          subtitle: Text(
+              '${row['harvested_by_name'] ?? 'Farmer'}${(row['remarks'] as String?)?.isNotEmpty == true ? ' · ${row['remarks']}' : ''}'),
+          trailing: admin
+              ? IconButton(
+                  tooltip: 'Correct harvest',
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => _openCorrection(row))
+              : null,
+        ),
+      if (!_loading && _error == null && _rows.isEmpty)
+        const Text('No harvests are recorded.'),
+    ]);
+  }
 }

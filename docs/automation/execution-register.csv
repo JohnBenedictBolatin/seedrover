@@ -1,0 +1,5 @@
+﻿Run ID,Run type,Started,Total,Passed,Failed,Blocked,Browser,Playwright,Evidence path
+20261005T153119448-21704,Current full regression,2026-10-05T15:31:19.449Z,52,50,0,2,Chromium,1.63.0,run-artifacts/20261005T153119448-21704/
+20261005T152947852-40364,Current smoke subset,2026-10-05T15:29:47.855Z,5,5,0,0,Chromium,1.63.0,run-artifacts/20261005T152947852-40364/
+20261005T144631592-7060,Focused stock rejection retest,2026-10-05T14:46:31.595Z,1,1,0,0,Chromium,1.63.0,run-artifacts/20261005T144631592-7060/
+20261005T141625648-47936,Historical formal baseline,2026-10-05T14:16:25.650Z,52,50,0,2,Chromium,1.63.0,run-artifacts/20261005T141625648-47936/

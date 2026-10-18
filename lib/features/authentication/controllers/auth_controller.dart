@@ -17,7 +17,7 @@ class AuthController extends StateNotifier<AppAuthState> {
             event.signOutReason?.name == 'sessionExpired';
         state = AppAuthState.unauthenticated(
           errorMessage: _lastSignOutWasSessionExpiry
-              ? 'Your session ended. Your account may have been signed in on another device. Sign in again to continue.'
+              ? 'Your session ended. It may have expired or been signed out from another device. Sign in again to continue.'
               : null,
         );
       }
@@ -29,13 +29,17 @@ class AuthController extends StateNotifier<AppAuthState> {
   final Map<String, _AttemptBucket> _attemptBuckets = {};
   bool _lastSignOutWasSessionExpiry = false;
 
+  static const _sessionRestoreTimeout = Duration(seconds: 12);
+
   Future<void> _initialize() async {
     try {
-      final profile = await _repository.getCurrentProfile();
+      final profile = await _repository
+          .getCurrentProfile()
+          .timeout(_sessionRestoreTimeout);
       if (_lastSignOutWasSessionExpiry) {
         state = const AppAuthState.unauthenticated(
           errorMessage:
-              'Your session ended. Your account may have been signed in on another device. Sign in again to continue.',
+              'Your session ended. It may have expired or been signed out from another device. Sign in again to continue.',
         );
         return;
       }
@@ -43,7 +47,7 @@ class AuthController extends StateNotifier<AppAuthState> {
       state = profile == null
           ? AppAuthState.unauthenticated(
               errorMessage: _lastSignOutWasSessionExpiry
-                  ? 'Your session ended. Your account may have been signed in on another device. Sign in again to continue.'
+                  ? 'Your session ended. It may have expired or been signed out from another device. Sign in again to continue.'
                   : null,
             )
           : AppAuthState.authenticated(profile);

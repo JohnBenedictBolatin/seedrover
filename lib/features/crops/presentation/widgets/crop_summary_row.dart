@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
-import '../../../../shared/widgets/animated_content.dart';
 import '../../../../shared/widgets/app_card.dart';
 
 class CropSummaryRow extends StatelessWidget {
@@ -51,7 +50,7 @@ class CropSummaryRow extends StatelessWidget {
             SizedBox(
               width: tileWidth,
               child: _SummaryTile(
-                label: 'Harvest Ready',
+                label: 'Ready to harvest',
                 value: harvestReadyCrops.toString(),
                 icon: Icons.content_cut,
                 color: AppColors.warning,

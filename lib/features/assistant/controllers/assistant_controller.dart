@@ -1,9 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../data/models/assistant_context_model.dart';
 import '../data/models/assistant_message_model.dart';
 import '../data/repositories/assistant_repository.dart';
 import 'assistant_state.dart';
@@ -12,14 +12,11 @@ class AssistantController extends StateNotifier<AssistantState> {
   AssistantController(
     this._repository, {
     required String? userId,
-    required AssistantContextModel Function() readContext,
   })  : _userId = userId,
-        _readContext = readContext,
         super(AssistantState.initial());
 
   final AssistantRepository _repository;
   final String? _userId;
-  final AssistantContextModel Function() _readContext;
   final List<DateTime> _recentRequests = [];
   Future<void>? _restoreHistoryFuture;
 
@@ -174,40 +171,53 @@ class AssistantController extends StateNotifier<AssistantState> {
     );
     await _saveConversation(nextMessages);
 
+    final slowTimer = Timer(const Duration(seconds: 10), () {
+      if (mounted && state.isSending) {
+        state = state.copyWith(showSlowMessage: true);
+      }
+    });
     try {
-      final answer = await _repository.ask(
+      final reply = await _repository.ask(
         question: question,
         history: nextMessages,
-        context: _readAssistantContext(),
       );
-
+      if (!mounted) return;
       state = state.copyWith(
         messages: [
           ...nextMessages,
-          _message(role: AssistantMessageRole.assistant, content: answer),
+          _message(role: AssistantMessageRole.assistant, content: reply.answer),
         ],
         isSending: false,
         canRetry: false,
+        showSlowMessage: false,
+        errorMessage: reply.notice,
       );
       await _saveConversation(state.messages);
-    } catch (_) {
-      final fallbackContext = _readAssistantContext();
-
+    } on AssistantException catch (error) {
+      if (!mounted) return;
       state = state.copyWith(
-        messages: [
-          ...nextMessages,
-          _message(
-            role: AssistantMessageRole.assistant,
-            content:
-                '${_fallbackAnswer(question, fallbackContext)}\n\nI could not reach the assistant service right now.',
-          ),
-        ],
+        isSending: false,
+        errorMessage: _formatError(error),
+        canRetry: ![
+          'sign_in_required',
+          'account_inactive',
+          'permission_denied',
+          'invalid_question',
+          'question_too_long',
+        ].contains(error.message),
+        showSlowMessage: false,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      state = state.copyWith(
         isSending: false,
         errorMessage:
-            'Rovie is temporarily unavailable. Please try again later.',
+            'Could not connect to Rovie. Check your connection and retry.',
         canRetry: true,
+        showSlowMessage: false,
       );
-      await _saveConversation(state.messages);
+    } finally {
+      slowTimer.cancel();
     }
   }
 
@@ -222,16 +232,54 @@ class AssistantController extends StateNotifier<AssistantState> {
     }
     if (lastUserMessage == null) return;
 
-    final remaining = [...state.messages];
-    if (remaining.isNotEmpty &&
-        remaining.last.role == AssistantMessageRole.assistant) {
-      remaining.removeLast();
+    final current = [...state.messages];
+    if (current.isNotEmpty &&
+        current.last.role == AssistantMessageRole.assistant) {
+      current.removeLast();
     }
-    if (remaining.isNotEmpty && remaining.last.id == lastUserMessage.id) {
-      remaining.removeLast();
+    state =
+        state.copyWith(messages: current, isSending: true, clearError: true);
+    await _saveConversation(current);
+    final slowTimer = Timer(const Duration(seconds: 10), () {
+      if (mounted && state.isSending) {
+        state = state.copyWith(showSlowMessage: true);
+      }
+    });
+    try {
+      final reply = await _repository.ask(
+        question: lastUserMessage.content,
+        history: current,
+      );
+      if (!mounted) return;
+      state = state.copyWith(
+        messages: [
+          ...current,
+          _message(role: AssistantMessageRole.assistant, content: reply.answer)
+        ],
+        isSending: false,
+        canRetry: false,
+        showSlowMessage: false,
+        errorMessage: reply.notice,
+      );
+      await _saveConversation(state.messages);
+    } on AssistantException catch (error) {
+      if (!mounted) return;
+      state = state.copyWith(
+          isSending: false,
+          errorMessage: _formatError(error),
+          canRetry: _isRetryable(error.message),
+          showSlowMessage: false);
+    } catch (_) {
+      if (!mounted) return;
+      state = state.copyWith(
+          isSending: false,
+          errorMessage:
+              'Could not connect to Rovie. Check your connection and retry.',
+          canRetry: true,
+          showSlowMessage: false);
+    } finally {
+      slowTimer.cancel();
     }
-    state = state.copyWith(messages: remaining, clearError: true);
-    await sendMessage(lastUserMessage.content);
   }
 
   bool _isRestrictedRequest(String value) {
@@ -275,94 +323,37 @@ class AssistantController extends StateNotifier<AssistantState> {
     );
   }
 
-  AssistantContextModel _readAssistantContext() {
-    try {
-      return _readContext();
-    } catch (_) {
-      return AssistantContextModel.empty();
-    }
+  String _friendlyError(String code) {
+    return switch (code) {
+      'sign_in_required' => 'Your session ended. Sign in again to ask Rovie.',
+      'account_inactive' =>
+        'This account is inactive. Ask an administrator for help.',
+      'permission_denied' =>
+        'Your account does not have access to that information.',
+      'rate_limited' =>
+        'Rovie is receiving too many requests. Please wait a moment, then retry.',
+      'request_timeout' =>
+        'Rovie is taking too long to respond. Your question is saved; retry when ready.',
+      'invalid_question' => 'Please check your question and try again.',
+      'question_too_long' => 'Please keep questions under 2,000 characters.',
+      'farm_data_unavailable' =>
+        'Farm information could not be loaded. Your question is saved; try again.',
+      'timeout' =>
+        'Rovie is taking too long to respond. Your question is saved; retry when ready.',
+      _ =>
+        'Rovie is temporarily unavailable. Your question is saved; try again.',
+    };
   }
 
-  String _fallbackAnswer(String question, AssistantContextModel context) {
-    final normalized = question.toLowerCase();
-
-    if (normalized.contains('analytics') ||
-        normalized.contains('sell') ||
-        normalized.contains('sales') ||
-        normalized.contains('best month') ||
-        normalized.contains('best time')) {
-      final analytics = context.farmAnalytics;
-      final salesOverview = analytics['salesOverview'];
-      final bestMonth = analytics['bestObservedSalesMonth'];
-      final topItems = analytics['topSoldItems'];
-      final hints = analytics['recommendationHints'];
-
-      if ((normalized.contains('current') ||
-              normalized.contains('status') ||
-              normalized.contains('now')) &&
-          salesOverview is Map) {
-        final summary = salesOverview['summary'] as String?;
-        final latestSale = salesOverview['latestSale'];
-        final topItem =
-            topItems is List && topItems.isNotEmpty ? topItems.first : null;
-        final salesToday = salesOverview['salesToday'];
-        final salesThisMonth = salesOverview['salesThisMonth'];
-        final unitsSoldThisMonth = salesOverview['unitsSoldThisMonth'];
-        final salesTransactionsThisMonth =
-            salesOverview['salesTransactionsThisMonth'];
-        final latestSaleText = latestSale is Map && latestSale['item'] != null
-            ? ' Latest sale: ${latestSale['item']} (${latestSale['quantity']} ${latestSale['unit'] ?? ''}${latestSale['totalAmount'] == null ? '' : ', ${_formatPeso(latestSale['totalAmount'])}'}).'
-            : '';
-        final topItemText = topItem is Map && topItem['label'] != null
-            ? ' Top sold item so far: ${topItem['label']}.'
-            : '';
-        final dashboardText =
-            ' Dashboard sales: today ${_formatPeso(salesToday)}, this month ${_formatPeso(salesThisMonth)}, units sold ${_formatNumber(unitsSoldThisMonth)}, sales txns ${salesTransactionsThisMonth ?? 0}.';
-
-        return '${summary ?? 'Sales status is available from stock records.'}$dashboardText$latestSaleText$topItemText';
-      }
-
-      if (bestMonth is Map && bestMonth['label'] != null) {
-        final firstTopItem =
-            topItems is List && topItems.isNotEmpty ? topItems.first : null;
-        final topItemText = firstTopItem is Map && firstTopItem['label'] != null
-            ? ' Top item: ${firstTopItem['label']}.'
-            : '';
-        final confidenceText =
-            hints is List && hints.isNotEmpty ? ' ${hints.last}' : '';
-
-        return 'The strongest observed selling period is ${bestMonth['label']}.${topItemText}$confidenceText';
-      }
-
-      return 'I need more stock-out or sales history before I can suggest the best time of year to sell confidently.';
-    }
-
-    if (normalized.contains('soil') || normalized.contains('plant')) {
-      return 'I can help with planting basics. Check soil moisture first, then confirm the soil is suitable before starting the rover planting process. For calamansi, peanut, and sitaw, avoid planting in waterlogged soil.';
-    }
-
-    if (normalized.contains('rover')) {
-      return 'Check the Rover Control module for camera, Wi-Fi, Bluetooth, and sensor status. Use Emergency Stop if planting is active and control needs to be interrupted.';
-    }
-
-    if (normalized.contains('stock') || normalized.contains('inventory')) {
-      return 'Use the Inventory module to review harvested produce quantity, status, transaction history, stock in, stock out, and adjustments.';
-    }
-
-    return 'I can help with SeedRover modules, crop monitoring, planting steps, sensor readings, inventory, and general farming questions.';
+  String _formatError(AssistantException error) {
+    final reference = error.requestId;
+    return '${_friendlyError(error.message)}${reference == null ? '' : ' (Ref: $reference)'}';
   }
 
-  String _formatPeso(Object? value) {
-    final amount = value is num ? value.toDouble() : 0;
-
-    return 'PHP ${amount.toStringAsFixed(2)}';
-  }
-
-  String _formatNumber(Object? value) {
-    final amount = value is num ? value.toDouble() : 0;
-
-    return amount % 1 == 0
-        ? amount.toStringAsFixed(0)
-        : amount.toStringAsFixed(1);
-  }
+  bool _isRetryable(String code) => !const {
+        'sign_in_required',
+        'account_inactive',
+        'permission_denied',
+        'invalid_question',
+      }.contains(code);
 }

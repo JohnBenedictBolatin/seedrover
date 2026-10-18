@@ -50,7 +50,6 @@ class PageHeaderActions extends ConsumerWidget {
                 style: AppTypography.numericCaption.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w700,
-                  fontVariations: const [FontVariation('wght', 700)],
                 ),
               ),
               child: const Icon(Icons.notifications_none_rounded),

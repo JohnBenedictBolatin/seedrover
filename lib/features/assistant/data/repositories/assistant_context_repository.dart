@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../crops/data/models/crop_model.dart';
@@ -6,6 +7,7 @@ import '../../../dashboard/providers/dashboard_providers.dart';
 import '../../../inventory/data/models/stock_model.dart';
 import '../../../inventory/providers/stock_providers.dart';
 import '../../../../core/utils/business_calendar.dart';
+import '../../../../core/utils/farmer_friendly_copy.dart';
 import '../models/assistant_context_model.dart';
 
 final assistantContextProvider = Provider<AssistantContextModel>((ref) {
@@ -32,7 +34,8 @@ final assistantContextProvider = Provider<AssistantContextModel>((ref) {
             'lastCommunication': rover.lastCommunication?.toIso8601String(),
           },
     crops: [
-      for (final crop in cropState.crops.take(12)) _cropContext(crop),
+      for (final crop in cropState.crops.take(12))
+        cropContextForAssistant(crop),
     ],
     stocks: [
       for (final stock in stockState.stocks.take(12)) _stockContext(stock),
@@ -56,20 +59,22 @@ final assistantContextProvider = Provider<AssistantContextModel>((ref) {
   );
 });
 
-Map<String, dynamic> _cropContext(CropModel crop) {
+@visibleForTesting
+Map<String, dynamic> cropContextForAssistant(CropModel crop) {
   final latestWatering = crop.maintenanceHistory
       .where((record) => record.activity == CropMaintenanceActivity.watered)
       .toList()
     ..sort((left, right) => right.performedAt.compareTo(left.performedAt));
 
   return {
-    'name': crop.name,
+    'name': crop.displayName,
+    'cropType': crop.name,
     'variety': crop.variety,
     'field': crop.fieldLabel,
     'plantingDate': crop.plantingDate.toIso8601String(),
-    'growthStage': crop.growthStageLabel,
-    'status': crop.status.label,
-    'careStatus': crop.careStatus,
+    'growthStage': crop.farmerGrowthStageLabel,
+    'status': crop.status.farmerLabel,
+    'careStatus': FarmerFriendlyCopy.careTask(crop.careStatus),
     'lastWateredAt': crop.lastWateredAt?.toIso8601String() ??
         (latestWatering.isEmpty
             ? null
@@ -191,15 +196,14 @@ Map<String, dynamic> _farmAnalyticsContext({
   final topSalesValueItems = _sortedDoubleEntries(salesAmountByItem);
   final topPlantedCrops = _sortedIntEntries(plantedByCrop);
   final bestSalesMonth = salesByMonth.isEmpty ? null : salesByMonth.first;
-  final recentSales = [...salesTransactions]
-        ..sort(
-          (left, right) => DateTime.parse(right['date'] as String)
-              .compareTo(DateTime.parse(left['date'] as String)),
-        );
+  final recentSales = [...salesTransactions]..sort(
+      (left, right) => DateTime.parse(right['date'] as String)
+          .compareTo(DateTime.parse(left['date'] as String)),
+    );
   final latestSale = recentSales.isEmpty ? null : recentSales.first;
-  final recentStockOuts = [...stockOutTransactions]
-    ..sort((left, right) => DateTime.parse(right['date'] as String)
-        .compareTo(DateTime.parse(left['date'] as String)));
+  final recentStockOuts = [...stockOutTransactions]..sort((left, right) =>
+      DateTime.parse(right['date'] as String)
+          .compareTo(DateTime.parse(left['date'] as String)));
 
   return {
     'purpose':
@@ -211,10 +215,14 @@ Map<String, dynamic> _farmAnalyticsContext({
               ? 'No completed sales transactions are available.'
               : 'There are $realSalesCount completed sales in the loaded records. Confirmed sales total ${_formatPeso(totalSalesAmount)} year to date. Stock issues are inventory movements, not sales.',
       'salesToday': salesSummaryAvailable ? salesSummary.salesToday : null,
-      'salesThisMonth': salesSummaryAvailable ? salesSummary.salesThisMonth : null,
-      'unitsSoldThisMonth': salesSummaryAvailable ? salesSummary.unitsSoldThisMonth : null,
-      'salesTransactionsThisMonth': salesSummaryAvailable ? salesSummary.salesTransactions : null,
-      'totalSalesAmountYearToDate': salesSummaryAvailable ? totalSalesAmount : null,
+      'salesThisMonth':
+          salesSummaryAvailable ? salesSummary.salesThisMonth : null,
+      'unitsSoldThisMonth':
+          salesSummaryAvailable ? salesSummary.unitsSoldThisMonth : null,
+      'salesTransactionsThisMonth':
+          salesSummaryAvailable ? salesSummary.salesTransactions : null,
+      'totalSalesAmountYearToDate':
+          salesSummaryAvailable ? totalSalesAmount : null,
       'realSalesTransactionCount': realSalesCount,
       'inventoryIssueCount': stockOutCount,
       'recentInventoryIssues': recentStockOuts.take(5).toList(),
@@ -222,7 +230,8 @@ Map<String, dynamic> _farmAnalyticsContext({
       'latestSale': latestSale,
       'recentSales': recentSales.take(5).toList(),
     },
-    'itemLineAmountsByMonthBeforeReceiptDiscounts': salesByMonth.take(12).toList(),
+    'itemLineAmountsByMonthBeforeReceiptDiscounts':
+        salesByMonth.take(12).toList(),
     'plantingByMonth': plantingByMonth.take(12).toList(),
     'topSoldItems': topSoldItems.take(8).toList(),
     'topSalesValueItems': topSalesValueItems.take(8).toList(),

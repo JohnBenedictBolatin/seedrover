@@ -24,6 +24,15 @@ import 'stock_transaction_timeline.dart';
 enum InventoryTask { receive, issue, sale, adjust }
 
 String quantityText(num value) => NumberFormat('0.##').format(value);
+
+String _saleBatchLabel(StockModel stock, String batchId) {
+  final batch = stock.batches.where((batch) => batch.id == batchId).firstOrNull;
+  if (batch == null) return 'Selected batch unavailable';
+  final date = batch.harvestOn ?? batch.receivedOn;
+  final dateLabel = DateFormat.yMMMd().format(date);
+  return '$dateLabel · ${quantityText(batch.remainingQuantity)} ${stock.unit}';
+}
+
 String _newInventoryRequestId() {
   final random = math.Random.secure();
   final bytes = List<int>.generate(16, (_) => random.nextInt(256));
@@ -37,10 +46,12 @@ String _newInventoryRequestId() {
 String? requiredValue(String? value) =>
     value == null || value.trim().isEmpty ? 'This field is required.' : null;
 String? nonnegativeNumber(String? value) {
-  final number = double.tryParse(value ?? '');
-  return number == null || !number.isFinite || number < 0
-      ? 'Enter a valid number of zero or more.'
-      : null;
+  final raw = value?.trim() ?? '';
+  if (raw.isEmpty) return 'Enter a number.';
+  final number = double.tryParse(raw);
+  if (number == null || !number.isFinite) return 'Enter a valid number.';
+  if (number < 0) return 'This value cannot be negative.';
+  return null;
 }
 
 Future<void> showInventoryTransaction(
@@ -54,11 +65,41 @@ Future<void> showInventoryTransaction(
   List<ExistingSaleCustomer> existingCustomers = const [];
   String? existingCustomerLoadError;
   if (isSale) {
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
+    final loadingDialog = showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const PopScope(
+        canPop: false,
+        child: Dialog(
+          child: Padding(
+            padding: EdgeInsets.all(20),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox.square(
+                  dimension: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                ),
+                SizedBox(width: 16),
+                Flexible(child: Text('Loading customer history…')),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await WidgetsBinding.instance.endOfFrame;
     try {
       existingCustomers = await controller.getExistingSaleCustomers();
     } catch (_) {
       existingCustomerLoadError =
           'Customer history could not be loaded. Check your connection and try again.';
+    } finally {
+      if (rootNavigator.mounted && rootNavigator.canPop()) {
+        rootNavigator.pop();
+      }
+      await loadingDialog;
     }
     if (!context.mounted) return;
   }
@@ -101,6 +142,8 @@ Future<void> showInventoryTransaction(
   Map<String, String> summary() => {
         'Item': stock.name,
         'Available': '${quantityText(available)} ${stock.unit}',
+        if (isSale && targetBatchId != 'fifo')
+          'Batch': _saleBatchLabel(stock, targetBatchId),
         task == InventoryTask.adjust ? 'New total quantity' : 'Quantity':
             '${quantity.text} ${stock.unit}',
         if (task == InventoryTask.adjust)
@@ -150,7 +193,7 @@ Future<void> showInventoryTransaction(
           otherPayment
         ],
         shouldAdvance: () => isSale && saleStep == 0,
-        advanceLabel: () => 'Continue to customer and payment',
+        advanceLabel: () => 'Continue',
         onAdvance: () => saleStep = 1,
         canGoBack: () => isSale && saleStep > 0,
         onStepBack: (fromReview) {
@@ -179,20 +222,39 @@ Future<void> showInventoryTransaction(
         reviewBuilder: () => ReviewDetails(values: summary()),
         builder: (context, form) => TaskFields(children: [
           if (isSale) ...[
-            Text(
-              saleStep == 0
-                  ? 'Step 1 of 3 · Sale details'
-                  : 'Step 2 of 3 · Customer and payment',
-              style: AppTypography.small,
-            ),
-            const SizedBox(height: 8),
-            LinearProgressIndicator(
-              value: saleStep == 0 ? .34 : .67,
-              minHeight: 4,
+            _SaleStepIndicator(
+              currentStep: form.isReviewing ? 2 : saleStep,
             ),
           ],
           Text('Available: ${quantityText(available)} ${stock.unit}',
               style: AppTypography.numericSmall),
+          if (!isSale || saleStep == 0)
+            if (isSale)
+              _InventoryField(
+                label: 'Batch',
+                child: AppSelector<String>(
+                  value: targetBatchId,
+                  decoration: const InputDecoration(
+                    hintText: 'Oldest available',
+                  ),
+                  items: [
+                    const DropdownMenuItem<String>(
+                      value: 'fifo',
+                      child: Text('Oldest available'),
+                    ),
+                    for (final batch in stock.batches
+                        .where((batch) => batch.remainingQuantity > 0))
+                      DropdownMenuItem<String>(
+                        value: batch.id,
+                        child: Text(_saleBatchLabel(stock, batch.id)),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    targetBatchId = value ?? 'fifo';
+                    form.changed();
+                  },
+                ),
+              ),
           if (!isSale || saleStep == 0)
             _InventoryField(
               label: task == InventoryTask.adjust
@@ -211,15 +273,33 @@ Future<void> showInventoryTransaction(
                       : 'e.g., 5',
                 ),
                 validator: (value) {
-                  final invalid = nonnegativeNumber(value);
-                  if (invalid != null) return invalid;
-                  final n = double.parse(value!);
-                  if (task != InventoryTask.adjust && n == 0) {
+                  final raw = value?.trim() ?? '';
+                  if (raw.isEmpty) {
+                    return task == InventoryTask.adjust
+                        ? 'Enter the new quantity.'
+                        : 'Enter a quantity.';
+                  }
+                  final n = double.tryParse(raw);
+                  if (n == null || !n.isFinite) {
+                    return 'Use numbers only, such as 5 or 2.5.';
+                  }
+                  if (n < 0) return 'Quantity cannot be negative.';
+                  if (task != InventoryTask.adjust && n <= 0) {
                     return 'Enter a quantity greater than zero.';
                   }
                   if ((isSale || task == InventoryTask.issue) &&
                       n > available) {
                     return 'Quantity exceeds available stock.';
+                  }
+                  if (isSale && targetBatchId != 'fifo') {
+                    final batch = stock.batches
+                        .where(
+                          (batch) => batch.id == targetBatchId,
+                        )
+                        .firstOrNull;
+                    if (batch == null || n > batch.remainingQuantity) {
+                      return 'Quantity exceeds the selected batch balance.';
+                    }
                   }
                   return null;
                 },
@@ -285,17 +365,15 @@ Future<void> showInventoryTransaction(
           if (task == InventoryTask.issue && stock.batches.isNotEmpty)
             ExpansionTile(
               tilePadding: EdgeInsets.zero,
-              title: const Text(
-                  'Choose batch (optional; default is oldest first)'),
+              title: const Text('Choose batch'),
               children: [
                 AppSelector<String>(
                   value: targetBatchId,
-                  decoration: const InputDecoration(
-                      hintText: 'Oldest batch first (FIFO)'),
+                  decoration:
+                      const InputDecoration(hintText: 'Oldest available'),
                   items: [
                     const DropdownMenuItem<String>(
-                        value: 'fifo',
-                        child: Text('Oldest batch first (FIFO)')),
+                        value: 'fifo', child: Text('Oldest available')),
                     for (final batch in stock.batches
                         .where((batch) => batch.remainingQuantity > 0))
                       DropdownMenuItem<String>(
@@ -577,6 +655,16 @@ Future<void> showInventoryTransaction(
           if (priceChanged) {
             unitPrice = latest.sellingPrice;
           }
+          if (isSale && targetBatchId != 'fifo') {
+            final selectedBatch = latest.batches
+                .where((batch) => batch.id == targetBatchId)
+                .firstOrNull;
+            if (selectedBatch == null ||
+                selectedBatch.remainingQuantity < getQuantity()) {
+              return const ActionOutcome.failure(
+                  'The selected batch changed or no longer has enough stock. Review the updated batch balance before saving.');
+            }
+          }
           if (quantityChanged || priceChanged) {
             return const ActionOutcome.failure(
                 'Stock or its saved selling price changed. Review the updated balance and total before saving.');
@@ -614,6 +702,8 @@ Future<void> showInventoryTransaction(
                 paymentMethod: payment,
                 transactionReference: reference.text.trim(),
                 otherPaymentMethod: otherPayment.text.trim(),
+                submissionId: requestId,
+                batchId: targetBatchId == 'fifo' ? null : targetBatchId,
                 customerName: selectedCustomer?.name ??
                     [
                       customerFirst.text.trim(),
@@ -643,7 +733,12 @@ Future<void> showInventoryEditor(
   final cost = TextEditingController(text: stock?.unitCost?.toStringAsFixed(2));
   final price =
       TextEditingController(text: stock?.sellingPrice?.toStringAsFixed(2));
-  final location = TextEditingController(text: stock?.storageLocation ?? '');
+  final storageLocations = [...SharedWorkflowChoices.storageLocations];
+  final savedLocation = stock?.storageLocation.trim();
+  var selectedLocation =
+      savedLocation != null && storageLocations.contains(savedLocation)
+          ? savedLocation
+          : null;
   final notes = TextEditingController(text: stock?.notes ?? '');
   var category = stock?.category ?? StockCategory.leafyVegetables;
   Uint8List? bytes;
@@ -656,7 +751,7 @@ Future<void> showInventoryEditor(
         title: stock == null ? 'Add inventory item' : 'Edit item',
         submitLabel: stock == null ? 'Add item' : 'Save item',
         contextLabel: stock?.displayId,
-        controllers: [name, quantity, minimum, cost, price, location, notes],
+        controllers: [name, quantity, minimum, cost, price, notes],
         canSubmit: () {
           final user = ref.read(authControllerProvider).profile;
           return user?.id == accountId &&
@@ -745,10 +840,23 @@ Future<void> showInventoryEditor(
           _InventoryField(
             label: 'Storage location',
             required: true,
-            child: TextFormField(
-              controller: location,
-              decoration: const InputDecoration(hintText: 'e.g., Harvest Bay'),
-              validator: requiredValue,
+            child: AppSelector<String>(
+              value: selectedLocation,
+              decoration: const InputDecoration(
+                hintText: 'Choose a storage location',
+              ),
+              items: [
+                for (final value in storageLocations)
+                  DropdownMenuItem(
+                    value: value,
+                    child: Text(value),
+                  ),
+              ],
+              validator: (value) => requiredValue(value),
+              onChanged: (value) {
+                selectedLocation = value;
+                form.changed();
+              },
             ),
           ),
           _InventoryField(
@@ -856,7 +964,7 @@ Future<void> showInventoryEditor(
               sellingPrice: canEditPricing
                   ? double.tryParse(price.text)
                   : stock.sellingPrice,
-              storageLocation: location.text.trim(),
+              storageLocation: selectedLocation?.trim() ?? '',
               supplier: stock.supplier,
               notes: notes.text);
           if (updated != null) {
@@ -871,7 +979,7 @@ Future<void> showInventoryEditor(
                 category: category,
                 currentQuantity: double.parse(quantity.text),
                 unit: 'kg',
-                storageLocation: location.text.trim(),
+                storageLocation: selectedLocation?.trim() ?? '',
                 minimumStockLevel: double.parse(minimum.text),
                 unitCost: double.parse(cost.text),
                 sellingPrice: double.parse(price.text),
@@ -912,6 +1020,23 @@ Future<ActionOutcome> reconcileInventoryWrite(BuildContext context,
     return const ActionOutcome(
         ActionStatus.confirmed, 'No unresolved inventory write remains.');
   }
+  if (pending.submissionId != null && pending.operation != null) {
+    Map<String, dynamic>? committed;
+    try {
+      committed = await controller.checkPendingOperation(stockId);
+    } catch (_) {
+      return const ActionOutcome.unknown(
+        'The server could not confirm whether this change was saved. Keep it unresolved and check again when connected.',
+      );
+    }
+    if (committed != null) {
+      await controller.resolveUncertainWrite(stockId);
+      return const ActionOutcome(
+        ActionStatus.confirmed,
+        'The server confirmed this change was saved. No second write was sent.',
+      );
+    }
+  }
   StockModel? latest;
   try {
     latest = await controller.refreshStockForReview(stockId);
@@ -921,22 +1046,33 @@ Future<ActionOutcome> reconcileInventoryWrite(BuildContext context,
   }
   if (!context.mounted) {
     return const ActionOutcome.unknown(
-        'The reconciliation view closed. The operation remains unresolved.');
+        'This screen closed before the inventory change could be checked. Please check the item record before trying again.');
   }
-  final choice = await Navigator.of(context).push<bool>(MaterialPageRoute<bool>(
-      builder: (_) =>
-          _InventoryReconciliationPage(write: pending, latest: latest)));
+  final choice = await Navigator.of(context)
+      .push<_InventoryReconciliationChoice>(
+          MaterialPageRoute<_InventoryReconciliationChoice>(
+              builder: (_) => _InventoryReconciliationPage(
+                  write: pending, latest: latest)));
   if (choice == null) {
-    return const ActionOutcome.unknown('The operation remains unresolved.');
+    return const ActionOutcome.unknown(
+        'The inventory change could not be confirmed. Check the item record before trying again.');
   }
-  await controller.resolveUncertainWrite(stockId);
-  if (choice) {
+  if (choice == _InventoryReconciliationChoice.retry) {
+    final error = await controller.retrySavedOperation(stockId);
+    if (error != null) return ActionOutcome.unknown(error);
+    return const ActionOutcome(ActionStatus.confirmed,
+        'The saved action was confirmed. Inventory has been refreshed.');
+  }
+  if (choice == _InventoryReconciliationChoice.found) {
+    await controller.resolveUncertainWrite(stockId);
     return const ActionOutcome(ActionStatus.confirmed,
         'Existing operation confirmed. No second write was sent.');
   }
-  return const ActionOutcome.verifiedAbsent(
-      'You confirmed the operation is absent. Review the updated balance before allowing a new submission.');
+  return const ActionOutcome.unknown(
+      'Keep checking this saved action before submitting another change.');
 }
+
+enum _InventoryReconciliationChoice { found, retry }
 
 class _InventoryReconciliationPage extends StatelessWidget {
   const _InventoryReconciliationPage(
@@ -970,19 +1106,124 @@ class _InventoryReconciliationPage extends StatelessWidget {
             const Text(
                 'No transactions are available in the refreshed record.'),
           const Text(
-              'Compare the time, quantity, and reference with your attempted action. No operation will be replayed automatically.'),
+              'Check the time and quantity against the change you tried to make. The app will not repeat the change automatically.'),
         ])),
         Padding(
             padding: const EdgeInsets.all(16),
             child: TaskFields(children: [
               FilledButton(
-                  onPressed: () => Navigator.pop(context, true),
+                  onPressed: () => Navigator.pop(
+                      context, _InventoryReconciliationChoice.found),
                   child: const Text('I found this operation in the records')),
-              OutlinedButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('I verified it is absent; allow retry')),
+              if (write.operation != null &&
+                  write.submissionId != null &&
+                  write.payload != null)
+                OutlinedButton(
+                    onPressed: () => Navigator.pop(
+                        context, _InventoryReconciliationChoice.retry),
+                    child: const Text('Retry this saved action')),
             ])),
       ])));
+}
+
+class _SaleStepIndicator extends StatelessWidget {
+  const _SaleStepIndicator({required this.currentStep});
+
+  final int currentStep;
+
+  static const _steps = ['Sale details', 'Customer', 'Review'];
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: LayoutBuilder(
+        builder: (context, constraints) => Column(
+          children: [
+            SizedBox(
+              height: 28,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  for (var index = 0; index < _steps.length - 1; index++)
+                    Positioned(
+                      left: constraints.maxWidth * (index + .5) / _steps.length,
+                      top: 13,
+                      width: constraints.maxWidth / _steps.length,
+                      child: Container(
+                        height: 2,
+                        color: currentStep > index
+                            ? AppColors.primaryGreen
+                            : AppColors.primaryBorder,
+                      ),
+                    ),
+                  Row(
+                    children: [
+                      for (var index = 0; index < _steps.length; index++)
+                        Expanded(
+                          child: Center(
+                            child: Container(
+                              width: 28,
+                              height: 28,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: index <= currentStep
+                                    ? AppColors.primaryGreen
+                                    : AppColors.secondaryBackground,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: index <= currentStep
+                                      ? AppColors.primaryGreen
+                                      : AppColors.primaryBorder,
+                                ),
+                              ),
+                              child: index < currentStep
+                                  ? const Icon(Icons.check,
+                                      size: 17, color: Colors.white)
+                                  : Text(
+                                      '${index + 1}',
+                                      style: AppTypography.small.copyWith(
+                                        color: index == currentStep
+                                            ? Colors.white
+                                            : AppColors.secondaryText,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                for (var index = 0; index < _steps.length; index++)
+                  Expanded(
+                    child: Text(
+                      _steps[index],
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: AppTypography.caption.copyWith(
+                        color: index <= currentStep
+                            ? AppColors.primaryGreen
+                            : AppColors.secondaryText,
+                        fontWeight: index == currentStep
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _InventoryField extends StatelessWidget {

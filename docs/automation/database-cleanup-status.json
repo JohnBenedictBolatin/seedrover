@@ -1,0 +1,13 @@
+{
+  "status": "blocked-before-mutation",
+  "configuredProjectHost": "jnjezklorvdhwbjtbjsg.supabase.co",
+  "manifestRunCount": 11,
+  "uniqueInventoryCandidateCount": 121,
+  "liveInventoryLookup": "failed: TypeError: fetch failed",
+  "idAndLabelMatchesVerified": null,
+  "dependentRowsInspected": false,
+  "rowsDeleted": 0,
+  "accountsChanged": false,
+  "auditHistoryChanged": false,
+  "nextStep": "Restore Supabase connectivity, rerun the read-only preview, review exact matches and dependencies, then apply only safe exact-ID deletions."
+}

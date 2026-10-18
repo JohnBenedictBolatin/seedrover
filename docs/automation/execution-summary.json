@@ -1,0 +1,90 @@
+{
+  "primaryRun": "20261005T153119448-21704",
+  "runType": "Current full regression",
+  "stats": {
+    "total": 52,
+    "passed": 50,
+    "failed": 0,
+    "blocked": 2,
+    "duration_seconds": 218.2
+  },
+  "catalogue": {
+    "total": 52,
+    "automated": 52,
+    "manualNoResultRecorded": 0,
+    "automationCoveragePercent": 100.0,
+    "executionCoveragePercent": 96.15
+  },
+  "passRatePercent": 100.0,
+  "historicalAndSupportingRuns": [
+    {
+      "Run ID": "20261005T153119448-21704",
+      "Run type": "Current full regression",
+      "Started": "2026-10-05T15:31:19.449Z",
+      "Total": 52,
+      "Passed": 50,
+      "Failed": 0,
+      "Blocked": 2,
+      "Browser": "Chromium",
+      "Playwright": "1.63.0",
+      "Evidence path": "run-artifacts/20261005T153119448-21704/"
+    },
+    {
+      "Run ID": "20261005T152947852-40364",
+      "Run type": "Current smoke subset",
+      "Started": "2026-10-05T15:29:47.855Z",
+      "Total": 5,
+      "Passed": 5,
+      "Failed": 0,
+      "Blocked": 0,
+      "Browser": "Chromium",
+      "Playwright": "1.63.0",
+      "Evidence path": "run-artifacts/20261005T152947852-40364/"
+    },
+    {
+      "Run ID": "20261005T144631592-7060",
+      "Run type": "Focused stock rejection retest",
+      "Started": "2026-10-05T14:46:31.595Z",
+      "Total": 1,
+      "Passed": 1,
+      "Failed": 0,
+      "Blocked": 0,
+      "Browser": "Chromium",
+      "Playwright": "1.63.0",
+      "Evidence path": "run-artifacts/20261005T144631592-7060/"
+    },
+    {
+      "Run ID": "20261005T141625648-47936",
+      "Run type": "Historical formal baseline",
+      "Started": "2026-10-05T14:16:25.650Z",
+      "Total": 52,
+      "Passed": 50,
+      "Failed": 0,
+      "Blocked": 2,
+      "Browser": "Chromium",
+      "Playwright": "1.63.0",
+      "Evidence path": "run-artifacts/20261005T141625648-47936/"
+    }
+  ],
+  "observedBlockers": [
+    {
+      "case": "SR-CROP-002",
+      "reason": "No reachable Edit Crop control in current details UI."
+    },
+    {
+      "case": "SR-OBS-003",
+      "reason": "Existing rover readings fresh; shared state not overwritten."
+    }
+  ],
+  "assertionAudit": {
+    "SR-INV-007": "Weak assertion: the test edits the control but does not submit the form. It confirms the UI value is non-negative or HTML validity blocks it, then reads the unchanged database price; it does not prove server-side negative-price rejection.",
+    "SR-USER-002": "The test asserts the duplicate-username message. It does not query the profile count after rejection, so the evidence establishes the visible response but not an independent persistence check.",
+    "SR-ROLE-011": "Route guard and visible-page assertion only; no direct protected-action request is made.",
+    "SR-ROLE-012": "Route guard and visible-page assertion only; no direct protected-action request is made.",
+    "SR-ROLE-013": "Route guard and visible-page assertion only; no direct protected-action request is made.",
+    "SR-ROLE-014": "Route guard and visible-page assertion only; no direct protected-action request is made.",
+    "SR-SALE-006": "Confirms the void control is hidden and inventory is unchanged; this is interface authorization evidence, not a direct forged server-action attempt.",
+    "SR-CROP-002": "Blocked: the current crop details interface exposes no reachable Edit Crop control. The editor scenario is not counted as passed.",
+    "SR-OBS-003": "Blocked: existing rover readings were fresh, so stale/no-data global state was not changed to force this scenario."
+  }
+}

@@ -5,6 +5,13 @@
   background: var(--background);
 }
 
+/* The costing skeleton is taller than the viewport. Keep its loader centered
+   in the visible content area instead of centering it in the full skeleton. */
+.screen[data-variant="investments"] {
+  height: calc(100vh - 2 * var(--portal-content-padding));
+  min-height: 0;
+}
+
 .page {
   display: grid;
   max-width: 1540px;

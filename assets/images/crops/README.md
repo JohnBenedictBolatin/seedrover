@@ -1,41 +1,15 @@
-# Crop Image Asset Naming
+# Crop stage images
 
-Crop images can change by crop type, growth stage, or urgent status.
+Transparent WebP illustrations are named `{crop}_{stage}.webp`. The app chooses
+the image from the crop's recorded stage. A matching base PNG in this folder is
+used if a stage image is missing. User-uploaded crop photos remain in use.
 
-Place transparent PNG files in this folder using this pattern:
+Sitaw stages: `seeded`, `germinating`, `vegetative`, `trellising`, `flowering`,
+`pod_formation`, `harvest_ready`, `repeated_harvest`, and `harvested`.
 
-```text
-{crop}_{state}.png
-```
+Calamansi stages: `seedbed`, `germinating`, `nursery_seedling`,
+`transplant_review`, `establishing`, `juvenile`, `first_bearing`, and
+`harvested`.
 
-Supported crops:
-
-- `calamansi`
-- `peanut`
-- `sitaw`
-
-Supported growth states:
-
-- `seeded`
-- `germinating`
-- `vegetative`
-- `flowering`
-- `fruiting`
-- `harvest_ready`
-- `harvested`
-
-Supported status override states:
-
-- `needs_water`
-- `needs_fertilizer`
-
-Examples:
-
-- `calamansi_seeded.png`
-- `calamansi_needs_water.png`
-- `peanut_germinating.png`
-- `peanut_harvest_ready.png`
-- `sitaw_fruiting.png`
-- `sitaw_needs_fertilizer.png`
-
-If a matching image is missing, the app shows a state-aware placeholder.
+Peanut stages: `seeded`, `germinating`, `vegetative`, `flowering`, `pegging`,
+`pod_development`, `maturity_check`, and `harvested`.

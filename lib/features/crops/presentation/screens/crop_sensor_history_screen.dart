@@ -5,11 +5,11 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
-import '../../../../shared/utils/soil_moisture_reference_label.dart';
-import '../../../../shared/utils/sensor_reading_age_label.dart';
 import '../../../../shared/widgets/history_pagination.dart';
 import '../../data/models/crop_model.dart';
 import '../../providers/crop_providers.dart';
+import '../../../../shared/widgets/content_skeleton.dart';
+import '../../../../shared/widgets/initial_loading_skeleton.dart';
 
 class CropSensorHistoryScreen extends ConsumerStatefulWidget {
   const CropSensorHistoryScreen({
@@ -47,7 +47,21 @@ class _CropSensorHistoryScreenState
     final readings = ref.watch(cropSensorHistoryProvider(widget.cropId));
     final body = SafeArea(
       child: readings.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const InitialLoadingSkeleton(
+          skeleton: Padding(
+            padding: EdgeInsets.all(AppSpacing.md),
+            child: Column(
+              children: [
+                SkeletonCard(height: 72, children: []),
+                SizedBox(height: AppSpacing.md),
+                SkeletonCard(height: 72, children: []),
+                SizedBox(height: AppSpacing.md),
+                SkeletonCard(height: 72, children: []),
+              ],
+            ),
+          ),
+          label: 'Loading sensor history…',
+        ),
         error: (_, __) => _SensorHistoryMessage(
           icon: Icons.cloud_off_outlined,
           message: 'Sensor history could not be loaded.',
@@ -78,44 +92,52 @@ class _CropSensorHistoryScreenState
                   AppSpacing.md,
                   AppSpacing.sm,
                   AppSpacing.md,
+                  AppSpacing.md,
+                ),
+                child: _LatestSensorSummary(reading: items.first),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  0,
+                  AppSpacing.md,
                   AppSpacing.sm,
                 ),
-                child: Text(
-                  items.length == 100
-                      ? 'Showing the latest 100 readings'
-                      : '${items.length} recorded reading${items.length == 1 ? '' : 's'}',
-                  style: AppTypography.small,
-                ),
-              ),
-              Expanded(
-                child: Column(
+                child: Row(
                   children: [
                     Expanded(
-                      child: ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.md,
-                          0,
-                          AppSpacing.md,
-                          AppSpacing.sm,
-                        ),
-                        itemCount: visibleReadings.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: AppSpacing.sm),
-                        itemBuilder: (context, index) =>
-                            _SensorReadingCard(reading: visibleReadings[index]),
+                      child: Text(
+                        'Reading history',
+                        style: AppTypography.sectionHeading,
                       ),
                     ),
-                    if (items.length > _pageSize)
-                      HistoryPagination(
-                        pageIndex: pageIndex,
-                        totalRecords: items.length,
-                        pageSize: _pageSize,
-                        onPageChanged: (page) =>
-                            setState(() => _pageIndex = page),
-                      ),
+                    Text(
+                      items.length == 100
+                          ? 'Latest 100'
+                          : '${items.length} readings',
+                      style: AppTypography.caption,
+                    ),
                   ],
                 ),
               ),
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                  ),
+                  itemCount: visibleReadings.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) =>
+                      _SensorReadingRow(reading: visibleReadings[index]),
+                ),
+              ),
+              if (items.length > _pageSize)
+                HistoryPagination(
+                  pageIndex: pageIndex,
+                  totalRecords: items.length,
+                  pageSize: _pageSize,
+                  onPageChanged: (page) => setState(() => _pageIndex = page),
+                ),
             ],
           );
         },
@@ -129,91 +151,138 @@ class _CropSensorHistoryScreenState
   }
 }
 
-class _SensorReadingCard extends StatelessWidget {
-  const _SensorReadingCard({required this.reading});
+class _LatestSensorSummary extends StatelessWidget {
+  const _LatestSensorSummary({required this.reading});
 
   final CropSensorReading reading;
 
   @override
   Widget build(BuildContext context) {
     final recordedAt = reading.recordedAt.toLocal();
-    final fresh = reading.isFresh;
-    final verified = reading.provenanceStatus == 'verified_hardware';
-    final statusColor = fresh && verified
-        ? AppColors.success
-        : fresh
-            ? AppColors.warning
-            : AppColors.mutedText;
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.secondaryBackground,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.inactiveBorder),
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Latest sensor check',
+          style: AppTypography.sectionHeading,
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          '${MaterialLocalizations.of(context).formatMediumDate(recordedAt)} · ${TimeOfDay.fromDateTime(recordedAt).format(context)}',
+          style: AppTypography.caption,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: [
+            Expanded(
+              child: _ReadingValue(
+                label: 'Water in soil',
+                value: _value(reading.soilMoisture, '%'),
+                icon: Icons.water_drop_rounded,
+                colors: AppColors.soilMoistureGradient,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: _ReadingValue(
+                label: 'Soil temperature',
+                value: _value(reading.soilTemperature, '°C'),
+                icon: Icons.thermostat_rounded,
+                colors: AppColors.soilTemperatureGradient,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: [
+            Expanded(
+              child: _ReadingValue(
+                label: 'Air temperature',
+                value: _value(reading.environmentTemperature, '°C'),
+                icon: Icons.wb_sunny_rounded,
+                colors: AppColors.airTemperatureGradient,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: _ReadingValue(
+                label: 'Humidity',
+                value: _value(reading.humidity, '%'),
+                icon: Icons.cloud_rounded,
+                colors: AppColors.humidityGradient,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _SensorReadingRow extends StatelessWidget {
+  const _SensorReadingRow({required this.reading});
+
+  final CropSensorReading reading;
+
+  @override
+  Widget build(BuildContext context) {
+    final recordedAt = reading.recordedAt.toLocal();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.smd),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.sensors_outlined,
-                  color: AppColors.primaryGreen, size: 20),
-              const SizedBox(width: AppSpacing.sm),
+              Icon(Icons.calendar_today_outlined,
+                  color: AppColors.primaryGreen, size: 16),
+              const SizedBox(width: AppSpacing.xs),
               Expanded(
                 child: Text(
                   MaterialLocalizations.of(context)
                       .formatMediumDate(recordedAt),
-                  style: AppTypography.body.copyWith(
+                  style: AppTypography.small.copyWith(
+                    color: AppColors.primaryText,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.xs,
-                  vertical: 2,
-                ),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: .12),
-                  borderRadius: BorderRadius.circular(AppRadius.sm),
-                ),
-                child: Text(
-                  sensorReadingAgeLabel(recordedAt),
-                  style: AppTypography.caption.copyWith(
-                    color: statusColor,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+              Text(
+                TimeOfDay.fromDateTime(recordedAt).format(context),
+                style: AppTypography.caption,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              Expanded(
+                child: _HistoryValue(
+                    label: 'Water in soil',
+                    value: _value(reading.soilMoisture, '%')),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: _HistoryValue(
+                    label: 'Soil temperature',
+                    value: _value(reading.soilTemperature, '°C')),
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
-          Text(
-            '${TimeOfDay.fromDateTime(recordedAt).format(context)} · ${reading.source} · ${_provenanceLabel(reading.provenanceStatus)}',
-            style: AppTypography.caption,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
+          Row(
             children: [
-              _ReadingValue(
-                  label: 'Soil moisture',
-                  value: _value(reading.soilMoisture, '%'),
-                  detail: reading.soilMoistureCalibrated == true
-                      ? soilMoistureReferenceLabel(reading.soilMoisture)
-                      : null),
-              _ReadingValue(
-                  label: 'Raw soil (ADC)',
-                  value: reading.soilRaw?.toString() ?? 'Unavailable'),
-              _ReadingValue(
-                  label: 'Soil temperature',
-                  value: _value(reading.soilTemperature, '°C')),
-              _ReadingValue(
-                  label: 'Air temperature',
-                  value: _value(reading.environmentTemperature, '°C')),
-              _ReadingValue(
-                  label: 'Humidity', value: _value(reading.humidity, '%')),
+              Expanded(
+                child: _HistoryValue(
+                    label: 'Air temperature',
+                    value: _value(reading.environmentTemperature, '°C')),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: _HistoryValue(
+                    label: 'Humidity', value: _value(reading.humidity, '%')),
+              ),
             ],
           ),
         ],
@@ -222,30 +291,81 @@ class _SensorReadingCard extends StatelessWidget {
   }
 }
 
-class _ReadingValue extends StatelessWidget {
-  const _ReadingValue({required this.label, required this.value, this.detail});
+class _HistoryValue extends StatelessWidget {
+  const _HistoryValue({required this.label, required this.value});
 
   final String label;
   final String value;
-  final String? detail;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-        width: 132,
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: AppTypography.caption),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.small.copyWith(
+              color: AppColors.primaryText,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      );
+}
+
+class _ReadingValue extends StatelessWidget {
+  const _ReadingValue({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.colors,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final List<Color> colors;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        constraints: const BoxConstraints(minHeight: 76),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.smd,
+        ),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: colors,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(label, style: AppTypography.caption),
-            Text(value, style: AppTypography.numericSmall),
-            if (detail != null)
-              Text(
-                detail!,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.caption.copyWith(
-                  color: AppColors.secondaryText,
-                ),
+            Icon(icon, color: Colors.white, size: 17),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.caption.copyWith(
+                color: Colors.white.withValues(alpha: .86),
               ),
+            ),
+            Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.numericValue.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ],
         ),
       );
@@ -285,10 +405,3 @@ class _SensorHistoryMessage extends StatelessWidget {
 
 String _value(double? value, String unit) =>
     value == null ? 'Unavailable' : '${value.toStringAsFixed(1)}$unit';
-
-String _provenanceLabel(String value) => switch (value) {
-      'verified_hardware' => 'Verified hardware',
-      'demo' => 'Demo',
-      'simulated' => 'Simulated',
-      _ => 'Unverified source',
-    };

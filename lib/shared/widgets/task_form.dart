@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_typography.dart';
 import '../models/action_outcome.dart';
+import 'action_result_dialog.dart';
 
 export '../models/action_outcome.dart';
 
@@ -63,18 +66,46 @@ class TaskFormState extends State<TaskForm> {
   bool _review = false;
   bool _allowPop = false;
   bool _uncertain = false;
+  bool _takingLonger = false;
+  String? _busyMessage;
+  Timer? _slowTimer;
   String? _error;
 
+  bool get isReviewing => _review;
+
   void changed() {
-    if (mounted)
+    if (mounted) {
       setState(() {
         _dirty = true;
         _review = false;
       });
+    }
   }
 
   void showError(String message) {
     if (mounted) setState(() => _error = message);
+  }
+
+  void _startBusy(String message) {
+    _slowTimer?.cancel();
+    setState(() {
+      _busy = true;
+      _busyMessage = message;
+      _takingLonger = false;
+    });
+    _slowTimer = Timer(const Duration(seconds: 10), () {
+      if (mounted && _busy) setState(() => _takingLonger = true);
+    });
+  }
+
+  void _stopBusy() {
+    _slowTimer?.cancel();
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _busyMessage = null;
+      _takingLonger = false;
+    });
   }
 
   @override
@@ -88,6 +119,7 @@ class TaskFormState extends State<TaskForm> {
 
   @override
   void dispose() {
+    _slowTimer?.cancel();
     for (final controller in widget.controllers) {
       controller.removeListener(changed);
       controller.dispose();
@@ -95,7 +127,7 @@ class TaskFormState extends State<TaskForm> {
     super.dispose();
   }
 
-  Future<void> _leave([ActionOutcome? outcome]) async {
+  Future<void> _leave([ActionOutcome? outcome, bool showResult = false]) async {
     if (_busy) return;
     if (outcome == null && _dirty) {
       final discard = await showDialog<bool>(
@@ -115,9 +147,21 @@ class TaskFormState extends State<TaskForm> {
       );
       if (discard != true || !mounted) return;
     }
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
     setState(() => _allowPop = true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) Navigator.of(context).pop(outcome);
+      if (mounted) {
+        Navigator.of(context).pop(outcome);
+        if (showResult && outcome != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!rootNavigator.mounted) return;
+            final message = outcome.status == ActionStatus.savedLocally
+                ? outcome.message ?? 'Saved on this phone. Waiting to sync.'
+                : outcome.message ?? 'Changes saved successfully.';
+            showActionResult(rootNavigator.context, message: message);
+          });
+        }
+      }
     });
   }
 
@@ -199,10 +243,8 @@ class TaskFormState extends State<TaskForm> {
         return;
       }
     }
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+    setState(() => _error = null);
+    _startBusy('Saving ${widget.title.toLowerCase()}…');
     ActionOutcome result;
     try {
       result = await widget.onSubmit();
@@ -212,15 +254,9 @@ class TaskFormState extends State<TaskForm> {
       );
     }
     if (!mounted) return;
-    setState(() => _busy = false);
+    _stopBusy();
     if (result.canClose) {
-      if (result.status == ActionStatus.savedLocally) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content:
-              Text(result.message ?? 'Saved on this phone. Waiting to sync.'),
-        ));
-      }
-      await _leave(result);
+      await _leave(result, true);
     } else {
       setState(() {
         _error = result.message;
@@ -231,6 +267,10 @@ class TaskFormState extends State<TaskForm> {
       if (result.status == ActionStatus.verifiedAbsent &&
           widget.reviewBuilder == null) {
         setState(() => _review = false);
+      }
+      if (result.message != null) {
+        await showActionResult(context,
+            message: result.message!, success: false);
       }
     }
   }
@@ -255,118 +295,175 @@ class TaskFormState extends State<TaskForm> {
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 640),
-              child: Column(children: [
-                Expanded(
-                    child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Form(
-                    key: _formKey,
-                    autovalidateMode: AutovalidateMode.onUserInteraction,
+              child: Stack(children: [
+                Column(children: [
+                  Expanded(
+                      child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Form(
+                      key: _formKey,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (widget.contextLabel != null) ...[
+                              Text(widget.contextLabel!,
+                                  style: AppTypography.small),
+                              const SizedBox(height: 8),
+                            ],
+                            if (_review) ...[
+                              Text('Review before saving',
+                                  style: AppTypography.sectionHeading),
+                              const SizedBox(height: 16),
+                              widget.reviewBuilder!(),
+                            ],
+                            // Keep field State and image selection alive while reviewing.
+                            Offstage(
+                                key: const ValueKey('task-fields'),
+                                offstage: _review,
+                                child: AbsorbPointer(
+                                    absorbing: _busy,
+                                    child: widget.builder(context, this))),
+                          ]),
+                    ),
+                  )),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          if (widget.contextLabel != null) ...[
-                            Text(widget.contextLabel!,
-                                style: AppTypography.small),
-                            const SizedBox(height: 24),
+                          if (_error != null) ...[
+                            Semantics(
+                                liveRegion: true,
+                                child: Text(_error!,
+                                    style: TextStyle(color: colors.error))),
+                            if (_uncertain && widget.onReconcile != null)
+                              TextButton(
+                                  onPressed: _busy
+                                      ? null
+                                      : () async {
+                                          _startBusy(
+                                              'Checking latest records…');
+                                          try {
+                                            final result =
+                                                await widget.onReconcile!();
+                                            if (!mounted) return;
+                                            if (result.canClose) {
+                                              _stopBusy();
+                                              await _leave(result, true);
+                                              return;
+                                            }
+                                            setState(() {
+                                              _busy = false;
+                                              _busyMessage = null;
+                                              _takingLonger = false;
+                                              _uncertain = result.status !=
+                                                  ActionStatus.verifiedAbsent;
+                                              _review = result.status ==
+                                                      ActionStatus
+                                                          .verifiedAbsent &&
+                                                  widget.reviewBuilder != null;
+                                              _dirty = _dirty ||
+                                                  result.status ==
+                                                      ActionStatus
+                                                          .verifiedAbsent;
+                                              _error = result.message;
+                                            });
+                                            if (result.message != null &&
+                                                context.mounted) {
+                                              await showActionResult(context,
+                                                  message: result.message!,
+                                                  success: result.status ==
+                                                      ActionStatus
+                                                          .verifiedAbsent);
+                                            }
+                                            return;
+                                          } catch (_) {
+                                            if (context.mounted) {
+                                              setState(() => _error =
+                                                  'Could not check the latest records. Your entry is still here. Try again when connected.');
+                                              await showActionResult(context,
+                                                  message: _error!,
+                                                  success: false);
+                                            }
+                                          } finally {
+                                            _stopBusy();
+                                          }
+                                        },
+                                  child: const Text('Check latest records')),
+                            const SizedBox(height: 12),
                           ],
-                          if (_review) ...[
-                            Text('Review before saving',
-                                style: AppTypography.sectionHeading),
-                            const SizedBox(height: 16),
-                            widget.reviewBuilder!(),
-                          ],
-                          // Keep field State and image selection alive while reviewing.
-                          Offstage(
-                              key: const ValueKey('task-fields'),
-                              offstage: _review,
-                              child: AbsorbPointer(
-                                  absorbing: _busy,
-                                  child: widget.builder(context, this))),
+                          SizedBox(
+                            height: 52,
+                            child: FilledButton(
+                              onPressed: _busy || _uncertain ? null : _submit,
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  _busy
+                                      ? 'Saving…'
+                                      : widget.shouldAdvance?.call() == true
+                                          ? widget.advanceLabel?.call() ??
+                                              'Continue'
+                                          : !_review &&
+                                                  widget.reviewBuilder !=
+                                                      null &&
+                                                  widget.needsReview?.call() !=
+                                                      false
+                                              ? 'Review details'
+                                              : widget.submitLabel,
+                                  maxLines: 1,
+                                  softWrap: false,
+                                ),
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _busy ? null : _navigateBack,
+                            child: Text(_review
+                                ? widget.onStepBack == null
+                                    ? 'Edit details'
+                                    : 'Back'
+                                : (widget.canGoBack?.call() ?? false)
+                                    ? 'Back'
+                                    : 'Cancel'),
+                          ),
                         ]),
                   ),
-                )),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (_error != null) ...[
-                          Semantics(
-                              liveRegion: true,
-                              child: Text(_error!,
-                                  style: TextStyle(color: colors.error))),
-                          if (_uncertain && widget.onReconcile != null)
-                            TextButton(
-                                onPressed: _busy
-                                    ? null
-                                    : () async {
-                                        setState(() => _busy = true);
-                                        try {
-                                          final result =
-                                              await widget.onReconcile!();
-                                          if (!mounted) return;
-                                          if (result.canClose) {
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
-                                              SnackBar(
-                                                  content: Text(result
-                                                          .message ??
-                                                      'Existing transaction confirmed; no duplicate was sent.')),
-                                            );
-                                            await _leave(result);
-                                            return;
-                                          }
-                                          setState(() {
-                                            _busy = false;
-                                            _uncertain = result.status !=
-                                                ActionStatus.verifiedAbsent;
-                                            _review = result.status ==
-                                                    ActionStatus
-                                                        .verifiedAbsent &&
-                                                widget.reviewBuilder != null;
-                                            _dirty = _dirty ||
-                                                result.status ==
-                                                    ActionStatus.verifiedAbsent;
-                                            _error = result.message;
-                                          });
-                                          return;
-                                        } catch (_) {
-                                          if (mounted)
-                                            setState(() => _error =
-                                                'Could not check the latest records. Your entry is still here. Try again when connected.');
-                                        } finally {
-                                          if (mounted)
-                                            setState(() => _busy = false);
-                                        }
-                                      },
-                                child: const Text('Check latest records')),
-                          const SizedBox(height: 12),
-                        ],
-                        FilledButton(
-                          onPressed: _busy || _uncertain ? null : _submit,
-                          child: Text(_busy
-                              ? 'Saving…'
-                              : widget.shouldAdvance?.call() == true
-                                  ? widget.advanceLabel?.call() ?? 'Continue'
-                                  : !_review &&
-                                          widget.reviewBuilder != null &&
-                                          widget.needsReview?.call() != false
-                                      ? 'Review details'
-                                      : widget.submitLabel),
+                ]),
+                if (_busy)
+                  Positioned.fill(
+                    child: ColoredBox(
+                      color: Colors.black.withValues(alpha: 0.28),
+                      child: Center(
+                        child: Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const CircularProgressIndicator(),
+                                const SizedBox(height: 14),
+                                Semantics(
+                                  liveRegion: true,
+                                  label: _takingLonger
+                                      ? 'This is taking longer than usual. Please wait.'
+                                      : _busyMessage ?? 'Working…',
+                                  child: Text(
+                                    _takingLonger
+                                        ? 'This is taking longer than usual. Please wait.'
+                                        : _busyMessage ?? 'Working…',
+                                    textAlign: TextAlign.center,
+                                    style: AppTypography.body,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                        TextButton(
-                          onPressed: _busy ? null : _navigateBack,
-                          child: Text(_review
-                              ? widget.onStepBack == null
-                                  ? 'Edit details'
-                                  : 'Back'
-                              : (widget.canGoBack?.call() ?? false)
-                                  ? 'Back'
-                                  : 'Cancel'),
-                        ),
-                      ]),
-                ),
+                      ),
+                    ),
+                  ),
               ]),
             ),
           ),

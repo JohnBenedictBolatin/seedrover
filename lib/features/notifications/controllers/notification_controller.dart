@@ -59,7 +59,6 @@ class NotificationController extends StateNotifier<NotificationState> {
 
   Future<void> refreshNotifications() async {
     state = state.copyWith(isLoading: true, successMessage: null);
-    await Future<void>.delayed(const Duration(milliseconds: 450));
     await loadNotifications();
   }
 
@@ -202,10 +201,6 @@ class NotificationController extends StateNotifier<NotificationState> {
     _updateFilters(selectedCategory: category);
   }
 
-  void updatePriority(NotificationPriority? priority) {
-    _updateFilters(selectedPriority: priority);
-  }
-
   void updateStatus(NotificationStatusFilter status) {
     _updateFilters(selectedStatus: status);
   }
@@ -214,19 +209,13 @@ class NotificationController extends StateNotifier<NotificationState> {
     _updateFilters(selectedDate: date);
   }
 
-  void updateSort(NotificationSortType sort) {
-    _updateFilters(selectedSort: sort);
-  }
-
   void clearFilters() {
     final filteredNotifications = _applyFilters(
       notifications: state.notifications,
       searchQuery: '',
       selectedCategory: null,
-      selectedPriority: null,
       selectedStatus: NotificationStatusFilter.all,
       selectedDate: NotificationDateFilter.all,
-      selectedSort: NotificationSortType.newest,
     );
 
     state = state.copyWith(
@@ -277,38 +266,28 @@ class NotificationController extends StateNotifier<NotificationState> {
   void _updateFilters({
     String? searchQuery,
     Object? selectedCategory = _noCategoryChange,
-    Object? selectedPriority = _noPriorityChange,
     NotificationStatusFilter? selectedStatus,
     NotificationDateFilter? selectedDate,
-    NotificationSortType? selectedSort,
   }) {
     final nextSearchQuery = searchQuery ?? state.searchQuery;
     final nextCategory = selectedCategory == _noCategoryChange
         ? state.selectedCategory
         : selectedCategory as NotificationCategory?;
-    final nextPriority = selectedPriority == _noPriorityChange
-        ? state.selectedPriority
-        : selectedPriority as NotificationPriority?;
     final nextStatus = selectedStatus ?? state.selectedStatus;
     final nextDate = selectedDate ?? state.selectedDate;
-    final nextSort = selectedSort ?? state.selectedSort;
     final filteredNotifications = _applyFilters(
       notifications: state.notifications,
       searchQuery: nextSearchQuery,
       selectedCategory: nextCategory,
-      selectedPriority: nextPriority,
       selectedStatus: nextStatus,
       selectedDate: nextDate,
-      selectedSort: nextSort,
     );
 
     state = state.copyWith(
       searchQuery: nextSearchQuery,
       selectedCategory: nextCategory,
-      selectedPriority: nextPriority,
       selectedStatus: nextStatus,
       selectedDate: nextDate,
-      selectedSort: nextSort,
       filteredNotifications: filteredNotifications,
       successMessage: null,
     );
@@ -318,10 +297,8 @@ class NotificationController extends StateNotifier<NotificationState> {
     required List<SeedRoverNotification> notifications,
     required String searchQuery,
     required NotificationCategory? selectedCategory,
-    required NotificationPriority? selectedPriority,
     required NotificationStatusFilter selectedStatus,
     required NotificationDateFilter selectedDate,
-    required NotificationSortType selectedSort,
   }) {
     final normalizedQuery = searchQuery.trim().toLowerCase();
     final now = DateTime.now();
@@ -334,8 +311,6 @@ class NotificationController extends StateNotifier<NotificationState> {
           notification.category.label.toLowerCase().contains(normalizedQuery);
       final matchesCategory =
           selectedCategory == null || notification.category == selectedCategory;
-      final matchesPriority =
-          selectedPriority == null || notification.priority == selectedPriority;
       final matchesStatus = switch (selectedStatus) {
         NotificationStatusFilter.all => true,
         NotificationStatusFilter.unread => !notification.isRead,
@@ -347,31 +322,10 @@ class NotificationController extends StateNotifier<NotificationState> {
         now,
       );
 
-      return matchesSearch &&
-          matchesCategory &&
-          matchesPriority &&
-          matchesStatus &&
-          matchesDate;
+      return matchesSearch && matchesCategory && matchesStatus && matchesDate;
     }).toList();
 
-    filtered.sort((left, right) {
-      return switch (selectedSort) {
-        NotificationSortType.newest => _compareUnreadPriorityFirst(
-            left,
-            right,
-            compareDate: () => right.createdAt.compareTo(left.createdAt),
-          ),
-        NotificationSortType.oldest => _compareUnreadPriorityFirst(
-            left,
-            right,
-            compareDate: () => left.createdAt.compareTo(right.createdAt),
-          ),
-        NotificationSortType.highestPriority =>
-          _compareUnreadPriorityFirst(left, right),
-        NotificationSortType.unreadFirst =>
-          _compareUnreadPriorityFirst(left, right),
-      };
-    });
+    filtered.sort((left, right) => right.createdAt.compareTo(left.createdAt));
 
     return filtered;
   }
@@ -394,24 +348,6 @@ class NotificationController extends StateNotifier<NotificationState> {
     };
   }
 
-  int _compareUnreadPriorityFirst(
-    SeedRoverNotification left,
-    SeedRoverNotification right, {
-    int Function()? compareDate,
-  }) {
-    if (left.isRead != right.isRead) {
-      return left.isRead ? 1 : -1;
-    }
-
-    final priorityComparison =
-        right.priority.rank.compareTo(left.priority.rank);
-    if (priorityComparison != 0) {
-      return priorityComparison;
-    }
-
-    return compareDate?.call() ?? right.createdAt.compareTo(left.createdAt);
-  }
-
   void _setNotifications(
     List<SeedRoverNotification> notifications, {
     required String? successMessage,
@@ -421,16 +357,15 @@ class NotificationController extends StateNotifier<NotificationState> {
       notifications: notifications,
       searchQuery: state.searchQuery,
       selectedCategory: state.selectedCategory,
-      selectedPriority: state.selectedPriority,
       selectedStatus: state.selectedStatus,
       selectedDate: state.selectedDate,
-      selectedSort: state.selectedSort,
     );
 
     state = state.copyWith(
       notifications: notifications,
       filteredNotifications: filteredNotifications,
       isLoading: isLoading,
+      hasLoaded: true,
       successMessage: successMessage,
       errorMessage: null,
     );
@@ -463,4 +398,3 @@ class NotificationController extends StateNotifier<NotificationState> {
 }
 
 const _noCategoryChange = Object();
-const _noPriorityChange = Object();

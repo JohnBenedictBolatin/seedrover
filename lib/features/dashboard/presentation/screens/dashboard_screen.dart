@@ -8,12 +8,17 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/constants/permission_keys.dart';
-import '../../../../core/utils/date_time_formatter.dart';
+import '../../../../core/utils/farmer_friendly_copy.dart';
 import '../../../../features/authentication/providers/auth_providers.dart';
 import '../../../../features/crops/providers/crop_providers.dart';
 import '../../../../features/crops/data/models/crop_model.dart';
+import '../../../../features/crops/controllers/crop_monitoring_state.dart';
+import '../../../../features/rover/data/models/planting_session_model.dart';
 import '../../../../features/inventory/providers/stock_providers.dart';
+import '../../../../features/inventory/controllers/stock_inventory_state.dart';
+import '../../../../features/rover/providers/rover_providers.dart';
 import '../../../../shared/widgets/content_skeleton.dart';
+import '../../../../shared/widgets/initial_loading_skeleton.dart';
 import '../../../../shared/widgets/welcome_header_backdrop.dart';
 import '../../providers/dashboard_providers.dart';
 import '../widgets/dashboard_header.dart';
@@ -33,6 +38,8 @@ class DashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  bool _hasShownDashboardContent = false;
+
   Future<void> _refreshDashboard() async {
     final profile = ref.read(authControllerProvider).profile;
     final refreshes = <Future<void>>[];
@@ -47,8 +54,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       );
     }
     ref.invalidate(dashboardProvider);
+    ref.invalidate(stockSalesTrendProvider);
+    if (profile?.id != null) {
+      ref.invalidate(pendingPlantingAttentionProvider(profile!.id));
+    }
     try {
       refreshes.add(ref.read(dashboardProvider.future));
+      if (profile?.hasPermission(PermissionKeys.stocksView) == true) {
+        refreshes.add(ref.read(stockSalesTrendProvider.future));
+      }
+      if (profile?.hasPermission(PermissionKeys.roverView) == true) {
+        refreshes.add(
+            ref.read(pendingPlantingAttentionProvider(profile!.id).future));
+      }
       await Future.wait(refreshes);
     } catch (_) {
       // The dashboard body displays the friendly error state below.
@@ -62,14 +80,26 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       final cropState = ref.watch(cropMonitoringControllerProvider);
       return _withLargerDashboardText(
         context,
-        _PlantingManagerDashboard(
-          crops: cropState.crops,
-          isLoading: cropState.isLoading,
-          errorMessage: cropState.errorMessage,
-          onRefresh: () => ref
-              .read(cropMonitoringControllerProvider.notifier)
-              .refreshCrops(),
-        ),
+        cropState.isLoading && !cropState.hasLoaded
+            ? InitialLoadingSkeleton(
+                skeleton: _PlantingManagerDashboard(
+                  crops: cropState.crops,
+                  isLoading: true,
+                  errorMessage: cropState.errorMessage,
+                  onRefresh: () => ref
+                      .read(cropMonitoringControllerProvider.notifier)
+                      .refreshCrops(),
+                ),
+                label: 'Loading your crop dashboard…',
+              )
+            : _PlantingManagerDashboard(
+                crops: cropState.crops,
+                isLoading: cropState.isLoading,
+                errorMessage: cropState.errorMessage,
+                onRefresh: () => ref
+                    .read(cropMonitoringControllerProvider.notifier)
+                    .refreshCrops(),
+              ),
       );
     }
 
@@ -84,11 +114,31 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         profile?.hasPermission(PermissionKeys.stocksView) == true;
     final canViewCrops =
         profile?.hasPermission(PermissionKeys.cropsView) == true;
+    final canUseRover =
+        profile?.hasPermission(PermissionKeys.roverView) == true;
+    final cropState = canViewCrops
+        ? ref.watch(cropMonitoringControllerProvider)
+        : CropMonitoringState.initial();
+    final stockState = canViewStocks
+        ? ref.watch(stockInventoryControllerProvider)
+        : StockInventoryState.initial();
+    final trendAsync =
+        canViewStocks ? ref.watch(stockSalesTrendProvider) : null;
+    final pendingAsync = canUseRover
+        ? ref.watch(pendingPlantingAttentionProvider(profile?.id))
+        : const AsyncData<List<PendingPlantingReceipt>>([]);
     final now = DateTime.now();
-    // Inventory and crop sections manage their own loading states. Keep them
-    // from holding the entire dashboard behind slower, unrelated requests.
-    final showingInitialLoad =
-        dashboardAsync.isLoading && !dashboardAsync.hasValue;
+    final firstLoadPending = (dashboardAsync.isLoading &&
+            !dashboardAsync.hasValue) ||
+        (canViewCrops && cropState.isLoading && !cropState.hasLoaded) ||
+        (canViewStocks && stockState.isLoading && !stockState.hasLoaded) ||
+        (canViewStocks &&
+            stockState.isSalesSummaryLoading &&
+            !stockState.hasSalesSummary) ||
+        (trendAsync != null && trendAsync.isLoading && !trendAsync.hasValue) ||
+        (canUseRover && pendingAsync.isLoading && !pendingAsync.hasValue);
+    if (!firstLoadPending) _hasShownDashboardContent = true;
+    final showingInitialLoad = !_hasShownDashboardContent && firstLoadPending;
 
     return _withLargerDashboardText(
       context,
@@ -97,6 +147,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         child: showingInitialLoad
             ? StartupRecovery(
                 loading: const _DashboardLoadingSkeleton(),
+                loadingLabel: 'Loading your dashboard…',
                 errorMessage: dashboardAsync.hasError
                     ? 'Unable to load dashboard data. Check your connection and retry.'
                     : null,
@@ -117,9 +168,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 skipLoadingOnRefresh: true,
                 skipLoadingOnReload: true,
                 skipError: true,
-                loading: () => const _DashboardLoadingSkeleton(),
+                loading: () => InitialLoadingSkeleton(
+                  skeleton: const _DashboardLoadingSkeleton(),
+                  label: 'Loading your dashboard…',
+                ),
                 error: (_, __) => StartupRecovery(
                   loading: const _DashboardLoadingSkeleton(),
+                  loadingLabel: 'Loading your dashboard…',
                   errorMessage:
                       'Unable to load dashboard data. Check your connection and retry.',
                   onRetry: _refreshDashboard,
@@ -249,7 +304,7 @@ class _PlantingManagerDashboard extends StatelessWidget {
         (crop.estimatedHarvest != null && crop.remainingHarvestDays <= 14));
     final stageCounts = <String, int>{};
     for (final crop in active) {
-      stageCounts.update(crop.growthStageLabel, (count) => count + 1,
+      stageCounts.update(crop.farmerGrowthStageLabel, (count) => count + 1,
           ifAbsent: () => 1);
     }
     final stages = stageCounts.entries.toList()
@@ -345,7 +400,7 @@ class _PlantingManagerDashboard extends StatelessWidget {
                             contentPadding: EdgeInsets.zero,
                             leading: Icon(Icons.eco_outlined,
                                 color: AppColors.primaryGreen),
-                            title: Text(crop.name,
+                            title: Text(crop.displayName,
                                 maxLines: 1, overflow: TextOverflow.ellipsis),
                             subtitle: Text(
                               '${crop.fieldLabel} · ${_careFollowUpLabel(crop)}',
@@ -461,9 +516,11 @@ class _PlantingDashboardMessage extends StatelessWidget {
 
 String _careFollowUpLabel(CropModel crop) {
   for (final task in crop.careTasks) {
-    if (task.status == 'Due' || task.status == 'Overdue') return task.title;
+    if (task.status == 'Due' || task.status == 'Overdue') {
+      return task.farmerTitle;
+    }
   }
-  return crop.careStatus;
+  return FarmerFriendlyCopy.careTask(crop.careStatus);
 }
 
 class _DashboardBriefingCard extends StatelessWidget {
@@ -487,67 +544,96 @@ class _DashboardBriefingCard extends StatelessWidget {
     };
     final surface = AppColors.isLight ? Colors.white : AppColors.cardBackground;
 
-    return Container(
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: AppColors.heroGradientColors,
-        ),
-      ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppRadius.lg),
       child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.smd,
-        ),
+        padding: const EdgeInsets.all(2),
         decoration: BoxDecoration(
-          color: surface,
-          borderRadius: BorderRadius.circular(AppRadius.lg - 2),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: AppColors.heroGradientColors,
+          ),
         ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Your field today',
-                    style: AppTypography.caption.copyWith(
-                      color: AppColors.secondaryGreen,
-                      fontWeight: FontWeight.w700,
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.smd,
+          ),
+          decoration: BoxDecoration(
+            color: surface,
+            borderRadius: BorderRadius.circular(AppRadius.lg - 2),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Your field today',
+                      style: AppTypography.caption.copyWith(
+                        color: AppColors.secondaryGreen,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    '$greeting, $name',
-                    style: AppTypography.sectionHeading.copyWith(
-                      color: AppColors.primaryText,
-                      fontWeight: FontWeight.w700,
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      '$greeting, $name',
+                      style: AppTypography.body.copyWith(
+                        color: AppColors.primaryText,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    '$roleName · ${DateTimeFormatter.formatDate(timestamp)}',
-                    style: AppTypography.caption.copyWith(
-                      color: AppColors.secondaryText,
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      roleName,
+                      style: AppTypography.caption.copyWith(
+                        color: AppColors.secondaryText,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            const SeedRoverMascot(
-              expression: SeedRoverMascotExpression.dashboard,
-              size: 62,
-            ),
-          ],
+              const SizedBox(width: AppSpacing.xs),
+              Transform.translate(
+                offset: const Offset(-3, 4),
+                child: ClipRect(
+                  clipper: const _DashboardRovieClipper(),
+                  child: Align(
+                    widthFactor: 0.7786,
+                    heightFactor: 0.7,
+                    alignment: const Alignment(-1, -0.9048),
+                    child: SeedRoverMascot(
+                      expression: SeedRoverMascotExpression.dashboard,
+                      size: 140,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+class _DashboardRovieClipper extends CustomClipper<Rect> {
+  const _DashboardRovieClipper();
+
+  @override
+  Rect getClip(Size size) => Rect.fromLTWH(
+        0,
+        0,
+        size.width,
+        size.height + AppSpacing.smd - 4,
+      );
+
+  @override
+  bool shouldReclip(covariant _DashboardRovieClipper oldClipper) => false;
 }
 
 class _DashboardLoadingSkeleton extends StatelessWidget {

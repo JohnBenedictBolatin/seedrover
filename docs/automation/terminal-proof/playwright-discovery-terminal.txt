@@ -1,0 +1,60 @@
+PS> npm.cmd run test:e2e:list
+
+> web-admin@0.1.0 test:e2e:list
+> playwright test --list
+
+Listing tests:
+  [chromium] > auth-roles.spec.ts:6:5 > SR-AUTH-001 @smoke Valid administrator login reaches dashboard
+  [chromium] > auth-roles.spec.ts:11:5 > SR-AUTH-002 Invalid credentials are rejected
+  [chromium] > auth-roles.spec.ts:16:5 > SR-AUTH-003 Required username and password prevent empty submission
+  [chromium] > auth-roles.spec.ts:23:5 > SR-AUTH-004 Signed-out dashboard access redirects to login
+  [chromium] > auth-roles.spec.ts:26:5 > SR-AUTH-005 @smoke Logout prevents subsequent protected access
+  [chromium] > auth-roles.spec.ts:34:5 > SR-AUTH-006 Inactive account cannot access portal
+  [chromium] > auth-roles.spec.ts:42:7 > SR-ROLE-001 System Administrator receives the correct landing page
+  [chromium] > auth-roles.spec.ts:42:7 > SR-ROLE-002 Farm Planting Manager receives the correct landing page
+  [chromium] > auth-roles.spec.ts:42:7 > SR-ROLE-003 Farm Inventory Manager receives the correct landing page
+  [chromium] > auth-roles.spec.ts:42:7 > SR-ROLE-004 Planting Staff receives the correct landing page
+  [chromium] > auth-roles.spec.ts:42:7 > SR-ROLE-005 Inventory Staff receives the correct landing page
+  [chromium] > auth-roles.spec.ts:48:7 > SR-ROLE-011 Farm Planting Manager cannot open user administration
+  [chromium] > auth-roles.spec.ts:48:7 > SR-ROLE-012 Farm Inventory Manager cannot open user administration
+  [chromium] > auth-roles.spec.ts:48:7 > SR-ROLE-013 Planting Staff cannot open user administration
+  [chromium] > auth-roles.spec.ts:48:7 > SR-ROLE-014 Inventory Staff cannot open user administration
+  [chromium] > auth-roles.spec.ts:62:5 > SR-ROLE-020 Planting role cannot change inventory through database API
+  [chromium] > auth-roles.spec.ts:68:5 > SR-ROLE-021 Inventory role cannot change crops through database API
+  [chromium] > auth-roles.spec.ts:75:5 > SR-ROLE-022 Signed-out and planting-role sales exports are rejected
+  [chromium] > crops.spec.ts:9:5 > SR-CROP-001 Seeded crop batch displays correct details
+  [chromium] > crops.spec.ts:13:5 > SR-CROP-002 Edit crop details through a reachable UI control
+  [chromium] > crops.spec.ts:24:5 > SR-CROP-003 Record field care and verify persisted activity history
+  [chromium] > crops.spec.ts:38:5 > SR-CROP-004 Missing field observation prevents saving care
+  [chromium] > customers.spec.ts:6:5 > SR-CUST-001 Completed sale appears in customer purchase history
+  [chromium] > customers.spec.ts:13:5 > SR-CUST-002 Create and apply a valid discount to a sale
+  [chromium] > customers.spec.ts:34:5 > SR-CUST-003 Expired discount cannot be selected for a new sale
+  [chromium] > dashboard-reports.spec.ts:13:5 > SR-DASH-001 @smoke Dashboard loads and all period selectors work
+  [chromium] > dashboard-reports.spec.ts:23:5 > SR-DASH-002 Dashboard sales total increases by the controlled sale amount
+  [chromium] > dashboard-reports.spec.ts:31:5 > SR-DASH-003 Empty customer search displays an explicit empty state
+  [chromium] > dashboard-reports.spec.ts:35:5 > SR-REPORT-001 Inventory CSV contains headers and exact fixture values
+  [chromium] > dashboard-reports.spec.ts:43:5 > SR-REPORT-002 Sales CSV respects date filters and includes the new receipt
+  [chromium] > dashboard-reports.spec.ts:54:5 > SR-REPORT-003 Receipt and report print views render their fixture data
+  [chromium] > inventory.spec.ts:5:5 > SR-INV-001 @smoke Inventory displays a persisted test item
+  [chromium] > inventory.spec.ts:10:5 > SR-INV-002 Create inventory item through UI and verify persistence
+  [chromium] > inventory.spec.ts:26:5 > SR-INV-003 Edit inventory location and verify after reload
+  [chromium] > inventory.spec.ts:36:7 > SR-INV-004 Receive stock updates balance and movement history
+  [chromium] > inventory.spec.ts:36:7 > SR-INV-005 Issue stock updates balance and movement history
+  [chromium] > inventory.spec.ts:47:5 > SR-INV-006 Insufficient stock issue is rejected without changing balance
+  [chromium] > inventory.spec.ts:54:5 > SR-INV-007 Negative selling price is rejected
+  [chromium] > monitoring.spec.ts:6:5 > SR-OBS-001 Mark a dedicated notification read and verify persistence
+  [chromium] > monitoring.spec.ts:15:5 > SR-OBS-002 Inventory edit creates an attributable activity record
+  [chromium] > monitoring.spec.ts:23:5 > SR-OBS-003 Rover monitoring presents existing stale or unavailable data honestly
+  [chromium] > monitoring.spec.ts:42:5 > SR-OBS-004 Rover monitor exposes no movement or planting controls
+  [chromium] > sales.spec.ts:5:5 > SR-SALE-001 @smoke Cash sale saves receipt total change and exact stock deduction
+  [chromium] > sales.spec.ts:15:5 > SR-SALE-002 Multi-item sale deducts each stock once
+  [chromium] > sales.spec.ts:23:5 > SR-SALE-003 Overselling is rejected and stock remains unchanged
+  [chromium] > sales.spec.ts:29:5 > SR-SALE-004 Non-cash payment requires a transaction reference
+  [chromium] > sales.spec.ts:37:5 > SR-SALE-005 Authorized cancellation restores inventory exactly once
+  [chromium] > sales.spec.ts:47:5 > SR-SALE-006 Inventory staff cannot cancel a completed sale
+  [chromium] > users.spec.ts:7:7 > SR-USER-001 Administrator creates a user through UI
+  [chromium] > users.spec.ts:7:7 > SR-USER-002 Duplicate username is rejected
+  [chromium] > users.spec.ts:25:5 > SR-USER-003 Update account details and role persists
+  [chromium] > users.spec.ts:36:5 > SR-USER-004 Deactivate account through UI and deny its login
+Total: 52 tests in 8 files
+Exit code: 0

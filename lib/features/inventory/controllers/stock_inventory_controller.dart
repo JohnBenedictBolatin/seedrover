@@ -1,4 +1,5 @@
 import '../../../shared/models/action_outcome.dart';
+import 'dart:math';
 import 'dart:async';
 import 'dart:convert';
 
@@ -18,11 +19,13 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
       : super(StockInventoryState.initial()) {
     loadStocks();
     _subscription = _repository.watchStocks().listen(
-      (stocks) => _setStocks(
-        stocks,
-        successMessage: null,
-        isLoading: state.isLoading,
-      ),
+      (_) {
+        if (!_hasReceivedRealtimeSnapshot) {
+          _hasReceivedRealtimeSnapshot = true;
+          return;
+        }
+        _scheduleRealtimeRefresh();
+      },
       onError: (_) {
         state = state.copyWith(
           isLoading: state.stocks.isEmpty ? state.isLoading : false,
@@ -35,7 +38,20 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
   }
 
   final StockRepository _repository;
-  StreamSubscription<List<StockModel>>? _subscription;
+  String _newSubmissionId() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex =
+        bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
+  }
+
+  StreamSubscription<void>? _subscription;
+  Future<void>? _loadInFlight;
+  Timer? _realtimeRefreshTimer;
+  bool _hasReceivedRealtimeSnapshot = false;
   int _loadGeneration = 0;
   int _salesSummaryGeneration = 0;
   List<StockModel> get currentStocks => state.stocks;
@@ -43,13 +59,14 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
   Future<List<ExistingSaleCustomer>> getExistingSaleCustomers() =>
       _repository.getExistingSaleCustomers();
 
-  String? _uncertainWritesKey() {
-    final account = _repository.currentAccountId;
+  String? _uncertainWritesKey([String? ownerId]) {
+    final account = ownerId ?? _repository.currentAccountId;
     return account == null ? null : 'uncertain_inventory_writes_v1:$account';
   }
 
-  Future<Map<String, UncertainInventoryWrite>> uncertainWrites() async {
-    final key = _uncertainWritesKey();
+  Future<Map<String, UncertainInventoryWrite>> uncertainWrites(
+      {String? ownerId}) async {
+    final key = _uncertainWritesKey(ownerId);
     if (key == null) return {};
     final prefs = await SharedPreferences.getInstance();
     final entries = prefs.getStringList(key) ?? const [];
@@ -63,6 +80,11 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
           attempted: json['attempted'] as String,
           createdAt: DateTime.parse(json['createdAt'] as String),
           reference: json['reference'] as String?,
+          operation: json['operation'] as String?,
+          submissionId: json['submissionId'] as String?,
+          payload: json['payload'] is Map
+              ? Map<String, Object?>.from(json['payload'] as Map)
+              : null,
         );
         pending[write.stockId] = write;
       } catch (_) {
@@ -72,10 +94,11 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
     return pending;
   }
 
-  Future<void> markUncertainWrite(UncertainInventoryWrite write) async {
-    final key = _uncertainWritesKey();
+  Future<void> markUncertainWrite(UncertainInventoryWrite write,
+      {String? ownerId}) async {
+    final key = _uncertainWritesKey(ownerId);
     if (key == null) return;
-    final writes = await uncertainWrites();
+    final writes = await uncertainWrites(ownerId: ownerId);
     writes[write.stockId] = write;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(
@@ -87,14 +110,17 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
                   'attempted': entry.attempted,
                   'createdAt': entry.createdAt.toIso8601String(),
                   'reference': entry.reference,
+                  'operation': entry.operation,
+                  'submissionId': entry.submissionId,
+                  'payload': entry.payload,
                 }))
             .toList());
   }
 
-  Future<void> resolveUncertainWrite(String stockId) async {
-    final key = _uncertainWritesKey();
+  Future<void> resolveUncertainWrite(String stockId, {String? ownerId}) async {
+    final key = _uncertainWritesKey(ownerId);
     if (key == null) return;
-    final writes = await uncertainWrites()
+    final writes = await uncertainWrites(ownerId: ownerId)
       ..remove(stockId);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(
@@ -106,6 +132,9 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
                   'attempted': entry.attempted,
                   'createdAt': entry.createdAt.toIso8601String(),
                   'reference': entry.reference,
+                  'operation': entry.operation,
+                  'submissionId': entry.submissionId,
+                  'payload': entry.payload,
                 }))
             .toList());
   }
@@ -130,19 +159,107 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
     ));
   }
 
+  Future<void> _persistPendingOperation({
+    required String ownerId,
+    required String stockId,
+    required String action,
+    required String operation,
+    required String submissionId,
+    required String attempted,
+    required Map<String, Object?> payload,
+    String? reference,
+  }) async {
+    await markUncertainWrite(
+        UncertainInventoryWrite(
+          stockId: stockId,
+          action: action,
+          operation: operation,
+          submissionId: submissionId,
+          payload: payload,
+          attempted: attempted,
+          createdAt: DateTime.now(),
+          reference: reference,
+        ),
+        ownerId: ownerId);
+  }
+
+  Future<void> _clearRejectedOperation(
+      String ownerId, String stockId, Object error) async {
+    if (error is PostgrestException || error is ArgumentError) {
+      await resolveUncertainWrite(stockId, ownerId: ownerId);
+    }
+  }
+
+  Future<Map<String, dynamic>?> checkPendingOperation(String stockId) async {
+    final pending = (await uncertainWrites())[stockId];
+    if (pending?.operation == null || pending?.submissionId == null) {
+      return null;
+    }
+    return _repository.getOperationSubmission(
+      pending!.operation!,
+      pending.submissionId!,
+    );
+  }
+
+  Future<String?> retrySavedOperation(String stockId) async {
+    final ownerId = _repository.currentAccountId;
+    if (ownerId == null) return 'Sign in to check this saved action.';
+    final pending = (await uncertainWrites(ownerId: ownerId))[stockId];
+    if (pending == null ||
+        pending.operation == null ||
+        pending.submissionId == null ||
+        pending.payload == null) {
+      return 'This saved action is missing details and needs a manual review.';
+    }
+    if (_repository.currentAccountId != ownerId) {
+      return 'Your account changed. Reopen this action to continue.';
+    }
+    try {
+      await _repository.replaySavedOperation(
+        operation: pending.operation!,
+        submissionId: pending.submissionId!,
+        payload: pending.payload!,
+      );
+      if (_repository.currentAccountId != ownerId) {
+        return 'The original account’s saved action was retried. Sign back into that account to refresh it.';
+      }
+      await refreshStockForReview(stockId);
+      if (pending.operation == 'sales_order') await refreshSalesSummary();
+      await resolveUncertainWrite(stockId, ownerId: ownerId);
+      return null;
+    } catch (error) {
+      return _mutationError(error,
+          'The saved action is still unresolved. Keep it and try again when connected.');
+    }
+  }
+
   Future<void> loadStocks() async {
+    final activeLoad = _loadInFlight;
+    if (activeLoad != null) return activeLoad;
+    final load = _loadStocks();
+    _loadInFlight = load;
+    try {
+      await load;
+    } finally {
+      if (identical(_loadInFlight, load)) _loadInFlight = null;
+    }
+  }
+
+  Future<void> _loadStocks() async {
     final generation = ++_loadGeneration;
     state = state.copyWith(isLoading: true, errorMessage: null);
+    final summaryRequest = refreshSalesSummary();
     late final List<StockModel> stocks;
     try {
       stocks = await _repository.getStocks();
     } catch (error) {
+      await summaryRequest;
       if (!mounted || generation != _loadGeneration) return;
       state = state.copyWith(
         isLoading: false,
-        isSalesSummaryLoading: false,
-        salesSummaryError:
-            'Sales totals are unavailable until inventory loads.',
+        salesSummaryError: state.hasSalesSummary
+            ? state.salesSummaryError
+            : 'Sales totals could not be refreshed.',
         errorMessage: _friendlyError(
           error,
           fallback: 'Unable to load inventory data.',
@@ -153,7 +270,7 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
     if (!mounted || generation != _loadGeneration) return;
 
     _setStocks(stocks, successMessage: null, isLoading: true);
-    await refreshSalesSummary();
+    await summaryRequest;
     if (mounted && generation == _loadGeneration) {
       state = state.copyWith(isLoading: false);
     }
@@ -182,8 +299,14 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
 
   Future<void> refreshStocks() async {
     state = state.copyWith(isLoading: true, successMessage: null);
-    await Future<void>.delayed(const Duration(milliseconds: 450));
     await loadStocks();
+  }
+
+  void _scheduleRealtimeRefresh() {
+    _realtimeRefreshTimer?.cancel();
+    _realtimeRefreshTimer = Timer(const Duration(milliseconds: 250), () {
+      if (mounted) loadStocks();
+    });
   }
 
   StockModel? stockById(String stockId) {
@@ -283,8 +406,14 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
     required String performedBy,
     String? requestId,
   }) async {
+    requestId ??= _newSubmissionId();
+    final ownerId = _repository.currentAccountId;
+    if (ownerId == null) return 'Sign in before changing inventory.';
     final pending = await pendingWriteFor(stockId);
     if (pending != null) return pending.message;
+    if (_repository.currentAccountId != ownerId) {
+      return 'Account changed. Reopen this action.';
+    }
     if (quantity <= 0) {
       return 'Quantity must be greater than zero.';
     }
@@ -295,6 +424,32 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
       return 'Inventory item was not found.';
     }
 
+    final id = requestId;
+    if (id.isEmpty) {
+      return 'Reopen this form before saving stock.';
+    }
+    await _persistPendingOperation(
+      ownerId: ownerId,
+      stockId: stockId,
+      action: 'Receive stock',
+      operation: 'inventory_movement',
+      submissionId: id,
+      attempted: '$quantity kg',
+      payload: {
+        'inventory_id': stockId,
+        'transaction_type': 'IN',
+        'quantity': quantity,
+        'reason': null,
+        'remarks': [
+          if (supplier.trim().isNotEmpty) 'Source: ${supplier.trim()}',
+          if (remarks.trim().isNotEmpty) remarks.trim() else 'Stock added.',
+        ].join('\n'),
+        'received_on': null,
+        'harvest_on': null,
+        'profile_id': null,
+        'target_batch_id': null,
+      },
+    );
     try {
       final updatedStock = await _repository.stockIn(
         stock: stock,
@@ -303,12 +458,16 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
         remarks: remarks,
         requestId: requestId,
       );
+      if (_repository.currentAccountId != ownerId) {
+        return 'Account changed while saving. Check this account’s saved actions before retrying.';
+      }
       _replaceStock(
         updatedStock,
         successMessage: 'Harvest stock added successfully.',
       );
+      await resolveUncertainWrite(stockId, ownerId: ownerId);
     } catch (error) {
-      await _rememberUncertain(error, stockId, 'Receive stock', '$quantity');
+      await _clearRejectedOperation(ownerId, stockId, error);
       return _mutationError(error, 'Unable to add stock.');
     }
 
@@ -324,8 +483,14 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
     String? requestId,
     String? batchId,
   }) async {
+    requestId ??= _newSubmissionId();
+    final ownerId = _repository.currentAccountId;
+    if (ownerId == null) return 'Sign in before changing inventory.';
     final pending = await pendingWriteFor(stockId);
     if (pending != null) return pending.message;
+    if (_repository.currentAccountId != ownerId) {
+      return 'Account changed. Reopen this action.';
+    }
     if (quantity <= 0) {
       return 'Quantity must be greater than zero.';
     }
@@ -340,6 +505,31 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
       return 'Quantity cannot exceed current stock.';
     }
 
+    final id = requestId;
+    if (id.isEmpty) {
+      return 'Reopen this form before saving stock.';
+    }
+    final purposeText = purpose.trim().isEmpty ? 'Stock used.' : purpose.trim();
+    final remarksText = remarks.trim().isEmpty ? purposeText : remarks.trim();
+    await _persistPendingOperation(
+      ownerId: ownerId,
+      stockId: stockId,
+      action: 'Issue stock',
+      operation: 'inventory_movement',
+      submissionId: id,
+      attempted: '$quantity kg',
+      payload: {
+        'inventory_id': stockId,
+        'transaction_type': 'OUT',
+        'quantity': quantity,
+        'reason': null,
+        'remarks': '$purposeText - $remarksText',
+        'received_on': null,
+        'harvest_on': null,
+        'profile_id': null,
+        'target_batch_id': batchId,
+      },
+    );
     try {
       final updatedStock = await _repository.stockOut(
         stock: stock,
@@ -349,10 +539,14 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
         requestId: requestId,
         batchId: batchId,
       );
+      if (_repository.currentAccountId != ownerId) {
+        return 'Account changed while saving. Check this account’s saved actions before retrying.';
+      }
       _replaceStock(updatedStock,
           successMessage: 'Stock deducted successfully.');
+      await resolveUncertainWrite(stockId, ownerId: ownerId);
     } catch (error) {
-      await _rememberUncertain(error, stockId, 'Issue stock', '$quantity');
+      await _clearRejectedOperation(ownerId, stockId, error);
       return _mutationError(error, 'Unable to deduct stock.');
     }
 
@@ -367,8 +561,14 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
     required String performedBy,
     String? requestId,
   }) async {
+    requestId ??= _newSubmissionId();
+    final ownerId = _repository.currentAccountId;
+    if (ownerId == null) return 'Sign in before changing inventory.';
     final pending = await pendingWriteFor(stockId);
     if (pending != null) return pending.message;
+    if (_repository.currentAccountId != ownerId) {
+      return 'Account changed. Reopen this action.';
+    }
     if (newQuantity < 0) {
       return 'New quantity cannot be negative.';
     }
@@ -379,6 +579,32 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
       return 'Inventory item was not found.';
     }
 
+    final id = requestId;
+    if (id.isEmpty) {
+      return 'Reopen this form before saving stock.';
+    }
+    final reasonText =
+        reason.trim().isEmpty ? 'Stock adjusted.' : reason.trim();
+    final remarksText = remarks.trim().isEmpty ? reasonText : remarks.trim();
+    await _persistPendingOperation(
+      ownerId: ownerId,
+      stockId: stockId,
+      action: 'Adjust stock',
+      operation: 'inventory_movement',
+      submissionId: id,
+      attempted: 'New total: $newQuantity kg',
+      payload: {
+        'inventory_id': stockId,
+        'transaction_type': 'ADJUSTMENT',
+        'quantity': newQuantity,
+        'reason': null,
+        'remarks': '$reasonText - $remarksText',
+        'received_on': null,
+        'harvest_on': null,
+        'profile_id': null,
+        'target_batch_id': null,
+      },
+    );
     try {
       final updatedStock = await _repository.adjustStock(
         stock: stock,
@@ -387,11 +613,14 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
         remarks: remarks,
         requestId: requestId,
       );
+      if (_repository.currentAccountId != ownerId) {
+        return 'Account changed while saving. Check this account’s saved actions before retrying.';
+      }
       _replaceStock(updatedStock,
           successMessage: 'Stock adjusted successfully.');
+      await resolveUncertainWrite(stockId, ownerId: ownerId);
     } catch (error) {
-      await _rememberUncertain(
-          error, stockId, 'Adjust quantity', '$newQuantity');
+      await _clearRejectedOperation(ownerId, stockId, error);
       return _mutationError(error, 'Unable to adjust stock.');
     }
 
@@ -399,8 +628,13 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
   }
 
   Future<String?> recordSale(RecordSaleRequest request) async {
+    final ownerId = _repository.currentAccountId;
+    if (ownerId == null) return 'Sign in before recording a sale.';
     final pending = await pendingWriteFor(request.stock.id);
     if (pending != null) return pending.message;
+    if (_repository.currentAccountId != ownerId) {
+      return 'Account changed. Reopen this sale.';
+    }
     if (state.isSavingSale) {
       return 'Sale is already being saved.';
     }
@@ -435,9 +669,43 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
       return 'Transaction ID is required for non-cash sales.';
     }
 
+    final submissionId = request.submissionId;
+    if (submissionId == null || submissionId.isEmpty) {
+      return 'Reopen this form before saving the sale.';
+    }
+    final normalizedContact = AppInputFormatters.normalizeContactNumber(
+      request.customerContact,
+      required: true,
+    );
+    await _persistPendingOperation(
+      ownerId: ownerId,
+      stockId: request.stock.id,
+      action: 'Record sale',
+      operation: 'sales_order',
+      submissionId: submissionId,
+      attempted: '${request.quantitySold} kg at ${request.unitPrice}',
+      reference: request.transactionReference,
+      payload: {
+        'inventory_id': request.stock.id,
+        'quantity_sold': request.quantitySold,
+        'unit_price': request.unitPrice,
+        'sale_date': request.saleDate.toUtc().toIso8601String(),
+        'customer_name': request.customerName,
+        'customer_contact': normalizedContact,
+        'remarks': request.remarks,
+        'payment_method': request.paymentMethod,
+        'transaction_reference': request.transactionReference,
+        'other_payment_method': request.otherPaymentMethod,
+        'target_batch_id': request.batchId,
+      },
+    );
     try {
       state = state.copyWith(isSavingSale: true);
       final updatedStock = await _repository.recordSale(request);
+      if (_repository.currentAccountId != ownerId) {
+        state = state.copyWith(isSavingSale: false);
+        return 'Account changed while saving. Check this account’s saved actions before retrying.';
+      }
       StockSalesSummaryModel? salesSummary;
       String? salesSummaryError;
       try {
@@ -453,16 +721,66 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
         salesSummary: salesSummary,
       );
       state = state.copyWith(salesSummaryError: salesSummaryError);
+      await resolveUncertainWrite(request.stock.id, ownerId: ownerId);
     } catch (error) {
-      await _rememberUncertain(error, request.stock.id, 'Record sale',
-          '${request.quantitySold} ${request.stock.unit} at ${request.unitPrice}',
-          reference: request.transactionReference);
       state = state.copyWith(isSavingSale: false);
+      await _clearRejectedOperation(ownerId, request.stock.id, error);
       return _mutationError(error, 'Unable to record sale.');
     }
 
     state = state.copyWith(isSavingSale: false);
     return null;
+  }
+
+  Future<String?> voidSale({
+    required String stockId,
+    required String saleId,
+    required String reason,
+    required String submissionId,
+  }) async {
+    final ownerId = _repository.currentAccountId;
+    if (ownerId == null) return 'Sign in before cancelling a sale.';
+    final pending = await pendingWriteFor(stockId);
+    if (pending != null) return pending.message;
+    final payload = <String, Object?>{
+      'id': saleId,
+      'source': 'receipt',
+      'reason': reason.trim(),
+    };
+    await _persistPendingOperation(
+      ownerId: ownerId,
+      stockId: stockId,
+      action: 'Cancel sale',
+      operation: 'void_sale',
+      submissionId: submissionId,
+      attempted: saleId,
+      payload: payload,
+    );
+    try {
+      await _repository.voidSale(
+        saleId: saleId,
+        source: 'receipt',
+        reason: reason.trim(),
+        submissionId: submissionId,
+      );
+      if (_repository.currentAccountId != ownerId) {
+        return 'The cancellation was sent from the original account. Sign back in there to confirm it.';
+      }
+      try {
+        await refreshStockForReview(stockId);
+        await refreshSalesSummary();
+      } catch (_) {
+        state = state.copyWith(
+            errorMessage:
+                'Sale cancelled, but inventory could not refresh yet.');
+      }
+      await resolveUncertainWrite(stockId, ownerId: ownerId);
+      return null;
+    } catch (error) {
+      await _clearRejectedOperation(ownerId, stockId, error);
+      return _mutationError(error,
+          'The sale cancellation is unresolved. Check it before trying another inventory action.');
+    }
   }
 
   Future<String?> updateStock(StockModel stock) async {
@@ -645,6 +963,7 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
       successMessage: successMessage,
       errorMessage: null,
       isLoading: isLoading,
+      hasLoaded: true,
       isSavingSale: false,
       salesSummary: salesSummary ?? state.salesSummary,
     );
@@ -653,6 +972,7 @@ class StockInventoryController extends StateNotifier<StockInventoryState> {
   @override
   void dispose() {
     _subscription?.cancel();
+    _realtimeRefreshTimer?.cancel();
     super.dispose();
   }
 }
@@ -711,8 +1031,11 @@ String _friendlyError(Object error, {required String fallback}) {
 
     if (message.contains('schema cache') ||
         message.contains('record_inventory_sale') ||
+        message.contains('record_sales_order_v2') ||
+        message.contains('record_inventory_movement_v2') ||
+        message.contains('void_sales_record_v2') ||
         message.contains('Could not find the function')) {
-      return 'Inventory database is not fully upgraded yet. Apply the latest Supabase migration and try again.';
+      return 'This action needs the latest database update. Ask the system administrator to apply the approved migration, then try again.';
     }
 
     if (message.toLowerCase().contains('permission') ||

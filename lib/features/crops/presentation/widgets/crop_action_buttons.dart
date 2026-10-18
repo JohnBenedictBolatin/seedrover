@@ -93,7 +93,7 @@ class CropActionButtons extends StatelessWidget {
             if (onNotHarvested != null)
               _ActionButton(
                 width: buttonWidth,
-                label: 'Close without harvest',
+                label: 'End crop',
                 icon: Icons.block_outlined,
                 color: AppColors.danger,
                 onPressed: onNotHarvested!,

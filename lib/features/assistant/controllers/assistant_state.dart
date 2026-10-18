@@ -7,6 +7,7 @@ class AssistantState {
     this.isSending = false,
     this.errorMessage,
     this.canRetry = false,
+    this.showSlowMessage = false,
   });
 
   factory AssistantState.initial() {
@@ -28,6 +29,7 @@ class AssistantState {
   final bool isSending;
   final String? errorMessage;
   final bool canRetry;
+  final bool showSlowMessage;
 
   AssistantState copyWith({
     List<AssistantMessageModel>? messages,
@@ -35,6 +37,7 @@ class AssistantState {
     bool? isSending,
     String? errorMessage,
     bool? canRetry,
+    bool? showSlowMessage,
     bool clearError = false,
   }) {
     return AssistantState(
@@ -43,6 +46,8 @@ class AssistantState {
       isSending: isSending ?? this.isSending,
       errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
       canRetry: clearError ? false : canRetry ?? this.canRetry,
+      showSlowMessage:
+          showSlowMessage ?? (clearError ? false : this.showSlowMessage),
     );
   }
 }

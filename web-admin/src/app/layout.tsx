@@ -1,18 +1,25 @@
 import type { Metadata } from "next";
-import { Poppins } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { ActionFeedbackProvider } from "@/components/action-feedback";
 import { ConnectivityStatus } from "@/components/connectivity-status";
 
-const poppins = Poppins({
+const poppins = localFont({
+  src: [
+    { path: "./fonts/Poppins-Regular.ttf", weight: "400" },
+    { path: "./fonts/Poppins-Medium.ttf", weight: "500" },
+    { path: "./fonts/Poppins-SemiBold.ttf", weight: "600" },
+    { path: "./fonts/Poppins-Bold.ttf", weight: "700" },
+  ],
   variable: "--font-inter",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800", "900"],
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "SeedRover Admin",
+  title: {
+    default: "SeedRover",
+    template: "%s - SeedRover",
+  },
   description: "Farm sales, inventory, crop, and activity supervision for SeedRover.",
 };
 
