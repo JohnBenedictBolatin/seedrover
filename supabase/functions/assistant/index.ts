@@ -257,21 +257,31 @@ serve(async (request) => {
     return failure("farm_data_unavailable", 503, requestId, startedAt);
   }
 
+  // Render sales answers from authorized records directly. This prevents a
+  // generated answer from blending an earlier turn into the current totals.
+  if (capability === "sales") return answerFromVerifiedData(appContext, requestId, false);
+
   if (!apiKey) {
     console.warn("Rovie provider is not configured", { requestId, category: "provider_not_configured", durationMs: Date.now() - startedAt });
     return answerFromVerifiedData(appContext, requestId);
   }
 
   // Prior assistant text is omitted so responses written under an older
-  // permission set cannot be replayed into the current model context.
-  const contents = normalizeHistory(userTurnsOnly(history));
-
-  if (contents.length === 0 || lastUserText(contents) !== question) {
-    contents.push({
-      role: "user",
-      parts: [{ text: question }],
-    });
+  // permission set cannot be replayed. Replace a short follow-up with its
+  // resolved, data-scoped question so the model answers the current product
+  // instead of repeating an older result from the conversation.
+  const modelHistory = capability === "sales" || capability === "inventory" || capability === "crops" || capability === "rover" || capability === "activity"
+    ? [{ role: "user", content: effectiveQuestion }]
+    : userTurnsOnly(history)
+      .map((entry) => ({ ...(entry as Record<string, unknown>) }))
+      .slice(-6);
+  const lastModelTurn = modelHistory[modelHistory.length - 1];
+  if (lastModelTurn && lastModelTurn.content === question) {
+    lastModelTurn.content = effectiveQuestion;
+  } else if (modelHistory.length === 0 || lastModelTurn?.content !== effectiveQuestion) {
+    modelHistory.push({ role: "user", content: effectiveQuestion });
   }
+  const contents = normalizeHistory(modelHistory);
 
   const model = Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash-lite";
   let geminiResponse: Response;
@@ -341,15 +351,37 @@ async function hash(value: string) {
 type Capability = "inventory" | "sales" | "crops" | "rover" | "activity" | "advice" | "unknown";
 
 function resolveFollowUpQuestion(question: string, history: unknown[]) {
-  const prior = normalizeHistory(userTurnsOnly(history));
-  const priorText = prior.map((message) => message.parts.map((part) => part.text).join(" ")).join(" ");
-  const current = question.toLowerCase().trim();
+  const priorUserMessages = userTurnsOnly(history)
+    .map((entry) => String((entry as Record<string, unknown>).content ?? "").trim())
+    .filter(Boolean);
+  const priorText = priorUserMessages.join(" ");
+  const current = question.toLowerCase().trim().replace(/[?.!,]+$/g, "");
+  const latestSalesQuestion = [...priorUserMessages].reverse().find((message) =>
+    /\b(sales?|sold|selling|revenue|transaction)\b/i.test(message)
+  );
+  const salesScope = latestSalesQuestion && /\bmy\s+(?:recent\s+)?sales\b/i.test(latestSalesQuestion)
+    ? "my sales"
+    : "sales";
+
+  // Keep short comparison-style follow-ups on the active sales topic. The
+  // previous answer is deliberately not used as evidence or query context.
+  const aboutFollowUp = current.match(/^(?:and\s+)?(?:how|what)\s+about\s+(.+)$/i);
+  if (aboutFollowUp && latestSalesQuestion) {
+    const dateFilter = latestSalesQuestion.match(/\b(?:last|this)\s+(?:week|month|year)\b|\b(?:today|yesterday)\b/i)?.[0];
+    return `${salesScope} about ${aboutFollowUp[1].trim()}${dateFilter ? ` ${dateFilter}` : ""}`;
+  }
+
+  if (latestSalesQuestion && /^(?:my\s+)?recent\s+sales$/i.test(current)) {
+    return latestSalesQuestion;
+  }
+
   if (/^(last week|this week|last month|this month|today|yesterday|this year|last year)$/i.test(current)) {
-    return `${priorText} ${question}`;
+    return `${latestSalesQuestion ?? priorText} ${question}`;
   }
   if (/^(my recent sales|recent sales|sales|my sales)$/i.test(current)) return question;
-  if (/^[\p{L}\p{N}][\p{L}\p{N} '\-]{0,39}$/u.test(question) && /\b(sales?|sold|sale|inventory|stock|available|quantity|crop|planting|stage|care)\b/i.test(priorText)) {
-    return `${priorText} ${question}`;
+  if (/^[\p{L}\p{N}][\p{L}\p{N} '\-]{0,39}$/u.test(current) && latestSalesQuestion) {
+    const dateFilter = latestSalesQuestion.match(/\b(?:last|this)\s+(?:week|month|year)\b|\b(?:today|yesterday)\b/i)?.[0];
+    return `${salesScope} about ${current}${dateFilter ? ` ${dateFilter}` : ""}`;
   }
   return question;
 }
@@ -370,17 +402,28 @@ function isCapabilityAllowed(capability: Capability, allowed: Record<string, boo
 }
 
 function extractItem(question: string, history: unknown[]) {
-  const messages = userTurnsOnly(history);
-  const terms = [question, ...messages.filter((entry) => entry && typeof entry === "object" && (entry as Record<string, unknown>).role === "user").map((entry) => String((entry as Record<string, unknown>).content ?? ""))];
-  for (const text of terms.reverse()) {
-    const match = text.match(/\b(?:for|about|on)\s+([\p{L}][\p{L}\s'-]{0,40})/iu);
+  // Prefer the current, already-resolved question. Looking through older
+  // questions first caused a prior item (e.g. banana) to shadow a follow-up.
+  const candidates = [question, ...userTurnsOnly(history).reverse().map((entry) => String((entry as Record<string, unknown>).content ?? ""))];
+  for (const text of candidates) {
+    const normalized = text.trim().replace(/[?.!,]+$/g, "");
+    const match = normalized.match(/\b(?:sales?|transactions?)\s+(?:of|for|about|on)\s+([\p{L}][\p{L}\s'-]{0,40})/iu)
+      ?? normalized.match(/\b(?:for|about|on)\s+([\p{L}][\p{L}\s'-]{0,40})/iu);
     if (match) {
-      const item = match[1].trim().replace(/\s+(?:last|this)\s+(?:week|month|year).*$/i, "");
+      const item = match[1]
+        .replace(/^sales?\s+(?:of|for|about|on)\s+/i, "")
+        .replace(/\s+(?:last|this)\s+(?:week|month|year).*$/i, "")
+        .replace(/\s+(?:and\s+)?(?:last|this)\s+(?:week|month|year).*$/i, "")
+        .trim();
       if (item && !/^(sales?|inventory|stock|crops?|planting)$/i.test(item)) return item;
     }
-    const normalized = text.trim().replace(/[?.!,]+$/g, "");
+
     if (/^(?:how|what|why|when|where|is|are|can|tell|show|give|do)\b/i.test(normalized)) continue;
-    const candidate = normalized.replace(/\b(?:my|recent|sales?|sold|selling|inventory|stock|please|the|for|about|last|this|week|month|year|today|yesterday)\b/gi, " ").replace(/\s+(?:do we have|is available|available|in stock|please).*$/i, "").replace(/\s+/g, " ").trim();
+    const candidate = normalized
+      .replace(/\b(?:my|recent|sales?|transactions?|sold|selling|inventory|stock|please|the|for|about|of|on|last|this|week|month|year|today|yesterday)\b/gi, " ")
+      .replace(/\s+(?:do we have|is available|available|in stock|please).*$/i, "")
+      .replace(/\s+/g, " ")
+      .trim();
     if (/^[\p{L}][\p{L}\s'-]{0,39}$/u.test(candidate) && candidate.length > 1) return candidate;
   }
   return null;
@@ -428,20 +471,73 @@ async function loadAuthorizedContext(caller: ReturnType<typeof createClient>, qu
     context.inventory = (data ?? []).map((item) => ({ name: item.item_name, quantity: item.quantity, unit: item.unit, needsRestock: Number(item.quantity) <= Number(item.minimum_quantity) }));
   }
   if (capability === "sales" && allowed.inventory) {
-    let query = caller.from("sales_order_items").select("item_name_snapshot,quantity_sold,unit_snapshot,line_total,sales_orders!inner(sale_date,status,recorded_by)").eq("sales_orders.status", "Completed").order("sale_date", { foreignTable: "sales_orders", ascending: false }).limit(500);
-    if (keyword) query = query.ilike("item_name_snapshot", `%${keyword.replace(/[%_]/g, "\\$&")}%`);
-    if (/\bmy\s+(recent\s+)?sales\b/i.test(question)) query = query.eq("sales_orders.recorded_by", (await caller.auth.getUser()).data.user?.id ?? "");
-    if (range) query = query.gte("sales_orders.sale_date", range.from).lte("sales_orders.sale_date", range.to);
-    const { data, error } = await query;
-    if (error) throw error;
-    const matching = (data ?? []).map((item) => {
+    const isPersonalSales = /\bmy\s+(recent\s+)?sales\b/i.test(question);
+    const callerId = isPersonalSales ? (await caller.auth.getUser()).data.user?.id ?? "" : null;
+    const escapedKeyword = keyword?.replace(/[%_]/g, "\\$&");
+    let orderItemsQuery = caller.from("sales_order_items")
+      .select("item_name_snapshot,quantity_sold,unit_snapshot,line_total,sales_orders!inner(id,receipt_number,sale_date,status,recorded_by,subtotal,total_amount)")
+      .eq("sales_orders.status", "Completed")
+      .order("sale_date", { foreignTable: "sales_orders", ascending: false })
+      .limit(1000);
+    let legacySalesQuery = caller.from("sales_transactions")
+      .select("quantity_sold,unit_price,total_amount,sale_date,status,recorded_by,inventory(item_name,unit)")
+      .eq("status", "Completed")
+      .order("sale_date", { ascending: false })
+      .limit(1000);
+    if (escapedKeyword) {
+      orderItemsQuery = orderItemsQuery.ilike("item_name_snapshot", `%${escapedKeyword}%");
+      legacySalesQuery = legacySalesQuery.ilike("inventory.item_name", `%${escapedKeyword}%`);
+    }
+    if (callerId !== null) {
+      orderItemsQuery = orderItemsQuery.eq("sales_orders.recorded_by", callerId);
+      legacySalesQuery = legacySalesQuery.eq("recorded_by", callerId);
+    }
+    if (range) {
+      orderItemsQuery = orderItemsQuery.gte("sales_orders.sale_date", range.from).lte("sales_orders.sale_date", range.to);
+      legacySalesQuery = legacySalesQuery.gte("sale_date", range.from).lte("sale_date", range.to);
+    }
+    const [{ data: orderItems, error: orderError }, { data: legacySales, error: legacyError }] = await Promise.all([
+      orderItemsQuery,
+      legacySalesQuery,
+    ]);
+    if (orderError) throw orderError;
+    if (legacyError) throw legacyError;
+    const orderItemMatches = (orderItems ?? []).map((item) => {
       const order = Array.isArray(item.sales_orders) ? item.sales_orders[0] : item.sales_orders;
-      return { item: item.item_name_snapshot, quantity: item.quantity_sold, unit: item.unit_snapshot, total: item.line_total, date: order?.sale_date };
+      return {
+        saleId: order?.id,
+        receipt: order?.receipt_number,
+        item: item.item_name_snapshot,
+        quantity: item.quantity_sold,
+        unit: item.unit_snapshot,
+        lineTotal: item.line_total,
+        total: Number(order?.subtotal ?? 0) > 0
+          ? Number(item.line_total ?? 0) * Number(order?.total_amount ?? 0) / Number(order?.subtotal)
+          : Number(item.line_total ?? 0),
+        date: order?.sale_date,
+      };
     });
-    context.sales = matching.slice(0, range || keyword ? 20 : 5);
-    context.salesResultCount = matching.length;
-    context.salesTotal = matching.reduce((sum: number, item: Record<string, unknown>) => sum + Number(item.total ?? 0), 0);
-    context.scope = /\bmy\s+(recent\s+)?sales\b/i.test(question) ? "sales recorded by the signed-in user" : "completed farm sales";
+    const legacyMatches = (legacySales ?? []).flatMap((sale) => {
+      const inventory = Array.isArray(sale.inventory) ? sale.inventory[0] : sale.inventory;
+      if (!inventory?.item_name || (keyword && !inventory.item_name.toLowerCase().includes(keyword.toLowerCase()))) return [];
+      return [{ item: inventory.item_name, quantity: sale.quantity_sold, unit: inventory.unit, total: sale.total_amount, date: sale.sale_date }];
+    });
+    const orderMatches = keyword
+      ? orderItemMatches.map(({ lineTotal, ...item }) => ({ ...item, total: lineTotal }))
+      : [...new Map(orderItemMatches.map((item) => [item.saleId, {
+        ...item,
+        item: orderItemMatches.filter((line) => line.saleId === item.saleId).map((line) => line.item).join(", "),
+        quantity: orderItemMatches.filter((line) => line.saleId === item.saleId).reduce((sum, line) => sum + Number(line.quantity ?? 0), 0),
+      }])).values()];
+    const allMatches = [...orderMatches, ...legacyMatches]
+      .sort((a, b) => new Date(String(b.date)).getTime() - new Date(String(a.date)).getTime());
+    const recentOverview = !range && !keyword;
+    const displayedSales = allMatches.slice(0, recentOverview ? 5 : 20);
+    context.sales = displayedSales;
+    context.salesResultCount = recentOverview ? displayedSales.length : allMatches.length;
+    context.salesTotal = (recentOverview ? displayedSales : allMatches)
+      .reduce((sum: number, item: Record<string, unknown>) => sum + Number(item.total ?? 0), 0);
+    context.scope = isPersonalSales ? "sales recorded by the signed-in user" : "completed farm sales";
   }
   if (capability === "crops" && allowed.crops) {
     const query = caller.from("crops").select("crop_name,crop_status,growth_stage,planting_date,estimated_harvest,assigned_planting_name,custom_planting_name,current_care_status,batch_code").order("planting_date", { ascending: false }).limit(1000);
@@ -464,7 +560,7 @@ async function loadAuthorizedContext(caller: ReturnType<typeof createClient>, qu
   return context;
 }
 
-function answerFromVerifiedData(context: Record<string, unknown>, requestId: string) {
+function answerFromVerifiedData(context: Record<string, unknown>, requestId: string, providerUnavailable = true) {
   let answer = context.capability === "advice"
     ? "For planting advice, keep the soil moist without leaving standing water, check the crop regularly, and follow local guidance for fertilizer or pest treatment."
     : "I could not verify matching farm information. Please try again in a moment.";
@@ -492,7 +588,7 @@ function answerFromVerifiedData(context: Record<string, unknown>, requestId: str
   if (Array.isArray(context.sales) && context.sales.length === 0 && typeof context.scope === "string" && context.scope.startsWith("sales recorded")) {
     answer = `No completed sales recorded by you matched that item and date range.`;
   }
-  return json({ answer, status: "answered", notice: "Rovie used verified records because the assistant service is unavailable.", requestId });
+  return json({ answer, status: "answered", ...(providerUnavailable ? { notice: "Rovie used verified records because the assistant service is unavailable." } : {}), requestId });
 }
 
 function displayGrowthStage(value: string | null) {
@@ -525,6 +621,8 @@ ${JSON.stringify(appContext, null, 2)}
 Rules for supplied information:
 - The information was assembled by the server after checking the caller's
   permissions. Do not treat any earlier chat text as proof of a current value.
+- Answer the current resolved question only. Do not repeat results for other
+  products mentioned earlier unless the user explicitly asks to compare them.
 - Use the matching records to answer the current question. Do not add unrelated
   stock, crop, or sales figures.
 - If information is not present in the supplied information, say it is not
@@ -629,18 +727,6 @@ function isSqlLikeText(value: string) {
   return /\b(?:select|insert|update|delete|drop|alter|truncate|create)\b[\s\S]{0,240}\b(?:from|into|table|database|set)\b/i.test(
     value,
   );
-}
-
-function lastUserText(
-  contents: Array<{ role: string; parts: Array<{ text: string }> }>,
-) {
-  for (let index = contents.length - 1; index >= 0; index--) {
-    if (contents[index].role === "user") {
-      return contents[index].parts[0]?.text ?? "";
-    }
-  }
-
-  return "";
 }
 
 function json(body: Record<string, unknown>, status = 200) {

@@ -396,8 +396,8 @@ export function CustomersWorkspace({ customers, discounts, stats }: CustomersWor
               onChange={(event) => setQuery(event.target.value)}
             />
           </label>
-          <CalendarField className={styles.dateField} label="From" value={startDate} onChange={setStartDate} />
-          <CalendarField className={styles.dateField} label="To" value={endDate} onChange={setEndDate} />
+          <CalendarField className={styles.dateField} label="From" value={startDate} max={endDate || todayInputValue()} onChange={setStartDate} />
+          <CalendarField className={styles.dateField} label="To" value={endDate} min={startDate || undefined} max={todayInputValue()} onChange={setEndDate} />
           <FilterSelect
             icon={<Filter size={17} />}
             label="Type"

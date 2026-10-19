@@ -75,7 +75,8 @@
   overflow: hidden;
   border: 1px solid var(--border-soft);
   border-radius: 16px;
-  background: var(--surface-overlay);
+  /* Chat must fully cover page content behind the fixed panel. */
+  background: var(--surface);
   box-shadow: 0 22px 70px rgba(0, 0, 0, 0.46);
   transform-origin: bottom right;
   animation: rovieOpen 180ms ease-out;
@@ -133,6 +134,13 @@
   font-size: 1.28rem;
 }
 
+.headerActions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+}
+
 .header button {
   display: inline-grid;
   width: 38px;
@@ -149,6 +157,28 @@
     background 180ms ease;
 }
 
+.header .clearButton {
+  display: inline-flex;
+  width: auto;
+  min-width: 72px;
+  padding: 0 10px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--text-muted);
+}
+
+.clearButton span {
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.header .clearButton:hover {
+  border-color: rgba(var(--green-rgb), 0.4);
+  color: var(--green-accent);
+  background: rgba(var(--green-rgb), 0.08);
+}
+
 .header button:hover {
   border-color: rgba(255, 59, 48, 0.36);
   color: #ff6b6b;
@@ -163,6 +193,14 @@
   padding: 18px;
 }
 
+.scopeStatus {
+  align-self: center;
+  margin: auto;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  text-align: center;
+}
+
 .message {
   display: flex;
   align-items: flex-end;
@@ -175,7 +213,7 @@
   border: 1px solid var(--border-soft);
   border-radius: 12px;
   color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--surface-raised);
   line-height: 1.55;
   padding: 12px 14px;
   white-space: pre-wrap;
@@ -196,7 +234,7 @@
 .message[data-role="user"] p {
   border-color: rgba(var(--green-rgb), 0.28);
   color: var(--text);
-  background: rgba(var(--green-secondary-rgb), 0.12);
+  background: var(--surface-soft);
   font-weight: 800;
 }
 
@@ -326,7 +364,7 @@
   border: 1px solid var(--border-soft);
   border-radius: 8px;
   color: var(--text);
-  background: rgba(20, 20, 20, 0.72);
+  background: var(--surface-raised);
   outline: none;
   padding: 0 14px;
   transition:
@@ -336,7 +374,7 @@
 
 .form input:focus {
   border-color: rgba(var(--green-rgb), 0.42);
-  background: rgba(18, 18, 18, 0.94);
+  background: var(--surface);
 }
 
 .form button {

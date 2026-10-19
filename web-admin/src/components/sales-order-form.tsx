@@ -256,10 +256,10 @@ export function SalesOrderForm({
   );
   const discountOptionLabels = useMemo(
     () => Object.fromEntries(
-      discounts.map((discount) => [
+      [["", discounts.length > 0 ? "No discount" : "No discounts available"], ...discounts.map((discount) => [
         discount.code,
         `${discount.code} - ${discount.discountType === "Percent" ? `${discount.discountValue}% off` : `${formatCurrency(discount.discountValue)} off`}`,
-      ]),
+      ])],
     ),
     [discounts],
   );

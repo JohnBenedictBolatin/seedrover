@@ -1,9 +1,13 @@
 import { test, expect } from '@playwright/test';
-import { asRole, inventory, fillSale, submitSale, balance, evidence, selectNamed, db, check, confirm } from '../support';
+import { asRole, inventory, fillSale, submitSale, balance, evidence, selectNamed, db, check, confirm, runId } from '../support';
 
 test.beforeEach(async ({ page }) => { await asRole(page, 'inventory'); });
 test('SR-SALE-001 @smoke Cash sale saves receipt total change and exact stock deduction', async ({ page }, info) => {
   const item = await inventory('cash'); await fillSale(page, [{ name: item.name, quantity: 3 }], 'cash');
+  const discountPicker = page.locator('input[name="discount_code"]').locator('..');
+  await discountPicker.locator('button').first().click();
+  await expect(discountPicker.getByRole('button', { name: 'No discount', exact: true })).toBeVisible();
+  await discountPicker.locator('button').first().click();
   const sale = await submitSale(page, 'cash'); expect(Number(sale.total_amount)).toBe(150); expect(Number(sale.change_amount)).toBe(50);
   expect(await balance(item.id)).toBe(17);
   await page.goto(`/sales/${sale.id}`); await expect(page.getByRole('cell', { name: item.name, exact: true })).toBeVisible();
@@ -33,6 +37,32 @@ test('SR-SALE-004 Non-cash payment requires a transaction reference', async ({ p
   await page.getByRole('button', { name: 'Record sale', exact: true }).last().click();
   expect(await field.evaluate((el: HTMLInputElement) => el.validity.valueMissing)).toBe(true);
   expect(await balance(item.id)).toBe(20); await evidence(page, info);
+});
+test('SR-SALE-007 A payment transaction ID cannot be reused', async ({ page }, info) => {
+  const firstItem = await inventory('unique_reference_first');
+  const secondItem = await inventory('unique_reference_second');
+  const reference = `AUTOTEST-TXN-${runId}`.slice(0, 32);
+
+  await fillSale(page, [{ name: firstItem.name, quantity: 1 }], 'unique_reference_first', 50);
+  await selectNamed(page, 'payment_method_display', 'GCash');
+  await page.locator('[name="transaction_reference"]').fill(reference);
+  const firstSale = await submitSale(page, 'unique_reference_first');
+  expect(firstSale.status).toBe('Completed');
+  expect(await balance(firstItem.id)).toBe(19);
+
+  await page.goto('/sales');
+  await fillSale(page, [{ name: secondItem.name, quantity: 1 }], 'unique_reference_second', 50);
+  await selectNamed(page, 'payment_method_display', 'GCash');
+  await page.locator('[name="transaction_reference"]').fill(reference.toLowerCase());
+  await page.getByRole('button', { name: 'Record sale', exact: true }).last().click();
+  await confirm(page, 'Record this sale?', 'Record sale');
+  await expect(page.getByRole('alert').filter({ hasText: /transaction ID is already recorded/i })).toBeVisible();
+
+  expect(await balance(secondItem.id)).toBe(20);
+  const matching = await db().from('sales_orders').select('id').ilike('transaction_reference', reference);
+  check(matching.error);
+  expect(matching.data).toHaveLength(1);
+  await evidence(page, info, 'duplicate-transaction-id-rejected');
 });
 test('SR-SALE-005 Authorized cancellation restores inventory exactly once', async ({ page }, info) => {
   const item = await inventory('void'); await fillSale(page, [{ name: item.name, quantity: 3 }], 'void');

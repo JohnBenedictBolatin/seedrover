@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import {
   ClipboardCheck,
@@ -8,6 +8,7 @@ import {
   Loader2,
   Send,
   Sprout,
+  Trash2,
   X,
 } from "lucide-react";
 import styles from "./rovie-assistant.module.css";
@@ -76,6 +77,10 @@ function readStoredMessages(storageKey: string) {
 }
 
 export function RovieAssistant({ profileId }: { profileId: string }) {
+  return <RovieAssistantSession key={profileId} profileId={profileId} />;
+}
+
+function RovieAssistantSession({ profileId }: { profileId: string }) {
   const [open, setOpen] = useState(false);
   const storageKey = `seedrover-rovie-history:${profileId}`;
   const [messages, setMessages] = useState<RovieMessage[]>([welcomeMessage]);
@@ -84,12 +89,24 @@ export function RovieAssistant({ profileId }: { profileId: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [failedQuestion, setFailedQuestion] = useState<string | null>(null);
   const [slow, setSlow] = useState(false);
+  const [scopeLoading, setScopeLoading] = useState(false);
+  const [scopeVerified, setScopeVerified] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const historyLoadedRef = useRef(false);
   const loadedStorageKeyRef = useRef<string | null>(null);
   const activeStorageKeyRef = useRef(storageKey);
+  const activePermissionScopeRef = useRef<string | null>(null);
+  const scopeCheckInProgressRef = useRef(false);
+  const scopeCheckVersionRef = useRef(0);
+  const scopeRequestControllerRef = useRef<AbortController | null>(null);
   const requestControllerRef = useRef<AbortController | null>(null);
-  useEffect(() => () => requestControllerRef.current?.abort(), []);
+  const conversationVersionRef = useRef(0);
+  useEffect(() => () => {
+    conversationVersionRef.current += 1;
+    scopeCheckVersionRef.current += 1;
+    requestControllerRef.current?.abort();
+    scopeRequestControllerRef.current?.abort();
+  }, []);
 
   useEffect(() => {
     if (!historyLoadedRef.current || loadedStorageKeyRef.current !== storageKey) {
@@ -149,8 +166,11 @@ export function RovieAssistant({ profileId }: { profileId: string }) {
     setSending(true);
     setNotice(null);
     setSlow(false);
-    const slowTimer = window.setTimeout(() => setSlow(true), 10_000);
+    const slowTimer = window.setTimeout(() => {
+      if (conversationVersionRef.current === requestVersion) setSlow(true);
+    }, 10_000);
     const controller = new AbortController();
+    const requestVersion = conversationVersionRef.current;
     requestControllerRef.current = controller;
     const timeout = window.setTimeout(() => controller.abort(), 30_000);
 
@@ -165,7 +185,7 @@ export function RovieAssistant({ profileId }: { profileId: string }) {
         signal: controller.signal,
       });
       const data = await response.json().catch(() => null);
-      if (activeStorageKeyRef.current !== storageKey) return;
+      if (activeStorageKeyRef.current !== storageKey || conversationVersionRef.current !== requestVersion) return;
 
       if (!response.ok) {
         setNotice(`${friendlyError(data?.code)}${data?.requestId ? ` (Ref: ${data.requestId})` : ""}`);
@@ -190,7 +210,7 @@ export function RovieAssistant({ profileId }: { profileId: string }) {
       setInput("");
       if (data?.notice) setNotice(data.notice);
     } catch {
-      if (activeStorageKeyRef.current !== storageKey) return;
+      if (activeStorageKeyRef.current !== storageKey || conversationVersionRef.current !== requestVersion) return;
       setNotice(controller.signal.aborted
         ? "Rovie is taking too long to respond. Your question is saved; retry when ready."
         : "Could not connect to Rovie. Check your connection and retry.");
@@ -198,7 +218,7 @@ export function RovieAssistant({ profileId }: { profileId: string }) {
     } finally {
       window.clearTimeout(timeout);
       window.clearTimeout(slowTimer);
-      if (requestControllerRef.current === controller) {
+      if (requestControllerRef.current === controller && conversationVersionRef.current === requestVersion) {
         requestControllerRef.current = null;
         setSending(false);
         setSlow(false);
@@ -211,15 +231,105 @@ export function RovieAssistant({ profileId }: { profileId: string }) {
     await sendQuestion(input);
   }
 
-  function openAssistant() {
-    if (!historyLoadedRef.current || loadedStorageKeyRef.current !== storageKey) {
-      setMessages([welcomeMessage, ...readStoredMessages(storageKey)]);
-      historyLoadedRef.current = true;
-      loadedStorageKeyRef.current = storageKey;
-    }
+  const refreshPermissionScope = useCallback(async (loadConversation: boolean) => {
+    if (scopeCheckInProgressRef.current) return;
+    scopeCheckInProgressRef.current = true;
+    const checkVersion = ++scopeCheckVersionRef.current;
+    const conversationVersionAtStart = conversationVersionRef.current;
+    const controller = new AbortController();
+    scopeRequestControllerRef.current = controller;
+    setScopeLoading(true);
+    setScopeVerified(false);
+    try {
+      const response = await fetch("/api/assistant", { cache: "no-store", signal: controller.signal });
+      const data = await response.json().catch(() => null);
+      if (checkVersion !== scopeCheckVersionRef.current || activeStorageKeyRef.current !== storageKey) return;
+      if (!response.ok || typeof data?.scope !== "string") {
+        throw new Error("permission_scope_unavailable");
+      }
 
+      const scope = data.scope as string;
+      const scopeStorageKey = `${storageKey}:permission-scope`;
+      const previousScope = activePermissionScopeRef.current ?? (() => {
+        try { return window.localStorage.getItem(scopeStorageKey); } catch { return null; }
+      })();
+      if (previousScope !== scope) {
+        conversationVersionRef.current += 1;
+        requestControllerRef.current?.abort();
+        requestControllerRef.current = null;
+        try {
+          window.localStorage.removeItem(storageKey);
+          window.localStorage.setItem(scopeStorageKey, scope);
+        } catch {
+          // The current conversation is still cleared if storage is unavailable.
+        }
+        setMessages([welcomeMessage]);
+        setInput("");
+        setNotice(null);
+        setFailedQuestion(null);
+        setSending(false);
+        setSlow(false);
+        historyLoadedRef.current = true;
+        loadedStorageKeyRef.current = storageKey;
+      }
+
+      activePermissionScopeRef.current = scope;
+      if (loadConversation && conversationVersionAtStart === conversationVersionRef.current) {
+        setMessages([welcomeMessage, ...readStoredMessages(storageKey)]);
+        historyLoadedRef.current = true;
+        loadedStorageKeyRef.current = storageKey;
+      }
+      setScopeVerified(true);
+    } catch {
+      if (checkVersion !== scopeCheckVersionRef.current || activeStorageKeyRef.current !== storageKey) return;
+      setNotice("Rovie couldn’t verify your current access. Conversation history is hidden until access can be checked.");
+    } finally {
+      if (checkVersion === scopeCheckVersionRef.current) {
+        scopeCheckInProgressRef.current = false;
+        scopeRequestControllerRef.current = null;
+        setScopeLoading(false);
+      }
+    }
+  }, [storageKey]);
+
+  function openAssistant() {
     setOpen(true);
+    void refreshPermissionScope(true);
   }
+
+  function clearConversation() {
+    conversationVersionRef.current += 1;
+    requestControllerRef.current?.abort();
+    requestControllerRef.current = null;
+    try {
+      window.localStorage.removeItem(storageKey);
+    } catch {
+      // Clearing the visible conversation should still work if storage is unavailable.
+    }
+    setMessages([welcomeMessage]);
+    setInput("");
+    setNotice(null);
+    setFailedQuestion(null);
+    setSending(false);
+    setSlow(false);
+    historyLoadedRef.current = true;
+    loadedStorageKeyRef.current = storageKey;
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    const recheck = () => {
+      if (document.visibilityState === "visible" && activePermissionScopeRef.current) {
+        void refreshPermissionScope(false);
+      }
+    };
+    window.addEventListener("focus", recheck);
+    document.addEventListener("visibilitychange", recheck);
+    return () => {
+      window.removeEventListener("focus", recheck);
+      document.removeEventListener("visibilitychange", recheck);
+    };
+  }, [open, refreshPermissionScope]);
 
   return (
     <>
@@ -248,13 +358,29 @@ export function RovieAssistant({ profileId }: { profileId: string }) {
                   <h2>Rovie</h2>
                 </div>
               </div>
-              <button aria-label="Close Rovie" type="button" onClick={() => setOpen(false)}>
-                <X size={18} />
-              </button>
+              <div className={styles.headerActions}>
+                <button
+                  aria-label="Clear conversation"
+                  className={styles.clearButton}
+                  title="Clear conversation"
+                  type="button"
+                  onClick={clearConversation}
+                >
+                  <Trash2 size={17} />
+                  <span>Clear</span>
+                </button>
+                <button aria-label="Close Rovie" type="button" onClick={() => setOpen(false)}>
+                  <X size={18} />
+                </button>
+              </div>
             </header>
 
             <div className={styles.messages} ref={listRef}>
-              {messages.map((message, index) => (
+              {scopeLoading || !scopeVerified ? (
+                <p className={styles.scopeStatus} role="status">
+                  {scopeLoading ? "Checking your access…" : "Conversation history is hidden until access can be checked."}
+                </p>
+              ) : messages.map((message, index) => (
                 <article className={styles.message} data-role={message.role} key={`${message.role}-${index}`}>
                   {message.role === "assistant" ? (
                     <Image alt="" className={styles.messageMascot} height={34} src="/mascots/assistant.png" width={34} />
@@ -262,7 +388,7 @@ export function RovieAssistant({ profileId }: { profileId: string }) {
                   <p>{renderAssistantContent(message.content)}</p>
                 </article>
               ))}
-              {sending ? (
+              {scopeVerified && sending ? (
                 <article className={styles.message} data-role="assistant">
                   <Image alt="" className={styles.messageMascot} height={34} src="/mascots/thinking.png" width={34} />
                   <p className={styles.typing}>
@@ -273,7 +399,7 @@ export function RovieAssistant({ profileId }: { profileId: string }) {
               ) : null}
             </div>
 
-            {messages.length === 1 && !sending ? (
+            {scopeVerified && messages.length === 1 && !sending ? (
               <div aria-label="Suggested questions" className={styles.suggestions}>
                 <span>Try asking:</span>
                 <div>
@@ -298,13 +424,13 @@ export function RovieAssistant({ profileId }: { profileId: string }) {
             <form className={styles.form} onSubmit={sendMessage}>
               <input
                 aria-label="Ask Rovie"
-                disabled={sending || Boolean(failedQuestion)}
+                disabled={!scopeVerified || sending || Boolean(failedQuestion)}
                 maxLength={2000}
                 placeholder="Ask Rovie about sales, stock, crops..."
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
               />
-              <button disabled={sending || Boolean(failedQuestion) || !input.trim()} type="submit">
+              <button disabled={!scopeVerified || sending || Boolean(failedQuestion) || !input.trim()} type="submit">
                 {sending ? <Loader2 className={styles.spin} size={17} /> : <Send size={17} />}
               </button>
             </form>

@@ -271,6 +271,9 @@ export async function recordSalesOrderAction(
   });
   const data = order as { id: string; receipt_number: string } | null;
   if (error) {
+    if (error.message.includes("Transaction ID has already been used")) {
+      return { message: "This transaction ID is already recorded on another sale. Check the existing receipt and enter a different ID." };
+    }
     const message = error.message.includes("record_sales_order_v2") || error.message.includes("Could not find the function")
       ? "Sales saving needs the latest database update. Ask the system administrator to apply the approved migration."
       : error.message;

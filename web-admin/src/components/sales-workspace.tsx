@@ -358,8 +358,8 @@ export function SalesWorkspace({
               onChange={(event) => setQuery(event.target.value)}
             />
           </label>
-          <CalendarField label="From" value={startDate} onChange={setStartDate} />
-          <CalendarField label="To" value={endDate} onChange={setEndDate} />
+          <CalendarField label="From" value={startDate} max={endDate || todayInputValue()} onChange={setStartDate} />
+          <CalendarField label="To" value={endDate} min={startDate || undefined} max={todayInputValue()} onChange={setEndDate} />
           <FilterSelect
             icon={<Filter size={17} />}
             label="Payment"

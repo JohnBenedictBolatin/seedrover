@@ -504,7 +504,7 @@ export async function getCropSensorHistoryAction(cropId: string) {
   return (data ?? []).map<CropSensorReading>((reading) => ({
     id: reading.id,
     soilRaw: boundedSensorValue(reading.soil_raw, 1, 4094),
-    soilMoisture: reading.soil_moisture_calibrated && reading.calibration_version ? boundedSensorValue(reading.calibrated_value ?? reading.soil_moisture, 0, 100) : null,
+    soilMoisture: (reading.soil_moisture_calibrated && reading.calibration_version) || (reading.provenance_status === "simulated" && reading.source === "Estimated sample" && reading.calibration_version === "display-sample-v1") ? boundedSensorValue(reading.calibrated_value ?? reading.soil_moisture, 0, 100) : null,
     soilTemperature: boundedSensorValue(reading.soil_temperature, -55, 125),
     environmentalTemperature: boundedSensorValue(reading.environmental_temperature, -40, 80),
     humidity: boundedSensorValue(reading.humidity, 0, 100),

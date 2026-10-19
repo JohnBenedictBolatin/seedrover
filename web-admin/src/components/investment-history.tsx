@@ -38,6 +38,14 @@ function money(value: number) {
   return new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(value);
 }
 
+function todayInputValue() {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function FilterSelect({ icon, label, onChange, options, value }: { icon: ReactNode; label: string; onChange: (value: string) => void; options: string[]; value: string }) {
   const [open, setOpen] = useState(false);
 
@@ -134,8 +142,8 @@ export function InvestmentHistory({ records }: { records: InvestmentRecord[] }) 
           <Search size={18} />
           <input aria-label="Search investments" placeholder="Search item, vendor, reference, crop..." type="search" value={query} onChange={(event) => { setQuery(event.target.value); setCurrentPage(1); }} />
         </label>
-        <CalendarField className={styles.dateField} label="From" value={startDate} onChange={(nextValue) => { setStartDate(nextValue); setCurrentPage(1); }} />
-        <CalendarField className={styles.dateField} label="To" value={endDate} onChange={(nextValue) => { setEndDate(nextValue); setCurrentPage(1); }} />
+        <CalendarField className={styles.dateField} label="From" value={startDate} max={endDate || todayInputValue()} onChange={(nextValue) => { setStartDate(nextValue); setCurrentPage(1); }} />
+        <CalendarField className={styles.dateField} label="To" value={endDate} min={startDate || undefined} max={todayInputValue()} onChange={(nextValue) => { setEndDate(nextValue); setCurrentPage(1); }} />
         <FilterSelect icon={<Filter size={17} />} label="Category" options={categories} value={category} onChange={(value) => { setCategory(value); setCurrentPage(1); }} />
         <FilterSelect icon={<SlidersHorizontal size={17} />} label="Sort" options={["Newest", "Oldest", "Amount: High to low", "Amount: Low to high", "Item"]} value={sortBy} onChange={(value) => { setSortBy(value); setCurrentPage(1); }} />
       </div>

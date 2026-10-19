@@ -1,9 +1,58 @@
 import { NextResponse } from "next/server";
 import { getCurrentAdminProfile } from "@/lib/auth";
 import { askRovie, type AssistantChatMessage } from "@/lib/assistant";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const maxQuestionLength = 2000;
 const maxHistoryMessageLength = 4000;
+const assistantPermissionKeys = [
+  "stocks.view",
+  "stocks.transactions.view",
+  "crops.view",
+  "rover.view",
+] as const;
+
+export async function GET() {
+  const requestId = crypto.randomUUID();
+  const profile = await getCurrentAdminProfile();
+  if (!profile) {
+    return NextResponse.json(
+      { status: "error", code: "sign_in_required", requestId },
+      { status: 401, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) {
+    return NextResponse.json(
+      { status: "error", code: "service_unavailable", requestId },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
+  const permissionResults = await Promise.all(
+    assistantPermissionKeys.map((requested_permission) =>
+      supabase.rpc("has_permission", { requested_permission }),
+    ),
+  );
+  if (permissionResults.some(({ error }) => error)) {
+    return NextResponse.json(
+      { status: "error", code: "service_unavailable", requestId },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
+  const permissionScope = [
+    profile.id,
+    profile.roleName,
+    ...permissionResults.map(({ data }) => data === true ? "1" : "0"),
+    profile.roleName === "System Administrator" ? "activity" : "no-activity",
+  ].join(":");
+  return NextResponse.json(
+    { status: "ok", scope: permissionScope },
+    { headers: { "Cache-Control": "no-store" } },
+  );
+}
 
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
