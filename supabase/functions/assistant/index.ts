@@ -485,7 +485,7 @@ async function loadAuthorizedContext(caller: ReturnType<typeof createClient>, qu
       .order("sale_date", { ascending: false })
       .limit(1000);
     if (escapedKeyword) {
-      orderItemsQuery = orderItemsQuery.ilike("item_name_snapshot", `%${escapedKeyword}%");
+      orderItemsQuery = orderItemsQuery.ilike("item_name_snapshot", `%${escapedKeyword}%`);
       legacySalesQuery = legacySalesQuery.ilike("inventory.item_name", `%${escapedKeyword}%`);
     }
     if (callerId !== null) {
