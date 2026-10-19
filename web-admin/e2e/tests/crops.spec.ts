@@ -68,18 +68,18 @@ test('SR-CROP-005 Rename planting keeps crop type and tracking identity intact',
 test('SR-CROP-006 Repeat harvest records separate stock batches and closes with the combined total', async ({ page }, info) => {
   const item = await crop('repeat_harvest');
   const produce = await inventory('repeat_harvest_stock', 0);
-  const setup = await db().from('crops').update({
-    crop_name: produce.name,
-    growth_stage: 'Harvest Ready',
-    crop_status: 'Harvest Ready',
-  }).eq('id', item.id);
+  // Harvest inventory must match the crop type. Keep the crop's canonical type and
+  // planting identity intact instead of renaming crop_name to an arbitrary fixture label.
+  const setup = await db().from('inventory').update({ item_name: 'Sitaw' }).eq('id', produce.id);
   check(setup.error);
+  const stage = await db().from('crops').update({ growth_stage: 'Harvest Ready' }).eq('id', item.id);
+  check(stage.error);
 
   async function recordHarvest(quantity: number) {
-    await details(page, produce.name);
+    await details(page, item.name);
     await page.getByRole('tab', { name: 'GROWTH JOURNEY', exact: true }).click();
     await page.getByRole('button', { name: 'Record harvest', exact: true }).click();
-    const form = page.getByRole('dialog', { name: 'Harvest batch' }).locator('form');
+    const form = page.getByRole('dialog', { name: 'Record harvest' }).locator('form');
     await form.locator('input[name="quantity"]').fill(String(quantity));
     await form.getByRole('button', { name: 'REVIEW HARVEST', exact: true }).click();
     await confirm(page, 'Review harvest', 'RECORD HARVEST');
@@ -111,12 +111,14 @@ test('SR-CROP-006 Repeat harvest records separate stock batches and closes with 
   check(active.error);
   expect(active.data!.crop_status).toBe('Active');
 
-  await details(page, produce.name);
+  await details(page, item.name);
   const detailsDialog = page.getByRole('dialog').last();
-  await detailsDialog.getByRole('button', { name: 'END CROP', exact: true }).click();
+  // Crop details exposes End crop as a compact trash icon with a descriptive
+  // accessible label; the confirmation form carries the visible END CROP text.
+  await detailsDialog.getByRole('button', { name: /^End crop /i }).click();
   const endForm = page.getByRole('dialog').last();
   await selectNamed(endForm, 'reason', 'Plants stopped producing');
-  await endForm.getByRole('button', { name: 'Plants stopped producing', exact: true }).click();
+  // selectNamed already chooses the option and closes the custom menu.
   await endForm.getByRole('button', { name: 'END CROP', exact: true }).click();
   await confirm(page, 'End this crop?', 'END CROP');
   await expect.poll(async () => (await db().from('crop_closures').select('id').eq('crop_id', item.id)).data?.length).toBe(1);

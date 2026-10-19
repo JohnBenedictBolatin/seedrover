@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useId } from "react";
+import { useId, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   Package,
   ArrowRight,
@@ -72,6 +73,9 @@ type OperationsDashboardWorkspaceProps = {
 };
 
 export function OperationsDashboardWorkspace({ canViewInvestments, isInventoryManager, data }: OperationsDashboardWorkspaceProps) {
+  const router = useRouter();
+  const [isNavigating, startNavigation] = useTransition();
+  const [requestedRange, setRequestedRange] = useState<DashboardRange | null>(null);
   const visibleActivity = data.recentActivity.slice(0, 5);
   const rangeLabel = data.range === "day"
     ? "Daily"
@@ -120,20 +124,30 @@ export function OperationsDashboardWorkspace({ canViewInvestments, isInventoryMa
     ] : []),
   ];
 
+  function openRange(range: DashboardRange) {
+    if (isNavigating || range === data.range) return;
+    setRequestedRange(range);
+    startNavigation(() => router.push(`/dashboard?range=${range}`));
+  }
+
   return (
     <>
       <div className={styles.dashboardLayout}>
         <div className={styles.dashboardOverview}>
           <nav className={styles.rangeSelector} aria-label="Dashboard date range">
             {ranges.map((range) => (
-              <Link
+              <button
                 aria-current={data.range === range.value ? "page" : undefined}
-                className={data.range === range.value ? styles.rangeTabActive : styles.rangeTab}
-                href={`/dashboard?range=${range.value}`}
+                aria-busy={requestedRange === range.value && isNavigating}
+                className={`${data.range === range.value ? styles.rangeTabActive : styles.rangeTab}${requestedRange === range.value && isNavigating ? ` ${styles.rangeTabPending}` : ""}`}
+                disabled={isNavigating}
                 key={range.value}
+                onClick={() => openRange(range.value)}
+                type="button"
               >
+                {requestedRange === range.value && isNavigating ? <span aria-hidden="true" className="pendingActionSpinner" /> : null}
                 {range.label}
-              </Link>
+              </button>
             ))}
           </nav>
 

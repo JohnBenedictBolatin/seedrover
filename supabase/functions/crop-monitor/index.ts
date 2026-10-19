@@ -69,9 +69,28 @@ Deno.serve(async (request) => {
       harvestCounts.set(id, (harvestCounts.get(id) ?? 0) + 1);
     }
 
+    const { data: monitorInputRows, error: monitorInputError } = cropIds.length
+      ? await admin.rpc("get_crop_monitor_inputs", {
+          p_crop_ids: cropIds,
+          p_water_since: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
+          p_as_of: now.toISOString(),
+        })
+      : { data: [], error: null };
+    if (monitorInputError) throw monitorInputError;
+    const monitorInputs = new Map(
+      (monitorInputRows ?? []).map((input) => [String(input.crop_id), input]),
+    );
+
     const results = [];
     for (const crop of crops ?? []) {
-      results.push(await evaluateCrop(admin, { ...(crop as Json), harvest_count: harvestCounts.get(String(crop.id)) ?? 0 }, settings as Json | null, weather, now));
+      results.push(await evaluateCrop(
+        admin,
+        { ...(crop as Json), harvest_count: harvestCounts.get(String(crop.id)) ?? 0 },
+        settings as Json | null,
+        weather,
+        now,
+        monitorInputs.get(String(crop.id)) ?? null,
+      ));
     }
     await sendRoutineDigest(admin, now);
 
@@ -229,6 +248,11 @@ async function evaluateCrop(
   settings: Json | null,
   weather: Awaited<ReturnType<typeof loadWeather>>,
   now: Date,
+  monitorInput: {
+    recent_water_liters: number | null;
+    latest_soil_percent: number | null;
+    latest_sensor_recorded_at: string | null;
+  } | null,
 ) {
   const profile = relation(crop.crop_profiles);
   if (!profile) return { cropId: crop.id, skipped: "Missing crop profile" };
@@ -245,14 +269,7 @@ async function evaluateCrop(
   const rain = weather.openMeteo?.precipitationMm ?? 0;
   const area = number(crop.field_area_m2) ?? 0;
   const efficiency = number(settings?.irrigation_efficiency) ?? 0.8;
-  const { data: recentWatering } = await admin.from("crop_activities")
-    .select("quantity,unit,performed_at").eq("crop_id", cropId).eq("activity_type", "Watered")
-    .gte("performed_at", new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString());
-  const recordedLiters = (recentWatering ?? []).reduce((total, activity) => {
-    const unit = String(activity.unit ?? "").toLowerCase();
-    const quantity = number(activity.quantity) ?? 0;
-    return total + (unit === "ml" ? quantity / 1000 : unit.startsWith("l") ? quantity : 0);
-  }, 0);
+  const recordedLiters = number(monitorInput?.recent_water_liters) ?? 0;
   const recordedWaterMm = area > 0 ? recordedLiters * efficiency / area : 0;
   const deficitMm = Math.max(0, round(et0 * kc - rain * 0.8 - recordedWaterMm, 2));
   const liters = area > 0 ? round(deficitMm * area / efficiency, 1) : null;
@@ -262,14 +279,7 @@ async function evaluateCrop(
   const criticalStage = stringArray(waterPlan.critical_stages).some((item) => normalize(item) === normalize(stage));
   const waterDue = hoursSinceWatered >= (criticalStage ? 24 : 48) || deficitMm >= 3;
   const tasks = [];
-  const sensorFreshSince = new Date(now.getTime() - 60_000).toISOString();
-  const { data: latestSensor } = await admin.from("sensor_readings")
-    .select("calibrated_value,soil_moisture,recorded_at,provenance_status,soil_moisture_calibrated,calibration_version")
-    .eq("crop_id", cropId).eq("provenance_status", "verified_hardware")
-    .eq("soil_moisture_calibrated", true).not("calibration_version", "is", null)
-    .gte("recorded_at", sensorFreshSince).lte("recorded_at", now.toISOString())
-    .order("recorded_at", { ascending: false }).limit(1).maybeSingle();
-  const soilPercent = number(latestSensor?.calibrated_value ?? latestSensor?.soil_moisture);
+  const soilPercent = number(monitorInput?.latest_soil_percent);
 
   if (soilPercent !== null && (soilPercent <= 15 || soilPercent >= 95)) {
     const criticallyDry = soilPercent <= 15;
@@ -282,7 +292,7 @@ async function evaluateCrop(
       dueAt: now,
       status: "Due",
       priority: "Critical",
-      data: { soil_moisture_percent: soilPercent, sensor_recorded_at: latestSensor?.recorded_at, field_confirmation_required: true },
+      data: { soil_moisture_percent: soilPercent, sensor_recorded_at: monitorInput?.latest_sensor_recorded_at ?? null, field_confirmation_required: true },
       forecast: weather,
       key: `crop:${cropId}:critical-soil:${criticallyDry ? "dry" : "wet"}:${dateKey(now)}`,
     }));

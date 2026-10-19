@@ -1,20 +1,23 @@
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
-import { accounts, asRole, db, check, prefix, track, evidence, inventory, openItem } from '../support';
+import { accounts, asRole, db, check, prefix, track, evidence, inventory, openItem, selectNamed } from '../support';
 
 test.beforeEach(async ({ page }) => { await asRole(page); });
-test('SR-OBS-001 Mark a dedicated notification read and verify persistence', async ({ page }, info) => {
+test('SR-OBS-001 Notification cards show persisted read state without per-card controls', async ({ page }, info) => {
   const id = randomUUID(); const title = `${prefix}_notification`; track('notifications', id, title);
   check((await db().from('notifications').insert({ id, recipient_id: accounts().admin.id, title,
     message: 'Synthetic browser-test notification', notification_type: 'System', is_read: false })).error);
   await page.goto('/notifications'); const card = page.locator('article').filter({ hasText: title });
-  await card.getByRole('button', { name: 'Mark read', exact: true }).click();
-  await expect.poll(async () => (await db().from('notifications').select('is_read').eq('id', id).single()).data?.is_read).toBe(true);
-  await page.reload(); await expect(page.locator('article').filter({ hasText: title })).toHaveAttribute('data-read', 'true'); await evidence(page, info);
+  await expect(card).toHaveAttribute('data-read', 'false');
+  await expect(card.getByText('Unread', { exact: true })).toBeVisible();
+  await expect(card.getByRole('button')).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator('article').filter({ hasText: title })).toHaveAttribute('data-read', 'false');
+  await evidence(page, info);
 });
 test('SR-OBS-002 Inventory edit creates an attributable activity record', async ({ page }, info) => {
   const item = await inventory('activity'); const form = await openItem(page, item.name, 'Edit');
-  await form.locator('[name="storage_location"]').fill('AUTOTEST LOGGED'); await form.getByRole('button', { name: 'Save Item', exact: true }).click();
+  await selectNamed(form, 'storage_location', 'Packing Shed'); await form.getByRole('button', { name: 'Save Item', exact: true }).click();
   await expect.poll(async () => (await db().from('activity_logs').select('id').eq('user_id', accounts().admin.id).ilike('description', `%${item.name}%`)).data?.length).toBeGreaterThan(0);
   await page.goto('/activity-log'); await expect(page.getByRole('heading', { level: 1 })).toContainText(/Activity/i);
   const search = page.locator('input[placeholder*="Search"]'); await search.fill(item.name);

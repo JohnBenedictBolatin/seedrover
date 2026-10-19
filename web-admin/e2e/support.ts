@@ -63,7 +63,46 @@ export async function inventory(label: string, quantity = 20) {
     updated_by: accounts().admin.id, notes: prefix }); check(error);
   return { id, name };
 }
-export async function crop(label: string) {
+export async function produceInventory(name: 'Sitaw' | 'Calamansi' | 'Peanut') {
+  const client = db();
+  const existing = await client.from('inventory').select('id, item_name, quantity')
+    .ilike('item_name', name).maybeSingle();
+  check(existing.error);
+  let data = existing.data;
+  if (!data) {
+    const inserted = await client.from('inventory').insert({
+      item_name: name, quantity: 0, unit: 'kg', minimum_quantity: 0,
+      category: 'Leafy Vegetables', storage_location: 'AUTOTEST ONLY',
+      unit_cost: 20, selling_price: 50, updated_by: accounts().admin.id, notes: prefix,
+    }).select('id, item_name, quantity').single();
+    if (inserted.error?.code === '23505') {
+      const raced = await client.from('inventory').select('id, item_name, quantity')
+        .ilike('item_name', name).single();
+      check(raced.error);
+      data = raced.data;
+    } else {
+      check(inserted.error);
+      data = inserted.data;
+      track('inventory', data!.id, `${prefix}_${name}`);
+    }
+  }
+  return { id: data!.id as string, name: data!.item_name as string, startingQuantity: Number(data!.quantity) };
+}
+export async function harvestBatches(cropId: string, inventoryId: string) {
+  const harvests = await db().from('crop_harvests').select('id').eq('crop_id', cropId);
+  check(harvests.error);
+  if (!harvests.data?.length) return [];
+  const receipts = await db().from('inventory_transactions').select('id')
+    .eq('inventory_id', inventoryId).eq('source', 'harvest')
+    .in('source_id', harvests.data.map((row) => row.id));
+  check(receipts.error);
+  if (!receipts.data?.length) return [];
+  const batches = await db().from('inventory_stock_batches').select('id, inventory_id, source_transaction_id, initial_quantity, remaining_quantity')
+    .in('source_transaction_id', receipts.data.map((row) => row.id));
+  check(batches.error);
+  return batches.data ?? [];
+}
+export async function crop(label: string, profileKey = 'sitaw') {
   const config = localSupabaseConfig();
   const account = accounts().planting;
   const session = createClient(config.url, config.anonKey,
@@ -71,7 +110,7 @@ export async function crop(label: string) {
   const signedIn = await session.auth.signInWithPassword({ email: account.email, password: account.password }); check(signedIn.error);
   const startedAt = new Date(Date.now() - 60_000).toISOString();
   const rpc = await session.rpc('sync_rover_planting_run', { p_run: {
-    session_id: randomUUID(), rover_id: 'AUTOTEST_SYNTHETIC_NO_HARDWARE', crop_profile_key: 'sitaw',
+    session_id: randomUUID(), rover_id: 'AUTOTEST_SYNTHETIC_NO_HARDWARE', crop_profile_key: profileKey,
     field_label: `${prefix}_${label}`, target_drop_cycles: 1, completed_drop_cycles: 1,
     measured_distance_cm: 0, planting_status: 'Completed', started_at: startedAt, completed_at: new Date().toISOString(),
     confirmation_outcome: 'row_planted', sync_payload: { synthetic_fixture: true, hardware_verified: false,
@@ -83,7 +122,7 @@ export async function crop(label: string) {
   const name = `${prefix}_${label}`;
   track('planting_logs', created.planting_log_id, name);
   track('crops', created.crop_id, name);
-  return { id: created.crop_id, name };
+  return { id: created.crop_id, name, plantingLogId: created.planting_log_id };
 }
 export async function balance(id: string) {
   const { data, error } = await db().from('inventory').select('quantity').eq('id', id).single(); check(error);
@@ -106,7 +145,7 @@ export async function openItem(page: Page, name: string, action: 'Edit' | 'Recei
 }
 export async function fillSale(page: Page, items: { name: string; quantity: number }[], suffix: string, paid = 200) {
   await page.goto('/sales', { waitUntil: 'domcontentloaded' });
-  await page.getByRole('button', { name: 'Record Sale', exact: true }).first().click();
+  await page.getByRole('button', { name: /record sale/i }).first().click();
   for (let i = 0; i < items.length; i++) {
     if (i) await page.getByRole('button', { name: /Add item/i }).click();
     await page.getByPlaceholder('Search crop or stock code...').nth(i).fill(items[i].name);

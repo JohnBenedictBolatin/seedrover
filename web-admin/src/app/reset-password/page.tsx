@@ -5,6 +5,11 @@ import { redirect } from "next/navigation";
 import { LoginThemeSwitch } from "@/components/login-theme-switch";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ResetPasswordForm } from "./reset-password-form";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Reset password",
+};
 import pageStyles from "../login/page.module.css";
 import formStyles from "@/components/login-form.module.css";
 

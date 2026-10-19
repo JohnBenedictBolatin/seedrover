@@ -6,6 +6,7 @@ import { LogOut } from "lucide-react";
 import { signOutAction } from "@/app/(portal)/actions";
 import { useActionFeedback } from "@/components/action-feedback";
 import { useConfirmationDialog } from "@/components/confirmation-dialog";
+import { PendingActionLabel } from "@/components/pending-action-label";
 import styles from "./app-shell.module.css";
 
 export function SignOutButton({ collapsed }: { collapsed: boolean }) {
@@ -14,7 +15,7 @@ export function SignOutButton({ collapsed }: { collapsed: boolean }) {
   const { notify, clearFeedback } = useActionFeedback();
   const { confirm, confirmationDialog } = useConfirmationDialog();
   return <>
-    <button className={styles.signOutButton} disabled={pending} title="Sign out" type="button" onClick={async () => {
+    <button aria-label={pending ? "Signing out" : "Sign out"} aria-busy={pending} className={styles.signOutButton} disabled={pending} title={pending ? "Signing out..." : "Sign out"} type="button" onClick={async () => {
       if (pending) return;
       const confirmed = await confirm({ title: "Sign out?", message: "You are about to sign out of the SeedRover web console.", confirmLabel: "Sign out" });
       if (!confirmed) return;
@@ -27,8 +28,8 @@ export function SignOutButton({ collapsed }: { collapsed: boolean }) {
         notify({ tone: "error", text: error instanceof Error ? error.message : "Unable to sign out. Please try again." });
       } finally { setPending(false); }
     }}>
-      <LogOut size={16} />
-      {!collapsed ? <span>Sign out</span> : null}
+      {collapsed && pending ? <span aria-hidden="true" className="pendingActionSpinner" /> : <LogOut size={16} />}
+      {!collapsed ? <PendingActionLabel pending={pending} pendingText="Signing out...">Sign out</PendingActionLabel> : null}
     </button>
     {confirmationDialog}
   </>;

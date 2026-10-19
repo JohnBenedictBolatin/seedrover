@@ -145,6 +145,39 @@ function notificationRoute(notification: AdminNotification) {
   return "/activity-log";
 }
 
+function pageTitleForPath(pathname: string) {
+  if (pathname.startsWith("/reports/")) {
+    const report = pathname.split("/")[2];
+    const reportTitles: Record<string, string> = {
+      customers: "Customer Report",
+      discounts: "Discount Report",
+      inventory: "Inventory Report",
+      sales: "Sales Report",
+      "stock-movements": "Stock Movement Report",
+    };
+    return reportTitles[report] ?? "Reports";
+  }
+
+  if (pathname === "/inventory/history") return "Inventory History";
+  if (pathname.startsWith("/sales/")) return "Sale Details";
+
+  const titles: Record<string, string> = {
+    "/activity-log": "Activity Log",
+    "/crop-outcomes": "Crop History",
+    "/crops": "Crops",
+    "/customers": "Customers",
+    "/dashboard": "Dashboard",
+    "/inventory": "Inventory",
+    "/investments": "Costing",
+    "/notifications": "Notifications",
+    "/rover-monitor": "Rover Monitor",
+    "/sales": "Sales",
+    "/users": "Users",
+  };
+
+  return titles[pathname] ?? "SeedRover";
+}
+
 export function AppShell({
   children,
   notifications,
@@ -189,6 +222,10 @@ export function AppShell({
 
     return () => window.clearTimeout(updateThemeState);
   }, []);
+
+  useEffect(() => {
+    document.title = `${pageTitleForPath(pathname)} - SeedRover`;
+  }, [pathname]);
 
   function toggleTheme() {
     const nextTheme = theme === "dark" ? "light" : "dark";
@@ -335,7 +372,7 @@ export function AppShell({
 
       <main className={styles.main}>{children}</main>
 
-      <RovieAssistant profileId={profile.id} />
+      <RovieAssistant key={`${profile.id}:${profile.roleName}`} profileId={`${profile.id}:${profile.roleName}`} />
 
       {notificationsOpen ? (
         <div

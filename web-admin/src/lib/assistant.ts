@@ -1,294 +1,64 @@
-import { getActivityDashboard } from "@/lib/activity";
-import { getCropsDashboard } from "@/lib/crops";
-import { getInventoryDashboard } from "@/lib/inventory";
-import { getRoverMonitor } from "@/lib/rover";
-import { getSalesWorkspaceData } from "@/lib/sales";
-import { farmerCareText, farmerCropStatus, farmerGrowthStage } from "@/lib/farmer-copy";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { AdminProfile } from "@/lib/auth";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 
 export type AssistantChatMessage = {
   role: "user" | "assistant";
   content: string;
 };
 
-type AssistantContext = {
-  source: string;
-  note: string;
-  generatedAt: string;
-  permittedSections: string[];
-  rover: Record<string, unknown>;
-  crops: Array<Record<string, unknown>>;
-  stocks: Array<Record<string, unknown>>;
-  recentActivities: Array<Record<string, unknown>>;
-  farmAnalytics: Record<string, unknown>;
+export type AssistantResult = {
+  status: "answered" | "error";
+  answer?: string;
+  code?: string;
+  retryable?: boolean;
+  requestId?: string;
+  notice?: string;
 };
-
-export async function buildWebAssistantContext(profile: AdminProfile): Promise<AssistantContext> {
-  const canSeeInventory =
-    profile.roleName === "System Administrator" ||
-    profile.roleName === "Farm Inventory Manager" ||
-    profile.roleName === "Inventory Staff";
-  const canSeeCrops =
-    profile.roleName === "System Administrator" ||
-    profile.roleName === "Farm Planting Manager" ||
-    profile.roleName === "Planting Staff";
-  const canSeeSystem = profile.roleName === "System Administrator";
-
-  const [inventory, sales, crops, rover, activity] = await Promise.all([
-    canSeeInventory ? getInventoryDashboard() : Promise.resolve(null),
-    canSeeInventory ? getSalesWorkspaceData() : Promise.resolve(null),
-    canSeeCrops || canSeeSystem ? getCropsDashboard() : Promise.resolve(null),
-    canSeeCrops || canSeeSystem ? getRoverMonitor() : Promise.resolve(null),
-    canSeeSystem ? getActivityDashboard() : Promise.resolve(null),
-  ]);
-
-  const topSoldItems = (sales?.analytics.topItems ?? []).map((item) => ({
-    label: item.label,
-    value: item.value,
-  }));
-  const recommendationHints: string[] = [];
-  const latestSale = sales?.orders[0]
-    ? {
-        totalAmount: sales.orders[0].totalAmount,
-        date: sales.orders[0].saleDate,
-        status: sales.orders[0].status,
-        source: sales.orders[0].source,
-      }
-    : null;
-
-  if (topSoldItems[0]) {
-    recommendationHints.push(
-      `${topSoldItems[0].label} is currently the top sold item in the available web sales data.`,
-    );
-  }
-
-  if ((inventory?.summary?.lowStockItems ?? 0) > 0) {
-    recommendationHints.push(
-      `${inventory?.summary?.lowStockItems ?? 0} inventory item(s) need stock attention.`,
-    );
-  }
-
-  if ((crops?.summary?.needsAttention ?? 0) > 0) {
-    recommendationHints.push(
-      `${crops?.summary?.needsAttention ?? 0} crop record(s) need attention.`,
-    );
-  }
-
-  return {
-    source: "web_admin_current_state",
-    note:
-      `Data comes from the SeedRover web admin console and is limited to the current user's ${profile.roleName} responsibilities.`,
-    generatedAt: new Date().toISOString(),
-    permittedSections: [
-      canSeeInventory ? "inventory" : null,
-      canSeeInventory ? "sales" : null,
-      canSeeCrops || canSeeSystem ? "crops" : null,
-      canSeeCrops || canSeeSystem ? "rover" : null,
-      canSeeSystem ? "activity_logs" : null,
-    ].filter((section): section is string => Boolean(section)),
-    rover: rover?.status
-      ? {
-          status: rover.status.roverStatus,
-          wifiConnected: rover.status.wifiConnected,
-          heartbeatFresh: rover.status.heartbeatFresh,
-          currentActivity: rover.status.currentActivity,
-          emergencyStop: rover.status.emergencyStop,
-          lastUpdated: rover.status.lastUpdated,
-          sensors: rover.sensors,
-        }
-      : {},
-    crops: (crops?.crops ?? []).slice(0, 12).map((crop) => ({
-      name: crop.displayName,
-      cropType: crop.cropName,
-      field: crop.fieldLabel,
-      status: farmerCropStatus(crop.cropStatus),
-      growthStage: farmerGrowthStage(crop.growthStage),
-      plantingDate: crop.plantingDate,
-      estimatedHarvest: crop.estimatedHarvest,
-      nextCare: farmerCareText(crop.careStatus),
-    })),
-    stocks: (inventory?.items ?? []).slice(0, 12).map((item) => ({
-      name: item.itemName,
-      category: item.category,
-      quantity: item.quantity,
-      unit: item.unit,
-      minimumQuantity: item.minimumQuantity,
-      recentTransactions: item.transactions.slice(0, 3).map((transaction) => ({
-        type: transaction.type,
-        quantity: transaction.quantity,
-        createdAt: transaction.createdAt ?? "",
-      })),
-      recentSales: item.sales.slice(0, 3).map((sale) => ({
-        quantitySold: sale.quantitySold,
-        totalAmount: sale.totalAmount,
-        saleDate: sale.saleDate,
-        status: sale.status,
-      })),
-    })),
-    recentActivities: (activity?.logs ?? []).slice(0, 8).map((log) => ({
-      title: log.activity,
-      module: log.module,
-      timestamp: log.createdAt,
-    })),
-    farmAnalytics: {
-      salesOverview: {
-        summary:
-          sales?.error
-            ? "Sales data is unavailable because one or more record reads failed."
-            : !sales || sales.summary.completedSalesCount === 0
-              ? "No completed sales transactions are available."
-              : `There are ${sales.summary.completedSalesCount} completed sale(s), totaling PHP ${sales.summary.salesThisMonth.toFixed(2)} this month.`,
-        salesToday: sales && !sales.error ? sales.summary.salesToday : null,
-        salesThisMonth: sales && !sales.error ? sales.summary.salesThisMonth : null,
-        salesTransactionsThisMonth: sales && !sales.error ? sales.summary.transactions : null,
-        averageTransactionValue: sales && !sales.error ? sales.summary.averageTransactionValue : null,
-        totalDiscountGiven: sales && !sales.error ? sales.summary.totalDiscountGiven : null,
-        bestSellingItem: sales?.summary.bestSellingItem ?? "Not available",
-        latestSale,
-        recentSales:
-          sales?.orders.slice(0, 5).map((order) => ({
-            totalAmount: order.totalAmount,
-            date: order.saleDate,
-            status: order.status,
-            source: order.source,
-          })) ?? [],
-      },
-      salesByDay: sales && !sales.error ? sales.analytics.dailySales : null,
-      salesByCategory: sales && !sales.error ? sales.analytics.salesByCategory : null,
-      paymentMethods: sales && !sales.error ? sales.analytics.paymentMethods : null,
-      topSoldItems,
-      lowPerformingItems: sales && !sales.error ? sales.analytics.lowPerformingItems : null,
-      inventorySummary: inventory?.summary ?? null,
-      salesSummary: sales?.summary ?? null,
-      cropSummary: crops?.summary ?? null,
-      roverStatus: rover?.status ?? null,
-      recommendationHints,
-    },
-  };
-}
 
 export async function askRovie({
   history,
-  profile,
   question,
 }: {
   history: AssistantChatMessage[];
-  profile: AdminProfile;
   question: string;
-}) {
+}): Promise<AssistantResult> {
+  const requestId = crypto.randomUUID();
   const supabase = await createSupabaseServerClient();
-  const context = await buildWebAssistantContext(profile);
-
-  if (!supabase) {
-    return {
-      answer: fallbackRovieAnswer(question, context),
-      detail: "Supabase is not configured.",
-      fallback: true,
-    };
-  }
+  if (!supabase) return { status: "error", code: "service_unavailable", retryable: true, requestId };
 
   try {
     const { data, error } = await supabase.functions.invoke("assistant", {
-      body: {
-        question,
-        history,
-        context,
-      },
+      body: { question, history },
     });
-
     if (error) {
+      let status = 0;
+      let payload: Record<string, unknown> | null = null;
+      if (error instanceof FunctionsHttpError) {
+        status = error.context.status;
+        payload = await error.context.clone().json().catch(() => null);
+      }
+      const code = typeof payload?.code === "string" ? payload.code : status === 401 ? "sign_in_required"
+        : status === 403 ? "permission_denied"
+        : status === 429 ? "rate_limited"
+        : status === 504 ? "request_timeout"
+        : status === 400 ? "invalid_question"
+        : "service_unavailable";
       return {
-        answer: fallbackRovieAnswer(question, context),
-        detail: error.message,
-        fallback: true,
+        status: "error",
+        code,
+        retryable: payload?.retryable === true || status === 0 || status >= 500,
+        requestId: typeof payload?.requestId === "string" ? payload.requestId : requestId,
       };
     }
-
     const answer = typeof data?.answer === "string" ? data.answer.trim() : "";
-
-    if (!answer) {
-      return {
-        answer: fallbackRovieAnswer(question, context),
-        detail: "The assistant returned an empty response.",
-        fallback: true,
-      };
-    }
-
-    return { answer, detail: null, fallback: false };
-  } catch (error) {
+    if (!answer) return { status: "error", code: "empty_response", retryable: true, requestId };
     return {
-      answer: fallbackRovieAnswer(question, context),
-      detail: error instanceof Error ? error.message : "Assistant request failed.",
-      fallback: true,
+      status: "answered",
+      answer,
+      requestId: typeof data.requestId === "string" ? data.requestId : requestId,
+      notice: typeof data.notice === "string" ? data.notice : undefined,
     };
+  } catch {
+    return { status: "error", code: "service_unavailable", retryable: true, requestId };
   }
-}
-
-function fallbackRovieAnswer(question: string, context: AssistantContext) {
-  const normalized = question.toLowerCase();
-  const analytics = context.farmAnalytics;
-  const sales = analytics.salesOverview as Record<string, unknown> | undefined;
-  const inventory = analytics.inventorySummary as
-    | { totalItems?: number; lowStockItems?: number; inventoryValue?: number | null }
-    | null
-    | undefined;
-  const cropSummary = analytics.cropSummary as
-    | { activeCrops?: number; needsAttention?: number; upcomingHarvests?: number }
-    | null
-    | undefined;
-  const rover = context.rover;
-
-  if (normalized.includes("sales") || normalized.includes("sell")) {
-    if (sales?.salesToday == null || sales.salesThisMonth == null) {
-      return "Sales figures are unavailable right now. Please retry when all sales records can be loaded.";
-    }
-    return `Sales today are PHP ${Number(
-      sales?.salesToday ?? 0,
-    ).toFixed(2)} and sales this month are PHP ${Number(
-      sales?.salesThisMonth ?? 0,
-    ).toFixed(2)}. Best-selling item: ${String(
-      sales?.bestSellingItem ?? "No sales yet",
-    )}.`;
-  }
-
-  if (normalized.includes("stock") || normalized.includes("inventory")) {
-    if (!inventory) {
-      return "Inventory figures are unavailable for this account or could not be loaded.";
-    }
-    if (inventory.inventoryValue == null) {
-      return `There are ${inventory.totalItems ?? 0} inventory item(s), with ${inventory.lowStockItems ?? 0} needing stock attention. Inventory value is incomplete because some item costs are not recorded.`;
-    }
-    return `There are ${
-      inventory?.totalItems ?? 0
-    } inventory item(s), with ${
-      inventory?.lowStockItems ?? 0
-    } needing stock attention. Estimated inventory value is PHP ${Number(
-      inventory?.inventoryValue ?? 0,
-    ).toFixed(2)}.`;
-  }
-
-  if (normalized.includes("crop") || normalized.includes("plant")) {
-    if (!cropSummary) {
-      return "Crop figures are unavailable for this account or could not be loaded.";
-    }
-    return `There are ${
-      cropSummary?.activeCrops ?? 0
-    } active crop record(s), ${cropSummary?.needsAttention ?? 0} needing attention, and ${
-      cropSummary?.upcomingHarvests ?? 0
-    } approaching harvest.`;
-  }
-
-  if (normalized.includes("rover")) {
-    if (!rover) {
-      return "Rover status is unavailable right now.";
-    }
-    return `Rover status is ${String(
-      rover.status ?? "not available",
-    )}. Current activity: ${String(
-      rover.currentActivity ?? "not available",
-    )}.`;
-  }
-
-  return "Hi, I'm Rovie. I can help with SeedRover sales, inventory, crops, rover status, and farm operations. Ask me what you want to check.";
 }

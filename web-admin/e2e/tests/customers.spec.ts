@@ -11,7 +11,7 @@ test('SR-CUST-001 Completed sale appears in customer purchase history', async ({
   await expect(page.getByText(/50\.00/).first()).toBeVisible(); await evidence(page, info);
 });
 test('SR-CUST-002 Create and apply a valid discount to a sale', async ({ page }, info) => {
-  await page.goto('/customers', { waitUntil: 'domcontentloaded' }); await page.getByRole('button', { name: 'Create Discount', exact: true }).first().click();
+  await page.goto('/customers', { waitUntil: 'domcontentloaded' }); await page.getByRole('button', { name: /Create Code/i }).click();
   const dialog = page.getByRole('dialog', { name: 'Create discount' });
   await selectNamed(dialog, 'discount_type', 'Percent'); await dialog.locator('[name="discount_value"]').fill('10');
   await dialog.locator('[name="notes"]').fill(`${prefix}_discount`);

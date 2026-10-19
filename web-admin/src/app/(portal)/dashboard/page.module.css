@@ -332,6 +332,7 @@
   background: rgba(24, 24, 24, 0.62);
   font-size: 0.72rem;
   font-weight: 900;
+  font-family: inherit;
   text-decoration: none;
   text-transform: uppercase;
   transition:
@@ -339,6 +340,12 @@
     color 0.2s ease,
     background 0.2s ease,
     transform 0.2s ease;
+}
+
+.rangeTabPending {
+  gap: 6px;
+  cursor: wait;
+  opacity: 0.82;
 }
 
 .rangeTab:hover,

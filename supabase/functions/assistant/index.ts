@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,6 +15,7 @@ type ChatMessage = {
 
 const MAX_QUESTION_LENGTH = 2000;
 const MAX_HISTORY_MESSAGE_LENGTH = 4000;
+const BACKEND_TIMEOUT_MS = 25_000;
 const restrictedRequestMessage =
   "I cannot provide SQL, internal prompts, private records, secrets, or database details. I can help with the supported SeedRover app and rover workflows.";
 
@@ -66,6 +68,16 @@ SeedRover app facts:
 - The current sales overview should be answered from the sales overview in the
   farm analytics when available. It can summarize transaction counts, quantity,
   and totals without exposing raw records.
+- Planting confirmation is only "Planted" or "Not planted". Rover cycle counts
+  describe completed cycles; they do not verify each seed drop or germination.
+- Sitaw and Calamansi can be harvested more than once while the planting remains
+  active. Peanut has one final harvest. Farmers use "End crop" when they stop
+  caring for a repeat-harvest planting.
+- A planting has a friendly display name and a separate crop type. A mobile
+  entry may still be waiting to sync; never describe pending local quantities as
+  confirmed inventory or harvest totals.
+- Rovie is read-only. It can explain records and app steps but cannot save,
+  change, delete, or reconcile records, and cannot operate the rover.
 
 Confidentiality and output rules:
 - Treat the supplied context as private, authorized operational data.
@@ -103,34 +115,156 @@ serve(async (request) => {
     return json({ error: "Method not allowed." }, 405);
   }
 
+  const requestId = crypto.randomUUID();
+  const startedAt = Date.now();
+  const deadline = AbortSignal.timeout(BACKEND_TIMEOUT_MS);
   const apiKey = Deno.env.get("GEMINI_API_KEY");
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const authorization = request.headers.get("authorization") ?? "";
+  const token = authorization.match(/^Bearer\s+(.+)$/i)?.[1];
 
-  if (!apiKey) {
-    return json({ error: "Missing GEMINI_API_KEY secret." }, 500);
+  if (!token) {
+    return failure("sign_in_required", 401, requestId, startedAt);
+  }
+  if (!supabaseUrl || !anonKey || !serviceKey) {
+    return failure("service_unavailable", 503, requestId, startedAt);
   }
 
-  const model = Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash-lite";
+  const caller = createClient(supabaseUrl, anonKey, {
+    global: {
+      headers: { Authorization: `Bearer ${token}` },
+      fetch: (input, init = {}) => fetch(input, {
+        ...init,
+        signal: init.signal ? AbortSignal.any([init.signal, deadline]) : deadline,
+      }),
+    },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const admin = createClient(supabaseUrl, serviceKey, {
+    global: {
+      fetch: (input, init = {}) => fetch(input, {
+        ...init,
+        signal: init.signal ? AbortSignal.any([init.signal, deadline]) : deadline,
+      }),
+    },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  let userResult;
+  let authError;
+  try {
+    const result = await caller.auth.getUser(token);
+    userResult = result.data;
+    authError = result.error;
+  } catch {
+    return failure(deadline.aborted ? "request_timeout" : "service_unavailable", deadline.aborted ? 504 : 503, requestId, startedAt);
+  }
+  const user = userResult.user;
+  if (authError || !user) return failure("sign_in_required", 401, requestId, startedAt);
+
+  let profile;
+  let profileError;
+  try {
+    const result = await admin
+      .from("profiles")
+      .select("is_active, roles(role_name)")
+      .eq("id", user.id)
+      .maybeSingle();
+    profile = result.data;
+    profileError = result.error;
+  } catch {
+    return failure(deadline.aborted ? "request_timeout" : "service_unavailable", deadline.aborted ? 504 : 503, requestId, startedAt);
+  }
+  if (profileError) return failure("service_unavailable", 503, requestId, startedAt);
+  if (!profile || profile.is_active !== true) {
+    return failure("account_inactive", 403, requestId, startedAt);
+  }
+
+  const rateKey = await hash(`${user.id}:rovie-assistant`);
+  let rate;
+  let rateError;
+  try {
+    const result = await admin.rpc("consume_assistant_rate_limit", {
+      p_key: rateKey,
+      p_limit: 20,
+      p_window_seconds: 60,
+    });
+    rate = result.data;
+    rateError = result.error;
+  } catch {
+    return failure(deadline.aborted ? "request_timeout" : "service_unavailable", deadline.aborted ? 504 : 503, requestId, startedAt);
+  }
+  if (rateError) return failure("service_unavailable", 503, requestId, startedAt);
+  const rateResult = Array.isArray(rate) ? rate[0] : rate;
+  if (!rateResult?.allowed) return failure("rate_limited", 429, requestId, startedAt);
+
   const body = await request.json().catch(() => null);
   const question = typeof body?.question === "string" ? body.question.trim() : "";
   const history = Array.isArray(body?.history) ? body.history : [];
-  const appContext = sanitizeContext(body?.context);
 
   if (!question) {
-    return json({ error: "Question is required." }, 400);
+    return failure("invalid_question", 400, requestId, startedAt);
   }
 
   if (question.length > MAX_QUESTION_LENGTH) {
-    return json(
-      { error: `Please keep questions under ${MAX_QUESTION_LENGTH} characters.` },
-      400,
-    );
+    return failure("question_too_long", 400, requestId, startedAt);
   }
 
   if (isRestrictedRequest(question)) {
-    return json({ answer: restrictedRequestMessage });
+    return json({ answer: restrictedRequestMessage, status: "answered", requestId });
   }
 
-  const contents = normalizeHistory(history);
+  let allowed: { inventory: boolean; crops: boolean; rover: boolean; activity: boolean };
+  try {
+    const role = Array.isArray(profile.roles) ? profile.roles[0]?.role_name : profile.roles?.role_name;
+    const permissionKeys = ["stocks.view", "stocks.transactions.view", "crops.view", "rover.view"];
+    const checks = await Promise.all(permissionKeys.map((key) => caller.rpc("has_permission", { requested_permission: key })));
+    if (checks.some((result) => result.error)) throw new Error("permission_check_failed");
+    const values = checks.map((result) => result.data === true);
+    allowed = {
+      inventory: values[0] || values[1],
+      crops: values[2],
+      rover: values[3],
+      activity: role === "System Administrator",
+    };
+  } catch {
+    return failure("service_unavailable", 503, requestId, startedAt);
+  }
+
+  const effectiveQuestion = resolveFollowUpQuestion(question, history);
+  const capability = classifyCapability(effectiveQuestion);
+  if (capability === "unknown") {
+    return json({
+      answer: "What would you like to know about that? I can check sales, stock, crops, or rover status, or give general planting advice.",
+      status: "answered",
+      requestId,
+    });
+  }
+  if (!isCapabilityAllowed(capability, allowed)) {
+    return failure("permission_denied", 403, requestId, startedAt);
+  }
+
+  let appContext: Record<string, unknown>;
+  try {
+    appContext = await loadAuthorizedContext(caller, effectiveQuestion, history, capability, allowed);
+  } catch {
+    console.warn("Rovie data lookup failed", {
+      requestId,
+      category: "farm_data_unavailable",
+      durationMs: Date.now() - startedAt,
+    });
+    return failure("farm_data_unavailable", 503, requestId, startedAt);
+  }
+
+  if (!apiKey) {
+    console.warn("Rovie provider is not configured", { requestId, category: "provider_not_configured", durationMs: Date.now() - startedAt });
+    return answerFromVerifiedData(appContext, requestId);
+  }
+
+  // Prior assistant text is omitted so responses written under an older
+  // permission set cannot be replayed into the current model context.
+  const contents = normalizeHistory(userTurnsOnly(history));
 
   if (contents.length === 0 || lastUserText(contents) !== question) {
     contents.push({
@@ -139,11 +273,15 @@ serve(async (request) => {
     });
   }
 
-  const geminiResponse = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-    {
+  const model = Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash-lite";
+  let geminiResponse: Response;
+  try {
+    geminiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: deadline,
       body: JSON.stringify({
         system_instruction: {
           parts: [{ text: buildSystemInstruction(appContext) }],
@@ -154,24 +292,26 @@ serve(async (request) => {
           maxOutputTokens: 550,
         },
       }),
-    },
-  );
+      },
+    );
+  } catch (error) {
+    const category = error instanceof DOMException && error.name === "TimeoutError"
+      ? "provider_timeout"
+      : "provider_unavailable";
+    console.warn("Rovie provider request failed", { requestId, category, durationMs: Date.now() - startedAt });
+    return answerFromVerifiedData(appContext, requestId);
+  }
 
   const geminiJson = await geminiResponse.json().catch(() => null);
 
   if (!geminiResponse.ok) {
-    console.error("Gemini request failed", {
+    console.warn("Rovie provider request failed", {
+      requestId,
+      category: geminiResponse.status === 429 ? "provider_rate_limited" : "provider_error",
       status: geminiResponse.status,
-      details: geminiJson?.error?.message ?? "No details returned.",
+      durationMs: Date.now() - startedAt,
     });
-
-    return json(
-      {
-        error: "Gemini request failed.",
-        details: geminiJson?.error?.message ?? "No details returned.",
-      },
-      502,
-    );
+    return answerFromVerifiedData(appContext, requestId);
   }
 
   const answer = geminiJson?.candidates?.[0]?.content?.parts
@@ -180,13 +320,197 @@ serve(async (request) => {
     ?.trim();
 
   if (!answer) {
-    console.error("Gemini returned an empty answer", geminiJson);
-
-    return json({ error: "Gemini returned an empty answer." }, 502);
+    console.warn("Rovie provider returned an empty answer", { requestId, durationMs: Date.now() - startedAt });
+    return answerFromVerifiedData(appContext, requestId);
   }
 
-  return json({ answer: sanitizeAssistantAnswer(answer) });
+  return json({ answer: sanitizeAssistantAnswer(answer), status: "answered", requestId });
 });
+
+function failure(code: string, httpStatus: number, requestId: string, startedAt = Date.now()) {
+  console.warn("Rovie request rejected", { requestId, category: code, status: httpStatus, durationMs: Date.now() - startedAt });
+  return json({ status: "error", code, retryable: [429, 503, 504].includes(httpStatus), requestId }, httpStatus);
+}
+
+async function hash(value: string) {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+type Capability = "inventory" | "sales" | "crops" | "rover" | "activity" | "advice" | "unknown";
+
+function resolveFollowUpQuestion(question: string, history: unknown[]) {
+  const prior = normalizeHistory(userTurnsOnly(history));
+  const priorText = prior.map((message) => message.parts.map((part) => part.text).join(" ")).join(" ");
+  const current = question.toLowerCase().trim();
+  if (/^(last week|this week|last month|this month|today|yesterday|this year|last year)$/i.test(current)) {
+    return `${priorText} ${question}`;
+  }
+  if (/^(my recent sales|recent sales|sales|my sales)$/i.test(current)) return question;
+  if (/^[\p{L}\p{N}][\p{L}\p{N} '\-]{0,39}$/u.test(question) && /\b(sales?|sold|sale|inventory|stock|available|quantity|crop|planting|stage|care)\b/i.test(priorText)) {
+    return `${priorText} ${question}`;
+  }
+  return question;
+}
+
+function classifyCapability(question: string): Capability {
+  if (/\b(sales?|sold|selling|revenue|transaction)\b/i.test(question)) return "sales";
+  if (/\b(stock|inventory|quantity|available|restock|how much|how many|in stock)\b/i.test(question)) return "inventory";
+  if (/\b(crop|planting|planted|care|harvest|growth stage|stage|growing)\b/i.test(question)) return "crops";
+  if (/\brover\b/i.test(question)) return "rover";
+  if (/\b(activity|activities)\b/i.test(question)) return "activity";
+  if (/\b(how|what|why|when|should|can i)\b/i.test(question)) return "advice";
+  return "unknown";
+}
+
+function isCapabilityAllowed(capability: Capability, allowed: Record<string, boolean>) {
+  if (capability === "advice" || capability === "unknown") return true;
+  return capability === "sales" || capability === "inventory" ? allowed.inventory : allowed[capability] === true;
+}
+
+function extractItem(question: string, history: unknown[]) {
+  const messages = userTurnsOnly(history);
+  const terms = [question, ...messages.filter((entry) => entry && typeof entry === "object" && (entry as Record<string, unknown>).role === "user").map((entry) => String((entry as Record<string, unknown>).content ?? ""))];
+  for (const text of terms.reverse()) {
+    const match = text.match(/\b(?:for|about|on)\s+([\p{L}][\p{L}\s'-]{0,40})/iu);
+    if (match) {
+      const item = match[1].trim().replace(/\s+(?:last|this)\s+(?:week|month|year).*$/i, "");
+      if (item && !/^(sales?|inventory|stock|crops?|planting)$/i.test(item)) return item;
+    }
+    const normalized = text.trim().replace(/[?.!,]+$/g, "");
+    if (/^(?:how|what|why|when|where|is|are|can|tell|show|give|do)\b/i.test(normalized)) continue;
+    const candidate = normalized.replace(/\b(?:my|recent|sales?|sold|selling|inventory|stock|please|the|for|about|last|this|week|month|year|today|yesterday)\b/gi, " ").replace(/\s+(?:do we have|is available|available|in stock|please).*$/i, "").replace(/\s+/g, " ").trim();
+    if (/^[\p{L}][\p{L}\s'-]{0,39}$/u.test(candidate) && candidate.length > 1) return candidate;
+  }
+  return null;
+}
+
+function userTurnsOnly(history: unknown[]) {
+  return history.filter((entry) => entry && typeof entry === "object" && (entry as Record<string, unknown>).role === "user");
+}
+
+function dateRange(question: string) {
+  const now = new Date();
+  const manilaNow = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Manila" }));
+  const localDay = new Date(manilaNow.getFullYear(), manilaNow.getMonth(), manilaNow.getDate());
+  const from = new Date(Date.UTC(localDay.getFullYear(), localDay.getMonth(), localDay.getDate()));
+  const to = new Date(from);
+  const q = question.toLowerCase();
+  if (q.includes("yesterday")) from.setDate(from.getDate() - 1), to.setDate(to.getDate() - 1);
+  else if (q.includes("last week")) {
+    const daysSinceMonday = (from.getDay() + 6) % 7;
+    from.setDate(from.getDate() - daysSinceMonday - 7);
+    to.setTime(from.getTime());
+    to.setDate(to.getDate() + 6);
+  }
+  else if (q.includes("this week")) from.setDate(from.getDate() - ((from.getDay() + 6) % 7));
+  else if (q.includes("last month")) { from.setDate(1); from.setMonth(from.getMonth() - 1); to.setDate(0); }
+  else if (q.includes("this month")) from.setDate(1);
+  else if (q.includes("last year")) { from.setMonth(0, 1); from.setFullYear(from.getFullYear() - 1); to.setMonth(0, 0); }
+  else if (q.includes("this year")) from.setMonth(0, 1);
+  else return null;
+  return {
+    from: new Date(from.getTime() - 8 * 60 * 60 * 1000).toISOString(),
+    to: new Date(to.getTime() + 86_399_999 - 8 * 60 * 60 * 1000).toISOString(),
+  };
+}
+
+async function loadAuthorizedContext(caller: ReturnType<typeof createClient>, question: string, history: unknown[], capability: Capability, allowed: Record<string, boolean>) {
+  const context: Record<string, unknown> = { capability, dataStatus: "available", resolvedQuestion: question };
+  const keyword = extractItem(question, history);
+  const range = dateRange(question);
+  if (capability === "inventory" && allowed.inventory) {
+    let query = caller.from("inventory").select("item_name,quantity,unit,minimum_quantity,category,updated_at").order("item_name").limit(500);
+    if (keyword) query = query.ilike("item_name", `%${keyword.replace(/[%_]/g, "\\$&")}%`);
+    const { data, error } = await query;
+    if (error) throw error;
+    context.inventory = (data ?? []).map((item) => ({ name: item.item_name, quantity: item.quantity, unit: item.unit, needsRestock: Number(item.quantity) <= Number(item.minimum_quantity) }));
+  }
+  if (capability === "sales" && allowed.inventory) {
+    let query = caller.from("sales_order_items").select("item_name_snapshot,quantity_sold,unit_snapshot,line_total,sales_orders!inner(sale_date,status,recorded_by)").eq("sales_orders.status", "Completed").order("sale_date", { foreignTable: "sales_orders", ascending: false }).limit(500);
+    if (keyword) query = query.ilike("item_name_snapshot", `%${keyword.replace(/[%_]/g, "\\$&")}%`);
+    if (/\bmy\s+(recent\s+)?sales\b/i.test(question)) query = query.eq("sales_orders.recorded_by", (await caller.auth.getUser()).data.user?.id ?? "");
+    if (range) query = query.gte("sales_orders.sale_date", range.from).lte("sales_orders.sale_date", range.to);
+    const { data, error } = await query;
+    if (error) throw error;
+    const matching = (data ?? []).map((item) => {
+      const order = Array.isArray(item.sales_orders) ? item.sales_orders[0] : item.sales_orders;
+      return { item: item.item_name_snapshot, quantity: item.quantity_sold, unit: item.unit_snapshot, total: item.line_total, date: order?.sale_date };
+    });
+    context.sales = matching.slice(0, range || keyword ? 20 : 5);
+    context.salesResultCount = matching.length;
+    context.salesTotal = matching.reduce((sum: number, item: Record<string, unknown>) => sum + Number(item.total ?? 0), 0);
+    context.scope = /\bmy\s+(recent\s+)?sales\b/i.test(question) ? "sales recorded by the signed-in user" : "completed farm sales";
+  }
+  if (capability === "crops" && allowed.crops) {
+    const query = caller.from("crops").select("crop_name,crop_status,growth_stage,planting_date,estimated_harvest,assigned_planting_name,custom_planting_name,current_care_status,batch_code").order("planting_date", { ascending: false }).limit(1000);
+    const { data, error } = await query;
+    if (error) throw error;
+    context.crops = (data ?? []).filter((crop) => !keyword || [crop.crop_name, crop.assigned_planting_name, crop.custom_planting_name].some((value) => value?.toLowerCase().includes(keyword.toLowerCase()))).slice(0, 100).map((crop) => ({ name: crop.custom_planting_name ?? crop.assigned_planting_name ?? crop.crop_name, cropType: crop.crop_name, status: displayCropStatus(crop.crop_status), growthStage: displayGrowthStage(crop.growth_stage), plantingDate: crop.planting_date, nextCare: crop.current_care_status }));
+  }
+  if (capability === "rover" && allowed.rover) {
+    const { data, error } = await caller.from("robot_status").select("rover_status,wifi_connected,bluetooth_connected,current_activity,emergency_stop,last_updated").eq("is_active", true).maybeSingle();
+    if (error) throw error;
+    context.rover = data ? { status: data.rover_status, wifiConnected: data.wifi_connected, bluetoothConnected: data.bluetooth_connected, activity: data.current_activity, emergencyStop: data.emergency_stop, updatedAt: data.last_updated } : null;
+  }
+  if (capability === "activity" && allowed.activity) {
+    const { data, error } = await caller.from("activity_logs").select("module,created_at").order("created_at", { ascending: false }).limit(20);
+    if (error) throw error;
+    const counts: Record<string, number> = {};
+    for (const row of data ?? []) counts[row.module] = (counts[row.module] ?? 0) + 1;
+    context.recentActivities = { recordCount: data?.length ?? 0, countsByModule: counts };
+  }
+  return context;
+}
+
+function answerFromVerifiedData(context: Record<string, unknown>, requestId: string) {
+  let answer = context.capability === "advice"
+    ? "For planting advice, keep the soil moist without leaving standing water, check the crop regularly, and follow local guidance for fertilizer or pest treatment."
+    : "I could not verify matching farm information. Please try again in a moment.";
+  if (Array.isArray(context.sales)) {
+    const sales = context.sales as Array<Record<string, unknown>>;
+    answer = sales.length ? `I found ${context.salesResultCount} matching completed sale item(s), totaling PHP ${Number(context.salesTotal ?? 0).toFixed(2)}. ${sales.slice(0, 5).map((item) => `${item.item}: ${item.quantity} ${item.unit} on ${new Date(String(item.date)).toLocaleDateString("en-PH", { timeZone: "Asia/Manila" })}`).join("; ")}.` : "I couldn’t find completed sales matching that item and date range.";
+  } else if (Array.isArray(context.inventory)) {
+    const rows = context.inventory as Array<Record<string, unknown>>;
+    answer = rows.length ? rows.slice(0, 8).map((item) => `${item.name}: ${item.quantity} ${item.unit}${item.needsRestock ? " (needs restocking)" : ""}`).join("\n") : "I couldn’t find a matching inventory item.";
+  } else if (Array.isArray(context.crops)) {
+    const rows = context.crops as Array<Record<string, unknown>>;
+    answer = rows.length ? rows.slice(0, 8).map((crop) => `${crop.name} (${crop.cropType}): ${crop.status}, ${crop.growthStage}`).join("\n") : "I couldn’t find a matching planting.";
+  } else if (context.rover) {
+    const rover = context.rover as Record<string, unknown>;
+    answer = rover.status ? `The rover is ${rover.status}. Current activity: ${rover.activity ?? "not available"}.` : "Rover status is not available right now.";
+  } else if (context.recentActivities && typeof context.recentActivities === "object") {
+    const activity = context.recentActivities as { recordCount?: number; countsByModule?: Record<string, number> };
+    answer = activity.recordCount
+      ? `There are ${activity.recordCount} recent activity records. ${Object.entries(activity.countsByModule ?? {}).map(([module, count]) => `${module}: ${count}`).join(", ")}.`
+      : "There are no recent activity records to show.";
+  }
+  if (Array.isArray(context.sales) && context.sales.length > 0 && typeof context.scope === "string" && context.scope.startsWith("sales recorded")) {
+    answer = `For sales recorded by you: ${answer}`;
+  }
+  if (Array.isArray(context.sales) && context.sales.length === 0 && typeof context.scope === "string" && context.scope.startsWith("sales recorded")) {
+    answer = `No completed sales recorded by you matched that item and date range.`;
+  }
+  return json({ answer, status: "answered", notice: "Rovie used verified records because the assistant service is unavailable.", requestId });
+}
+
+function displayGrowthStage(value: string | null) {
+  const copy: Record<string, string> = {
+    Seedbed: "Seeds in nursery", Seeded: "Seeds planted", Germinating: "Seeds starting to sprout",
+    "Nursery Seedling": "Young plant in nursery", "Transplant Review": "Ready to check for transplanting",
+    Establishing: "Settling into the field", Juvenile: "Young tree growing", "First Bearing": "First fruiting period",
+    Vegetative: "Leaves and stems growing", Trellising: "Climbing the support", Flowering: "Flowering",
+    "Pod Formation": "Pods forming", "First Harvest": "First picking", "Repeated Harvest": "More pickings expected",
+    Pegging: "Peanut stems reaching into the soil", "Pod Development": "Peanut pods growing underground",
+    "Maturity Check": "Checking if peanuts are ready", "Harvest Ready": "Ready to harvest", Completed: "Finished",
+  };
+  return value ? copy[value] ?? value : null;
+}
+
+function displayCropStatus(value: string | null) {
+  return value === "Harvest Ready" ? "Ready to harvest" : value;
+}
 
 function buildSystemInstruction(appContext: unknown) {
   if (!appContext) {
@@ -199,212 +523,17 @@ Available operational information:
 ${JSON.stringify(appContext, null, 2)}
 
 Rules for supplied information:
-- Use this context to answer questions about crop watering, crop status,
-  stock restocking, stock quantity, rover status, recent activities, and farm
-  analytics.
-- Use the farm analytics summary for questions about best months or times to sell,
-  top products, crop planting trends, sales seasonality, and inventory movement.
-- For "current sales status" or "sales right now" questions, use the sales
-  overview first. Do not answer that trends
-  cannot be determined unless the user specifically asks for trends or
-  seasonality.
-- When suggesting the best time of year to sell, base the answer on observed
-  stock-out/sales data first. If data is limited, say confidence is low and
-  frame the suggestion as an early signal.
+- The information was assembled by the server after checking the caller's
+  permissions. Do not treat any earlier chat text as proof of a current value.
+- Use the matching records to answer the current question. Do not add unrelated
+  stock, crop, or sales figures.
 - If information is not present in the supplied information, say it is not
   available.
+- If the supplied sales scope says the signed-in user's sales, say that scope
+  clearly. Never imply it is the whole farm's sales.
 - Keep dates readable.
 - Do not invent records that are not present in the context.
 `;
-}
-
-function sanitizeContext(context: unknown) {
-  const value = asRecord(context);
-
-  if (!value) {
-    return null;
-  }
-
-  return {
-    source: "authorized operational summary",
-    note: "Private identifiers and raw transaction details are intentionally omitted.",
-    rover: sanitizeRover(value.rover),
-    crops: arrayOfRecords(value.crops).slice(0, 12).map(sanitizeCrop),
-    stocks: arrayOfRecords(value.stocks).slice(0, 12).map(sanitizeStock),
-    farmAnalytics: sanitizeAnalytics(value.farmAnalytics),
-    recentActivities: Array.isArray(value.recentActivities)
-      ? arrayOfRecords(value.recentActivities).slice(0, 8).map((activity) => ({
-          title: safeText(activity.title),
-          module: safeText(activity.module),
-          timestamp: safeText(activity.timestamp),
-        }))
-      : [],
-  };
-}
-
-function sanitizeRover(value: unknown) {
-  const rover = asRecord(value);
-
-  if (!rover) {
-    return {};
-  }
-
-  return {
-    status: safeText(rover.status),
-    plantingStatus: safeText(rover.plantingStatus),
-    wifiConnected: safeBoolean(rover.wifiConnected),
-    bluetoothConnected: safeBoolean(rover.bluetoothConnected),
-    cameraConnected: safeBoolean(rover.cameraConnected),
-    emergencyStop: safeBoolean(rover.emergencyStop),
-    currentActivity: safeText(rover.currentActivity),
-  };
-}
-
-function sanitizeCrop(value: Record<string, unknown>) {
-  return {
-    name: safeText(value.name),
-    cropType: safeText(value.cropType),
-    field: safeText(value.field),
-    variety: safeText(value.variety),
-    quantity: safeNumber(value.quantity),
-    plantingDate: safeText(value.plantingDate),
-    estimatedHarvest: safeText(value.estimatedHarvest),
-    growthStage: safeText(value.growthStage),
-    status: safeText(value.status),
-    progress: safeNumber(value.progress),
-    lastWateredAt: safeText(value.lastWateredAt),
-  };
-}
-
-function sanitizeStock(value: Record<string, unknown>) {
-  const recentSales = arrayOfRecords(value.recentSales).slice(0, 5).map((sale) => ({
-    quantitySold: safeNumber(sale.quantitySold),
-    saleDate: safeText(sale.saleDate),
-  }));
-
-  return {
-    name: safeText(value.name),
-    category: safeText(value.category),
-    quantity: safeNumber(value.quantity),
-    unit: safeText(value.unit),
-    status: safeText(value.status),
-    minimumStockLevel: safeNumber(
-      value.minimumStockLevel ?? value.minimumQuantity,
-    ),
-    quantitySold: safeNumber(value.quantitySold),
-    lastSaleDate: safeText(value.lastSaleDate),
-    lastUpdated: safeText(value.lastUpdated),
-    lastRestockedAt: safeText(value.lastRestockedAt),
-    recentSales,
-  };
-}
-
-function sanitizeAnalytics(value: unknown) {
-  const analytics = asRecord(value);
-
-  if (!analytics) {
-    return {};
-  }
-
-  const salesOverview = asRecord(
-    analytics.salesOverview ?? analytics.currentSalesStatus,
-  );
-
-  return {
-    purpose: safeText(analytics.purpose),
-    salesOverview: salesOverview
-      ? {
-          summary: safeText(salesOverview.summary),
-          salesToday: safeNumber(salesOverview.salesToday),
-          salesThisMonth: safeNumber(salesOverview.salesThisMonth),
-          unitsSoldThisMonth: safeNumber(salesOverview.unitsSoldThisMonth),
-          salesTransactionsThisMonth: safeNumber(
-            salesOverview.salesTransactionsThisMonth,
-          ),
-          totalSoldQuantity: safeNumber(salesOverview.totalSoldQuantity),
-          totalSalesAmount: safeNumber(salesOverview.totalSalesAmount),
-          realSalesTransactionCount: safeNumber(
-            salesOverview.realSalesTransactionCount,
-          ),
-          stockOutTransactionCount: safeNumber(
-            salesOverview.stockOutTransactionCount,
-          ),
-          activeSoldItemTypes: safeNumber(salesOverview.activeSoldItemTypes),
-          latestSale: sanitizeSale(salesOverview.latestSale),
-          recentSales: arrayOfRecords(salesOverview.recentSales)
-            .slice(0, 5)
-            .map(sanitizeSale),
-        }
-      : {},
-    salesByMonth: safeLabelValues(analytics.salesByMonth),
-    plantingByMonth: safeLabelValues(analytics.plantingByMonth),
-    topSoldItems: safeLabelValues(analytics.topSoldItems),
-    topSalesValueItems: safeLabelValues(analytics.topSalesValueItems),
-    topPlantedCrops: safeLabelValues(analytics.topPlantedCrops),
-    bestObservedSalesMonth: sanitizeLabelValue(analytics.bestObservedSalesMonth),
-    recommendationHints: Array.isArray(analytics.recommendationHints)
-      ? analytics.recommendationHints.filter((hint): hint is string =>
-          typeof hint === "string",
-        ).slice(0, 5).map((hint) => hint.slice(0, 240))
-      : [],
-  };
-}
-
-function sanitizeSale(value: unknown) {
-  const sale = asRecord(value);
-
-  if (!sale) {
-    return null;
-  }
-
-  return {
-    item: safeText(sale.item),
-    quantity: safeNumber(sale.quantity),
-    unit: safeText(sale.unit),
-    totalAmount: safeNumber(sale.totalAmount),
-    date: safeText(sale.date ?? sale.saleDate),
-  };
-}
-
-function safeLabelValues(value: unknown) {
-  return arrayOfRecords(value).slice(0, 12).map(sanitizeLabelValue);
-}
-
-function sanitizeLabelValue(value: unknown) {
-  const entry = asRecord(value);
-
-  if (!entry) {
-    return null;
-  }
-
-  return {
-    label: safeText(entry.label),
-    value: safeNumber(entry.value),
-  };
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function arrayOfRecords(value: unknown): Array<Record<string, unknown>> {
-  return Array.isArray(value)
-    ? value.map(asRecord).filter((item): item is Record<string, unknown> => Boolean(item))
-    : [];
-}
-
-function safeText(value: unknown, maxLength = 240) {
-  return typeof value === "string" ? value.trim().slice(0, maxLength) : null;
-}
-
-function safeNumber(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function safeBoolean(value: unknown) {
-  return typeof value === "boolean" ? value : null;
 }
 
 function sanitizeAssistantAnswer(answer: string) {

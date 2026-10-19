@@ -209,7 +209,7 @@ function Content({ variant }: { variant: PageLoadingVariant }) {
 
 export function PageLoading({ variant = "generic" }: { variant?: PageLoadingVariant }) {
   return (
-    <main className={styles.screen} aria-label="Loading page">
+    <main className={styles.screen} data-variant={variant} aria-label="Loading page">
       <div className={styles.page} aria-hidden="true">
         <PageHeader action={variant === "inventory" || variant === "sales" || variant === "users"} />
         <Content variant={variant} />

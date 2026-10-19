@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, CloudOff } from "lucide-react";
+import { startVisiblePolling } from "@/lib/visible-polling.mjs";
 import styles from "./connectivity-status.module.css";
 
 type ConnectionState = "connected" | "offline" | "reconnecting" | "restored";
@@ -9,11 +10,11 @@ type ConnectionState = "connected" | "offline" | "reconnecting" | "restored";
 export function ConnectivityStatus({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<ConnectionState>("connected");
   const stateRef = useRef<ConnectionState>("connected");
-  const checkingRef = useRef(false);
 
   useEffect(() => {
     let active = true;
     let restoredTimer: number | undefined;
+    let request: AbortController | undefined;
 
     const update = (next: ConnectionState) => {
       stateRef.current = next;
@@ -25,15 +26,18 @@ export function ConnectivityStatus({ children }: { children: React.ReactNode }) 
         update("offline");
         return;
       }
-      if (checkingRef.current) return;
-      checkingRef.current = true;
+      request = new AbortController();
       try {
         const response = await fetch("/api/connectivity", {
           cache: "no-store",
-          signal: AbortSignal.timeout(6000),
+          signal: AbortSignal.any([request.signal, AbortSignal.timeout(6000)]),
         });
         if (!response.ok) throw new Error("Backend unavailable");
         if (!active) return;
+        if (!navigator.onLine) {
+          update("offline");
+          return;
+        }
         if (stateRef.current === "offline" || stateRef.current === "reconnecting") {
           update("restored");
           window.clearTimeout(restoredTimer);
@@ -42,25 +46,24 @@ export function ConnectivityStatus({ children }: { children: React.ReactNode }) 
           update("connected");
         }
       } catch {
-        if (active) update("reconnecting");
-      } finally {
-        checkingRef.current = false;
+        if (active) update(navigator.onLine ? "reconnecting" : "offline");
       }
     };
 
-    const handleOffline = () => update("offline");
-    const handleOnline = () => void check();
-    void check();
-    const interval = window.setInterval(() => void check(), 20000);
+    const handleOffline = () => {
+      window.clearTimeout(restoredTimer);
+      update("offline");
+    };
+    if (!navigator.onLine) handleOffline();
+    const polling = startVisiblePolling({ task: check, intervalMs: 120_000 });
     window.addEventListener("offline", handleOffline);
-    window.addEventListener("online", handleOnline);
 
     return () => {
       active = false;
-      window.clearInterval(interval);
+      polling.stop();
+      request?.abort();
       window.clearTimeout(restoredTimer);
       window.removeEventListener("offline", handleOffline);
-      window.removeEventListener("online", handleOnline);
     };
   }, []);
 

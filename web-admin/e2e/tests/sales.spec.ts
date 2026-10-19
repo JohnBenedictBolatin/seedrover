@@ -37,18 +37,18 @@ test('SR-SALE-004 Non-cash payment requires a transaction reference', async ({ p
 test('SR-SALE-005 Authorized cancellation restores inventory exactly once', async ({ page }, info) => {
   const item = await inventory('void'); await fillSale(page, [{ name: item.name, quantity: 3 }], 'void');
   const sale = await submitSale(page, 'void');
-  await page.goto('/sales'); await page.getByPlaceholder('Search receipt, customer, payment...').fill(sale.receipt_number);
-  await page.getByRole('button', { name: /cancel sale/i }).first().click(); await confirm(page, 'Cancel this sale?', 'Cancel sale');
+  await page.goto('/sales'); await page.getByPlaceholder('Search sale reference, customer, payment...').fill(sale.receipt_number);
+  await page.getByRole('button', { name: 'Void sale', exact: true }).first().click(); await confirm(page, 'Void this sale?', 'Void sale');
   await expect.poll(() => balance(item.id)).toBe(20);
   expect((await db().from('sales_orders').select('status').eq('id', sale.id).single()).data?.status).toBe('Voided');
-  await page.reload(); await page.getByPlaceholder('Search receipt, customer, payment...').fill(sale.receipt_number);
-  await expect(page.getByRole('button', { name: /cancel sale/i })).toHaveCount(0); await evidence(page, info);
+  await page.reload(); await page.getByPlaceholder('Search sale reference, customer, payment...').fill(sale.receipt_number);
+  await expect(page.getByRole('button', { name: 'Void sale', exact: true })).toHaveCount(0); await evidence(page, info);
 });
 test('SR-SALE-006 Inventory staff cannot cancel a completed sale', async ({ page }, info) => {
   const item = await inventory('staff_void'); await fillSale(page, [{ name: item.name, quantity: 1 }], 'staff_void', 50);
   const sale = await submitSale(page, 'staff_void');
   await page.context().clearCookies(); await asRole(page, 'inventoryStaff');
-  await page.goto('/sales'); await page.getByPlaceholder('Search receipt, customer, payment...').fill(sale.receipt_number);
-  await expect(page.getByRole('button', { name: /cancel sale/i })).toHaveCount(0);
+  await page.goto('/sales'); await page.getByPlaceholder('Search sale reference, customer, payment...').fill(sale.receipt_number);
+  await expect(page.getByRole('button', { name: 'Void sale', exact: true })).toHaveCount(0);
   expect(await balance(item.id)).toBe(19); await evidence(page, info);
 });

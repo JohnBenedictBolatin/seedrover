@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { localSupabaseConfig } from '../local-supabase.mjs';
 import fs from 'node:fs';
-import { accounts, landingAccounts, asRole, authFile, createAccount, db, check, evidence, login, roles, type Role, inventory, crop, balance } from '../support';
+import { accounts, landingAccounts, asRole, authFile, createAccount, db, check, evidence, login, roles, type Role, inventory, crop, balance, prefix, track } from '../support';
 
 test('SR-AUTH-001 @smoke Valid administrator login reaches dashboard', async ({ page }, info) => {
   await login(page, landingAccounts().admin, '/dashboard');
@@ -11,7 +12,7 @@ test('SR-AUTH-001 @smoke Valid administrator login reaches dashboard', async ({ 
 });
 test('SR-AUTH-002 Invalid credentials are rejected', async ({ page }, info) => {
   await login(page, { ...accounts().admin, password: 'Incorrect-only-for-test-123!' });
-  await expect(page.getByRole('status')).toContainText('Invalid username or password.');
+  await expect(page.getByText('Invalid username or password.', { exact: true })).toBeVisible();
   await expect(page).toHaveURL(/\/login$/); await evidence(page, info);
 });
 test('SR-AUTH-003 Required username and password prevent empty submission', async ({ page }, info) => {
@@ -81,6 +82,47 @@ test('SR-ROLE-022 Signed-out and planting-role sales exports are rejected', asyn
   expect((await request.get('/api/exports/sales.csv')).status()).toBe(401);
   await asRole(page, 'planting'); expect((await page.request.get('/api/exports/sales.csv')).status()).toBe(401);
   const response = await page.goto('/api/exports/sales.csv'); expect(response?.status()).toBe(401); await evidence(page, info);
+});
+
+test('SR-ROLE-023 Crop history and customer payments stay scoped to their roles', async ({ page }, info) => {
+  const outcomeId = randomUUID();
+  const paymentId = randomUUID();
+  const adminId = accounts().admin.id;
+  const cropOutcome = await db().from('crop_outcomes').insert({
+    id: outcomeId,
+    crop_name: `${prefix}_private_outcome`,
+    outcome: 'Failed',
+    reason: `${prefix}_role_scope`,
+    recorded_by: adminId,
+  });
+  check(cropOutcome.error);
+  const payment = await db().from('customer_payments').insert({
+    id: paymentId,
+    customer_key: `${prefix}_private_customer`,
+    customer_name: `${prefix} Private Customer`,
+    amount: 10,
+    recorded_by: adminId,
+  });
+  check(payment.error);
+  track('crop_outcomes', outcomeId, `${prefix}_private_outcome`);
+  track('customer_payments', paymentId, `${prefix}_private_customer`);
+
+  const plantingOutcomes = await roleClient('planting').from('crop_outcomes').select('id').eq('id', outcomeId);
+  const inventoryOutcomes = await roleClient('inventory').from('crop_outcomes').select('id').eq('id', outcomeId);
+  const inventoryPayments = await roleClient('inventory').from('customer_payments').select('id').eq('id', paymentId);
+  const plantingPayments = await roleClient('planting').from('customer_payments').select('id').eq('id', paymentId);
+  expect(plantingOutcomes.error).toBeNull();
+  expect(plantingOutcomes.data).toHaveLength(1);
+  expect(inventoryOutcomes.error).toBeNull();
+  expect(inventoryOutcomes.data).toHaveLength(0);
+  expect(inventoryPayments.error).toBeNull();
+  expect(inventoryPayments.data).toHaveLength(1);
+  expect(plantingPayments.error).toBeNull();
+  expect(plantingPayments.data).toHaveLength(0);
+  await asRole(page, 'inventoryStaff');
+  await page.goto('/customers');
+  await expect(page.getByRole('heading', { name: 'Customers', exact: true })).toBeVisible();
+  await evidence(page, info);
 });
 
 export { roleClient };

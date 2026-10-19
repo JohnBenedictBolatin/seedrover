@@ -11,10 +11,11 @@ test('SR-INV-002 Create inventory item through UI and verify persistence', async
   const name = `${prefix}_ui_created`;
   await page.goto('/inventory'); await page.getByRole('button', { name: /Add (new )?item|Add stock/i }).click();
   const form = page.getByRole('dialog');
-  for (const [key, value] of Object.entries({ item_name: name, quantity: '20', minimum_quantity: '1', unit_cost: '20', selling_price: '50', storage_location: 'AUTOTEST ONLY', notes: prefix })) {
+  for (const [key, value] of Object.entries({ item_name: name, quantity: '20', minimum_quantity: '1', unit_cost: '20', selling_price: '50', notes: prefix })) {
     await form.locator(`[name="${key}"]`).fill(value);
   }
   await selectNamed(form, 'category', 'Leafy Vegetables');
+  await selectNamed(form, 'storage_location', 'Packing Shed');
   await form.locator('input[type="file"]').setInputFiles({ name: 'test.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==', 'base64') });
   await form.getByRole('button', { name: 'Save Item', exact: true }).click();
   await confirm(page, 'Create inventory item?', 'Create item');
@@ -25,10 +26,10 @@ test('SR-INV-002 Create inventory item through UI and verify persistence', async
 });
 test('SR-INV-003 Edit inventory location and verify after reload', async ({ page }, info) => {
   const item = await inventory('edit'); const form = await openItem(page, item.name, 'Edit');
-  await form.locator('[name="storage_location"]').fill('AUTOTEST UPDATED');
+  await selectNamed(form, 'storage_location', 'Packing Shed');
   await form.getByRole('button', { name: 'Save Item', exact: true }).click();
-  await expect.poll(async () => (await db().from('inventory').select('storage_location').eq('id', item.id).single()).data?.storage_location).toBe('AUTOTEST UPDATED');
-  const reopened = await openItem(page, item.name, 'Edit'); await expect(reopened.locator('[name="storage_location"]')).toHaveValue('AUTOTEST UPDATED'); await evidence(page, info);
+  await expect.poll(async () => (await db().from('inventory').select('storage_location').eq('id', item.id).single()).data?.storage_location).toBe('Packing Shed');
+  const reopened = await openItem(page, item.name, 'Edit'); await expect(reopened.locator('[name="storage_location"]')).toHaveValue('Packing Shed'); await evidence(page, info);
 });
 for (const [id, action, quantity, expected, reason] of [
   ['004', 'Receive stock', 5, 25, 'Field Crate'], ['005', 'Issue stock', 3, 17, 'Kitchen Preparation'],

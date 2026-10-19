@@ -11,7 +11,7 @@ function text(formData: FormData, key: string, fallback = "") {
 }
 
 export async function createCustomerPaymentAction(formData: FormData) {
-  const profile = await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
+  const profile = await requireAdminRole(["System Administrator", "Farm Inventory Manager", "Inventory Staff"]);
   const supabase = await createSupabaseServerClient();
   if (!supabase) throw new Error("Supabase is not configured.");
 
@@ -41,7 +41,7 @@ export async function createCustomerPaymentAction(formData: FormData) {
 }
 
 export async function markCustomerPaymentPaidAction(formData: FormData) {
-  const profile = await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
+  const profile = await requireAdminRole(["System Administrator", "Farm Inventory Manager", "Inventory Staff"]);
   const supabase = await createSupabaseServerClient();
   if (!supabase) throw new Error("Supabase is not configured.");
   const paymentId = text(formData, "id");

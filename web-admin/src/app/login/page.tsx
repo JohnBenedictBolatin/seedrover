@@ -1,7 +1,12 @@
 import Image from "next/image";
+import type { Metadata } from "next";
 import { LoginForm } from "@/components/login-form";
 import { LoginThemeSwitch } from "@/components/login-theme-switch";
 import styles from "./page.module.css";
+
+export const metadata: Metadata = {
+  title: "Sign in",
+};
 
 export default async function LoginPage({
   searchParams,

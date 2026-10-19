@@ -13,9 +13,9 @@ async function metric(page: Page) {
 test('SR-DASH-001 @smoke Dashboard loads and all period selectors work', async ({ page }, info) => {
   await page.goto('/dashboard'); await expect(page.getByRole('heading', { name: 'Operations Dashboard' })).toBeVisible();
   for (const period of ['Day', 'Week', 'Month', 'Year']) {
-    await page.getByRole('link', { name: period, exact: true }).click();
+    await page.getByRole('button', { name: period, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`range=${period.toLowerCase()}`));
-    await expect(page.getByRole('link', { name: period, exact: true })).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByRole('button', { name: period, exact: true })).toHaveAttribute('aria-current', 'page');
     await expect(page.getByText('Some dashboard data could not load.')).toHaveCount(0);
   }
   await evidence(page, info);
@@ -56,10 +56,18 @@ test('SR-REPORT-002 Sales CSV respects date filters and includes the new receipt
 test('SR-REPORT-003 Receipt and report print views render their fixture data', async ({ page }, info) => {
   const item = await inventory('print'); await fillSale(page, [{ name: item.name, quantity: 1 }], 'print', 50);
   const sale = await submitSale(page, 'print');
-  await page.goto(`/sales/${sale.id}`); await expect(page.getByRole('heading', { name: 'Sales Receipt' })).toBeVisible();
-  await expect(page.getByRole('cell', { name: item.name, exact: true })).toBeVisible(); await page.emulateMedia({ media: 'print' });
+  await page.goto('/sales');
+  await page.getByPlaceholder('Search sale reference, customer, payment...').fill(sale.receipt_number);
+  await page.getByRole('button', { name: 'View sale details', exact: true }).click();
+  const detail = page.getByRole('dialog', { name: 'Sales record details' });
+  await expect(detail.getByRole('heading', { name: 'Sale Details', exact: true })).toBeVisible();
+  // The receipt reference is intentionally shown in both the summary and
+  // printable receipt within this dialog; assert the summary field directly.
+  await expect(detail.locator('strong').filter({ hasText: sale.receipt_number })).toBeVisible();
+  await expect(detail.locator('strong').filter({ hasText: item.name })).toBeVisible();
+  await page.emulateMedia({ media: 'print' });
   const pdf = await page.pdf({ format: 'A4', printBackground: true });
-  await info.attach('sample-receipt.pdf', { body: pdf, contentType: 'application/pdf' });
+  await info.attach('sale-details-print.pdf', { body: pdf, contentType: 'application/pdf' });
   await page.emulateMedia({ media: 'screen' }); await page.goto('/reports/sales/print');
   await expect(page.getByRole('heading', { name: 'Sales Report' })).toBeVisible();
   await expect(page.getByText(item.name, { exact: true })).toBeVisible(); await evidence(page, info);
