@@ -35,7 +35,6 @@ import {
   Wallet,
 } from "lucide-react";
 import {
-  adjustStockAction,
   createInventoryItemAction,
   deleteInventoryItemAction,
   stockInAction,
@@ -875,7 +874,7 @@ function InventoryForm({
 
     const formData = new FormData(form);
     const nextQuantity = Number(formData.get("quantity") ?? item?.quantity);
-    const consequential = !item || nextQuantity !== item.quantity ||
+    const consequential = !item ||
       String(formData.get("unit") ?? item.unit) !== item.unit ||
       Number(formData.get("unit_cost") ?? item.unitCost) !== item.unitCost ||
       Number(formData.get("selling_price") ?? item.sellingPrice) !== item.sellingPrice;
@@ -883,7 +882,7 @@ function InventoryForm({
       const confirmed = await confirm({
         title: item ? "Update inventory item?" : "Create inventory item?",
         message: item
-          ? `This will update ${item.itemName}${nextQuantity !== item.quantity ? ` and change its quantity to ${nextQuantity} ${String(formData.get("unit") ?? item.unit)}` : ""}.`
+          ? `This will update ${item.itemName}. Stock quantity can only be changed by receiving or issuing stock.`
           : `This will create ${String(formData.get("item_name") ?? "this item")} with an opening stock of ${nextQuantity} ${String(formData.get("unit") ?? "kg")}.`,
         confirmLabel: item ? "Save item" : "Create item",
       });
@@ -891,24 +890,9 @@ function InventoryForm({
     }
 
     startTransition(async () => {
-      let itemDetailsSaved = false;
       try {
         const result = await action(formData);
         if (result?.error) throw new Error(result.error);
-        itemDetailsSaved = true;
-
-        if (item) {
-          const nextQuantity = Number(formData.get("quantity") ?? item.quantity);
-          if (Number.isFinite(nextQuantity) && nextQuantity !== item.quantity) {
-            const adjustFormData = new FormData();
-            adjustFormData.set("id", item.id);
-            adjustFormData.set("new_quantity", String(nextQuantity));
-            adjustFormData.set("reason", "Edit Item");
-            adjustFormData.set("remarks", "Quantity updated from edit item.");
-            adjustFormData.set("request_id", crypto.randomUUID());
-            await adjustStockAction(adjustFormData);
-          }
-        }
 
         onSuccess();
         router.refresh();
@@ -916,9 +900,7 @@ function InventoryForm({
       } catch (error) {
         notify(
           "error",
-          itemDetailsSaved
-            ? `Inventory item details were saved, but the stock adjustment could not be recorded: ${error instanceof Error ? error.message : "Please review the item and retry the quantity adjustment."}`
-            : error instanceof Error ? error.message : "Something went wrong.",
+          error instanceof Error ? error.message : "Something went wrong.",
         );
       }
     });
@@ -970,15 +952,11 @@ function InventoryForm({
           defaultValue={item ? displayCategory(item) : "Leafy Vegetables"}
         />
         <div className={`${styles.twoColumn} ${styles.inventoryFormWide}`}>
-          <Field
-            label={item ? `Current quantity (${item.unit})` : "Quantity"}
-            name="quantity"
-            type="number"
-            step="0.01"
-            min="0"
-            required={!item}
-            defaultValue={item?.quantity ?? ""}
-          />
+          {item ? (
+            <ReadOnly label={`Current quantity (${item.unit})`} value={formatQuantity(item.quantity, item.unit)} />
+          ) : (
+            <Field label="Opening quantity" name="quantity" type="number" step="0.01" min="0" required defaultValue="" />
+          )}
           <ThemedSelect
             label="Unit"
             name="unit"

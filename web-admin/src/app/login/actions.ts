@@ -108,6 +108,10 @@ export async function signInAction(
     return { message: "Enter your username." };
   }
 
+  if (username !== username.toLowerCase()) {
+    return { message: "That username is incorrect." };
+  }
+
   if (!password) {
     return { message: "Enter your password." };
   }
@@ -205,6 +209,10 @@ export async function forgotPasswordAction(username: string) {
 
   if (!normalizedUsername) {
     return "Enter your username first.";
+  }
+
+  if (normalizedUsername !== normalizedUsername.toLowerCase()) {
+    return genericResetMessage;
   }
 
   const resetLimit = await checkRateLimit({

@@ -448,15 +448,9 @@ export async function stockOutAction(formData: FormData) {
   return createMovement(formData, "OUT", quantity);
 }
 
-export async function adjustStockAction(formData: FormData) {
-  const quantity = numberValue(formData, "new_quantity");
-  if (quantity < 0) throw new Error("Adjusted quantity cannot be negative.");
-  await createMovement(formData, "ADJUSTMENT", quantity);
-}
-
 async function createMovement(
   formData: FormData,
-  transactionType: "IN" | "OUT" | "ADJUSTMENT",
+  transactionType: "IN" | "OUT",
   quantity: number,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   await requireAdminRole(["System Administrator", "Farm Inventory Manager"]);
@@ -480,7 +474,7 @@ async function createMovement(
   if (movementItem?.unit !== "kg") {
     throw new Error("Inventory quantities must use kg as the unit. Update this item before stocking it.");
   }
-  validateQuantity(quantity, movementItem?.unit ?? "kg", "Quantity", transactionType !== "ADJUSTMENT");
+  validateQuantity(quantity, movementItem?.unit ?? "kg", "Quantity");
 
   if (!userId) {
     throw new Error("Sign in before changing inventory.");
@@ -516,12 +510,8 @@ async function createMovement(
     supabase,
     transactionType === "IN"
       ? "Receive stock recorded"
-      : transactionType === "OUT"
-        ? "Issue stock recorded"
-        : "Stock quantity adjusted",
-    `${item?.item_name ?? "Inventory item"} ${
-      transactionType === "ADJUSTMENT" ? "was adjusted to" : "moved"
-    } ${quantity} ${item?.unit ?? "unit"}. ${reason ? `${transactionType === "IN" ? "Source" : "Reason"}: ${reason}. ` : ""}${remarks}`,
+      : "Issue stock recorded",
+    `${item?.item_name ?? "Inventory item"} moved ${quantity} ${item?.unit ?? "unit"}. ${reason ? `${transactionType === "IN" ? "Source" : "Reason"}: ${reason}. ` : ""}${remarks}`,
     userId,
   );
 

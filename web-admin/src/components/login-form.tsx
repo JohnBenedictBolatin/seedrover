@@ -106,6 +106,8 @@ export function LoginForm({
           <UserRound aria-hidden="true" size={19} />
           <input
             autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
             name="username"
             placeholder="farm.manager"
             required

@@ -15,6 +15,16 @@ test('SR-AUTH-002 Invalid credentials are rejected', async ({ page }, info) => {
   await expect(page.getByText('Invalid username or password.', { exact: true })).toBeVisible();
   await expect(page).toHaveURL(/\/login$/); await evidence(page, info);
 });
+test('Uppercase username is rejected when the account username is lowercase', async ({ page }, info) => {
+  const account = landingAccounts().admin;
+  await page.goto('/login');
+  await page.locator('input[name="username"]').fill(account.username.toUpperCase());
+  await page.locator('input[name="password"]').fill(account.password);
+  await page.getByRole('button', { name: 'Log in', exact: true }).click();
+  await expect(page.getByText('That username is incorrect.', { exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/login$/);
+  await evidence(page, info, 'uppercase-username-rejected');
+});
 test('SR-AUTH-003 Required username and password prevent empty submission', async ({ page }, info) => {
   await page.goto('/login'); await page.getByRole('button', { name: 'Log in', exact: true }).click();
   expect(await page.locator('input[name="username"]').evaluate((el: HTMLInputElement) => el.validity.valueMissing)).toBe(true);

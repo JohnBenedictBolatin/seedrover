@@ -1001,6 +1001,8 @@ function CropGrowthJourneyPanel({ crop, onRecordHarvest }: { crop: CropItem; onR
             const photosExpanded = expandedPhotoStages.has(normalizeStage(stage));
             const observed = Boolean(activity);
             const current = index === currentStageIndex;
+            const skipped = !observed && !current && currentStageIndex > index;
+            const complete = observed || skipped;
             const canRecordHarvest = current && !["Completed", "Cancelled", "Not Harvested"].includes(crop.cropStatus) && (
               normalizeStage(stage) === "harvest ready" ||
               (crop.harvestMode === "repeat" && crop.harvestCount > 0) ||
@@ -1008,16 +1010,16 @@ function CropGrowthJourneyPanel({ crop, onRecordHarvest }: { crop: CropItem; onR
             );
 
             return (
-              <div className={`${styles.growthTimelineItem} ${observed ? styles.growthTimelineItemCompleted : ""} ${current ? styles.growthTimelineItemCurrent : ""}`} key={stage}>
+              <div className={`${styles.growthTimelineItem} ${complete ? styles.growthTimelineItemCompleted : ""} ${current ? styles.growthTimelineItemCurrent : ""}`} key={stage}>
                 <div className={styles.growthTimelineTrack} aria-hidden="true">
-                  <span className={styles.growthTimelinePoint}>{observed ? <Check size={20} strokeWidth={4} /> : index + 1}</span>
+                  <span className={styles.growthTimelinePoint}>{complete ? <Check size={20} strokeWidth={4} /> : index + 1}</span>
                 </div>
                 <div className={styles.growthStageRow}>
                   <div>
                     <strong>{farmerGrowthStage(stage)}</strong>
-                    <small>{activity ? formatDateTime(activity.performedAt) : current ? "Current stage in crop record" : "No observation recorded"}</small>
+                    <small>{activity ? formatDateTime(activity.performedAt) : skipped ? "Stage passed without an observation" : current ? "Current stage in crop record" : "No observation recorded"}</small>
                   </div>
-                  <span className={styles.growthStageStatus}>{observed ? "Recorded" : current ? "Current step" : "Not seen yet"}</span>
+                  <span className={styles.growthStageStatus}>{observed ? "Recorded" : skipped ? "Skipped" : current ? "Current step" : "Not seen yet"}</span>
                   {activity ? <p>{activity.activityType}{activity.notes ? ` · ${activity.notes}` : ""}</p> : null}
                   {observed && stagePhotos.length ? (
                     <button

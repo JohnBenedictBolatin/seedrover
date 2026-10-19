@@ -1,7 +1,10 @@
 import { test, expect, type Page } from '@playwright/test';
-import { asRole, crop, db, check, prefix, evidence, selectNamed, confirm, inventory } from '../support';
+import { asRole, crop, db, check, prefix, evidence, selectNamed, confirm, produceInventory } from '../support';
 async function details(page: Page, name: string) {
-  await page.goto('/crops'); await page.getByPlaceholder('Search crop, batch ID, field...').fill(name);
+  await page.goto('/crops', { waitUntil: 'domcontentloaded' });
+  const search = page.getByPlaceholder('Search crop, batch ID, field...');
+  await expect(search).toBeVisible();
+  await search.fill(name);
   const card = page.locator('article').filter({ hasText: name });
   await card.getByRole('button', { name: /View details for/ }).click();
 }
@@ -9,6 +12,26 @@ test.beforeEach(async ({ page }) => { await asRole(page, 'planting'); });
 test('SR-CROP-001 Seeded crop batch displays correct details', async ({ page }, info) => {
   const item = await crop('display'); await details(page, item.name);
   await expect(page.getByRole('dialog').getByText(item.name, { exact: true }).first()).toBeVisible(); await evidence(page, info);
+});
+test('Growth journey checks earlier stages skipped before the recorded current stage', async ({ page }, info) => {
+  const item = await crop('skipped_growth_stage');
+  const record = await db().from('crops').select('crop_profiles(stage_plan)').eq('id', item.id).single();
+  check(record.error);
+  const profile = record.data!.crop_profiles as { stage_plan?: { stage: string }[] } | null;
+  const stagePlan = profile?.stage_plan ?? [];
+  // Stage zero is observed by the planting receipt. Advance past stage one so
+  // the journey has a real skipped stage between the receipt and current stage.
+  if (stagePlan.length < 3) test.skip(true, 'Crop profile does not contain enough stages to demonstrate a skipped stage.');
+
+  const advanced = await db().from('crops').update({ growth_stage: stagePlan[2].stage }).eq('id', item.id);
+  check(advanced.error);
+  await details(page, item.name);
+  await page.getByRole('tab', { name: 'GROWTH JOURNEY', exact: true }).click();
+  const journey = page.locator('#crop-tabpanel-growth');
+  await expect(journey.getByText('Skipped', { exact: true })).toBeVisible();
+  await expect(journey.getByText('Stage passed without an observation', { exact: true })).toBeVisible();
+  await expect(journey.getByText('Current step', { exact: true })).toBeVisible();
+  await evidence(page, info, 'skipped-growth-stage');
 });
 test('SR-CROP-002 Edit crop details through a reachable UI control', async ({ page }, info) => {
   const item = await crop('edit'); await details(page, item.name);
@@ -67,11 +90,7 @@ test('SR-CROP-005 Rename planting keeps crop type and tracking identity intact',
 
 test('SR-CROP-006 Repeat harvest records separate stock batches and closes with the combined total', async ({ page }, info) => {
   const item = await crop('repeat_harvest');
-  const produce = await inventory('repeat_harvest_stock', 0);
-  // Harvest inventory must match the crop type. Keep the crop's canonical type and
-  // planting identity intact instead of renaming crop_name to an arbitrary fixture label.
-  const setup = await db().from('inventory').update({ item_name: 'Sitaw' }).eq('id', produce.id);
-  check(setup.error);
+  const produce = await produceInventory('Sitaw');
   const stage = await db().from('crops').update({ growth_stage: 'Harvest Ready' }).eq('id', item.id);
   check(stage.error);
 
@@ -102,8 +121,11 @@ test('SR-CROP-006 Repeat harvest records separate stock batches and closes with 
   expect(harvests.data).toHaveLength(2);
   expect(harvests.data!.reduce((sum, harvest) => sum + Number(harvest.quantity), 0)).toBe(8);
 
+  const cropHarvests = await db().from('crop_harvests').select('id').eq('crop_id', item.id);
+  check(cropHarvests.error);
   const movements = await db().from('inventory_transactions')
-    .select('id, source_id').eq('inventory_id', produce.id).eq('source', 'harvest');
+    .select('id, source_id').eq('inventory_id', produce.id).eq('source', 'harvest')
+    .in('source_id', cropHarvests.data!.map(({ id }) => id));
   check(movements.error);
   expect(movements.data).toHaveLength(2);
   expect(new Set(movements.data!.map((movement) => movement.source_id)).size).toBe(2);
@@ -129,7 +151,8 @@ test('SR-CROP-006 Repeat harvest records separate stock batches and closes with 
   check(outcomes.error);
   expect(Number(outcomes.data?.[0]?.quantity)).toBe(8);
   const movementsAfterEnd = await db().from('inventory_transactions')
-    .select('id').eq('inventory_id', produce.id).eq('source', 'harvest');
+    .select('id').eq('inventory_id', produce.id).eq('source', 'harvest')
+    .in('source_id', cropHarvests.data!.map(({ id }) => id));
   check(movementsAfterEnd.error);
   expect(movementsAfterEnd.data).toHaveLength(2);
   await evidence(page, info);

@@ -6,7 +6,7 @@ test('SR-SALE-001 @smoke Cash sale saves receipt total change and exact stock de
   const item = await inventory('cash'); await fillSale(page, [{ name: item.name, quantity: 3 }], 'cash');
   const discountPicker = page.locator('input[name="discount_code"]').locator('..');
   await discountPicker.locator('button').first().click();
-  await expect(discountPicker.getByRole('button', { name: 'No discount', exact: true })).toBeVisible();
+  await expect(discountPicker.getByRole('button', { name: /No discount(?:s available)?/, exact: true })).toBeVisible();
   await discountPicker.locator('button').first().click();
   const sale = await submitSale(page, 'cash'); expect(Number(sale.total_amount)).toBe(150); expect(Number(sale.change_amount)).toBe(50);
   expect(await balance(item.id)).toBe(17);
