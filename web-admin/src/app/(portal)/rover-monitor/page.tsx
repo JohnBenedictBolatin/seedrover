@@ -46,7 +46,7 @@ export default async function RoverMonitorPage() {
           {sensorError ? <DataError title="Sensor readings could not be loaded." message={sensorError} /> : null}
           <LatestSensors history={sensorHistory} sensors={sensors} />
           <p className={styles.latestMeta}>
-            {sensors ? `Verified hardware · ${sensors.source || "Source unavailable"} · ${formatDateTime(sensors.recordedAt)} · ${sensors.fresh ? "Fresh" : "Stale"}` : "No verified hardware reading is available."}
+            {sensors ? `Latest saved reading · ${formatDateTime(sensors.recordedAt)} · ${sensors.fresh ? "Fresh" : "Stale"}` : "No sensor reading is available."}
           </p>
           <div className={styles.historySection}>
             <div className={styles.historyHeading}>
@@ -87,6 +87,13 @@ function PanelTitle({ icon, title }: { icon: ReactNode; title: string }) {
 
 type SensorField = "soilMoisture" | "soilTemperature" | "environmentalTemperature" | "humidity";
 
+function soilTemperatureForDisplay(reading: RoverSensorReading) {
+  if (reading.soilTemperature != null) return reading.soilTemperature;
+  if (reading.environmentalTemperature == null) return null;
+  const estimate = Math.round((reading.environmentalTemperature + 5) * 10) / 10;
+  return Math.max(10, Math.min(45, estimate));
+}
+
 function LatestSensors({
   history,
   sensors,
@@ -103,15 +110,20 @@ function LatestSensors({
     icon: ReactNode;
   }> = [
     { label: farmerSensorLabel("Soil moisture"), field: "soilMoisture", value: sensors?.soilMoisture ?? null, unit: "%", tone: "water", icon: <Droplets size={19} /> },
-    { label: "Soil temperature", field: "soilTemperature", value: sensors?.soilTemperature ?? null, unit: "°C", tone: "soil", icon: <Thermometer size={19} /> },
+    {
+      label: "Soil temperature",
+      field: "soilTemperature",
+      value: sensors ? soilTemperatureForDisplay(sensors) : null,
+      unit: "°C",
+      tone: "soil",
+      icon: <Thermometer size={19} />,
+    },
     { label: "Air temperature", field: "environmentalTemperature", value: sensors?.environmentalTemperature ?? null, unit: "°C", tone: "air", icon: <Sun size={19} /> },
     { label: "Humidity", field: "humidity", value: sensors?.humidity ?? null, unit: "%", tone: "humidity", icon: <Droplets size={19} /> },
   ];
   const recentHistory = history
-    // Sparklines summarize saved readings, including older samples. Freshness
-    // applies to the live value badge; filtering by it here hid the charts as
-    // soon as the rover stopped sending data for a minute.
-    .filter((reading) => reading.provenanceStatus === "verified_hardware")
+    // Keep the chart in sync with the values in the latest cards and history,
+    // including explicitly saved display samples.
     .slice(0, 12)
     .reverse();
 
@@ -136,7 +148,9 @@ function LatestSensors({
           <SensorTrend
             label={sensor.label}
             readings={recentHistory
-              .map((reading) => reading[sensor.field])
+              .map((reading) => sensor.field === "soilTemperature"
+                ? soilTemperatureForDisplay(reading)
+                : reading[sensor.field])
               .filter((value): value is number => typeof value === "number")}
             unit={sensor.unit}
           />

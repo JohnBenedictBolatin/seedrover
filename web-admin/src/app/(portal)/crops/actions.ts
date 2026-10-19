@@ -501,20 +501,28 @@ export async function getCropSensorHistoryAction(cropId: string) {
     throw new Error(error.message);
   }
 
-  return (data ?? []).map<CropSensorReading>((reading) => ({
-    id: reading.id,
-    soilRaw: boundedSensorValue(reading.soil_raw, 1, 4094),
-    soilMoisture: (reading.soil_moisture_calibrated && reading.calibration_version) || (reading.provenance_status === "simulated" && reading.source === "Estimated sample" && reading.calibration_version === "display-sample-v1") ? boundedSensorValue(reading.calibrated_value ?? reading.soil_moisture, 0, 100) : null,
-    soilTemperature: boundedSensorValue(reading.soil_temperature, -55, 125),
-    environmentalTemperature: boundedSensorValue(reading.environmental_temperature, -40, 80),
-    humidity: boundedSensorValue(reading.humidity, 0, 100),
-    source: reading.source,
-    recordedAt: reading.recorded_at,
-    provenanceStatus: reading.provenance_status ?? "unverified",
-    soilMoistureCalibrated: reading.soil_moisture_calibrated === false ? false : reading.soil_moisture_calibrated === true && Boolean(reading.calibration_version) ? true : null,
-    calibrationVersion: reading.calibration_version,
-    fresh: Date.now() - new Date(reading.recorded_at).getTime() >= 0 && Date.now() - new Date(reading.recorded_at).getTime() <= 60_000,
-  }));
+  return (data ?? []).map<CropSensorReading>((reading) => {
+    const isEstimatedSensorResponse = reading.provenance_status === "simulated" &&
+      reading.source === "Estimated sensor response" &&
+      reading.calibration_version === "sensor-response-estimate-v1";
+    const isEstimatedSample = reading.provenance_status === "simulated" &&
+      reading.source === "Estimated sample" &&
+      reading.calibration_version === "display-sample-v1";
+    return {
+      id: reading.id,
+      soilRaw: boundedSensorValue(reading.soil_raw, 1, 4094),
+      soilMoisture: (reading.soil_moisture_calibrated && reading.calibration_version) || isEstimatedSample || isEstimatedSensorResponse ? boundedSensorValue(reading.calibrated_value ?? reading.soil_moisture, 0, 100) : null,
+      soilTemperature: boundedSensorValue(reading.soil_temperature, -55, 125),
+      environmentalTemperature: boundedSensorValue(reading.environmental_temperature, -40, 80),
+      humidity: boundedSensorValue(reading.humidity, 0, 100),
+      source: reading.source,
+      recordedAt: reading.recorded_at,
+      provenanceStatus: reading.provenance_status ?? "unverified",
+      soilMoistureCalibrated: reading.soil_moisture_calibrated === false ? false : reading.soil_moisture_calibrated === true && Boolean(reading.calibration_version) ? true : null,
+      calibrationVersion: reading.calibration_version,
+      fresh: Date.now() - new Date(reading.recorded_at).getTime() >= 0 && Date.now() - new Date(reading.recorded_at).getTime() <= 60_000,
+    };
+  });
 }
 
 export async function getCropActivityHistoryAction(cropId: string) {

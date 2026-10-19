@@ -12,7 +12,7 @@ export type LoginState = {
   message: string;
 };
 
-const genericLoginError = "Invalid username or password.";
+const genericLoginError = "Your username or password is incorrect.";
 const genericResetMessage =
   "If that username exists, a password reset email will be sent.";
 
@@ -109,7 +109,7 @@ export async function signInAction(
   }
 
   if (username !== username.toLowerCase()) {
-    return { message: "That username is incorrect." };
+    return { message: genericLoginError };
   }
 
   if (!password) {

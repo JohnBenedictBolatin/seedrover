@@ -225,6 +225,19 @@
   font-weight: 800;
 }
 
+.sensorValue > .sensorEstimated,
+.sensorEstimated {
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.sensorTable td .sensorEstimated {
+  display: block;
+  margin-top: 2px;
+}
+
 .sensorValue .unavailableValue {
   color: var(--text-muted);
   font-family: inherit;

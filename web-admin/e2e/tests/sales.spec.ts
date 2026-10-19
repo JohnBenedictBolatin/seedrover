@@ -6,7 +6,7 @@ test('SR-SALE-001 @smoke Cash sale saves receipt total change and exact stock de
   const item = await inventory('cash'); await fillSale(page, [{ name: item.name, quantity: 3 }], 'cash');
   const discountPicker = page.locator('input[name="discount_code"]').locator('..');
   await discountPicker.locator('button').first().click();
-  await expect(discountPicker.getByRole('button', { name: /No discount(?:s available)?/, exact: true })).toBeVisible();
+  await expect(discountPicker.getByRole('button', { name: /^No discount(?:s available)?$/ })).toBeVisible();
   await discountPicker.locator('button').first().click();
   const sale = await submitSale(page, 'cash'); expect(Number(sale.total_amount)).toBe(150); expect(Number(sale.change_amount)).toBe(50);
   expect(await balance(item.id)).toBe(17);
@@ -56,7 +56,8 @@ test('SR-SALE-007 A payment transaction ID cannot be reused', async ({ page }, i
   await page.locator('[name="transaction_reference"]').fill(reference.toLowerCase());
   await page.getByRole('button', { name: 'Record sale', exact: true }).last().click();
   await confirm(page, 'Record this sale?', 'Record sale');
-  await expect(page.getByRole('alert').filter({ hasText: /transaction ID is already recorded/i })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Record sale' })
+    .getByRole('alert').filter({ hasText: /transaction ID is already recorded/i })).toBeVisible();
 
   expect(await balance(secondItem.id)).toBe(20);
   const matching = await db().from('sales_orders').select('id').ilike('transaction_reference', reference);

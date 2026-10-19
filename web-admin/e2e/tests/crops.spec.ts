@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { asRole, crop, db, check, prefix, evidence, selectNamed, confirm, produceInventory } from '../support';
+import { accounts, asRole, crop, db, check, prefix, evidence, selectNamed, confirm, produceInventory } from '../support';
 async function details(page: Page, name: string) {
   await page.goto('/crops', { waitUntil: 'domcontentloaded' });
   const search = page.getByPlaceholder('Search crop, batch ID, field...');
@@ -85,6 +85,18 @@ test('SR-CROP-005 Rename planting keeps crop type and tracking identity intact',
   expect(after.data!.batch_code).toBe(before.data!.batch_code);
   expect(after.data!.assigned_planting_name).toBe(before.data!.assigned_planting_name);
   expect(after.data!.planting_name_version).toBe(Number(before.data!.planting_name_version) + 1);
+  const renameActivity = await db().from('crop_activities')
+    .select('activity_type,notes,performed_by')
+    .eq('crop_id', item.id)
+    .eq('activity_type', 'Planting Name Changed');
+  check(renameActivity.error);
+  expect(renameActivity.data).toHaveLength(1);
+  expect(renameActivity.data![0].notes).toContain(before.data!.assigned_planting_name);
+  expect(renameActivity.data![0].notes).toContain(`${prefix} north rows`);
+  expect(renameActivity.data![0].performed_by).toBe(accounts().planting.id);
+  await page.getByRole('tab', { name: 'ACTIVITY', exact: true }).click();
+  await expect(page.getByText('Planting renamed', { exact: true })).toBeVisible();
+  await expect(page.getByText(`${prefix} north rows`, { exact: false })).toBeVisible();
   await evidence(page, info);
 });
 

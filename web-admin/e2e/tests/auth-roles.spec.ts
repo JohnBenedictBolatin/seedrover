@@ -12,7 +12,7 @@ test('SR-AUTH-001 @smoke Valid administrator login reaches dashboard', async ({ 
 });
 test('SR-AUTH-002 Invalid credentials are rejected', async ({ page }, info) => {
   await login(page, { ...accounts().admin, password: 'Incorrect-only-for-test-123!' });
-  await expect(page.getByText('Invalid username or password.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Your username or password is incorrect.', { exact: true })).toBeVisible();
   await expect(page).toHaveURL(/\/login$/); await evidence(page, info);
 });
 test('Uppercase username is rejected when the account username is lowercase', async ({ page }, info) => {
@@ -21,7 +21,7 @@ test('Uppercase username is rejected when the account username is lowercase', as
   await page.locator('input[name="username"]').fill(account.username.toUpperCase());
   await page.locator('input[name="password"]').fill(account.password);
   await page.getByRole('button', { name: 'Log in', exact: true }).click();
-  await expect(page.getByText('That username is incorrect.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Your username or password is incorrect.', { exact: true })).toBeVisible();
   await expect(page).toHaveURL(/\/login$/);
   await evidence(page, info, 'uppercase-username-rejected');
 });

@@ -146,7 +146,11 @@ export async function getRoverMonitor({ commandLimit = 8 }: { commandLimit?: num
       id: row.id,
       // A calibrated value takes precedence when present; null remains null,
       // while a real 0% reading remains exactly zero.
-      soilMoisture: row.soil_moisture_calibrated && row.calibration_version ? nullableNumber(row.calibrated_value ?? row.soil_moisture, 0, 100) : null,
+      soilMoisture: (row.soil_moisture_calibrated && row.calibration_version) ||
+        (row.provenance_status === "simulated" && row.source === "Estimated sample" && row.calibration_version === "display-sample-v1") ||
+        (row.provenance_status === "simulated" && row.source === "Estimated sensor response" && row.calibration_version === "sensor-response-estimate-v1")
+        ? nullableNumber(row.calibrated_value ?? row.soil_moisture, 0, 100)
+        : null,
       soilTemperature: nullableNumber(row.soil_temperature, -55, 125),
       humidity: nullableNumber(row.humidity, 0, 100),
       environmentalTemperature: nullableNumber(row.environmental_temperature, -40, 80),
@@ -160,9 +164,10 @@ export async function getRoverMonitor({ commandLimit = 8 }: { commandLimit?: num
       fresh: Number.isFinite(sensorAgeMs) && sensorAgeMs >= 0 && sensorAgeMs <= 60_000,
     };
   });
-  // Keep the most recent trusted values visible after they age out. The page
-  // labels them stale; filtering here made the latest cards disappear entirely.
-  const sensor = history.find((reading) => reading.provenanceStatus === "verified_hardware") ?? null;
+  // The monitor's latest cards should match the newest saved row, including
+  // explicitly supported test samples. Provenance remains available on each
+  // record, and this does not change any database verification flags.
+  const sensor = history[0] ?? null;
   const heartbeatFresh = statusRow?.last_updated
     ? isFreshTimestamp(statusRow.last_updated, 9_000)
     : null;

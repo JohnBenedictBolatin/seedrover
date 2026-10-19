@@ -27,9 +27,54 @@ const activityCopy = {
   'Stage Observed': 'Observe growth',
 } as const;
 
+type FifoBatch = {
+  id: string;
+  remaining_quantity: number | string;
+  age_known: boolean;
+  harvest_on: string | null;
+  received_on: string;
+  created_at: string;
+};
+
+async function expectedFifoAllocations(inventoryId: string, quantity: number) {
+  const { data, error } = await db().from('inventory_stock_batches')
+    .select('id,remaining_quantity,age_known,harvest_on,received_on,created_at')
+    .eq('inventory_id', inventoryId).gt('remaining_quantity', 0);
+  check(error);
+  const batches = (data ?? []) as FifoBatch[];
+  // Match the stock allocation trigger's order: unknown age first, then the
+  // harvest/receipt date, receipt date, creation time, and id.
+  batches.sort((a, b) => Number(a.age_known) - Number(b.age_known)
+    || (a.harvest_on ?? a.received_on).localeCompare(b.harvest_on ?? b.received_on)
+    || a.received_on.localeCompare(b.received_on)
+    || a.created_at.localeCompare(b.created_at)
+    || a.id.localeCompare(b.id));
+  const expected = new Map<string, number>();
+  let remaining = quantity;
+  for (const batch of batches) {
+    if (remaining <= 0) break;
+    const allocated = Math.min(Number(batch.remaining_quantity), remaining);
+    if (allocated > 0) expected.set(batch.id, allocated);
+    remaining -= allocated;
+  }
+  expect(remaining).toBe(0);
+  return expected;
+}
+
+async function assertFifoAllocations(transactionId: string, expected: Map<string, number>) {
+  const { data, error } = await db().from('inventory_transaction_batch_allocations')
+    .select('batch_id,quantity').eq('transaction_id', transactionId);
+  check(error);
+  const actual = new Map((data ?? []).map(({ batch_id, quantity }) => [batch_id, Number(quantity)]));
+  expect(Object.fromEntries([...actual].sort(([a], [b]) => a.localeCompare(b))))
+    .toEqual(Object.fromEntries([...expected].sort(([a], [b]) => a.localeCompare(b))));
+}
+
 async function openCrop(page: Page, name: string) {
-  await page.goto('/crops');
-  await page.getByPlaceholder('Search crop, batch ID, field...').fill(name);
+  await page.goto('/crops', { waitUntil: 'domcontentloaded' });
+  const search = page.getByPlaceholder('Search crop, batch ID, field...');
+  await expect(search).toBeVisible();
+  await search.fill(name);
   await page.locator('article').filter({ hasText: name })
     .getByRole('button', { name: /View details for/ }).click();
 }
@@ -154,9 +199,6 @@ test('SR-CORE-002 Sitaw care, growth stages, sale between repeat harvests, and e
   const planting = await crop('repeat_sitaw', 'sitaw');
   const stock = await produceInventory('Sitaw');
   const startingQuantity = await balance(stock.id);
-  const oldestBatchBefore = await db().from('inventory_stock_batches').select('id')
-    .eq('inventory_id', stock.id).order('created_at', { ascending: true }).limit(1).maybeSingle();
-  check(oldestBatchBefore.error);
   for (const activity of ['Watered', 'Fertilized', 'Inspected'] as const) {
     await doCare(page, planting.name, planting.id, activity);
   }
@@ -172,6 +214,7 @@ test('SR-CORE-002 Sitaw care, growth stages, sale between repeat harvests, and e
   const firstCropBatch = await harvestBatches(planting.id, stock.id);
   expect(firstCropBatch).toHaveLength(1);
 
+  const expectedSaleAllocations = await expectedFifoAllocations(stock.id, 2);
   const sale = await sell(page, 'Sitaw', 2, 'sitaw_sale_between_picks');
   const saleLine = await db().from('sales_order_items').select('inventory_id,quantity_sold,line_total')
     .eq('sales_order_id', sale.id).single();
@@ -181,11 +224,7 @@ test('SR-CORE-002 Sitaw care, growth stages, sale between repeat harvests, and e
   const saleMovement = await db().from('inventory_transactions').select('id')
     .eq('inventory_id', stock.id).eq('source', 'sale').eq('source_id', sale.id).single();
   check(saleMovement.error);
-  const saleAllocations = await db().from('inventory_transaction_batch_allocations')
-    .select('batch_id,quantity').eq('transaction_id', saleMovement.data!.id);
-  check(saleAllocations.error);
-  expect(saleAllocations.data?.reduce((sum, row) => sum + Number(row.quantity), 0)).toBe(2);
-  expect(saleAllocations.data![0].batch_id).toBe(oldestBatchBefore.data?.id ?? firstCropBatch[0].id);
+  await assertFifoAllocations(saleMovement.data!.id, expectedSaleAllocations);
 
   await page.context().clearCookies();
   await asRole(page, 'planting');
@@ -203,7 +242,7 @@ test('SR-CORE-002 Sitaw care, growth stages, sale between repeat harvests, and e
   const batches = await harvestBatches(planting.id, stock.id);
   expect(batches).toHaveLength(2);
   expect(batches.map((row) => Number(row.initial_quantity)).sort((a, b) => a - b)).toEqual([3, 6]);
-  const allocatedByBatch = new Map(saleAllocations.data!.map((row) => [row.batch_id, Number(row.quantity)]));
+  const allocatedByBatch = expectedSaleAllocations;
   for (const batch of batches) {
     expect(Number(batch.remaining_quantity)).toBe(
       Number(batch.initial_quantity) - (allocatedByBatch.get(batch.id) ?? 0),
@@ -218,9 +257,6 @@ test('SR-CORE-003 Peanut care, growth stages, final harvest closes crop, and sto
   const planting = await crop('single_peanut', 'peanut');
   const stock = await produceInventory('Peanut');
   const startingQuantity = await balance(stock.id);
-  const oldestBatchBefore = await db().from('inventory_stock_batches').select('id,remaining_quantity')
-    .eq('inventory_id', stock.id).order('created_at', { ascending: true }).limit(1).maybeSingle();
-  check(oldestBatchBefore.error);
   for (const activity of ['Watered', 'Fertilized', 'Inspected'] as const) {
     await doCare(page, planting.name, planting.id, activity);
   }
@@ -258,6 +294,7 @@ test('SR-CORE-003 Peanut care, growth stages, final harvest closes crop, and sto
   expect(unchanged.data).toHaveLength(1);
   expect(await balance(stock.id)).toBe(startingQuantity + 8);
 
+  const expectedSaleAllocations = await expectedFifoAllocations(stock.id, 3);
   const sale = await sell(page, 'Peanut', 3, 'peanut_final_harvest_sale');
   const line = await db().from('sales_order_items').select('inventory_id,quantity_sold,line_total')
     .eq('sales_order_id', sale.id).single();
@@ -267,16 +304,13 @@ test('SR-CORE-003 Peanut care, growth stages, final harvest closes crop, and sto
   const saleMovement = await db().from('inventory_transactions').select('id')
     .eq('inventory_id', stock.id).eq('source', 'sale').eq('source_id', sale.id).single();
   check(saleMovement.error);
-  const allocation = await db().from('inventory_transaction_batch_allocations').select('batch_id,quantity')
-    .eq('transaction_id', saleMovement.data!.id).single();
-  check(allocation.error);
-  expect(allocation.data!.batch_id).toBe(oldestBatchBefore.data?.id ?? batches[0].id);
-  expect(Number(allocation.data!.quantity)).toBe(3);
+  await assertFifoAllocations(saleMovement.data!.id, expectedSaleAllocations);
   const soldBatch = await db().from('inventory_stock_batches').select('initial_quantity,remaining_quantity')
     .eq('id', batches[0].id).single();
   check(soldBatch.error);
-  expect(soldBatch.data).toMatchObject({ initial_quantity: 8,
-    remaining_quantity: oldestBatchBefore.data ? 8 : 5 });
+  expect(Number(soldBatch.data!.initial_quantity)).toBe(8);
+  expect(Number(soldBatch.data!.remaining_quantity))
+    .toBe(8 - (expectedSaleAllocations.get(batches[0].id) ?? 0));
   await evidence(page, info, 'peanut-final-harvest-and-sale');
   await info.attach('peanut-result', { body: JSON.stringify({ cropId: planting.id, stages,
     harvestKg: 8, soldKg: 3, remainingInventoryKg: 5, cropStatus: cropResult.data!.crop_status,

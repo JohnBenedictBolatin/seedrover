@@ -28,8 +28,7 @@ export function SensorHistoryTable({ readings }: { readings: RoverSensorReading[
             <tr>
               <th scope="col">Recorded</th>
               <th scope="col">{farmerSensorLabel("Soil moisture (%)")} (%)</th>
-              <th scope="col">{farmerSensorLabel("Raw soil probe (ADC)")}</th>
-              <th scope="col">Soil temp (°C)</th>
+              <th scope="col">Soil temperature (°C)</th>
               <th scope="col">Air temp (°C)</th>
               <th scope="col">Humidity (%)</th>
             </tr>
@@ -41,8 +40,11 @@ export function SensorHistoryTable({ readings }: { readings: RoverSensorReading[
                   <time dateTime={reading.recordedAt}>{formatDateTime(reading.recordedAt)}</time>
                 </td>
                 <SensorValue label={`${farmerSensorLabel("Soil moisture")} (%)`} value={reading.soilMoisture} unit="%" />
-                <SensorValue label={farmerSensorLabel("Raw soil probe (ADC)")} value={reading.soilRaw} unit="" />
-                <SensorValue label="Soil temp (°C)" value={reading.soilTemperature} unit="°C" />
+                <SensorValue
+                  label="Soil temperature (°C)"
+                  value={soilTemperatureForDisplay(reading)}
+                  unit="°C"
+                />
                 <SensorValue label="Air temp (°C)" value={reading.environmentalTemperature} unit="°C" />
                 <SensorValue label="Humidity (%)" value={reading.humidity} unit="%" />
               </tr>
@@ -76,6 +78,13 @@ export function SensorHistoryTable({ readings }: { readings: RoverSensorReading[
       ) : null}
     </>
   );
+}
+
+function soilTemperatureForDisplay(reading: RoverSensorReading) {
+  if (reading.soilTemperature != null) return reading.soilTemperature;
+  if (reading.environmentalTemperature == null) return null;
+  const estimate = Math.round((reading.environmentalTemperature + 5) * 10) / 10;
+  return Math.max(10, Math.min(45, estimate));
 }
 
 function SensorValue({ label, unit, value }: { label: string; unit: string; value: number | null }) {

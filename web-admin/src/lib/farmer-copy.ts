@@ -138,7 +138,7 @@ export function farmerCropTips(profileKey: string | null, growthStage: string): 
 
 export function farmerSensorLabel(value: string) {
   const key = normalizedCopyKey(value);
-  if (["soil moisture", "soil moisture (%)"].includes(key)) return "Water in soil";
-  if (key === "raw soil probe (adc)") return "Sensor reading before setup";
+  if (["soil moisture", "soil moisture (%)"].includes(key)) return "Soil moisture";
+  if (key === "raw soil probe (adc)") return "Raw soil reading";
   return value;
 }

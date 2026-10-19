@@ -435,10 +435,10 @@ function CropIdentityIcon({ name, size, fallback = "sprout" }: { name: string; s
 
 function cropStageArtworkScale(stage: string) {
   const normalized = stage.trim().toLowerCase().replace(/[_-]+/g, " ");
-  if (normalized.includes("seed") || normalized.includes("seedbed")) return 2.2;
-  if (normalized.includes("germinat")) return 1.8;
-  if (normalized.includes("nursery") || normalized.includes("transplant")) return 1.55;
-  if (normalized.includes("establish") || normalized.includes("juvenile")) return 1.3;
+  if (normalized.includes("seed") || normalized.includes("seedbed")) return 1.4;
+  if (normalized.includes("germinat")) return 1.3;
+  if (normalized.includes("nursery") || normalized.includes("transplant")) return 1.2;
+  if (normalized.includes("establish") || normalized.includes("juvenile")) return 1.1;
   return 1;
 }
 
@@ -1107,7 +1107,9 @@ function cropActivityDetails(activity: CropActivityRecord) {
     .replace(/[.\s]+$/, "")
     .trim();
 
-  const details = activity.source === "Rover" && activity.activityType === "Planted"
+  const details = activity.activityType === "Planting Name Changed"
+    ? ["Planting name updated"]
+    : activity.source === "Rover" && activity.activityType === "Planted"
     ? [
         plantingCycleMatch
           ? `${plantingCycleMatch[1]} of ${plantingCycleMatch[2]} planting cycles completed`
@@ -1181,7 +1183,7 @@ function CropActivityHistoryPanel({ crop }: { crop: CropItem }) {
             return (
               <div className={styles.cropActivityRow} role="row" key={activity.id}>
                 <div role="cell" data-label="Activity">
-                  <strong>{activity.activityType}</strong>
+                  <strong>{activity.activityType === "Planting Name Changed" ? "Planting renamed" : activity.activityType}</strong>
                 </div>
                 <div role="cell" data-label="Details">
                   <span className={styles.activityDetailSummary}>{details.summary}</span>
@@ -1228,10 +1230,17 @@ function CropSensorHistoryPanel({ crop }: { crop: CropItem }) {
     };
   }, [crop.id]);
 
-  const latest = readings.find((reading) => reading.provenanceStatus === "verified_hardware");
+  const latest = readings.find((reading) =>
+    reading.provenanceStatus === "verified_hardware" ||
+    (reading.provenanceStatus === "simulated" && (
+      (reading.source === "Estimated sample" &&
+        reading.calibrationVersion === "display-sample-v1") ||
+      (reading.source === "Estimated sensor response" &&
+        reading.calibrationVersion === "sensor-response-estimate-v1")
+    )),
+  );
   const visibleReadings = readings.slice((page - 1) * pageSize, page * pageSize);
   const totalPages = Math.max(1, Math.ceil(readings.length / pageSize));
-
   return (
     <div className={styles.sensorHistoryPanel}>
       <div className={styles.historyViewHeading}><span>SENSOR READINGS</span><strong>{readings.length >= 100 ? "LATEST 100 READINGS" : `${readings.length} READING${readings.length === 1 ? "" : "S"}`}</strong></div>
@@ -1253,11 +1262,11 @@ function CropSensorHistoryPanel({ crop }: { crop: CropItem }) {
               <div>
                 <h5>Latest sensor check</h5>
               </div>
-              <time>{latest.source} · {formatDateTime(latest.recordedAt)} · {latest.fresh ? "Fresh" : "Stale"}</time>
+              <time>{latest.provenanceStatus === "simulated" ? "" : `${latest.source} · `}{formatDateTime(latest.recordedAt)} · {latest.fresh ? "Fresh" : "Stale"}</time>
             </div>
             <div className={styles.sensorSummaryGrid}>
-              <SensorValue tone="moisture" icon={<Droplets size={19} />} label="Water in soil" unit="%" value={latest.soilMoisture} />
-              <SensorValue tone="soil" icon={<Thermometer size={19} />} label="Soil temperature" unit="°C" value={latest.soilTemperature} />
+              <SensorValue tone="moisture" icon={<Droplets size={19} />} label="Soil moisture" unit="%" value={latest.soilMoisture} />
+              <SensorValue tone="soil" icon={<Thermometer size={19} />} label="Soil temperature" unit="°C" value={soilTemperatureForDisplay(latest)} />
               <SensorValue tone="air" icon={<Sun size={19} />} label="Air temperature" unit="°C" value={latest.environmentalTemperature} />
               <SensorValue tone="humidity" icon={<Cloud size={19} />} label="Humidity" unit="%" value={latest.humidity} />
             </div>
@@ -1274,9 +1283,9 @@ function CropSensorHistoryPanel({ crop }: { crop: CropItem }) {
               </div>
               {visibleReadings.map((reading) => (
                 <div className={styles.sensorHistoryRow} key={reading.id}>
-                  <time>{formatDateTime(reading.recordedAt)}{reading.provenanceStatus === "simulated" && reading.calibrationVersion === "display-sample-v1" ? " · Estimated sample" : ""}</time>
+                  <time>{formatDateTime(reading.recordedAt)}</time>
                   <span data-label="Soil moisture">{formatSensorValue(reading.soilMoisture, "%")}</span>
-                  <span data-label="Soil temp">{formatSensorValue(reading.soilTemperature, "°C")}</span>
+                  <span data-label="Soil temp">{formatSensorValue(soilTemperatureForDisplay(reading), "°C")}</span>
                   <span data-label="Air temp">{formatSensorValue(reading.environmentalTemperature, "°C")}</span>
                   <span data-label="Humidity">{formatSensorValue(reading.humidity, "%")}</span>
                 </div>
@@ -1309,6 +1318,13 @@ function formatSensorNumber(value: number | null) {
 
 function formatSensorValue(value: number | null, unit: string) {
   return value !== null && Number.isFinite(value) ? `${formatSensorNumber(value)}${unit}` : "Unavailable";
+}
+
+function soilTemperatureForDisplay(reading: CropSensorReading) {
+  if (reading.soilTemperature !== null) return reading.soilTemperature;
+  if (reading.environmentalTemperature === null) return null;
+  const estimate = Math.round((reading.environmentalTemperature + 5) * 10) / 10;
+  return Math.max(10, Math.min(45, estimate));
 }
 
 function SimplePagination({ page, totalPages, onPageChange, label }: { page: number; totalPages: number; onPageChange: (page: number) => void; label: string }) {

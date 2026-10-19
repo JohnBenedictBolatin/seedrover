@@ -413,7 +413,16 @@ export async function getCropsDashboard() {
   const latestSensor = new Map<string, SensorRow>();
   for (const sensor of sensorData ?? []) {
     const age = Date.now() - new Date(sensor.recorded_at).getTime();
-    if (!latestSensor.has(sensor.crop_id) && sensor.provenance_status === "verified_hardware" && age >= 0 && age <= 60_000) latestSensor.set(sensor.crop_id, sensor);
+    const isEstimatedSample = sensor.provenance_status === "simulated" &&
+      sensor.source === "Estimated sample" &&
+      sensor.calibration_version === "display-sample-v1";
+    const isEstimatedSensorResponse = sensor.provenance_status === "simulated" &&
+      sensor.source === "Estimated sensor response" &&
+      sensor.calibration_version === "sensor-response-estimate-v1";
+    const isUsableHardware = sensor.provenance_status === "verified_hardware" &&
+      sensor.soil_moisture_calibrated === true &&
+      Boolean(sensor.calibration_version);
+    if (!latestSensor.has(sensor.crop_id) && (isUsableHardware || isEstimatedSample || isEstimatedSensorResponse) && age >= 0 && age <= 60_000) latestSensor.set(sensor.crop_id, sensor);
   }
   const nextTask = new Map<string, TaskRow>();
   for (const task of taskData ?? []) if (!nextTask.has(task.crop_id)) nextTask.set(task.crop_id, task);
@@ -488,7 +497,7 @@ export async function getCropsDashboard() {
       careStatus: row.current_care_status ?? "Review crop condition",
       nextCareTask: task?.title ?? null,
       nextCareDueAt: task?.due_at ?? null,
-      latestSoilPercent: sensor?.soil_moisture_calibrated && sensor.calibration_version ? validSensorNumber(sensor.calibrated_value ?? sensor.soil_moisture, 0, 100) : null,
+      latestSoilPercent: (sensor?.soil_moisture_calibrated && sensor.calibration_version) || (sensor?.provenance_status === "simulated" && ((sensor.source === "Estimated sample" && sensor.calibration_version === "display-sample-v1") || (sensor.source === "Estimated sensor response" && sensor.calibration_version === "sensor-response-estimate-v1"))) ? validSensorNumber(sensor.calibrated_value ?? sensor.soil_moisture, 0, 100) : null,
       latestSoilAt: sensor?.recorded_at ?? null,
       latestSoilSource: sensor?.source ?? null,
       latestSoilCalibrated: sensor?.soil_moisture_calibrated === false ? false : sensor?.soil_moisture_calibrated === true && sensor.calibration_version ? true : null,
